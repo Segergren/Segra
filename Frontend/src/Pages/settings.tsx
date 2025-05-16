@@ -733,9 +733,9 @@ export default function Settings() {
 				</div>
 			</div>
 
-			{/* Input/Output Devices */}
+			{/* Audio Settings */}
 			<div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-				<h2 className="text-xl font-semibold mb-4">Input/Output Devices</h2>
+				<h2 className="text-xl font-semibold mb-4">Audio</h2>
 				<div className="grid grid-cols-2 gap-4">
 					{/* Input Devices (Multiple Selection) */}
 					<div className="form-control">
@@ -1028,6 +1028,18 @@ export default function Settings() {
 			<div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
 				<h2 className="text-xl font-semibold mb-4">Advanced Settings</h2>
 				<div className="bg-base-100 p-4 rounded-lg space-y-4 border border-custom">
+					<div className="flex items-center justify-between mb-4">
+						<div className="flex items-center gap-2">
+							<span className="font-medium">Only Record Game and Discord Audio</span>
+						</div>
+						<input
+							type="checkbox"
+							name="onlyRecordGameAndDiscord"
+							checked={settings.onlyRecordGameAndDiscord}
+							onChange={(e) => updateSettings({onlyRecordGameAndDiscord: e.target.checked})}
+							className="toggle toggle-primary"
+						/>
+					</div>
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-2">
 							<span className="font-medium">Update Channel</span>

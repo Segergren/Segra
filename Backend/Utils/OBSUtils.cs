@@ -425,7 +425,7 @@ namespace Segra.Backend.Utils
                 }
             }
 
-            if (Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
+            if (!Settings.Instance.OnlyRecordGameAndDiscord && Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
             {
                 int desktopSourceIndex = micSources.Count + 1;
 
@@ -451,6 +451,28 @@ namespace Segra.Backend.Utils
                         Log.Information($"Added output device: {deviceSetting.Name} ({deviceSetting.Id}) as {sourceName} with fixed volume {desktopVolume}");
                     }
                 }
+            }
+
+            if (Settings.Instance.OnlyRecordGameAndDiscord)
+            {
+                IntPtr discordSettings = obs_data_create();
+                obs_data_set_string(discordSettings, "window", "::Discord.exe");
+                obs_data_set_int(discordSettings, "priority", 2); // match by exe
+                //obs_data_set_bool(discordSettings, "capture_audio_only", true);
+                IntPtr source = obs_source_create("wasapi_process_output_capture", "Discord Audio", discordSettings, IntPtr.Zero);
+                obs_data_release(discordSettings);
+                obs_set_output_source((uint)micSources.Count + 1, source);
+                desktopSources.Add(source);
+
+                IntPtr gameSettings = obs_data_create();
+                string windowId = "::" + fileName;
+                Log.Information($"Recording game: {fileName}");
+                obs_data_set_string(gameSettings, "window", windowId);
+                obs_data_set_int(gameSettings, "priority", 2); // match by exe
+                IntPtr gameSource = obs_source_create("wasapi_process_output_capture", "Game Audio", gameSettings, IntPtr.Zero);
+                obs_data_release(gameSettings);
+                obs_set_output_source((uint)micSources.Count + 2, gameSource);
+                desktopSources.Add(gameSource);
             }
 
             IntPtr audioEncoderSettings = obs_data_create();
@@ -709,6 +731,31 @@ namespace Segra.Backend.Utils
                 if (Settings.Instance.State.Recording != null && hookedExecutableFileName != null)
                 {
                     Settings.Instance.State.Recording.FileName = hookedExecutableFileName;
+                }
+
+                if (Settings.Instance.OnlyRecordGameAndDiscord)
+                {
+                    IntPtr gameSource = IntPtr.Zero;
+                    for (int i = 0; i < desktopSources.Count; i++)
+                    {
+                        if (obs_source_get_name(desktopSources[i]) == "Game Audio")
+                        {
+                            gameSource = desktopSources[i];
+                            break;
+                        }
+                    }
+                    
+                    if (gameSource != IntPtr.Zero)
+                    {
+                        // Update the source to use the hooked executable
+                        IntPtr gameSettings = obs_data_create();
+                        string windowId = "::" + hookedExecutableFileName;
+                        obs_data_set_string(gameSettings, "window", windowId);
+                        obs_data_set_int(gameSettings, "priority", 2);
+                        obs_source_update(gameSource, gameSettings);
+                        obs_data_release(gameSettings);
+                        Log.Information($"Updated Game Audio source to use hooked executable: {hookedExecutableFileName}");
+                    }
                 }
             }
             catch (Exception ex)

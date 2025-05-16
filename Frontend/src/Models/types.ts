@@ -94,6 +94,7 @@ export interface Settings {
 	enableDisplayRecording: boolean;
 	enableAi: boolean;
 	autoGenerateHighlights: boolean;
+	onlyRecordGameAndDiscord: boolean;
 	runOnStartup: boolean;
 	receiveBetaUpdates: boolean;
 	recordingMode: RecordingMode;
@@ -131,6 +132,7 @@ export const initialSettings: Settings = {
 	enableDisplayRecording: false,
 	enableAi: true,
 	autoGenerateHighlights: true,
+	onlyRecordGameAndDiscord: false,
 	runOnStartup: false,
 	receiveBetaUpdates: false,
 	recordingMode: 'Session',

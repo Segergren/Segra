@@ -28,6 +28,7 @@ namespace Segra.Backend.Models
         private bool _enableDisplayRecording = false;
         private bool _enableAi = true;
         private bool _autoGenerateHighlights = true;
+        private bool _onlyRecordGameAndDiscord = false;
         private bool _runOnStartup = false;
         private bool _receiveBetaUpdates = false;
         private RecordingMode _recordingMode = RecordingMode.Session;
@@ -294,6 +295,20 @@ namespace Segra.Backend.Models
                 if (_autoGenerateHighlights != value)
                 {
                     _autoGenerateHighlights = value;
+                    SendToFrontend();
+                }
+            }
+        }
+
+        [JsonPropertyName("onlyRecordGameAndDiscord")]
+        public bool OnlyRecordGameAndDiscord
+        {
+            get => _onlyRecordGameAndDiscord;
+            set
+            {
+                if (_onlyRecordGameAndDiscord != value)
+                {
+                    _onlyRecordGameAndDiscord = value;
                     SendToFrontend();
                 }
             }
