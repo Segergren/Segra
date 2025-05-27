@@ -399,6 +399,14 @@ namespace Segra.Backend.Utils
                 hasChanges = true;
             }
 
+            // Update OnlyRecordGameAndDiscord
+            if (settings.OnlyRecordGameAndDiscord != updatedSettings.OnlyRecordGameAndDiscord)
+            {
+                Log.Information($"OnlyRecordGameAndDiscord changed from '{settings.OnlyRecordGameAndDiscord}' to '{updatedSettings.OnlyRecordGameAndDiscord}'");
+                settings.OnlyRecordGameAndDiscord = updatedSettings.OnlyRecordGameAndDiscord;
+                hasChanges = true;
+            }
+
             // Only save settings and send to frontend if changes were actually made
             if (hasChanges)
             {
