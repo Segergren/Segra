@@ -4,7 +4,7 @@ using Serilog;
 using System.Text;
 using System.Text.Json;
 
-namespace RePlays.Integrations
+namespace Segra.Backend.GameIntegration
 {
     internal class PubgIntegration : Integration
     {
