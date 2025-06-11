@@ -35,7 +35,7 @@ namespace Segra.Backend.Utils
                 }
 
                 Log.Information("Checking if update is necessary");
-                UpdateInfo newVersion = await UpdateManager.CheckForUpdatesAsync();
+                UpdateInfo? newVersion = await UpdateManager.CheckForUpdatesAsync();
 
                 if (newVersion == null)
                 {
@@ -191,7 +191,7 @@ namespace Segra.Backend.Utils
 
                     // Handle release candidate versions
                     string displayVersion = versionString;
-                    NuGet.Versioning.SemanticVersion releaseVersion;
+                    NuGet.Versioning.SemanticVersion? releaseVersion = null;
 
                     if (versionString.Contains("-rc."))
                     {
@@ -258,66 +258,66 @@ namespace Segra.Backend.Utils
         // GitHub API response model - complete model with JsonPropertyName attributes
         private class GitHubRelease
         {
-            public string Url { get; set; }
+            public string? Url { get; set; }
 
             [JsonPropertyName("html_url")]
-            public string HtmlUrl { get; set; }
+            public string? HtmlUrl { get; set; }
 
             [JsonPropertyName("tag_name")]
-            public string TagName { get; set; }
+            public required string TagName { get; set; }
 
-            public string Name { get; set; }
+            public string? Name { get; set; }
             public bool Draft { get; set; }
             public bool Prerelease { get; set; }
-            public string Body { get; set; }
+            public string? Body { get; set; }
 
             [JsonPropertyName("created_at")]
-            public DateTime CreatedAt { get; set; }
+            public DateTime? CreatedAt { get; set; }
 
             [JsonPropertyName("published_at")]
-            public DateTime PublishedAt { get; set; }
+            public DateTime? PublishedAt { get; set; }
 
             [JsonPropertyName("target_commitish")]
-            public string TargetCommitish { get; set; }
+            public string? TargetCommitish { get; set; }
 
             [JsonPropertyName("assets_url")]
-            public string AssetsUrl { get; set; }
+            public string? AssetsUrl { get; set; }
 
             [JsonPropertyName("upload_url")]
-            public string UploadUrl { get; set; }
+            public string? UploadUrl { get; set; }
 
             public long Id { get; set; }
 
             [JsonPropertyName("tarball_url")]
-            public string TarballUrl { get; set; }
+            public string? TarballUrl { get; set; }
 
             [JsonPropertyName("zipball_url")]
-            public string ZipballUrl { get; set; }
+            public string? ZipballUrl { get; set; }
 
-            public List<GitHubAsset> Assets { get; set; }
+            public List<GitHubAsset>? Assets { get; set; }
 
-            public GitHubUser Author { get; set; }
+            public GitHubUser? Author { get; set; }
 
             [JsonPropertyName("node_id")]
-            public string NodeId { get; set; }
+            public string? NodeId { get; set; }
         }
 
         // GitHub asset model
         private class GitHubAsset
         {
-            public string Url { get; set; }
+            public string? Url { get; set; }
             public long Id { get; set; }
 
             [JsonPropertyName("node_id")]
-            public string NodeId { get; set; }
+            public string? NodeId { get; set; }
 
-            public string Name { get; set; }
-            public string Label { get; set; }
+            public string? Name { get; set; }
+            public string? Label { get; set; }
 
             [JsonPropertyName("content_type")]
-            public string ContentType { get; set; }
+            public string? ContentType { get; set; }
 
-            public string State { get; set; }
+            public string? State { get; set; }
             public long Size { get; set; }
 
             [JsonPropertyName("download_count")]
@@ -330,27 +330,27 @@ namespace Segra.Backend.Utils
             public DateTime UpdatedAt { get; set; }
 
             [JsonPropertyName("browser_download_url")]
-            public string BrowserDownloadUrl { get; set; }
+            public string? BrowserDownloadUrl { get; set; }
 
-            public GitHubUser Uploader { get; set; }
+            public GitHubUser? Uploader { get; set; }
         }
 
         // GitHub user model
         private class GitHubUser
         {
-            public string Login { get; set; }
+            public string? Login { get; set; }
             public long Id { get; set; }
 
             [JsonPropertyName("node_id")]
-            public string NodeId { get; set; }
+            public string? NodeId { get; set; }
 
             [JsonPropertyName("avatar_url")]
-            public string AvatarUrl { get; set; }
+            public string? AvatarUrl { get; set; }
 
             [JsonPropertyName("html_url")]
-            public string HtmlUrl { get; set; }
+            public string? HtmlUrl { get; set; }
 
-            public string Type { get; set; }
+            public string? Type { get; set; }
 
             [JsonPropertyName("site_admin")]
             public bool SiteAdmin { get; set; }

@@ -1,11 +1,5 @@
 ﻿using Segra.Backend.Models;
 using Serilog;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Segra.Backend.Utils
 {
@@ -98,6 +92,12 @@ namespace Segra.Backend.Utils
                 try
                 {
                     // Determine content type based on parent folder
+
+                    if (file.Directory == null)
+                    {
+                        Log.Error("File directory is null");
+                        continue;
+                    }
                     string parentFolder = file.Directory.Name.ToLower();
                     Content.ContentType contentType = parentFolder == "sessions" ?
                         Content.ContentType.Session : Content.ContentType.Buffer;

@@ -1,7 +1,8 @@
-﻿using Segra.Backend.Models;
+using Segra.Backend.Models;
 using Serilog;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Segra.Backend.GameIntegration
 {
@@ -16,13 +17,15 @@ namespace Segra.Backend.GameIntegration
         public class PubgMatchInfo
         {
             public long Timestamp { get; set; }
-            public string RecordUserNickName { get; set; }
+            public string? RecordUserNickName { get; set; }
         }
 
         public class PubgEventDetails
         {
-            public int time1 { get; set; }
-            public string data { get; set; }
+            [JsonPropertyName("time1")]
+            public int Time { get; set; }
+            [JsonPropertyName("data")]
+            public string? Data { get; set; }
         }
 
         public PubgIntegration()
@@ -32,6 +35,7 @@ namespace Segra.Backend.GameIntegration
                 Interval = 2500
             };
             checkTimer.Elapsed += (sender, args) => TimerTick();
+            previousReplayDirs = [];
         }
 
         public override Task Start()
@@ -73,6 +77,12 @@ namespace Segra.Backend.GameIntegration
                     var matchJson = ReadJson(infoPath);
                     var matchInfo = JsonSerializer.Deserialize<PubgMatchInfo>(matchJson);
 
+                    if (matchInfo is null)
+                    {
+                        Log.Warning("Failed to parse match info from {InfoPath}", infoPath);
+                        continue;
+                    }
+
                     ProcessDownedPlayers(directory, matchInfo, processedVictims);
                     ProcessKills(directory, matchInfo, processedVictims);
                     ProcessPlayerDeath(directory, matchInfo);
@@ -92,24 +102,30 @@ namespace Segra.Backend.GameIntegration
                 var eventJson = ReadJson(filePath);
                 var details = JsonSerializer.Deserialize<PubgEventDetails>(eventJson);
 
-                var rawData = DecodeBase64(details.data);
-                var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(rawData);
-                var dataList = dataDict.Values.ToList();
-
-                var instigator = dataList[1]?.ToString();
-                var victim = dataList[3]?.ToString();
-
-                if (instigator == matchInfo.RecordUserNickName && victim != matchInfo.RecordUserNickName)
+                if (details is null || details.Data is null)
                 {
-                    var downTime = MatchTimestampToLocal(matchInfo.Timestamp, details.time1);
+                    Log.Warning("Failed to parse event details from {FilePath}", filePath);
+                    continue;
+                }
+
+                var rawData = DecodeBase64(details.Data);
+                var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(rawData);
+                var dataList = dataDict?.Values?.ToList();
+
+                var instigator = dataList?[1]?.ToString();
+                var victim = dataList?[3]?.ToString();
+
+                if (instigator == matchInfo.RecordUserNickName && victim != null && victim != matchInfo.RecordUserNickName)
+                {
+                    var downTime = MatchTimestampToLocal(matchInfo.Timestamp, details.Time);
                     trackedVictims.Add(victim);
 
                     var bookmark = new Bookmark
                     {
                         Type = BookmarkType.Kill,
-                        Time = downTime - Settings.Instance.State.Recording.StartTime
+                        Time = downTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero
                     };
-                    Settings.Instance.State.Recording.Bookmarks.Add(bookmark);
+                    Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
                 }
             }
         }
@@ -122,25 +138,38 @@ namespace Segra.Backend.GameIntegration
                 var eventJson = ReadJson(filePath);
                 var details = JsonSerializer.Deserialize<PubgEventDetails>(eventJson);
 
-                var rawData = DecodeBase64(details.data);
+                if (details is null || details.Data is null)
+                {
+                    Log.Warning("Failed to parse event details from {FilePath}", filePath);
+                    continue;
+                }
+
+                var rawData = DecodeBase64(details.Data);
                 var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(rawData);
+
+                if (dataDict is null)
+                {
+                    Log.Warning("Failed to parse event data from {FilePath}", filePath);
+                    continue;
+                }
+
                 var dataList = dataDict.Values.ToList();
 
                 var killer = dataList[1]?.ToString();
                 var victim = dataList[3]?.ToString();
 
-                if (killer == matchInfo.RecordUserNickName && victim != matchInfo.RecordUserNickName)
+                if (killer == matchInfo.RecordUserNickName && victim != null && victim != matchInfo.RecordUserNickName)
                 {
-                    var killTime = MatchTimestampToLocal(matchInfo.Timestamp, details.time1);
+                    var killTime = MatchTimestampToLocal(matchInfo.Timestamp, details.Time);
                     bool wasInstantKill = trackedVictims.Add(victim);
                     if (wasInstantKill)
                     {
                         var bookmark = new Bookmark
                         {
                             Type = BookmarkType.Kill,
-                            Time = killTime - Settings.Instance.State.Recording.StartTime
+                            Time = killTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero
                         };
-                        Settings.Instance.State.Recording.Bookmarks.Add(bookmark);
+                        Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
                     }
                 }
             }
@@ -154,25 +183,38 @@ namespace Segra.Backend.GameIntegration
                 var eventJson = ReadJson(filePath);
                 var details = JsonSerializer.Deserialize<PubgEventDetails>(eventJson);
 
-                var rawData = DecodeBase64(details.data);
+                if (details is null || details.Data is null)
+                {
+                    Log.Warning("Failed to parse event details from {FilePath}", filePath);
+                    continue;
+                }
+
+                var rawData = DecodeBase64(details.Data);
                 var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(rawData);
+
+                if (dataDict is null)
+                {
+                    Log.Warning("Failed to parse event data from {FilePath}", filePath);
+                    continue;
+                }
+
                 var dataList = dataDict.Values.ToList();
                 var victim = dataList[3]?.ToString();
 
                 if (victim == matchInfo.RecordUserNickName)
                 {
-                    var deathTime = MatchTimestampToLocal(matchInfo.Timestamp, details.time1);
+                    var deathTime = MatchTimestampToLocal(matchInfo.Timestamp, details.Time);
                     var bookmark = new Bookmark
                     {
                         Type = BookmarkType.Death,
-                        Time = deathTime - Settings.Instance.State.Recording.StartTime
+                        Time = deathTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero
                     };
-                    Settings.Instance.State.Recording.Bookmarks.Add(bookmark);
+                    Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
                 }
             }
         }
 
-        private string ReadJson(string path)
+        private static string ReadJson(string path)
         {
             var content = File.ReadAllText(path);
             var start = content.IndexOf('{');
@@ -180,9 +222,9 @@ namespace Segra.Backend.GameIntegration
             return content.Substring(start, end - start);
         }
 
-        private string DecodeBase64(string base64) => Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+        private static string DecodeBase64(string base64) => Encoding.UTF8.GetString(Convert.FromBase64String(base64));
 
-        private DateTime MatchTimestampToLocal(long matchStart, int offsetMs)
+        private static DateTime MatchTimestampToLocal(long matchStart, int offsetMs)
         {
             var utcTime = DateTimeOffset.FromUnixTimeMilliseconds(matchStart + offsetMs).DateTime;
             return TimeZoneInfo.ConvertTimeFromUtc(utcTime, TimeZoneInfo.Local);

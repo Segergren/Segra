@@ -30,7 +30,7 @@ namespace Segra.Backend.Services
 
         private static IntPtr SetHook(LowLevelKeyboardProc proc)
         {
-            ProcessModule curModule = Process.GetCurrentProcess().MainModule;
+            ProcessModule curModule = Process.GetCurrentProcess().MainModule!;
             return SetWindowsHookEx(
                 WH_KEYBOARD_LL,
                 proc,

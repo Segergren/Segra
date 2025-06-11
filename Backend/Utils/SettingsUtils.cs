@@ -21,7 +21,7 @@ namespace Segra.Backend.Utils
             {
                 // Ensure the directory exists
                 var directory = Path.GetDirectoryName(SettingsFilePath);
-                if (!Directory.Exists(directory))
+                if (directory != null && !Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
                 }
@@ -538,6 +538,14 @@ namespace Segra.Backend.Utils
 
         public static void GetPrimaryMonitorResolution(out uint width, out uint height)
         {
+            if (Screen.PrimaryScreen == null)
+            {
+                width = 1920;
+                height = 1080;
+                Log.Warning("Primary screen not found, defaulting to 1920x1080");
+                return;
+            }
+
             width = (uint)Screen.PrimaryScreen.Bounds.Width;
             height = (uint)Screen.PrimaryScreen.Bounds.Height;
         }

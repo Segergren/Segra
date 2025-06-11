@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -37,8 +37,22 @@ namespace Segra.Backend.Utils
                     : normalizedPath.Substring(installDirStart);
 
                 // Construct the Steam apps directory path
+                if (commonPathIndex <= 0)
+                {
+                    // Invalid path index, return the install directory name
+                    return installDir;
+                }
+                
+                string pathSegment = normalizedPath.Substring(0, commonPathIndex);
+                string? baseDir = Path.GetDirectoryName(pathSegment);
+                if (baseDir == null)
+                {
+                    // If we can't get a valid directory, return the install directory name
+                    return installDir;
+                }
+                
                 string steamAppsDir = Path.Combine(
-                    Path.GetDirectoryName(normalizedPath.Substring(0, commonPathIndex)),
+                    baseDir,
                     "Steam",
                     "steamapps"
                 );

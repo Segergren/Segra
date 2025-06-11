@@ -96,7 +96,7 @@ namespace Segra.Backend.Utils
                     double currentProgress = (processedDuration + (progress * clipDuration)) / totalDuration * 100;
                     if (updateFrontend)
                     {
-                        MessageUtils.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, selections });
+                        _ = MessageUtils.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, selections });
                     }
 
                     if (aiProgressMessage != null && !string.IsNullOrEmpty(aiProgressMessage.Id))
@@ -108,7 +108,7 @@ namespace Segra.Backend.Utils
 
                         aiProgressMessage.Progress = (int)Math.Floor(aiProgress);
                         aiProgressMessage.Message = $"Rendering clips...";
-                        MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                        _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
                     }
                 });
 
@@ -137,7 +137,7 @@ namespace Segra.Backend.Utils
             {
                 aiProgressMessage.Progress = 99;
                 aiProgressMessage.Message = "Rendering final clip...";
-                MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
             }
 
             await RunFFmpegProcess(id, ffmpegPath,
@@ -147,7 +147,7 @@ namespace Segra.Backend.Utils
                 {
                     if (updateFrontend)
                     {
-                        MessageUtils.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
+                        _ = MessageUtils.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
                     }
                 }
             );
@@ -157,7 +157,7 @@ namespace Segra.Backend.Utils
             SafeDelete(concatFilePath);
 
             // Finalization
-            ContentUtils.CreateMetadataFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip, selections.FirstOrDefault()?.Game);
+            ContentUtils.CreateMetadataFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip, selections.FirstOrDefault()?.Game!);
             ContentUtils.CreateThumbnail(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip);
             SettingsUtils.LoadContentFromFolderIntoState();
             if (updateFrontend)
@@ -166,7 +166,7 @@ namespace Segra.Backend.Utils
             }
         }
 
-        public static async Task<string> CreateAiClipToAnalyzeFromBookmark(Bookmark bookmark, Content content)
+        public static async Task<string?> CreateAiClipToAnalyzeFromBookmark(Bookmark bookmark, Content content)
         {
             // Calculate start and end times (10 seconds before and 10 seconds after the bookmark time) for the Ai to analyze
             Log.Information("Creating AI clip to analyze for " + bookmark);

@@ -10,16 +10,27 @@ namespace Segra.Backend.Utils
             try
             {
                 string exePath = Path.ChangeExtension(Assembly.GetExecutingAssembly().Location, ".exe");
+                if (exePath == null)
+                {
+                    Log.Error("Failed to get executable path");
+                    return;
+                }
                 string startupFolder = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
                 string linkPath = Path.Combine(startupFolder, "Segra.lnk");
                 if (enable && !File.Exists(linkPath))
                 {
-                    Type shellType = Type.GetTypeFromProgID("WScript.Shell");
-                    object shell = Activator.CreateInstance(shellType);
-                    object shortcut = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { linkPath });
+                    Type shellType = Type.GetTypeFromProgID("WScript.Shell")!;
+                    object shell = Activator.CreateInstance(shellType)!;
+                    object shortcut = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { linkPath })!;
                     shortcut.GetType().InvokeMember("TargetPath", BindingFlags.SetProperty, null, shortcut, new object[] { exePath });
                     shortcut.GetType().InvokeMember("Arguments", BindingFlags.SetProperty, null, shortcut, new object[] { "--from-startup" });
-                    shortcut.GetType().InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, shortcut, new object[] { Path.GetDirectoryName(exePath) });
+                    string? workingDir = Path.GetDirectoryName(exePath);
+                    if (workingDir == null)
+                    {
+                        Log.Error("Failed to get working directory");
+                        return;
+                    }
+                    shortcut.GetType().InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, shortcut, new object[] { workingDir });
                     shortcut.GetType().InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, null);
                     Log.Information("Added Segra to startup");
                 }

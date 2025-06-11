@@ -15,7 +15,7 @@ namespace Segra.Backend.Models
 
         private string _contentFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Segra").Replace("\\", "/");
         private string _theme = "segra";
-        private string _resolution;
+        private string _resolution = "1080p";
         private int _frameRate = 60;
         private int _bitrate = 40;
         private string _rateControl = "VBR";
@@ -81,7 +81,7 @@ namespace Segra.Backend.Models
         {
             if (!_isBulkUpdating)
             {
-                MessageUtils.SendSettingsToFrontend(cause);
+                _ = MessageUtils.SendSettingsToFrontend(cause);
             }
         }
 
@@ -619,17 +619,17 @@ namespace Segra.Backend.Models
         private PreRecording? _preRecording = null;
         private Recording? _recording = null;
         private bool _hasLoadedObs = false;
-        private List<Content> _content = new List<Content>();
+        private List<Content> _content = [];
 
-        private List<AudioDevice> _inputDevices = new List<AudioDevice>();
-        private List<AudioDevice> _outputDevices = new List<AudioDevice>();
+        private List<AudioDevice> _inputDevices = [];
+        private List<AudioDevice> _outputDevices = [];
         private bool _isCheckingForUpdates = false;
 
-        private AudioDeviceWatcher _deviceWatcher;
+        private AudioDeviceWatcher? _deviceWatcher;
 
         public void Initialize()
         {
-            _deviceWatcher = new AudioDeviceWatcher();
+            _deviceWatcher = new();
             _deviceWatcher.DevicesChanged += UpdateAudioDevices;
 
             UpdateAudioDevices();
@@ -642,11 +642,11 @@ namespace Segra.Backend.Models
             }
         }
 
-        private void SendToFrontend(string cause)
+        private static void SendToFrontend(string cause)
         {
             if (Settings.Instance != null && !Settings.Instance._isBulkUpdating)
             {
-                MessageUtils.SendSettingsToFrontend(cause);
+                _ = MessageUtils.SendSettingsToFrontend(cause);
             }
         }
         [JsonPropertyName("gpuVendor")]
@@ -789,7 +789,7 @@ namespace Segra.Backend.Models
                 Log.Information($"Output device: {device.Name} {device.Id}");
             }
             Log.Information("-------------");
-            MessageUtils.SendSettingsToFrontend("Updated audio devices");
+            _ = MessageUtils.SendSettingsToFrontend("Updated audio devices");
         }
 
         private void SelectDefaultDevices()
@@ -940,16 +940,16 @@ namespace Segra.Backend.Models
 
     public class AiAnalysis
     {
-        public string id;
+        public string? Id { get; set; }
     }
 
     internal class AudioDevice : IEquatable<AudioDevice>
     {
-        public string Id { get; set; }
-        public string Name { get; set; }
+        public required string Id { get; set; }
+        public required string Name { get; set; }
         public bool IsDefault { get; set; }
 
-        public bool Equals(AudioDevice other)
+        public bool Equals(AudioDevice? other)
         {
             if (other == null)
                 return false;

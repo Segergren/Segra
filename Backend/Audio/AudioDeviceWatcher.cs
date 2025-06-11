@@ -5,9 +5,9 @@ namespace Segra.Backend.Audio
 {
     public class AudioDeviceWatcher : IMMNotificationClient, IDisposable
     {
-        private MMDeviceEnumerator _deviceEnumerator;
+        private MMDeviceEnumerator? _deviceEnumerator;
 
-        public event Action DevicesChanged;
+        public event Action? DevicesChanged;
 
         public AudioDeviceWatcher()
         {

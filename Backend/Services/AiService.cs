@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Serilog;
@@ -15,9 +15,7 @@ namespace Segra.Backend.Services
             try
             {
                 Log.Information("Starting to analyze video: " + fileName);
-                Content content = Settings.Instance.State.Content
-                    .Where(x => x.FileName == fileName)
-                    .FirstOrDefault();
+                Content? content = Settings.Instance.State.Content.FirstOrDefault(x => x.FileName == fileName);
 
                 if (content == null)
                 {
@@ -76,11 +74,17 @@ namespace Segra.Backend.Services
                     return;
                 }
 
-                string analysisId;
+                string? analysisId;
                 try
                 {
                     var responseJson = JsonDocument.Parse(responseBody);
                     analysisId = responseJson.RootElement.GetProperty("analysis_id").GetString();
+
+                    if (analysisId == null)
+                    {
+                        Log.Error("Failed to parse 'analysis_id' from the AI service response.");
+                        return;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -99,7 +103,7 @@ namespace Segra.Backend.Services
                     Content = content
                 };
 
-                MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
 
                 Dictionary<Bookmark, string> clipPaths = new Dictionary<Bookmark, string>();
 
@@ -108,7 +112,7 @@ namespace Segra.Backend.Services
                 foreach (var bookmark in bookmarks)
                 {
                     Log.Information($"Generating clip for bookmark {bookmark.Id}...");
-                    string clipPath = string.Empty;
+                    string? clipPath = null;
                     try
                     {
                         clipPath = await ClipUtils.CreateAiClipToAnalyzeFromBookmark(bookmark, content);
@@ -132,14 +136,14 @@ namespace Segra.Backend.Services
 
                     aiProgressMessage.Progress = (int)Math.Floor(currentProgress);
                     aiProgressMessage.Message = "Extracting metadata to analyze";
-                    MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                    _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
 
                     // Delay a bit before generating the next clip
                     await Task.Delay(1000);
                 }
 
                 aiProgressMessage.Progress = 20;
-                MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
                 Log.Information($"All {clipPaths.Count} clips have been generated. Starting parallel upload to AI service...");
 
                 decimal uploadRange = 30m;
@@ -168,7 +172,7 @@ namespace Segra.Backend.Services
 
                         aiProgressMessage.Progress = (int)Math.Floor(newProgress);
                         aiProgressMessage.Message = $"Uploaded {count} of {clipPaths.Count} parts to analyze";
-                        MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                        _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
                     }));
                 }
 
@@ -183,7 +187,7 @@ namespace Segra.Backend.Services
 
                 aiProgressMessage.Progress = 50;
                 aiProgressMessage.Message = $"Analyzing parts...";
-                MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
 
                 Log.Information($"All {clipPaths.Count} clips have been uploaded or attempted.");
                 await ProcessAnalysisAsync(aiProgressMessage);
@@ -202,7 +206,7 @@ namespace Segra.Backend.Services
             {
                 try
                 {
-                    string finalStatusResponse = await WaitForAnalysisCompletionAsync(aiProgressMessage, 20);
+                    string? finalStatusResponse = await WaitForAnalysisCompletionAsync(aiProgressMessage, 20);
 
                     if (!string.IsNullOrEmpty(finalStatusResponse))
                     {
@@ -246,14 +250,14 @@ namespace Segra.Backend.Services
             aiProgressMessage.Progress = 100;
             aiProgressMessage.Status = "done";
             aiProgressMessage.Message = "Done";
-            MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+            _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
         }
 
-        private static async Task<string> WaitForAnalysisCompletionAsync(AiProgressMessage aiProgressMessage, int maxWaitMinutes = 20)
+        private static async Task<string?> WaitForAnalysisCompletionAsync(AiProgressMessage aiProgressMessage, int maxWaitMinutes = 20)
         {
             aiProgressMessage.Progress = 50;
             aiProgressMessage.Message = $"Waiting for analysis...";
-            MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+            _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
 
             DateTime timeoutTime = DateTime.Now.AddMinutes(maxWaitMinutes);
             await Task.Delay(5000);
@@ -284,7 +288,7 @@ namespace Segra.Backend.Services
                     {
                         aiProgressMessage.Progress = 80;
                         aiProgressMessage.Message = $"Creating highlight";
-                        MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                        _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
 
                         return statusResponseBody;
                     }
@@ -292,7 +296,7 @@ namespace Segra.Backend.Services
                     {
                         aiProgressMessage.Progress = 80;
                         aiProgressMessage.Message = $"Analysis error";
-                        MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                        _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
                         return statusResponseBody;
                     }
 
@@ -316,7 +320,7 @@ namespace Segra.Backend.Services
 
                     aiProgressMessage.Progress = (int)Math.Floor(newProgress);
                     aiProgressMessage.Message = completedClips == 0 ? "Finding highlights..." : $"Finding highlights... {completedClips} found so far.";
-                    MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                    _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
 
                     await Task.Delay(5000);
                 }
@@ -332,7 +336,7 @@ namespace Segra.Backend.Services
 
             aiProgressMessage.Progress = 80;
             aiProgressMessage.Message = "Analysis timed out";
-            MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+            _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
 
             return null;
         }
@@ -356,13 +360,15 @@ namespace Segra.Backend.Services
 
                         foreach (var clip in clips)
                         {
-                            string bookmarkId = clip.GetProperty("bookmark_id").GetString();
-                            string clipStatus = clip.GetProperty("status").GetString();
+                            string bookmarkId = clip.GetProperty("bookmark_id").GetString() ?? string.Empty;
+                            string clipStatus = clip.GetProperty("status").GetString() ?? string.Empty;
+
+                            if (bookmarkId == "" || clipStatus == "") continue;
 
                             if (clipStatus == "completed")
                             {
                                 int rating = clip.GetProperty("rating").GetInt32();
-                                string summary = clip.GetProperty("summary").GetString();
+                                string summary = clip.GetProperty("summary").GetString() ?? string.Empty;
 
                                 Log.Information($"Clip {bookmarkId}: Rating={rating}, Summary={summary}");
 
@@ -382,7 +388,7 @@ namespace Segra.Backend.Services
                             }
                             else if (clipStatus == "error")
                             {
-                                string error = clip.GetProperty("error").GetString();
+                                string error = clip.GetProperty("error").GetString() ?? string.Empty;
                                 Log.Information($"Clip {bookmarkId} analysis failed: {error}");
                             }
                             else

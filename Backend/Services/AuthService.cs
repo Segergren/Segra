@@ -9,12 +9,7 @@ namespace Segra.Backend.Services
         public static Session? Session { get; set; }
         private const string Url = "https://ponthqrnesnanivsatps.supabase.co";
         private const string PublicApiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvbnRocXJuZXNuYW5pdnNhdHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc2NzMzMjgsImV4cCI6MjA1MzI0OTMyOH0.k8pLDkDgKV0ZLjZjAZ6eUHa40rot5qWa7iJDQKWy1FA";
-        private static Supabase.Client? _client;
-
-        static AuthService()
-        {
-            _client = new Supabase.Client(Url, PublicApiKey);
-        }
+        private static readonly Supabase.Client _client = new(Url, PublicApiKey);
 
         // Try to login with stored credentials on startup
         public static async Task TryAutoLogin()
@@ -91,7 +86,7 @@ namespace Segra.Backend.Services
             }
         }
 
-        public static async Task Logout()
+        public static Task Logout()
         {
             if (Session != null)
             {
@@ -118,6 +113,8 @@ namespace Segra.Backend.Services
                     Models.Settings.Instance.Auth.RefreshToken = string.Empty;
                 }
             }
+
+            return Task.CompletedTask;
         }
 
         public static bool IsAuthenticated()

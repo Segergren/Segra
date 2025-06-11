@@ -7,11 +7,10 @@ namespace Segra.Backend.ContentServer
 {
     internal class ContentServer
     {
-        private static HttpListener _httpListener;
+        private static readonly HttpListener _httpListener = new();
 
         public static void StartServer(string prefix)
         {
-            _httpListener = new HttpListener();
             _httpListener.Prefixes.Add(prefix);
             _httpListener.Start();
             Console.WriteLine($"Server started at {prefix}");
@@ -27,11 +26,11 @@ namespace Segra.Backend.ContentServer
                 var request = context.Request;
                 var response = context.Response;
 
-                if (request.RawUrl.StartsWith("/api/thumbnail"))
+                if (request.RawUrl?.StartsWith("/api/thumbnail") ?? false)
                 {
                     HandleThumbnailRequest(context);
                 }
-                else if (request.RawUrl.StartsWith("/api/content"))
+                else if (request.RawUrl?.StartsWith("/api/content") ?? false)
                 {
                     HandleContentRequest(context);
                 }
@@ -60,9 +59,9 @@ namespace Segra.Backend.ContentServer
 
         private static void HandleThumbnailRequest(HttpListenerContext context)
         {
-            var query = HttpUtility.ParseQueryString(context.Request.Url.Query);
-            string input = query["input"];
-            string timeParam = query["time"];
+            var query = HttpUtility.ParseQueryString(context.Request?.Url?.Query ?? "");
+            string input = query["input"] ?? "";
+            string timeParam = query["time"] ?? "";
             var response = context.Response;
 
             try
@@ -202,16 +201,16 @@ namespace Segra.Backend.ContentServer
         {
             try
             {
-                var query = HttpUtility.ParseQueryString(context.Request.Url.Query);
-                string fileName = query["input"];
-                string type = query["type"];
+                var query = HttpUtility.ParseQueryString(context.Request?.Url?.Query ?? "");
+                string fileName = query["input"] ?? "";
+                string type = query["type"] ?? "";
                 var response = context.Response;
 
                 if (File.Exists(fileName))
                 {
                     FileInfo fileInfo = new FileInfo(fileName);
                     long fileLength = fileInfo.Length;
-                    string rangeHeader = context.Request.Headers["Range"];
+                    string rangeHeader = context.Request?.Headers["Range"] ?? "";
                     long start = 0, end = fileLength - 1;
 
                     if (!string.IsNullOrEmpty(rangeHeader) && rangeHeader.StartsWith("bytes="))
@@ -263,8 +262,9 @@ namespace Segra.Backend.ContentServer
                 }
                 response.Close();
             }
-            catch (HttpListenerException ex)
+            catch (HttpListenerException)
             {
+                // No action required
             }
             catch (Exception ex)
             {

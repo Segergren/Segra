@@ -19,12 +19,12 @@ namespace Segra.Backend.Utils
         public double StartTime { get; set; }
         public double EndTime { get; set; }
         public required string FileName { get; set; }
-        public string? Game { get; set; }
+        public required string Game { get; set; }
     }
 
     public static class MessageUtils
     {
-        private static WebSocket activeWebSocket;
+        private static WebSocket? activeWebSocket;
         private static readonly SemaphoreSlim sendLock = new SemaphoreSlim(1, 1);
         private static readonly JsonSerializerOptions jsonOptions = new JsonSerializerOptions
         {
@@ -47,14 +47,20 @@ namespace Segra.Backend.Utils
 
                 if (root.TryGetProperty("Method", out JsonElement methodElement))
                 {
-                    string method = methodElement.GetString();
+                    string? method = methodElement.GetString();
+
+                    if (method == null)
+                    {
+                        Log.Warning("Received message with null method.");
+                        return;
+                    }
 
                     switch (method)
                     {
                         case "Login":
                             root.TryGetProperty("Parameters", out JsonElement loginParameterElement);
-                            string accessToken = loginParameterElement.GetProperty("accessToken").GetString();
-                            string refreshToken = loginParameterElement.GetProperty("refreshToken").GetString();
+                            string accessToken = loginParameterElement.GetProperty("accessToken").GetString()!;
+                            string refreshToken = loginParameterElement.GetProperty("refreshToken").GetString()!;
                             await AuthService.Login(accessToken, refreshToken);
                             break;
                         case "Logout":
@@ -194,7 +200,7 @@ namespace Segra.Backend.Utils
         {
             Log.Information($"{message}");
             message.TryGetProperty("FileName", out JsonElement fileNameElement);
-            await AiService.AnalyzeVideo(fileNameElement.GetString());
+            await AiService.AnalyzeVideo(fileNameElement.GetString()!);
         }
 
         private static async Task HandleCreateClip(JsonElement message)
@@ -210,19 +216,15 @@ namespace Segra.Backend.Utils
                         selectionElement.TryGetProperty("startTime", out JsonElement startTimeElement) &&
                         selectionElement.TryGetProperty("endTime", out JsonElement endTimeElement) &&
                         selectionElement.TryGetProperty("fileName", out JsonElement fileNameElement) &&
-                        selectionElement.TryGetProperty("type", out JsonElement videoTypeElement))
+                        selectionElement.TryGetProperty("type", out JsonElement videoTypeElement) &&
+                        selectionElement.TryGetProperty("game", out JsonElement gameElement))
                     {
                         long id = idElement.GetInt64();
                         double startTime = startTimeElement.GetDouble();
                         double endTime = endTimeElement.GetDouble();
-                        string fileName = fileNameElement.GetString();
-                        string type = videoTypeElement.GetString();
-
-                        string? game = null;
-                        if (selectionElement.TryGetProperty("game", out JsonElement gameElement))
-                        {
-                            game = gameElement.GetString();
-                        }
+                        string fileName = fileNameElement.GetString()!;
+                        string type = videoTypeElement.GetString()!;
+                        string game = gameElement.GetString()!;
 
                         // Create a new Selection instance with all required properties.
                         selections.Add(new Selection
@@ -249,9 +251,9 @@ namespace Segra.Backend.Utils
         {
             try
             {
-                string filePath = message.GetProperty("FilePath").GetString();
+                string filePath = message.GetProperty("FilePath").GetString()!;
                 string fileName = Path.GetFileName(filePath);
-                string title = message.GetProperty("Title").GetString();
+                string title = message.GetProperty("Title").GetString()!;
 
                 byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
                 using var httpClient = new HttpClient();
@@ -309,8 +311,8 @@ namespace Segra.Backend.Utils
             catch (Exception ex)
             {
                 Log.Error($"Upload failed: {ex.Message}");
-                string errorFileName = message.GetProperty("FilePath").GetString();
-                string errorTitle = message.GetProperty("Title").GetString();
+                string errorFileName = message.GetProperty("FilePath").GetString()!;
+                string errorTitle = message.GetProperty("Title").GetString()!;
 
                 await SendFrontendMessage("UploadProgress", new
                 {
@@ -327,7 +329,7 @@ namespace Segra.Backend.Utils
         {
             if (message.TryGetProperty(field, out JsonElement element))
             {
-                formData.Add(new StringContent(element.GetString()), field.ToLower());
+                formData.Add(new StringContent(element.GetString()!), field.ToLower());
             }
         }
 
@@ -339,8 +341,8 @@ namespace Segra.Backend.Utils
             if (message.TryGetProperty("FileName", out JsonElement fileNameElement) &&
                 message.TryGetProperty("ContentType", out JsonElement contentTypeElement))
             {
-                string fileName = fileNameElement.GetString();
-                string contentTypeStr = contentTypeElement.GetString();
+                string fileName = fileNameElement.GetString()!;
+                string contentTypeStr = contentTypeElement.GetString()!;
 
                 if (Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
                 {
@@ -450,6 +452,12 @@ namespace Segra.Backend.Utils
                         c.FilePath == filePath &&
                         c.Type.ToString() == contentTypeStr);
 
+                    if (contentItem == null)
+                    {
+                        Log.Error($"Content item not found for {filePath} and {contentTypeStr}");
+                        return;
+                    }
+
                     contentItem.Bookmarks.Add(bookmark);
 
                     await SendSettingsToFrontend("Added bookmark");
@@ -552,9 +560,9 @@ namespace Segra.Backend.Utils
             }
         }
 
-        private static async Task SetVideoLocationAsync()
+        private static Task SetVideoLocationAsync()
         {
-            using (var fbd = new System.Windows.Forms.FolderBrowserDialog())
+            using (var fbd = new FolderBrowserDialog())
             {
                 // Set an initial description or instruction for the dialog
                 fbd.Description = "Select a folder to set as the video location.";
@@ -563,7 +571,7 @@ namespace Segra.Backend.Utils
                 fbd.RootFolder = Environment.SpecialFolder.Desktop;
 
                 // Show the dialog and check if the user selected a folder
-                if (fbd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                if (fbd.ShowDialog() == DialogResult.OK)
                 {
                     // Get the selected folder path
                     string selectedPath = fbd.SelectedPath;
@@ -577,6 +585,8 @@ namespace Segra.Backend.Utils
                     Log.Information("Folder selection was canceled.");
                 }
             }
+
+            return Task.CompletedTask;
         }
 
         public static async Task StartWebsocket()
@@ -620,7 +630,10 @@ namespace Segra.Backend.Utils
             catch (Exception ex)
             {
                 Log.Information($"Exception in StartWebsocket: {ex.Message}");
-                Log.Information(ex.StackTrace);
+                if (ex.StackTrace != null)
+                {
+                    Log.Information(ex.StackTrace);
+                }
             }
         }
 

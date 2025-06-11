@@ -45,9 +45,8 @@ namespace Segra.Backend.Utils
 
         // Variable to store the replay buffer path extracted from logs
         private static string? _lastReplayBufferPath;
-
-        static signal_callback_t hookedCallback;
-        static signal_callback_t unhookedCallback;
+        private static signal_callback_t? hookedCallback;
+        private static signal_callback_t? unhookedCallback;
 
         private static bool _isGameCaptureHooked = false;
 
@@ -183,7 +182,7 @@ namespace Segra.Backend.Utils
                         if (Settings.Instance.State.PreRecording != null)
                         {
                             Settings.Instance.State.PreRecording.Status = "Waiting for game hook";
-                            MessageUtils.SendSettingsToFrontend("Waiting for game hook");
+                            _ = MessageUtils.SendSettingsToFrontend("Waiting for game hook");
                         }
                     }
 
@@ -209,14 +208,17 @@ namespace Segra.Backend.Utils
                 catch (Exception e)
                 {
                     Log.Error(e.ToString());
-                    Log.Error(e.StackTrace);
+                    if (e.StackTrace != null)
+                    {
+                        Log.Error(e.StackTrace);
+                    }
                 }
             }), IntPtr.Zero);
 
             Log.Information("libobs version: " + obs_get_version_string());
 
             // Step 1: Call obs_startup() as per documentation
-            if (!obs_startup("en-US", null, IntPtr.Zero))
+            if (!obs_startup("en-US", null!, IntPtr.Zero))
                 throw new Exception("Error during OBS startup.");
 
             // Step 2: Set modules path
@@ -530,7 +532,7 @@ namespace Segra.Backend.Utils
                     Log.Error($"Failed to start replay buffer: {obs_output_get_last_error(bufferOutput)}");
                     Settings.Instance.State.Recording = null;
                     Settings.Instance.State.PreRecording = null;
-                    MessageUtils.SendSettingsToFrontend("Failed to start replay buffer");
+                    _ = MessageUtils.SendSettingsToFrontend("Failed to start replay buffer");
                     StopRecording();
                     return false;
                 }
@@ -563,12 +565,12 @@ namespace Segra.Backend.Utils
                 GameImage = gameImage
             };
             Settings.Instance.State.PreRecording = null;
-            MessageUtils.SendSettingsToFrontend("OBS Start recording");
+            _ = MessageUtils.SendSettingsToFrontend("OBS Start recording");
 
             Log.Information("Recording started: " + videoOutputPath);
             if (!isReplayBufferMode)
             {
-                GameIntegrationService.Start(name);
+                _ = GameIntegrationService.Start(name);
             }
             Task.Run(KeybindCaptureService.Start);
             return true;
@@ -608,7 +610,7 @@ namespace Segra.Backend.Utils
 
                 Log.Information("Replay buffer stopped and disposed.");
 
-                GameIntegrationService.Shutdown();
+                _ = GameIntegrationService.Shutdown();
                 KeybindCaptureService.Stop();
 
                 // Reload content list
@@ -649,10 +651,10 @@ namespace Segra.Backend.Utils
 
                 Log.Information("Recording stopped.");
 
-                GameIntegrationService.Shutdown();
+                _ = GameIntegrationService.Shutdown();
                 KeybindCaptureService.Stop();
 
-                ContentUtils.CreateMetadataFile(Settings.Instance.State.Recording.FilePath, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
+                ContentUtils.CreateMetadataFile(Settings.Instance.State.Recording!.FilePath, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
                 ContentUtils.CreateThumbnail(Settings.Instance.State.Recording.FilePath, Content.ContentType.Session);
 
                 if (Settings.Instance.State.Recording != null)
@@ -924,9 +926,9 @@ namespace Segra.Backend.Utils
         private class GitHubFileMetadata
         {
             [System.Text.Json.Serialization.JsonPropertyName("sha")]
-            public string Sha { get; set; }
+            public required string Sha { get; set; }
             [System.Text.Json.Serialization.JsonPropertyName("download_url")]
-            public string DownloadUrl { get; set; }
+            public required string DownloadUrl { get; set; }
         }
 
         private static string GetEncoderIdBasedOnSettings()

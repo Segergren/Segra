@@ -36,7 +36,7 @@ namespace Segra.Backend.Utils
                 var metadataContent = new Content
                 {
                     Type = type,
-                    Title = null,
+                    Title = string.Empty,
                     Game = game,
                     Bookmarks = bookmarks,
                     FileName = contentFileName,
@@ -167,7 +167,7 @@ namespace Segra.Backend.Utils
                     process.WaitForExit();
 
                     // Extract duration from FFmpeg output
-                    string durationLine = ExtractDuration(output);
+                    string? durationLine = ExtractDuration(output);
                     if (TimeSpan.TryParse(durationLine, out var duration))
                     {
                         return duration;
@@ -259,7 +259,7 @@ namespace Segra.Backend.Utils
             }
         }
 
-        private static string ExtractDuration(string ffmpegOutput)
+        private static string? ExtractDuration(string ffmpegOutput)
         {
             // Look for a line like: "Duration: 00:02:34.56, start: 0.000000, bitrate: 128 kb/s"
             const string durationKeyword = "Duration: ";

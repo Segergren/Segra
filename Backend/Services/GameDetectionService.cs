@@ -15,12 +15,11 @@ namespace Segra.Backend.Services
     public static class GameDetectionService
     {
         public static bool PreventRetryRecording { get; set; } = false;
-        private static ManagementEventWatcher processStartWatcher;
-        private static ManagementEventWatcher processStopWatcher;
+        private static ManagementEventWatcher? processStartWatcher;
+        private static ManagementEventWatcher? processStopWatcher;
         private static readonly Dictionary<string, string> deviceToDrive = new();
         private static bool _running;
-        private static Task _task;
-        private static CancellationTokenSource _cts;
+        private static CancellationTokenSource? _cts;
         private static System.Threading.Timer? _processCheckTimer;
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -30,7 +29,6 @@ namespace Segra.Backend.Services
         private static extern bool GetProcessImageFileName(IntPtr hprocess, StringBuilder lpExeName, out int size);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        [ReliabilityContract(Consistency.WillNotCorruptState, Cer.Success)]
         [SuppressUnmanagedCodeSecurity]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool CloseHandle(IntPtr hObject);
@@ -74,7 +72,7 @@ namespace Segra.Backend.Services
             // Initialize game detection from JSON
             await GameUtils.InitializeAsync();
 
-            _task = Task.Run(() =>
+            _ = Task.Run(() =>
             {
                 try
                 {
@@ -365,14 +363,14 @@ namespace Segra.Backend.Services
             if (!string.IsNullOrEmpty(jsonGameName)) return jsonGameName;
             
             // Then try Steam lookup
-            string steamName = AttemptSteamAcfLookup(exePath);
+            string? steamName = AttemptSteamAcfLookup(exePath);
             if (!string.IsNullOrEmpty(steamName)) return steamName;
             
             // Fall back to filename
             return Path.GetFileNameWithoutExtension(exePath);
         }
 
-        private static string AttemptSteamAcfLookup(string exeFilePath)
+        private static string? AttemptSteamAcfLookup(string exeFilePath)
         {
             try
             {
@@ -415,10 +413,10 @@ namespace Segra.Backend.Services
             private const int WM_QUIT = 0x0012;  // standard Windows "quit" message
 
             private static IntPtr _hookHandle = IntPtr.Zero;
-            private static WinEventDelegate _winEventProc;
+            private static WinEventDelegate? _winEventProc;
 
             // We store the thread and its ID so we can signal it to stop:
-            private static Thread _hookThread;
+            private static Thread? _hookThread;
             private static int _hookThreadId;
 
             // The callback signature

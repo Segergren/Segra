@@ -22,13 +22,13 @@ namespace Segra
         const int SW_HIDE = 0;
         private static readonly AutoResetEvent ShowWindowEvent = new AutoResetEvent(false);
         public static bool hasLoadedInitialSettings = false;
-        public static PhotinoWindow window { get; private set; }
+        public static PhotinoWindow? Window { get; private set; }
         private static readonly string LogFilePath =
           Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "logs.log");
         private const string PipeName = "Segra_SingleInstance";
-        private static Mutex singleInstanceMutex;
-        private static Thread pipeServerThread;
-        private static string appUrl;
+        private static Mutex? singleInstanceMutex;
+        private static Thread? pipeServerThread;
+        private static string? appUrl;
 
         [STAThread]
         static void Main(string[] args)
@@ -63,7 +63,7 @@ namespace Segra
             StartNamedPipeServer();
 
             var logDirectory = Path.GetDirectoryName(LogFilePath);
-            if (!Directory.Exists(logDirectory))
+            if (logDirectory != null && !Directory.Exists(logDirectory))
             {
                 Directory.CreateDirectory(logDirectory);
             }
@@ -86,7 +86,17 @@ namespace Segra
             VelopackApp.Build()
                 .WithBeforeUpdateFastCallback((v) =>
                 {
-                    SemanticVersion currentVersion = UpdateUtils.UpdateManager.CurrentVersion;
+                    if (UpdateUtils.UpdateManager == null)
+                    {
+                        Log.Error("UpdateManager is null");
+                        return;
+                    }
+                    SemanticVersion? currentVersion = UpdateUtils.UpdateManager.CurrentVersion;
+                    if (currentVersion == null)
+                    {
+                        Log.Error("Current version is null");
+                        return;
+                    }
                     Log.Information($"Updating from version {currentVersion} to {v}");
                     File.WriteAllText(Path.Combine(Path.GetTempPath(), "segra.tmp"), currentVersion.ToString());
                 })
@@ -100,7 +110,7 @@ namespace Segra
                         Task.Run(async () =>
                         {
                             await Task.Delay(5000);
-                            MessageUtils.SendFrontendMessage("ShowReleaseNotes", previousVersion);
+                            _ = MessageUtils.SendFrontendMessage("ShowReleaseNotes", previousVersion);
                         });
                         File.Delete(previousVersionPath);
                     }
@@ -113,7 +123,7 @@ namespace Segra
 
             Task.Run(() =>
             {
-                UpdateUtils.UpdateAppIfNecessary();
+                _ = UpdateUtils.UpdateAppIfNecessary();
             });
 
             try
@@ -138,19 +148,20 @@ namespace Segra
                             Arguments = "/c npm run dev",
                             WorkingDirectory = Path.Join(GetSolutionPath(), @"Frontend")
                         };
-                        Process process = null;
 
-                        HttpWebRequest request = (HttpWebRequest)WebRequest.Create("http://localhost:2882/index.html");
-                        request.AllowAutoRedirect = false;
-                        request.Method = "HEAD";
-
-                        try
+                        using (HttpClient client = new())
                         {
-                            request.GetResponse();
-                        }
-                        catch (WebException)
-                        {
-                            process ??= Process.Start(startInfo);
+                            client.DefaultRequestHeaders.ExpectContinue = false;
+                            try
+                            {
+                                // Set a short timeout since we're just checking if the server is running
+                                client.Timeout = TimeSpan.FromSeconds(1);
+                                var response = client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "http://localhost:2882/index.html")).Result;
+                            }
+                            catch (Exception)
+                            {
+                                Process.Start(startInfo);
+                            }
                         }
                     });
                 }
@@ -230,20 +241,20 @@ namespace Segra
 
         private static async Task ShowApplicationWindow()
         {
-            Log.Information("Showing application window. Window is " + (window == null ? "null" : "not null"));
-            if (window == null)
+            Log.Information("Showing application window. Window is " + (Window == null ? "null" : "not null"));
+            if (Window == null)
             {
                 // Schedule the foreground operations with a delay before calling LoadFrontend
                 _ = Task.Run(async () =>
                 {
                     await Task.Delay(200);
                     Log.Information("Bringing application window to foreground from scheduled task");
-                    if (window != null)
+                    if (Window != null)
                     {
-                        window.SetMinimized(false);
-                        window.SetTopMost(true);
+                        Window.SetMinimized(false);
+                        Window.SetTopMost(true);
                         await Task.Delay(200);
-                        window.SetTopMost(false);
+                        Window.SetTopMost(false);
                         Log.Information("Application window brought to foreground");
                     }
                 });
@@ -253,17 +264,17 @@ namespace Segra
             else
             {
                 Log.Information("Bringing application window to foreground. Window is not null");
-                window.SetMinimized(false);
-                window.SetTopMost(true);
+                Window.SetMinimized(false);
+                Window.SetTopMost(true);
                 await Task.Delay(200);
-                window.SetTopMost(false);
+                Window.SetTopMost(false);
                 Log.Information("Application window brought to foreground");
             }
         }
 
         private static void HideApplicationWindow()
         {
-            window?.SetMinimized(true);
+            Window?.SetMinimized(true);
 
             IntPtr hWnd = Process.GetCurrentProcess().MainWindowHandle;
             ShowWindow(hWnd, SW_HIDE); // Hides the window from the taskbar
@@ -275,7 +286,7 @@ namespace Segra
         {
             Log.Information("Loading frontend, app url is " + appUrl);
             // Initialize the PhotinoWindow
-            window = new PhotinoWindow()
+            Window = new PhotinoWindow()
                 .SetNotificationsEnabled(false) // Disabled due to it creating a second start menu entry with incorrect start path. See https://github.com/tryphotino/photino.NET/issues/85
                 .SetUseOsDefaultSize(false)
                 .SetIconFile(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico"))
@@ -284,23 +295,23 @@ namespace Segra
                 .SetResizable(true)
                 .RegisterWebMessageReceivedHandler((sender, message) =>
                 {
-                    window = (PhotinoWindow)sender;
-                    MessageUtils.HandleMessage(message);
+                    Window = (PhotinoWindow)sender!;
+                    _ = MessageUtils.HandleMessage(message);
                 })
                 .Load(appUrl);
 
             Log.Information("Window variable has been set");
 
             // intentional space after name because of https://github.com/tryphotino/photino.NET/issues/106
-            window.SetTitle("Segra ");
+            Window.SetTitle("Segra ");
 
-            window.RegisterWindowClosingHandler((sender, eventArgs) =>
+            Window.RegisterWindowClosingHandler((sender, eventArgs) =>
             {
                 HideApplicationWindow();
                 return true;
             });
             
-            window.WaitForClose();
+            Window.WaitForClose();
         }
 
         private static void StartNamedPipeServer()
@@ -317,15 +328,15 @@ namespace Segra
 
                             using (var reader = new StreamReader(pipeServer))
                             {
-                                string message = reader.ReadLine();
+                                string? message = reader.ReadLine();
                                 if (message == "SHOW_WINDOW")
                                 {
-                                    if (window != null)
+                                    if (Window != null)
                                     {
-                                        window.SetMinimized(false);
-                                        window.SetTopMost(true);
+                                        Window.SetMinimized(false);
+                                        Window.SetTopMost(true);
                                         Thread.Sleep(200);
-                                        window.SetTopMost(false);
+                                        Window.SetTopMost(false);
                                         Log.Information("Window brought to foreground directly from pipe server");
                                     }
                                     else
@@ -403,7 +414,7 @@ namespace Segra
             string directory = currentDirectory;
             while (!string.IsNullOrEmpty(directory) && !Directory.GetFiles(directory, "*.sln").Any())
             {
-                directory = Directory.GetParent(directory)?.FullName;
+                directory = Directory.GetParent(directory)?.FullName!;
             }
 
             if (string.IsNullOrEmpty(directory))
