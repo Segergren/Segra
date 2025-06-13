@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using NuGet.Versioning;
 using Velopack;
 using Velopack.Sources;
 
@@ -130,17 +131,17 @@ namespace Segra.Backend.Utils
                 Log.Information("Getting release notes from GitHub API");
 
                 // Get current version
-                Version currentVersion;
+                SemanticVersion currentVersion;
                 if (UpdateManager.CurrentVersion != null)
                 {
-                    currentVersion = Version.Parse(UpdateManager.CurrentVersion.ToString());
+                    currentVersion = UpdateManager.CurrentVersion;
                 }
                 else
                 {
                     // Running in local development, uncomment the line bellow and comment out the return to test
-                    currentVersion = Version.Parse("0.6.6");
+                    currentVersion = SemanticVersion.Parse("0.6.6");
                     //Log.Error("Could not get current version");
-                    //return; 
+                    //return;
                 }
 
                 Log.Information($"Current version: {currentVersion}");
@@ -168,7 +169,7 @@ namespace Segra.Backend.Utils
 
                 // Filter and process releases
                 var releaseNotesList = new List<object>();
-                Version targetVersion = null;
+                SemanticVersion? targetVersion = null;
 
                 // Check if beta releases should be included
                 bool includeBeta = Models.Settings.Instance.ReceiveBetaUpdates;
@@ -188,7 +189,7 @@ namespace Segra.Backend.Utils
                         versionString = versionString.Substring(1);
                     }
 
-                    if (!Version.TryParse(versionString, out var releaseVersion))
+                    if (!SemanticVersion.TryParse(versionString, out var releaseVersion))
                     {
                         Log.Warning($"Could not parse version from tag: {release.TagName}");
                         continue;
@@ -197,7 +198,7 @@ namespace Segra.Backend.Utils
                     // Skip if this version is not what we're looking for based on includeOnlyRecentUpdate
                     if (targetVersion != null)
                     {
-                        if (releaseVersion <= currentVersion)
+                        if (releaseVersion.CompareTo(currentVersion) <= 0)
                         {
                             continue;
                         }

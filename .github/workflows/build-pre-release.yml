@@ -133,16 +133,14 @@ jobs:
         id: get_version
         shell: pwsh
         run: |
-          $tags = git tag
-          if ($tags -ne $null -and $tags.Count -gt 0) {
-            $latestTag = (git describe --tags --abbrev=0 2>$null) -replace '^v', ''
-            if (-not $latestTag) {
-              $latestTag = "0.0.0"
-            }
+          $allTags = git tag
+          $stableTags = $allTags | Where-Object { $_ -notmatch '-rc\.\d+$' }
+          if ($stableTags -and $stableTags.Count -gt 0) {
+            $latestTag = ($stableTags | Sort-Object { [version]($_ -replace '^v','') } -Descending | Select-Object -First 1) -replace '^v',''
           } else {
-            $latestTag = "0.0.0"
+            $latestTag = '0.0.0'
           }
-          $latestTag = [string]$latestTag
+
           $versionParts = $latestTag.Split('.')
           $major = [int]$versionParts[0]
           $minor = [int]$versionParts[1]
@@ -153,10 +151,20 @@ jobs:
             "major" { $major++; $minor=0; $patch=0 }
             "minor" { $minor++; $patch=0 }
             "patch" { $patch++ }
-            default { $patch++ } 
+            default { $patch++ }
           }
 
-          $newVersion = "$major.$minor.$patch"
+          $baseVersion = "$major.$minor.$patch"
+
+          $rcTags = git tag --list "v$baseVersion-rc.*"
+          if ($rcTags) {
+            $maxRc = ($rcTags | ForEach-Object { ($_ -split '-rc\.')[1] -as [int] } | Measure-Object -Maximum).Maximum
+            $rc = $maxRc + 1
+          } else {
+            $rc = 1
+          }
+
+          $newVersion = "$baseVersion-rc.$rc"
           echo "new_version=$newVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
           echo "new_version=$newVersion" >> $env:GITHUB_OUTPUT
 

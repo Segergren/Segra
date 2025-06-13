@@ -16,14 +16,15 @@ jobs:
       - name: Convert Pre-Release to Final
         run: |
           VERSION="${{ github.event.inputs.version }}"
+          API_URL="https://api.github.com/repos/${{ github.repository }}/releases"
           RELEASE_ID=$(curl -s \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/releases/tags/v$VERSION \
-            | jq -r '.id')
+            $API_URL \
+            | jq -r '[.[] | select(.tag_name | test("^v" + env.VERSION + "-rc\\.\\d+$"))] | sort_by(.tag_name) | last | .id')
 
           if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
-            echo "No release found for version $VERSION"
+            echo "No pre-release found for version $VERSION"
             exit 1
           fi
 
@@ -31,5 +32,5 @@ jobs:
             -X PATCH \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID \
-            -d '{"prerelease": false, "name": "Release v'"$VERSION"'", "make_latest": true}'
+            $API_URL/$RELEASE_ID \
+            -d '{"tag_name":"v'"$VERSION"'","prerelease":false,"name":"Release v'"$VERSION"'","make_latest":true}'
