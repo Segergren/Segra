@@ -451,9 +451,9 @@ namespace Segra.Backend.Utils
                 settings.SelectedDisplay = updatedSettings.SelectedDisplay;
 
                 // Update display source if we have a recording and it is not using game hook
-                if (Settings.Instance.State.Recording != null && !Settings.Instance.State.Recording.IsUsingGameHook)
+                if (Settings.Instance.State.Recording != null && !Settings.Instance.State.Recording.IsUsingGameHook && OBSUtils.MonitorCaptureSource != IntPtr.Zero)
                 {
-                    OBSUtils.DisposeDisplaySource();
+                    OBSUtils.DisposeMonitorCaptureSourceIfExists();
                     OBSUtils.AddMonitorCapture();
                 }
                 hasChanges = true;

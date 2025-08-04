@@ -9,6 +9,7 @@ using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using static Microsoft.Extensions.Logging.EventSource.LoggingEventSource;
 
 namespace Segra.Backend.Services
 {
@@ -214,11 +215,12 @@ namespace Segra.Backend.Services
             }
         }
 
+        private static readonly string[] knownLauncherKeywords = ["Launcher", "Loader", "BattlEye"];
         private static bool ShouldRecordGame(string exePath)
         {
             if (string.IsNullOrEmpty(exePath) || Settings.Instance.State.Recording != null || Settings.Instance.State.PreRecording != null) return false;
-            
-            // 1. Check if the game is in the whitelist - if so, always record
+
+            // Check if the game is in the whitelist - if so, always record
             var whitelist = Settings.Instance.Whitelist;
             foreach (var game in whitelist)
             {
@@ -254,6 +256,21 @@ namespace Segra.Backend.Services
             if (isSteamGame)
             {
                 Log.Information($"Detected Steam game at {exePath}, will record");
+                Process? process = OBSUtils.GetProcessFromExe(exePath);
+
+                if (process != null)
+                {
+                    if (knownLauncherKeywords.Any(k => process.MainModule?.FileVersionInfo?.FileDescription?.Contains(k, StringComparison.OrdinalIgnoreCase) ?? false)) { 
+                        Log.Information($"Detected known launcher for Steam game at {exePath}, will not record");
+                        return false;
+                    }
+                }
+                else
+                {
+                    Log.Warning($"Could not find process for Steam game at {exePath}");
+                }
+
+                Log.Information("BOB");
             }
 
             return isSteamGame;
@@ -404,6 +421,39 @@ namespace Segra.Backend.Services
             var match = Regex.Match(acfContent, pattern, RegexOptions.IgnoreCase);
             return match.Success && match.Groups.Count > 1 ? match.Groups[1].Value.Trim() : string.Empty;
         }
+        
+        // Checks if two file paths are in the same directory or parent directory
+        private static bool IsSimilarPath(string path1, string path2)
+        {
+            try
+            {
+                // Get directory paths
+                string dir1 = Path.GetDirectoryName(path1) ?? string.Empty;
+                string dir2 = Path.GetDirectoryName(path2) ?? string.Empty;
+                
+                // Check if they are in the same directory
+                if (string.Equals(dir1, dir2, StringComparison.OrdinalIgnoreCase))
+                    return true;
+                    
+                // Check if one is a parent directory of the other
+                if (dir1.StartsWith(dir2, StringComparison.OrdinalIgnoreCase) || 
+                    dir2.StartsWith(dir1, StringComparison.OrdinalIgnoreCase))
+                    return true;
+                    
+                // Check if they share the same parent directory
+                string parentDir1 = Path.GetDirectoryName(dir1) ?? string.Empty;
+                string parentDir2 = Path.GetDirectoryName(dir2) ?? string.Empty;
+                
+                return !string.IsNullOrEmpty(parentDir1) && 
+                       !string.IsNullOrEmpty(parentDir2) && 
+                       string.Equals(parentDir1, parentDir2, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error comparing paths for similarity check");
+                return false;
+            }
+        }
 
         // Get foreground updates
         public static class ForegroundHook
@@ -552,6 +602,25 @@ namespace Segra.Backend.Services
                         try
                         {
                             string exePath = ResolveProcessPath((int)pid);
+                            
+                            if(Settings.Instance.State.PreRecording?.Status == "Waiting to start" && OBSUtils.ProcessToRecord != null)
+                            {
+                                string preRecordingExePath = OBSUtils.SafeFullPath(OBSUtils.ProcessToRecord);
+                                
+                                if(preRecordingExePath != exePath)
+                                {
+                                    // Check if paths are in the same or similar directories
+                                    bool isSimilarPath = IsSimilarPath(preRecordingExePath, exePath);
+                                    Log.Information($"Pre-recording path similarity check: {isSimilarPath} (Pre: {preRecordingExePath}, Current: {exePath})");
+
+                                    if(isSimilarPath)
+                                    {
+                                        Log.Information("Similar! Replacing current the HookedProcess with new one");
+                                        OBSUtils.ProcessToRecord = Process.GetProcessById((int)pid);
+                                    }
+                                }
+                            }
+                            
                             if (ShouldRecordGame(exePath))
                             {
                                 StartGameRecording((int)pid, exePath);

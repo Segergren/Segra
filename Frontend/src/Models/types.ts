@@ -185,6 +185,7 @@ export const initialSettings: Settings = {
 	recordingMode: 'Session',
 	replayBufferDuration: 30, // 30 seconds default
 	replayBufferMaxSize: 500, // 500 MB default
+
 	clipClearSelectionsAfterCreatingClip: false,
 	clipShowInBrowserAfterUpload: false, // Default to not opening browser after upload
 	clipEncoder: 'cpu',

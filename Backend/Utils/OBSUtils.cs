@@ -3,8 +3,10 @@ using NAudio.Wave;
 using Segra.Backend.Models;
 using Segra.Backend.Services;
 using Serilog;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
+using System.Text;
 using static LibObs.Obs;
 using static Segra.Backend.Utils.GeneralUtils;
 using size_t = System.UIntPtr;
@@ -20,20 +22,15 @@ namespace Segra.Backend.Utils
         static IntPtr bufferOutput = IntPtr.Zero;
         static bool replaySaved = false;
         static IntPtr gameCaptureSource = IntPtr.Zero;
-        static IntPtr displaySource = IntPtr.Zero;
-        static List<IntPtr> micSources = new List<IntPtr>();
-        static List<IntPtr> desktopSources = new List<IntPtr>();
+        public static IntPtr MonitorCaptureSource { get; private set; } = IntPtr.Zero;
+        static IntPtr windowCaptureSource = IntPtr.Zero;
+        static List<IntPtr> micAudioSources = new List<IntPtr>();
+        static List<IntPtr> desktopAudioSources = new List<IntPtr>();
         static IntPtr videoEncoder = IntPtr.Zero;
         static IntPtr audioEncoder = IntPtr.Zero;
+        public static Process? ProcessToRecord { get; set; }
         private static string? hookedExecutableFileName;
         private static System.Threading.Timer? gameCaptureHookTimeoutTimer = null;
-
-        // Available encoder IDs for different hardware
-        private const string NVIDIA_ENCODER = "jim_nvenc";
-        private const string AMD_ENCODER = "h264_texture_amf";
-        private const string INTEL_ENCODER = "qsv_h264";
-        private const string CPU_ENCODER = "obs_x264";
-
         static signal_callback_t outputStopCallback = (data, cd) =>
         {
             signalOutputStop = true;
@@ -51,6 +48,48 @@ namespace Segra.Backend.Utils
         private static signal_callback_t? unhookedCallback;
 
         private static bool _isGameCaptureHooked = false;
+
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        static extern int GetWindowTextW(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        static extern int GetClassNameW(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+        const int PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern IntPtr OpenProcess(int access, bool inheritHandle, int processId);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        static extern bool QueryFullProcessImageName(
+            IntPtr hProcess, int flags, StringBuilder exeName, ref int size);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct RECT
+        {
+            public int Left, Top, Right, Bottom;
+        }
+
+        public static (int width, int height)? ClientSize(Process? p)
+        {
+            if(p == null)
+                return null;
+
+            p.Refresh();
+            IntPtr hwnd = p.MainWindowHandle;
+            if (hwnd == IntPtr.Zero)
+                return null;
+
+            RECT r;
+            return GetClientRect(hwnd, out r)
+                ? ((r.Right - r.Left), (r.Bottom - r.Top))
+                : null;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
 
         public static bool SaveReplayBuffer()
         {
@@ -177,7 +216,7 @@ namespace Segra.Backend.Utils
                     if (formattedMessage.Contains("capture stopped"))
                         _isGameCaptureHooked = false;
 
-                    if (formattedMessage.Contains("attempting to hook fullscreen process"))
+                    if (formattedMessage.Contains("attempting to hook"))
                     {
                         if (Settings.Instance.State.PreRecording != null)
                         {
@@ -265,38 +304,20 @@ namespace Segra.Backend.Utils
             return obs_reset_audio(ref audioInfo);
         }
 
-        private static bool ResetVideoSettings(uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null)
+        private static bool ResetVideoSettings(uint? gameWidth = null, uint? gameHeight = null)
         {
-            uint baseWidth, baseHeight;
-            SettingsUtils.GetPrimaryMonitorResolution(out baseWidth, out baseHeight);
+            SettingsUtils.GetPrimaryMonitorResolution(out uint monitorWidth, out uint monitorHeight);
 
-            // Use custom values if provided, otherwise use defaults
-            uint outputWidth = customOutputWidth ?? baseWidth;
-            uint outputHeight = customOutputHeight ?? baseHeight;
-
-            // Check if the input aspect ratio is close to 4:3 (1.33)
-            double aspectRatio = (double)baseWidth / baseHeight;
-            bool is4by3 = Math.Abs(aspectRatio - 4.0 / 3.0) < 0.1; // Allow some tolerance
-
-            // TODO: Implement a setting to disable this behavior
-            // If the content is 4:3, stretch it to 16:9 while preserving height
-            if (is4by3 && customOutputWidth == null)
-            {
-                // Calculate 16:9 width based on the current height
-                outputWidth = (uint)(outputHeight * (16.0 / 9.0));
-                Log.Information($"Stretching 4:3 content ({baseWidth}x{baseHeight}) to 16:9 ({outputWidth}x{outputHeight})");
-            }
-
-            obs_video_info videoInfo = new obs_video_info()
+            obs_video_info videoInfo = new()
             {
                 adapter = 0,
                 graphics_module = "libobs-d3d11",
-                fps_num = customFps ?? 60, // Default to 60 FPS if not specified
+                fps_num = (uint)Settings.Instance.FrameRate,
                 fps_den = 1,
-                base_width = baseWidth,
-                base_height = baseHeight,
-                output_width = outputWidth,
-                output_height = outputHeight,
+                base_width = gameWidth ?? monitorWidth,
+                base_height = gameHeight ?? monitorHeight,
+                output_width = gameWidth ?? monitorWidth,
+                output_height = gameHeight ?? monitorHeight,
                 output_format = video_format.VIDEO_FORMAT_NV12,
                 gpu_conversion = true,
                 colorspace = video_colorspace.VIDEO_CS_DEFAULT,
@@ -307,13 +328,23 @@ namespace Segra.Backend.Utils
             return obs_reset_video(ref videoInfo) == 0; // Returns true if successful
         }
 
-        public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false)
+        public static bool StartRecording(string name = "Manual Recording", string? exePath = null, bool startManually = false)
         {
+            signalOutputStop = false;
+            _isGameCaptureHooked = false;
+
+            // Set pre-recording state
             Settings.Instance.State.PreRecording = new PreRecording { Game = name, Status = "Waiting to start" };
+
+            // Get file name if not manually started
+            string? fileName = null;
+            if (!startManually && exePath != null)
+            {
+                fileName = Path.GetFileName(exePath);
+            }
+
+            // Check if recording is already in progress
             bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
-
-            string fileName = Path.GetFileName(exePath);
-
             if ((isReplayBufferMode && bufferOutput != IntPtr.Zero) || (!isReplayBufferMode && output != IntPtr.Zero))
             {
                 Log.Information($"{(isReplayBufferMode ? "Replay buffer" : "Recording")} is already in progress.");
@@ -321,46 +352,25 @@ namespace Segra.Backend.Utils
                 return false;
             }
 
-            signalOutputStop = false;
-
-            // Note: According to docs, audio settings cannot be reconfigured after initialization
-            // but video can be reset as long as no outputs are active
-
-            // Configure video settings specifically for this recording/buffer
-            uint outputWidth, outputHeight;
-            SettingsUtils.GetResolution(Settings.Instance.Resolution, out outputWidth, out outputHeight);
-
-            if (!ResetVideoSettings(
-                customFps: (uint)Settings.Instance.FrameRate,
-                customOutputWidth: outputWidth,
-                customOutputHeight: outputHeight))
-            {
-                throw new Exception("Failed to configure video settings for recording.");
-            }
-
-            _isGameCaptureHooked = false;
-
-            IntPtr videoSourceSettings = obs_data_create();
-            obs_data_set_string(videoSourceSettings, "capture_mode", "any_fullscreen");
-            gameCaptureSource = obs_source_create("game_capture", "gameplay", videoSourceSettings, IntPtr.Zero);
-            obs_data_release(videoSourceSettings);
-            obs_set_output_source(0, gameCaptureSource);
-            
-            // If display capture is enabled, start a timer to check if game capture hooks within 90 seconds
-            if (Settings.Instance.EnableDisplayRecording)
-            {
-                StartGameCaptureHookTimeoutTimer();
-            }
-
-            // Connect to 'hooked' and 'unhooked' signals for game capture
-            IntPtr signalHandler = obs_source_get_signal_handler(gameCaptureSource);
-            hookedCallback = new signal_callback_t(OnGameCaptureHooked);
-            unhookedCallback = new signal_callback_t(OnGameCaptureUnhooked);
-            signal_handler_connect(signalHandler, "hooked", hookedCallback, IntPtr.Zero);
-            signal_handler_connect(signalHandler, "unhooked", unhookedCallback, IntPtr.Zero);
-
+            string? windowString = null;
+            bool isFullScreenGame = true;
             if (!startManually)
             {
+                // When the recording is started automatically fileName should not be null
+                if (fileName == null)
+                {
+                    Settings.Instance.State.Recording = null;
+                    Settings.Instance.State.PreRecording = null;
+                    _ = MessageUtils.SendSettingsToFrontend("File name is null even though it should not be");
+                    StopRecording();
+                    return false;
+                }
+                
+                // Get process from exe name, this is used in ClientSize to get the game window size
+                ProcessToRecord = GetProcessFromExe(fileName);
+                (int width, int height)? initialClientSize = ClientSize(ProcessToRecord);
+                
+                // Wait for the game to start before starting the recording
                 bool success = WaitForGameToStart();
                 if (!success)
                 {
@@ -370,15 +380,148 @@ namespace Segra.Backend.Utils
                     StopRecording();
                     return false;
                 }
+
+                // The initial client size is the size of the game window the first time it detects the game, if it is invalid or zero it means the game has probably just started and needs some time to be fully shown
+                if (initialClientSize == null || initialClientSize?.width == 0 || initialClientSize?.height == 0)
+                {
+                    Log.Warning("Initial client size is invalid or zero. waiting 3 seconds to make sure the window size has fully been shown.");
+                    Task.Delay(3000).Wait();
+                }
+
+                // Get the game window client size and reset video settings to set correct output width for games with custom resolution
+                (int width, int height)? gameWindowClientSize = ClientSize(ProcessToRecord);
+                if (gameWindowClientSize is (int width, int height))
+                {
+                    _ = ResetVideoSettings(
+                        gameWidth: (uint)width,
+                        gameHeight: (uint)height);
+                }
+                else
+                {
+                    Settings.Instance.State.Recording = null;
+                    Settings.Instance.State.PreRecording = null;
+                    _ = MessageUtils.SendSettingsToFrontend("Failed to get game window client size after game started");
+                    StopRecording();
+                    return false;
+                }
+                
+                // Better safe than sorry, wait a bit to make sure the video reset has finished. This might not be needed.
+                Task.Delay(500).Wait();
+
+                // Check if the game is fullscreen
+                SettingsUtils.GetPrimaryMonitorResolution(out uint primaryMonitorWidth, out uint primaryMonitorHeight);
+                isFullScreenGame = primaryMonitorWidth == gameWindowClientSize?.width && primaryMonitorHeight == gameWindowClientSize?.height;
+
+                // If the client size matches the primary monitor size or we can't get the hooked process, use monitor capture
+                // This is due to fullscreen games not having a DWM window (and therefore not being able to be captured using window capture)
+                if (isFullScreenGame || ProcessToRecord == null)
+                {
+                    if (ProcessToRecord == null) {
+                        Log.Warning("Hooked process is null, using monitor capture");
+                    }
+                    else {
+                        Log.Information("Game is fullscreen, using monitor capture");
+                    }
+                    AddMonitorCapture();
+                }
+                else
+                {
+                    Log.Information("Game is not fullscreen, using window capture");
+                    windowString = WindowStringFromProcess(ProcessToRecord);
+
+                    // If we can't get the window string, use monitor capture
+                    if (windowString != null)
+                    {
+                        AddWindowCaptureIfNotHooked(windowString);
+                    }
+                    else {
+                        Log.Warning("Failed to get window string from process, using monitor capture");
+                        AddMonitorCapture();
+                    }
+                }
             }
 
-            // Reset video settings to set correct output width for games with custom resolution
-            Task.Delay(500).Wait();
-            ResetVideoSettings();
-            Task.Delay(1000).Wait();
+            // If we start manually, we use monitor capture as we don't have a process to record
+            if (startManually) {
+                _ = ResetVideoSettings();
+                Task.Delay(500).Wait();
+                AddMonitorCapture();
+            }
 
-            AddMonitorCapture();
+            // Setup game capture source
+            IntPtr gameCaptureSourceSettings = obs_data_create();
+            if(isFullScreenGame || startManually || windowString == null)
+            {
+                // If the game is fullscreen or we start manually or we can't get the window string
+                if (startManually)
+                {
+                    Log.Information("Manually recording, using any_fullscreen for game_capture source");
+                }
+                else if (windowString == null)
+                {
+                    Log.Warning("Window string is null, using any_fullscreen for game_capture source");
+                }
+                else
+                {
+                    Log.Information("Game is fullscreen, using any_fullscreen for game_capture source");
+                }
+                obs_data_set_string(gameCaptureSourceSettings, "capture_mode", "any_fullscreen");
+            }
+            else
+            {
+                // If the game is not fullscreen or we can't get the window string or we start manually, we use window for the game capture source
+                Log.Information("Game is not fullscreen, using window for game_capture source");
+                obs_data_set_string(gameCaptureSourceSettings, "capture_mode", "window");
+                obs_data_set_string(gameCaptureSourceSettings, "window", windowString);
+                obs_data_set_string(gameCaptureSourceSettings, "capture_window", windowString);
+            }
 
+            gameCaptureSource = obs_source_create("game_capture", "gameplay", gameCaptureSourceSettings, IntPtr.Zero);
+            obs_data_release(gameCaptureSourceSettings);
+            obs_set_output_source(0, gameCaptureSource);
+
+            // Connect to 'hooked' and 'unhooked' signals for game capture
+            // These are used to detect when the game capture source hooks and unhooks
+            IntPtr signalHandler = obs_source_get_signal_handler(gameCaptureSource);
+            hookedCallback = new signal_callback_t(OnGameCaptureHooked);
+            unhookedCallback = new signal_callback_t(OnGameCaptureUnhooked);
+            signal_handler_connect(signalHandler, "hooked", hookedCallback, IntPtr.Zero);
+            signal_handler_connect(signalHandler, "unhooked", unhookedCallback, IntPtr.Zero);
+
+            // If display recording is disabled, wait for game capture to hook before starting recording
+            if (!Settings.Instance.EnableDisplayRecording)
+            {
+                // Set timeout duration:
+                // - 90 seconds if started manually (this timeout starts BEFORE the game launches, therefore it may need more time)
+                // - 20 seconds if NOT started manually (this timeout starts AFTER the game has fully launched)
+                int timeoutMs = startManually ? 90_000 : 20_000;
+
+                // Wait for game capture to hook
+                bool hooked = WaitUntilGameCaptureHooks(timeoutMs);
+                if (!hooked)
+                {
+                    // Prevent retry recording to prevent infinite loop, this flag resets when the user switches foreground window
+                    GameDetectionService.PreventRetryRecording = true;
+
+                    // Reset recording state
+                    Settings.Instance.State.Recording = null;
+                    Settings.Instance.State.PreRecording = null;
+
+                    // Send settings to frontend
+                    _ = MessageUtils.SendSettingsToFrontend("Game did not hook within the timeout period");
+                    StopRecording();
+                    return false;
+                }
+            }
+
+            // If display capture is enabled, start a timer to check if game capture hooks within 90 seconds
+            // This is used to remove the game capture source if it doesn't hook within the timeout period
+            if (Settings.Instance.EnableDisplayRecording)
+            {
+                StartGameCaptureHookTimeoutTimer();
+            }
+
+            // Create video encoder settings
             IntPtr videoEncoderSettings = obs_data_create();
             obs_data_set_string(videoEncoderSettings, "preset", "Quality");
             obs_data_set_string(videoEncoderSettings, "profile", "high");
@@ -417,6 +560,7 @@ namespace Segra.Backend.Utils
             obs_data_release(videoEncoderSettings);
             obs_encoder_set_video(videoEncoder, obs_get_video());
 
+            // Setup audio sources
             if (Settings.Instance.InputDevices != null && Settings.Instance.InputDevices.Count > 0)
             {
                 int audioSourceIndex = 2;
@@ -428,7 +572,7 @@ namespace Segra.Backend.Utils
                         IntPtr micSettings = obs_data_create();
                         obs_data_set_string(micSettings, "device_id", deviceSetting.Id);
 
-                        string sourceName = $"Microphone_{micSources.Count + 1}";
+                        string sourceName = $"Microphone_{micAudioSources.Count + 1}";
                         IntPtr micSource = obs_source_create("wasapi_input_capture", sourceName, micSettings, IntPtr.Zero);
 
                         obs_data_release(micSettings);
@@ -437,7 +581,7 @@ namespace Segra.Backend.Utils
                         obs_source_set_volume(micSource, volume);
 
                         obs_set_output_source((uint)audioSourceIndex, micSource);
-                        micSources.Add(micSource);
+                        micAudioSources.Add(micSource);
 
                         audioSourceIndex++;
                         Log.Information($"Added input device: {deviceSetting.Id} as {sourceName} with volume {volume}");
@@ -445,9 +589,10 @@ namespace Segra.Backend.Utils
                 }
             }
 
+            // Setup output devices
             if (Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
             {
-                int desktopSourceIndex = micSources.Count + 2;
+                int desktopSourceIndex = micAudioSources.Count + 2;
 
                 foreach (var deviceSetting in Settings.Instance.OutputDevices)
                 {
@@ -456,7 +601,7 @@ namespace Segra.Backend.Utils
                         IntPtr desktopSettings = obs_data_create();
                         obs_data_set_string(desktopSettings, "device_id", deviceSetting.Id);
 
-                        string sourceName = $"DesktopAudio_{desktopSources.Count + 1}";
+                        string sourceName = $"DesktopAudio_{desktopAudioSources.Count + 1}";
                         IntPtr desktopSource = obs_source_create("wasapi_output_capture", sourceName, desktopSettings, IntPtr.Zero);
 
                         obs_data_release(desktopSettings);
@@ -465,7 +610,7 @@ namespace Segra.Backend.Utils
                         obs_source_set_volume(desktopSource, desktopVolume);
 
                         obs_set_output_source((uint)desktopSourceIndex, desktopSource);
-                        desktopSources.Add(desktopSource);
+                        desktopAudioSources.Add(desktopSource);
 
                         desktopSourceIndex++;
                         Log.Information($"Added output device: {deviceSetting.Name} ({deviceSetting.Id}) as {sourceName} with fixed volume {desktopVolume}");
@@ -473,6 +618,7 @@ namespace Segra.Backend.Utils
                 }
             }
 
+            // Setup audio encoder
             IntPtr audioEncoderSettings = obs_data_create();
             obs_data_set_int(audioEncoderSettings, "bitrate", 128);
             audioEncoder = obs_audio_encoder_create("ffmpeg_aac", "simple_aac_encoder", audioEncoderSettings, 0, IntPtr.Zero);
@@ -484,12 +630,14 @@ namespace Segra.Backend.Utils
                 ? Content.ContentType.Buffer
                 : Content.ContentType.Session;
 
+            // Create content folder if it doesn't exist
             string videoPath = Settings.Instance.ContentFolder + "/" + contentType.ToString().ToLower() + "s";
             if (!Directory.Exists(videoPath))
                 Directory.CreateDirectory(videoPath);
 
-            string videoOutputPath = $"{Settings.Instance.ContentFolder}/{contentType.ToString().ToLower()}s/{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
-
+            // Null if using replay buffer mode
+            string? videoOutputPath = null;
+            
             if (isReplayBufferMode)
             {
                 // Set up replay buffer output
@@ -497,6 +645,7 @@ namespace Segra.Backend.Utils
                 obs_data_set_string(bufferOutputSettings, "directory", videoPath);
                 obs_data_set_string(bufferOutputSettings, "format", "%CCYY-%MM-%DD_%hh-%mm-%ss");
                 obs_data_set_string(bufferOutputSettings, "extension", "mp4");
+
                 // Set replay buffer duration and max size from settings
                 obs_data_set_int(bufferOutputSettings, "max_time_sec", (uint)Settings.Instance.ReplayBufferDuration);
                 obs_data_set_int(bufferOutputSettings, "max_size_mb", (uint)Settings.Instance.ReplayBufferMaxSize);
@@ -515,6 +664,10 @@ namespace Segra.Backend.Utils
             }
             else
             {
+                // Create video output path
+                videoOutputPath = $"{Settings.Instance.ContentFolder}/{contentType.ToString().ToLower()}s/{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
+                Log.Information("Recording path: " + videoOutputPath);
+
                 // Set up standard recording output
                 IntPtr outputSettings = obs_data_create();
                 obs_data_set_string(outputSettings, "path", videoOutputPath);
@@ -532,26 +685,15 @@ namespace Segra.Backend.Utils
             }
 
             // Overwrite the file name with the hooked executable name if using game hook
-            fileName = hookedExecutableFileName ?? fileName;
-            
-            if(!Settings.Instance.EnableDisplayRecording) {
-                bool hooked = WaitUntilGameCaptureHooks(startManually ? 90000 : 10000);
-                if(!hooked) {
-                    Settings.Instance.State.Recording = null;
-                    Settings.Instance.State.PreRecording = null;
-                    _ = MessageUtils.SendSettingsToFrontend("Game did not hook within the timeout period");
-                    StopRecording();
-                    return false;
-                }
-            }
+            // fileName = hookedExecutableFileName ?? fileName;
 
+            // Play start sound
             _ = Task.Run(PlayStartSound);
 
-            bool outputStarted;
             if (isReplayBufferMode)
             {
                 // Start replay buffer
-                outputStarted = obs_output_start(bufferOutput);
+                bool outputStarted = obs_output_start(bufferOutput);
                 if (!outputStarted)
                 {
                     Log.Error($"Failed to start replay buffer: {obs_output_get_last_error(bufferOutput)}");
@@ -567,7 +709,7 @@ namespace Segra.Backend.Utils
             else
             {
                 // Start standard recording
-                outputStarted = obs_output_start(output);
+                bool outputStarted = obs_output_start(output);
                 if (!outputStarted)
                 {
                     Log.Error($"Failed to start recording: {obs_output_get_last_error(output)}");
@@ -576,10 +718,18 @@ namespace Segra.Backend.Utils
                     StopRecording();
                     return false;
                 }
+
+                Log.Information("Recording started successfully");
             }
 
-            string? gameImage = GameIconUtils.ExtractIconAsBase64(exePath);
+            // Get game image if we know the game exe path
+            string? gameImage = null;
+            if (exePath != null)
+            {
+                gameImage = GameIconUtils.ExtractIconAsBase64(exePath);
+            }
 
+            // Set recording state and remove pre recording state and send to frontend
             Settings.Instance.State.Recording = new Recording()
             {
                 StartTime = DateTime.Now,
@@ -592,7 +742,7 @@ namespace Segra.Backend.Utils
             Settings.Instance.State.PreRecording = null;
             _ = MessageUtils.SendSettingsToFrontend("OBS Start recording");
 
-            Log.Information("Recording started: " + videoOutputPath);
+            // Start game integration and keybind capture
             if (!isReplayBufferMode)
             {
                 _ = GameIntegrationService.Start(name);
@@ -601,6 +751,20 @@ namespace Segra.Backend.Utils
             return true;
         }
 
+        // Adds window capture with the given window string
+        public static void AddWindowCaptureIfNotHooked(string windowString)
+        {
+            if (Settings.Instance.EnableDisplayRecording && !_isGameCaptureHooked)
+            {
+                IntPtr windowCaptureSettings = obs_data_create();
+                obs_data_set_string(windowCaptureSettings, "window", windowString);
+                windowCaptureSource = obs_source_create("window_capture", "window", windowCaptureSettings, IntPtr.Zero);
+                obs_data_release(windowCaptureSettings);
+                obs_set_output_source(1, windowCaptureSource);
+            }
+        }
+
+        // Adds monitor capture with the selected display
         public static void AddMonitorCapture()
         {
             if (Settings.Instance.EnableDisplayRecording && !_isGameCaptureHooked)
@@ -624,12 +788,13 @@ namespace Segra.Backend.Utils
                         _ = MessageUtils.ShowModal("Display recording", $"Could not find selected display. Defaulting to first automatically detected display.", "warning");
                     }
                 }
-                displaySource = obs_source_create("monitor_capture", "display", displayCaptureSettings, IntPtr.Zero);
+                MonitorCaptureSource = obs_source_create("monitor_capture", "display", displayCaptureSettings, IntPtr.Zero);
                 obs_data_release(displayCaptureSettings);
-                obs_set_output_source(1, displaySource);
+                obs_set_output_source(1, MonitorCaptureSource);
             }
         }
 
+        // Stops the recording
         public static void StopRecording()
         {
             bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
@@ -664,7 +829,6 @@ namespace Segra.Backend.Utils
 
                 Log.Information("Replay buffer stopped and disposed.");
 
-                _ = GameIntegrationService.Shutdown();
                 KeybindCaptureService.Stop();
 
                 // Reload content list
@@ -703,28 +867,30 @@ namespace Segra.Backend.Utils
 
                 output = IntPtr.Zero;
 
-                Log.Information("Recording stopped.");
+                Log.Information("Recording stopped and disposed.");
 
+                // Stop game integration and keybind capture
                 _ = GameIntegrationService.Shutdown();
                 KeybindCaptureService.Stop();
 
-                ContentUtils.CreateMetadataFile(Settings.Instance.State.Recording!.FilePath, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
-                ContentUtils.CreateThumbnail(Settings.Instance.State.Recording!.FilePath, Content.ContentType.Session);
-                Task.Run(() => ContentUtils.CreateAudioFile(Settings.Instance.State.Recording!.FilePath, Content.ContentType.Session));
+                // Create metadata, thumbnail and audio file
+                ContentUtils.CreateMetadataFile(Settings.Instance.State.Recording!.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
+                ContentUtils.CreateThumbnail(Settings.Instance.State.Recording!.FilePath!, Content.ContentType.Session);
+                Task.Run(() => ContentUtils.CreateAudioFile(Settings.Instance.State.Recording!.FilePath!, Content.ContentType.Session));
 
-                if (Settings.Instance.State.Recording != null)
-                {
-                    Log.Information($"Recording details:");
-                    Log.Information($"Start Time: {Settings.Instance.State.Recording.StartTime}");
-                    Log.Information($"End Time: {Settings.Instance.State.Recording.EndTime}");
-                    Log.Information($"Duration: {Settings.Instance.State.Recording.Duration}");
-                    Log.Information($"File Path: {Settings.Instance.State.Recording.FilePath}");
-                }
+                // Log recording details
+                Log.Information($"Recording details:");
+                Log.Information($"Start Time: {Settings.Instance.State.Recording!.StartTime}");
+                Log.Information($"End Time: {Settings.Instance.State.Recording!.EndTime}");
+                Log.Information($"Duration: {Settings.Instance.State.Recording!.Duration}");
+                Log.Information($"File Path: {Settings.Instance.State.Recording!.FilePath}");
 
+                // Reload content list
                 SettingsUtils.LoadContentFromFolderIntoState(false);
             }
             else
             {
+                // Recording was stopped before it started, dispose all resources and reset state
                 DisposeOutput();
                 DisposeSources();
                 DisposeEncoders();
@@ -741,10 +907,13 @@ namespace Segra.Backend.Utils
             }
 
             string fileName = Path.GetFileNameWithoutExtension(Settings.Instance.State.Recording.FilePath);
-
+            
+            // Reset state
             Settings.Instance.State.Recording = null;
             hookedExecutableFileName = null;
-            if (Settings.Instance.EnableAi && AuthService.IsAuthenticated() && Settings.Instance.AutoGenerateHighlights)
+
+            // Analyze video if AI is enabled and authenticated and not in replay buffer mode
+            if (Settings.Instance.EnableAi && AuthService.IsAuthenticated() && Settings.Instance.AutoGenerateHighlights && !isReplayBufferMode)
             {
                 Task.Run(() => AiService.AnalyzeVideo(fileName));
             }
@@ -769,8 +938,9 @@ namespace Segra.Backend.Utils
                 calldata_get_string(cdPtr, "executable", out IntPtr executable);
 
                 _isGameCaptureHooked = true;
-                StopGameCaptureHookTimeoutTimer();
-                DisposeDisplaySource();
+                StopGameCaptureHookTimeoutTimerIfExists();
+                DisposeMonitorCaptureSourceIfExists();
+                DisposeWindowCaptureSourceIfExists();
                 Log.Information($"Game hooked: Title='{Marshal.PtrToStringAnsi(title)}', Class='{Marshal.PtrToStringAnsi(windowClass)}', Executable='{Marshal.PtrToStringAnsi(executable)}'");
                 
                 // Overwrite the file name with the hooked one because sometimes the current tracked file name is the startup exe instead of the actual game 
@@ -804,16 +974,38 @@ namespace Segra.Backend.Utils
         {
             int elapsed = 0;
             const int step = 100;
-            Log.Information("Waiting for trying to hook game...");
-            Log.Information("PreRecording Status: {PreRecordingStatus}", Settings.Instance.State.PreRecording?.Status);
-            while (Settings.Instance.State.PreRecording?.Status != "Waiting for game hook")
+            (int width, int height)? clientSize = null;
+
+            while (ProcessToRecord?.MainWindowHandle == IntPtr.Zero ||
+                   clientSize == null ||
+                   clientSize.Value.width == 0 ||
+                   clientSize.Value.height == 0)
             {
+                ProcessToRecord?.Refresh();
+
+                if (ProcessToRecord?.HasExited == true)
+                {
+                    Log.Warning("Process has exited before game started.");
+                    return false;
+                }
+
+                clientSize = ClientSize(ProcessToRecord);
+
                 Thread.Sleep(step);
                 elapsed += step;
-                Log.Information("PreRecording Status: {PreRecordingStatus}", Settings.Instance.State.PreRecording?.Status);
+                Log.Information(
+                    "Waiting for game to start - PreRecording Status: {PreRecordingStatus}, " +
+                    "Executable Path: {ExecutablePath}, MainWindowHandle: {MainWindowHandle}, ClientSize: {ClientSize}",
+                    Settings.Instance.State.PreRecording?.Status,
+                    ProcessToRecord?.MainModule?.FileName,
+                    ProcessToRecord?.MainWindowHandle,
+                    clientSize.HasValue ? $"{clientSize.Value.width}x{clientSize.Value.height}" : "null");
                 if (elapsed >= timeoutMs)
                 {
-                    Log.Warning("Game Capture did not hook within {Seconds} seconds.", timeoutMs / 1000);
+                    Log.Warning(
+                        "Timed out waiting for pre-recording status to be 'Waiting for game hook', " +
+                        "main window handle to be available, and client size to be non-zero within {Seconds} seconds.",
+                        timeoutMs / 1000);
                     return false;
                 }
             }
@@ -821,7 +1013,7 @@ namespace Segra.Backend.Utils
             return true;
         }
 
-        private static bool WaitUntilGameCaptureHooks(int timeoutMs = 10000)
+        private static bool WaitUntilGameCaptureHooks(int timeoutMs)
         {
             int elapsed = 0;
             const int step = 100;
@@ -842,35 +1034,45 @@ namespace Segra.Backend.Utils
 
         public static void DisposeSources()
         {
-            DisposeDisplaySource();
-            DisposeGameCaptureSource();
+            DisposeMonitorCaptureSourceIfExists();
+            DisposeWindowCaptureSourceIfExists();
+            DisposeGameCaptureSourceIfExists();
 
-            int micSourcesCount = micSources.Count;
-            for (int i = 0; i < micSources.Count; i++)
-            {
-                if (micSources[i] != IntPtr.Zero)
-                {
-                    obs_set_output_source((uint)(i + 2), IntPtr.Zero);
-                    obs_source_release(micSources[i]);
-                    micSources[i] = IntPtr.Zero;
-                }
-            }
-            micSources.Clear();
+            int micSourcesCount = micAudioSources.Count;
+            DisposeMicAudioSources();
+            DisposeDesktopAudioSources(micSourcesCount);
+        }
 
-            for (int i = 0; i < desktopSources.Count; i++)
+        public static void DisposeDesktopAudioSources(int micSourcesCount)
+        {
+            for (int i = 0; i < desktopAudioSources.Count; i++)
             {
-                if (desktopSources[i] != IntPtr.Zero)
+                if (desktopAudioSources[i] != IntPtr.Zero)
                 {
                     int desktopIndex = i + micSourcesCount + 2;
                     obs_set_output_source((uint)desktopIndex, IntPtr.Zero);
-                    obs_source_release(desktopSources[i]);
-                    desktopSources[i] = IntPtr.Zero;
+                    obs_source_release(desktopAudioSources[i]);
+                    desktopAudioSources[i] = IntPtr.Zero;
                 }
             }
-            desktopSources.Clear();
+            desktopAudioSources.Clear();
         }
 
-        public static void DisposeGameCaptureSource()
+        public static void DisposeMicAudioSources()
+        {
+            for (int i = 0; i < micAudioSources.Count; i++)
+            {
+                if (micAudioSources[i] != IntPtr.Zero)
+                {
+                    obs_set_output_source((uint)(i + 2), IntPtr.Zero);
+                    obs_source_release(micAudioSources[i]);
+                    micAudioSources[i] = IntPtr.Zero;
+                }
+            }
+            micAudioSources.Clear();
+        }
+
+        public static void DisposeGameCaptureSourceIfExists()
         {
             if (gameCaptureSource != IntPtr.Zero)
             {
@@ -879,13 +1081,13 @@ namespace Segra.Backend.Utils
                 gameCaptureSource = IntPtr.Zero;
             }
             // Dispose the timer if it exists
-            StopGameCaptureHookTimeoutTimer();
+            StopGameCaptureHookTimeoutTimerIfExists();
         }
 
         private static void StartGameCaptureHookTimeoutTimer()
         {
             // Dispose any existing timer first
-            StopGameCaptureHookTimeoutTimer();
+            StopGameCaptureHookTimeoutTimerIfExists();
             
             // Create a new timer that checks after 90 seconds
             gameCaptureHookTimeoutTimer = new System.Threading.Timer(
@@ -898,7 +1100,7 @@ namespace Segra.Backend.Utils
             Log.Information("Started game capture hook timer (90 seconds)");
         }
 
-        private static void StopGameCaptureHookTimeoutTimer()
+        private static void StopGameCaptureHookTimeoutTimerIfExists()
         {
             if (gameCaptureHookTimeoutTimer != null)
             {
@@ -914,23 +1116,33 @@ namespace Segra.Backend.Utils
             if (!_isGameCaptureHooked && Settings.Instance.EnableDisplayRecording)
             {
                 Log.Warning("Game capture did not hook within 90 seconds. Removing game capture source.");
-                DisposeGameCaptureSource();
+                DisposeGameCaptureSourceIfExists();
             }
             else
             {
                 Log.Information("Game capture hook check completed. Hook status: {0}", _isGameCaptureHooked ? "Hooked" : "Not hooked");
                 // Just stop the timer without disposing the game capture source if it's hooked
-                StopGameCaptureHookTimeoutTimer();
+                StopGameCaptureHookTimeoutTimerIfExists();
             }
         }
 
-        public static void DisposeDisplaySource()
+        public static void DisposeMonitorCaptureSourceIfExists()
         {
-            if (displaySource != IntPtr.Zero)
+            if (MonitorCaptureSource != IntPtr.Zero)
             {
                 obs_set_output_source(1, IntPtr.Zero);
-                obs_source_release(displaySource);
-                displaySource = IntPtr.Zero;
+                obs_source_release(MonitorCaptureSource);
+                MonitorCaptureSource = IntPtr.Zero;
+            }
+        }
+
+        public static void DisposeWindowCaptureSourceIfExists()
+        {
+            if (windowCaptureSource != IntPtr.Zero)
+            {
+                obs_set_output_source(1, IntPtr.Zero);
+                obs_source_release(windowCaptureSource);
+                windowCaptureSource = IntPtr.Zero;
             }
         }
 
@@ -1061,32 +1273,96 @@ namespace Segra.Backend.Utils
             public required string DownloadUrl { get; set; }
         }
 
-        private static string GetEncoderIdBasedOnSettings()
+        public static Process? GetProcessFromExe(string exeFileName)
         {
-            // Check if user wants CPU or GPU encoding
-            if (Settings.Instance.Encoder.Equals("cpu", StringComparison.CurrentCultureIgnoreCase))
+            string exeWanted = Path.GetFileName(exeFileName);
+
+            foreach (Process p in Process.GetProcesses())
             {
-                Log.Information("Using CPU encoder (x264)");
-                return CPU_ENCODER;
+                string exeActual = SafeExeName(p);
+                if (exeActual == null ||
+                    !exeWanted.Equals(exeActual, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                return p;
             }
 
-            // User wants GPU encoding, check which GPU vendor is available
-            switch (DetectedGpuVendor)
+            return null;
+        }
+
+        public static string? WindowStringFromProcess(Process process)
+        {
+            if (process == null)
+                return null;
+
+            // A process can exist before its main window appears
+            const int MaxWaitSeconds = 90;
+            const int PollIntervalMs = 500; // Check every 500ms
+            int elapsedMs = 0;
+
+            // Non-blocking loop to wait for the main window to appear
+            while (process.MainWindowHandle == IntPtr.Zero)
             {
-                case GpuVendor.Nvidia:
-                    Log.Information("Using NVIDIA GPU encoder (NVENC)");
-                    return NVIDIA_ENCODER;
-                case GpuVendor.AMD:
-                    Log.Information("Using AMD GPU encoder (AMF)");
-                    return AMD_ENCODER;
-                case GpuVendor.Intel:
-                    Log.Information("Using Intel GPU encoder (QSV)");
-                    return INTEL_ENCODER;
-                default:
-                    // Fall back to CPU encoding if no supported GPU is detected
-                    Log.Warning("No supported GPU detected, falling back to CPU encoder (x264)");
-                    return CPU_ENCODER;
+                if (process.HasExited)
+                {
+                    Log.Warning($"Process '{process.ProcessName}' exited before main window appeared.");
+                    return null;
+                }
+
+                // Check for timeout
+                if (elapsedMs >= MaxWaitSeconds * 1000)
+                {
+                    Log.Warning($"Timeout waiting for main window of process '{process.ProcessName}' after {MaxWaitSeconds} seconds.");
+                    return null;
+                }
+
+                Thread.Sleep(PollIntervalMs);
+                elapsedMs += PollIntervalMs;
+
+                // Refresh again after delay to check for updates
+                process.Refresh();
             }
+
+            IntPtr hwnd = process.MainWindowHandle;
+
+            const int CAP = 256;
+            var sb = new StringBuilder(CAP);
+
+            if (GetWindowTextW(hwnd, sb, CAP) == 0)  // title
+                return null;
+            string title = sb.ToString();
+
+            sb.Clear();
+            if (GetClassNameW(hwnd, sb, CAP) == 0)   // class
+                return null;
+            string cls = sb.ToString();
+
+            // Replace any ':' so we don’t break OBS’s delimiter
+            return $"{title.Replace(':', '⸗')}:{cls.Replace(':', '⸗')}:{process.ProcessName}.exe";
+        }
+
+        public static string SafeExeName(Process p)
+        {
+           IntPtr h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, p.Id);
+           if (h == IntPtr.Zero) return null;
+
+           var sb = new StringBuilder(260);
+           int len = sb.Capacity;
+           return QueryFullProcessImageName(h, 0, sb, ref len)
+                  ? Path.GetFileName(sb.ToString())
+                  : null;
+        }
+
+        public static string SafeFullPath(Process p)
+        {
+           IntPtr h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, p.Id);
+           if (h == IntPtr.Zero) return null;
+
+           var sb = new StringBuilder(260);
+           int len = sb.Capacity;
+           return QueryFullProcessImageName(h, 0, sb, ref len)
+                  ? sb.ToString()
+                  : null;
         }
         
         private static void PlayStartSound()
