@@ -10,8 +10,8 @@ namespace Segra.Backend.Utils
         private static string GetCleanDeviceName(string friendlyName)
         {
 
-            // If it's Voicemeeter or Elgato, return the original name
-            if (friendlyName.Contains("Voicemeeter") || friendlyName.Contains("Elgato"))
+            // If it's Voicemeeter, Elgato or GoXLR, return the original name
+            if (friendlyName.Contains("Voicemeeter") || friendlyName.Contains("Elgato") || friendlyName.Contains("GoXLR"))
             {
                 return friendlyName;
             }
