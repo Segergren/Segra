@@ -841,7 +841,7 @@ export default function Settings() {
                 onChange={handleChange}
                 min="0"
                 max="30"
-                className="input input-bordered bg-base-200"
+                className="input input-bordered bg-base-200 w-full"
               />
             </div>
           )}
