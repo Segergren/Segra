@@ -32,9 +32,10 @@ import {
   MdFullscreenExit,
   MdArrowBack,
 } from 'react-icons/md';
-import { IoSkull, IoAdd, IoRemove } from 'react-icons/io5';
+import { IoSkull, IoAdd, IoRemove, IoSettingsSharp } from 'react-icons/io5';
 import SelectionCard from '../Components/SelectionCard';
 import WaveSurfer from 'wavesurfer.js';
+import { TbZoomIn, TbZoomOut, TbZoomReset } from 'react-icons/tb';
 
 // Converts time string in format "HH:MM:SS.mmm" to seconds
 const timeStringToSeconds = (timeStr: string): number => {
@@ -216,6 +217,9 @@ export default function VideoComponent({ video }: { video: Content }) {
     videoScaleRef.current = newScale;
   };
 
+  // Player Settings Modal
+  const [showSettings, setShowSettings] = useState(false);
+
   // Container state
   const [containerWidth, setContainerWidth] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -228,6 +232,10 @@ export default function VideoComponent({ video }: { video: Content }) {
   const [isMuted, setIsMuted] = useState(() => {
     // Initialize muted state from localStorage or default to false
     return localStorage.getItem('segra-muted') === 'true';
+  });
+  const [playbackRate, setPlaybackRate] = useState(() => {
+    const saved = localStorage.getItem('segra-playbackRate');
+    return saved ? parseFloat(saved) : 1;
   });
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsHideTimeoutRef = useRef<number | null>(null);
@@ -318,6 +326,8 @@ export default function VideoComponent({ video }: { video: Content }) {
     // Apply saved volume and muted state on load
     vid.volume = volume;
     vid.muted = isMuted;
+    // Apply saved playback rate
+    vid.playbackRate = playbackRate;
 
     const onLoadedMetadata = () => {
       setDuration(vid.duration);
@@ -337,10 +347,19 @@ export default function VideoComponent({ video }: { video: Content }) {
       }
     };
 
+    const onRateChange = () => {
+      if (vid) {
+        const r = vid.playbackRate || 1;
+        setPlaybackRate(r);
+        localStorage.setItem('segra-playbackRate', r.toString());
+      }
+    };
+
     vid.addEventListener('loadedmetadata', onLoadedMetadata);
     vid.addEventListener('play', onPlay);
     vid.addEventListener('pause', onPause);
     vid.addEventListener('volumechange', onVolumeChange);
+    vid.addEventListener('ratechange', onRateChange);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -416,6 +435,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       vid.removeEventListener('play', onPlay);
       vid.removeEventListener('pause', onPause);
       vid.removeEventListener('volumechange', onVolumeChange);
+      vid.removeEventListener('ratechange', onRateChange);
       window.removeEventListener('keydown', handleKeyDown, keyOptions as any);
     };
   }, [volume, isMuted, isFullscreen]);
@@ -473,6 +493,12 @@ export default function VideoComponent({ video }: { video: Content }) {
       window.removeEventListener('wheel', preventPageZoom);
     };
   }, []);
+
+  useEffect(() => {
+    if (!controlsVisible) {
+      setShowSettings(false);
+    }
+  }, [controlsVisible]);
 
   // Create refs to track zoom state
   const wheelZoomRef = useRef(zoom);
@@ -707,6 +733,8 @@ export default function VideoComponent({ video }: { video: Content }) {
       el.style.overflow = '';
       body.style.overflow = '';
     }
+    setVideoTranslate({ x: 0, y: 0 });
+    setVideoScale(1);
     return () => {
       el.style.overflow = '';
       body.style.overflow = '';
@@ -1212,6 +1240,13 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
   };
 
+  const setPlaybackRateForPlayer = (rate: number) => {
+    const r = Math.max(0.25, Math.min(2, rate));
+    if (videoRef.current) videoRef.current.playbackRate = r;
+    setPlaybackRate(r);
+    localStorage.setItem('segra-playbackRate', r.toString());
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="flex w-full h-full overflow-hidden bg-base-200" ref={containerRef}>
@@ -1253,14 +1288,13 @@ export default function VideoComponent({ video }: { video: Content }) {
                   transform: `translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`,
                   transformOrigin: '0 0',
                   touchAction: videoScale > 1 ? 'none' : undefined,
-                  cursor:
-                    videoScale > 1 && isPanning ? 'grabbing' : videoScale > 1 ? 'grab' : undefined,
+                  cursor: videoScale > 1 && isPanning ? 'grabbing' : undefined,
                 }}
               />
             </div>
 
             <div
-              className={`absolute left-4 right-4 bottom-4 bg-black/70 rounded-lg px-3 py-2 flex items-center gap-3 transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0'}`}
+              className={`absolute left-4 right-4 bottom-4 bg-black/70 rounded-lg px-3 py-2 flex items-center gap-3 transition-opacity duration-300 select-none ${controlsVisible ? 'opacity-100' : 'opacity-0'}`}
             >
               <button
                 onClick={togglePlayPause}
@@ -1325,6 +1359,71 @@ export default function VideoComponent({ video }: { video: Content }) {
                   aria-label="Volume"
                 />
               </div>
+
+              <button
+                className="relative ml-2 text-white transition-colors cursor-pointer hover:text-accent"
+                aria-label="Settings"
+                onClick={() => setShowSettings((prev) => !prev)}
+              >
+                <IoSettingsSharp className="size-4" />
+
+                <div
+                  className={`absolute right-0 z-50 w-54 transition-all duration-300 border rounded-md shadow-lg bottom-8 bg-base-300 border-base-400 flex flex-col gap-2 p-2 ${showSettings ? 'opacity-100 mb-0' : 'opacity-0 pointer-events-none -mb-3'}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between gap-2 px-2 py-1 text-white/50 hover:text-white">
+                    <span>Zoom</span>
+                    <div className="flex overflow-hidden border rounded-md border-base-400">
+                      <button
+                        onClick={() => {
+                          setVideoScale((prev) => prev - 0.5);
+                        }}
+                        disabled={videoScale <= 1}
+                        className="px-2 py-1 hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <TbZoomOut className="size-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setVideoScale(1);
+                          setVideoTranslate({ x: 0, y: 0 });
+                        }}
+                        className="px-2 py-1 hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <TbZoomReset className="size-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setVideoScale((prev) => prev + 0.5);
+                        }}
+                        disabled={videoScale >= 10}
+                        className="px-2 py-1 hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <TbZoomIn className="size-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 px-2 py-1 text-white/50 hover:text-white">
+                    <label htmlFor="playback-speed-select">Speed</label>
+                    <select
+                      id="playback-speed-select"
+                      aria-label="Playback speed"
+                      value={playbackRate.toString()}
+                      onChange={(e) => setPlaybackRateForPlayer(parseFloat(e.target.value))}
+                      className="w-24 text-white select select-sm bg-base-200"
+                      style={{
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="0.25">0.25x</option>
+                      <option value="0.5">0.5x</option>
+                      <option value="1">1x</option>
+                      <option value="1.5">1.5x</option>
+                      <option value="2">2x</option>
+                    </select>
+                  </div>
+                </div>
+              </button>
 
               <button
                 onClick={toggleFullscreen}
