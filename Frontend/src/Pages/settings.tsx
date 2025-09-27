@@ -46,6 +46,22 @@ export default function Settings() {
     volume: number | null;
   }>({ deviceId: null, volume: null });
   const [draggingSoundVolume, setDraggingSoundVolume] = useState<number | null>(null);
+  const isHdr = settings.dynamicRange === 'HDR10';
+  const isHdrCapableCodec = (encoderId: string) => /hevc|h265|av1/i.test(encoderId);
+  const codecOptions = settings.state.codecs
+    .filter((codec) => (settings.encoder === 'gpu' ? codec.isHardwareEncoder : !codec.isHardwareEncoder))
+    .filter((codec) => !isHdr || isHdrCapableCodec(codec.internalEncoderId))
+    .sort((a, b) => {
+      const priorityOrder = ['jim_nvenc', 'h264_texture_amf', 'obs_x264'];
+      const aIndex = priorityOrder.indexOf(a.internalEncoderId);
+      const bIndex = priorityOrder.indexOf(b.internalEncoderId);
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return 0;
+    })
+    .map((codec) => ({ value: codec.internalEncoderId, label: codec.friendlyName }));
+  const noHdrCodecAvailable = isHdr && codecOptions.length === 0;
 
   // Ensure CRF is only used with CPU encoder; if user switches to GPU, switch off CRF
   useEffect(() => {
@@ -713,6 +729,28 @@ export default function Settings() {
             />
           </div>
 
+          {/* Dynamic Range */}
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text text-base-content">Dynamic Range</span>
+            </label>
+            <DropdownSelect
+              items={[
+                { value: 'Sdr', label: 'SDR (Rec. 709)' },
+                { value: 'Hdr10', label: 'HDR10 (Rec. 2100 PQ)' },
+              ]}
+              value={settings.dynamicRange}
+              onChange={(val) => updateSettings({ dynamicRange: val as 'SDR' | 'HDR10' })}
+            />
+            {settings.dynamicRange === 'HDR10' && (
+              <div className="help-text-container">
+                <span className="text-xs text-base-content/60 mt-1">
+                  HDR requires HEVC or AV1 encoders.
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* Frame Rate */}
           <div className="form-control">
             <label className="label">
@@ -867,20 +905,7 @@ export default function Settings() {
               <span className="label-text text-base-content">Codec</span>
             </label>
             <DropdownSelect
-              items={settings.state.codecs
-                .filter((codec) =>
-                  settings.encoder === 'gpu' ? codec.isHardwareEncoder : !codec.isHardwareEncoder,
-                )
-                .sort((a, b) => {
-                  const priorityOrder = ['jim_nvenc', 'h264_texture_amf', 'obs_x264'];
-                  const aIndex = priorityOrder.indexOf(a.internalEncoderId);
-                  const bIndex = priorityOrder.indexOf(b.internalEncoderId);
-                  if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-                  if (aIndex !== -1) return -1;
-                  if (bIndex !== -1) return 1;
-                  return 0;
-                })
-                .map((codec) => ({ value: codec.internalEncoderId, label: codec.friendlyName }))}
+              items={codecOptions}
               value={
                 settings.state.codecs.find(
                   (c) => c.internalEncoderId === settings.codec?.internalEncoderId,
@@ -891,8 +916,15 @@ export default function Settings() {
                   codec: settings.state.codecs.find((c) => c.internalEncoderId === val),
                 })
               }
-              disabled={settings.state.codecs.length === 0}
+              disabled={codecOptions.length === 0}
             />
+            {noHdrCodecAvailable && (
+              <div className="help-text-container">
+                <span className="text-xs text-error mt-1">
+                  No HDR-capable encoder detected. Switch to SDR or select an HEVC/AV1 encoder.
+                </span>
+              </div>
+            )}
           </div>
         </div>
         <div className="form-control mt-3">

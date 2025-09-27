@@ -1,6 +1,6 @@
 export type ContentType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
-
 export type RecordingMode = 'Session' | 'Buffer' | 'Hybrid';
+export type DynamicRange = 'SDR' | 'HDR10';
 
 export interface Content {
   type: ContentType;
@@ -150,6 +150,7 @@ export interface Settings {
     | 'dim'
     | 'sunset';
   resolution: '720p' | '1080p' | '1440p' | '4K';
+  dynamicRange: DynamicRange;
   frameRate: number;
   rateControl: string;
   crfValue: number;
@@ -207,6 +208,7 @@ export const initialState: State = {
 export const initialSettings: Settings = {
   theme: 'segra',
   resolution: '720p',
+  dynamicRange: 'SDR',
   frameRate: 30,
   rateControl: 'CBR',
   crfValue: 23,

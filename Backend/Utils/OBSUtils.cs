@@ -44,6 +44,36 @@ namespace Segra.Backend.Utils
         private static signal_callback_t? unhookedCallback;
         private static bool _isGameCaptureHooked = false;
 
+        internal static bool IsHdrCapableEncoder(string? encoderId)
+        {
+            if (string.IsNullOrWhiteSpace(encoderId))
+            {
+                return false;
+            }
+
+            string normalized = encoderId.ToLowerInvariant();
+            return normalized.Contains("hevc") ||
+                   normalized.Contains("h265") ||
+                   normalized.Contains("av1");
+        }
+
+        private static string DetermineEncoderProfile(string encoderId, bool isHdr)
+        {
+            string normalized = encoderId.ToLowerInvariant();
+
+            if (normalized.Contains("hevc") || normalized.Contains("h265"))
+            {
+                return isHdr ? "main10" : "main";
+            }
+
+            if (normalized.Contains("av1"))
+            {
+                return "main";
+            }
+
+            return "high";
+        }
+
         public static bool SaveReplayBuffer()
         {
             // Check if replay buffer is active before trying to save
@@ -301,6 +331,18 @@ namespace Segra.Backend.Utils
                 scale_type = obs_scale_type.OBS_SCALE_BILINEAR
             };
 
+            if (Settings.Instance.DynamicRange == DynamicRange.Hdr10)
+            {
+                videoInfo.output_format = video_format.VIDEO_FORMAT_P010;
+                videoInfo.colorspace = video_colorspace.VIDEO_CS_2100_PQ;
+                videoInfo.range = video_range_type.VIDEO_RANGE_FULL;
+            }
+            else
+            {
+                videoInfo.colorspace = video_colorspace.VIDEO_CS_709;
+                videoInfo.range = video_range_type.VIDEO_RANGE_PARTIAL;
+            }
+
             return obs_reset_video(ref videoInfo) == 0; // Returns true if successful
         }
 
@@ -310,8 +352,26 @@ namespace Segra.Backend.Utils
             bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
             bool isSessionMode = Settings.Instance.RecordingMode == RecordingMode.Session;
             bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
+            bool isHdrRecording = Settings.Instance.DynamicRange == DynamicRange.Hdr10;
 
             string fileName = Path.GetFileName(exePath);
+
+            var selectedCodec = Settings.Instance.Codec;
+            if (selectedCodec == null)
+            {
+                Log.Error("No video encoder configured. Aborting recording start.");
+                _ = Task.Run(() => ShowModal("Recording failed", "No video encoder is configured. Select an encoder in Settings and try again.", "error"));
+                Settings.Instance.State.PreRecording = null;
+                return false;
+            }
+
+            if (isHdrRecording && !IsHdrCapableEncoder(selectedCodec.InternalEncoderId))
+            {
+                Log.Error($"Selected encoder '{selectedCodec.InternalEncoderId}' does not support HDR recording.");
+                _ = Task.Run(() => ShowModal("HDR codec required", "Select an HEVC or AV1 encoder to record in HDR.", "error"));
+                Settings.Instance.State.PreRecording = null;
+                return false;
+            }
 
             // Prevent starting if any output is already active
             if (bufferOutput != IntPtr.Zero || output != IntPtr.Zero)
@@ -419,9 +479,17 @@ namespace Segra.Backend.Utils
 
             IntPtr videoEncoderSettings = obs_data_create();
             obs_data_set_string(videoEncoderSettings, "preset", "Quality");
-            obs_data_set_string(videoEncoderSettings, "profile", "high");
             obs_data_set_bool(videoEncoderSettings, "use_bufsize", true);
             obs_data_set_string(videoEncoderSettings, "rate_control", Settings.Instance.RateControl);
+
+            string encoderId = selectedCodec.InternalEncoderId;
+            string encoderProfile = DetermineEncoderProfile(encoderId, isHdrRecording);
+            obs_data_set_string(videoEncoderSettings, "profile", encoderProfile);
+
+            if (isHdrRecording)
+            {
+                Log.Information($"Configured HDR pipeline with encoder profile '{encoderProfile}'.");
+            }
 
             switch (Settings.Instance.RateControl)
             {
@@ -457,8 +525,7 @@ namespace Segra.Backend.Utils
             }
 
             // Select the appropriate encoder based on settings and available hardware
-            Log.Information($"Using encoder: {Settings.Instance.Codec!.FriendlyName} ({Settings.Instance.Codec.InternalEncoderId})");
-            string encoderId = Settings.Instance.Codec!.InternalEncoderId;
+            Log.Information($"Using encoder: {selectedCodec.FriendlyName} ({encoderId})");
             videoEncoder = obs_video_encoder_create(encoderId, "Segra Recorder", videoEncoderSettings, IntPtr.Zero);
             obs_encoder_set_video(videoEncoder, obs_get_video());
             obs_data_release(videoEncoderSettings);

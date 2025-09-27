@@ -16,6 +16,7 @@ namespace Segra.Backend.Models
         private string _contentFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Segra").Replace("\\", "/");
         private string _theme = "segra";
         private string _resolution = "1080p";
+        private DynamicRange _dynamicRange = DynamicRange.Sdr;
         private int _frameRate = 60;
         private int _bitrate = 40;
         private int _minBitrate = 40;
@@ -160,6 +161,16 @@ namespace Segra.Backend.Models
             set
             {
                 _resolution = value;
+            }
+        }
+
+        [JsonPropertyName("dynamicRange")]
+        public DynamicRange DynamicRange
+        {
+            get => _dynamicRange;
+            set
+            {
+                _dynamicRange = value;
             }
         }
 
@@ -1185,6 +1196,15 @@ namespace Segra.Backend.Models
         {
             return !string.IsNullOrEmpty(_jwt) && !string.IsNullOrEmpty(_refreshToken);
         }
+    }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum DynamicRange
+    {
+        [EnumMember(Value = "SDR")]
+        Sdr,
+        [EnumMember(Value = "HDR10")]
+        Hdr10
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]

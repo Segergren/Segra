@@ -378,6 +378,14 @@ namespace Segra.Backend.Utils
                 hasChanges = true;
             }
 
+            // Update DynamicRange
+            if (settings.DynamicRange != updatedSettings.DynamicRange)
+            {
+                Log.Information($"DynamicRange changed from '{settings.DynamicRange}' to '{updatedSettings.DynamicRange}'");
+                settings.DynamicRange = updatedSettings.DynamicRange;
+                hasChanges = true;
+            }
+
             // Update FrameRate
             if (settings.FrameRate != updatedSettings.FrameRate)
             {
