@@ -248,8 +248,16 @@ namespace Segra.Backend.Utils
                             else
                                 videoCodecAi = "h264_amf";
 
-                            qualityArgsAi = $"-qp_i {currentSettings.ClipQualityGpu} -qp_p {currentSettings.ClipQualityGpu}";
-                            presetArgsAi = $"-quality {currentSettings.ClipPreset}";
+qualityArgsAi = $"-qp_i {currentSettings.ClipQualityGpu} -qp_p {currentSettings.ClipQualityGpu}";
+                            // Map common presets to AMF compatible values for AI clip as well
+                            var amfPresetAi = currentSettings.ClipPreset.ToLower() switch
+                            {
+                                "ultrafast" or "superfast" or "veryfast" => "speed",
+                                "faster" or "fast" => "balanced",
+                                "medium" or "slow" or "slower" or "veryslow" => "quality",
+                                _ => "balanced" // Default to balanced if unknown preset
+                            };
+                            presetArgsAi = $"-quality {amfPresetAi}";
                             break;
 
                         case GpuVendor.Intel:
@@ -385,7 +393,15 @@ namespace Segra.Backend.Utils
 
                         // AMF uses -qp_i, -qp_p for quality control
                         qualityArgs = $"-qp_i {settings.ClipQualityGpu} -qp_p {settings.ClipQualityGpu}";
-                        presetArgs = $"-quality {settings.ClipPreset}";
+                        // Map common presets to AMF compatible values
+                        var amfPreset = settings.ClipPreset.ToLower() switch
+                        {
+                            "ultrafast" or "superfast" or "veryfast" => "speed",
+                            "faster" or "fast" => "balanced",
+                            "medium" or "slow" or "slower" or "veryslow" => "quality",
+                            _ => "balanced" // Default to balanced if unknown preset
+                        };
+                        presetArgs = $"-quality {amfPreset}";
                         break;
 
                     case GpuVendor.Intel:
