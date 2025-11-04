@@ -1,4 +1,6 @@
-using Segra.Backend.Models;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Games;
+using Segra.Backend.Obs;
 using Segra.Backend.Utils;
 using Serilog;
 using System.Diagnostics;
@@ -156,7 +158,7 @@ namespace Segra.Backend.Services
                 if (fileNameWithExtension == Settings.Instance.State.Recording?.FileName)
                 {
                     Log.Information($"[OnTrackedProcessExited] Confirmed that PID {pid} is no longer running. Stopping recording.");
-                    _ = Task.Run(OBSUtils.StopRecording);
+                    _ = Task.Run(OBSService.StopRecording);
                 }
             }
             catch (Exception ex)
@@ -174,7 +176,7 @@ namespace Segra.Backend.Services
             }
 
             Log.Information($"[StartGameRecording] Starting recording for game: PID {pid}, Path: {exePath}");
-            OBSUtils.StartRecording(ExtractGameName(exePath), exePath, pid: pid);
+            OBSService.StartRecording(ExtractGameName(exePath), exePath, pid: pid);
         }
 
         [DllImport("user32.dll")]
@@ -483,7 +485,7 @@ namespace Segra.Backend.Services
                     if (recordingPid.HasValue && !IsProcessRunning(recordingPid.Value))
                     {
                         Log.Warning($"[ProcessCheck] Recording process PID {recordingPid} is no longer running. Stopping recording.");
-                        _ = Task.Run(OBSUtils.StopRecording);
+                        _ = Task.Run(OBSService.StopRecording);
                         return;
                     }
                     // Process is still running, no need to check for new games

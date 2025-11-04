@@ -1,4 +1,7 @@
-using Segra.Backend.GameIntegration;
+using Segra.Backend.Games;
+using Segra.Backend.Games.CounterStrike2;
+using Segra.Backend.Games.LeagueOfLegends;
+using Segra.Backend.Games.Pubg;
 using Serilog;
 
 namespace Segra.Backend.Services

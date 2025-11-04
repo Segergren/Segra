@@ -3,7 +3,9 @@ using System.Text;
 using System.Text.Json;
 using Serilog;
 using Segra.Backend.Utils;
-using Segra.Backend.Models;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Media;
+using Segra.Backend.App;
 
 namespace Segra.Backend.Services
 {
@@ -103,7 +105,7 @@ namespace Segra.Backend.Services
                     Content = content
                 };
 
-                _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
 
                 Dictionary<Bookmark, string> clipPaths = new Dictionary<Bookmark, string>();
 
@@ -115,7 +117,7 @@ namespace Segra.Backend.Services
                     string? clipPath = null;
                     try
                     {
-                        clipPath = await ClipUtils.CreateAiClipToAnalyzeFromBookmark(bookmark, content);
+                        clipPath = await ClipService.CreateAiClipToAnalyzeFromBookmark(bookmark, content);
                     }
                     catch (Exception ex)
                     {
@@ -136,14 +138,14 @@ namespace Segra.Backend.Services
 
                     aiProgressMessage.Progress = (int)Math.Floor(currentProgress);
                     aiProgressMessage.Message = "Extracting metadata to analyze";
-                    _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                    _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
 
                     // Delay a bit before generating the next clip
                     await Task.Delay(1000);
                 }
 
                 aiProgressMessage.Progress = 20;
-                _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
                 Log.Information($"All {clipPaths.Count} clips have been generated. Starting parallel upload to AI service...");
 
                 decimal uploadRange = 30m;
@@ -172,7 +174,7 @@ namespace Segra.Backend.Services
 
                         aiProgressMessage.Progress = (int)Math.Floor(newProgress);
                         aiProgressMessage.Message = $"Uploaded {count} of {clipPaths.Count} parts to analyze";
-                        _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                        _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
                     }));
                 }
 
@@ -187,7 +189,7 @@ namespace Segra.Backend.Services
 
                 aiProgressMessage.Progress = 50;
                 aiProgressMessage.Message = $"Analyzing parts...";
-                _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
 
                 Log.Information($"All {clipPaths.Count} clips have been uploaded or attempted.");
                 await ProcessAnalysisAsync(aiProgressMessage);
@@ -238,7 +240,7 @@ namespace Segra.Backend.Services
                 Log.Information($"Creating clips for {highRatedKillsBookmarks.Count} high-rated kills bookmarks");
                 try
                 {
-                    await ClipUtils.CreateAiClipFromBookmarks(highRatedKillsBookmarks, aiProgressMessage);
+                    await ClipService.CreateAiClipFromBookmarks(highRatedKillsBookmarks, aiProgressMessage);
                 }
                 catch (Exception ex)
                 {
@@ -254,14 +256,14 @@ namespace Segra.Backend.Services
             aiProgressMessage.Progress = 100;
             aiProgressMessage.Status = "done";
             aiProgressMessage.Message = "Done";
-            _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+            _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
         }
 
         private static async Task<string?> WaitForAnalysisCompletionAsync(AiProgressMessage aiProgressMessage, int maxWaitMinutes = 20)
         {
             aiProgressMessage.Progress = 50;
             aiProgressMessage.Message = $"Waiting for analysis...";
-            _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+            _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
 
             DateTime timeoutTime = DateTime.Now.AddMinutes(maxWaitMinutes);
             await Task.Delay(5000);
@@ -292,7 +294,7 @@ namespace Segra.Backend.Services
                     {
                         aiProgressMessage.Progress = 80;
                         aiProgressMessage.Message = $"Creating highlight";
-                        _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                        _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
 
                         return statusResponseBody;
                     }
@@ -300,7 +302,7 @@ namespace Segra.Backend.Services
                     {
                         aiProgressMessage.Progress = 80;
                         aiProgressMessage.Message = $"Analysis error";
-                        _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                        _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
                         return statusResponseBody;
                     }
 
@@ -324,7 +326,7 @@ namespace Segra.Backend.Services
 
                     aiProgressMessage.Progress = (int)Math.Floor(newProgress);
                     aiProgressMessage.Message = completedClips == 0 ? "Finding highlights..." : $"Finding highlights... {completedClips} found so far.";
-                    _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+                    _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
 
                     await Task.Delay(5000);
                 }
@@ -340,7 +342,7 @@ namespace Segra.Backend.Services
 
             aiProgressMessage.Progress = 80;
             aiProgressMessage.Message = "Analysis timed out";
-            _ = MessageUtils.SendFrontendMessage("AiProgress", aiProgressMessage);
+            _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
 
             return null;
         }
