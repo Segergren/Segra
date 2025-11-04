@@ -3,6 +3,7 @@ using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
 using Segra.Backend.Obs;
 using Segra.Backend.Utils;
+using Segra.Backend.Windows.Display;
 using Serilog;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -741,16 +742,29 @@ namespace Segra.Backend.Services
 
         public static void GetPrimaryMonitorResolution(out uint boundsWidth, out uint boundsHeight)
         {
-            if (Screen.PrimaryScreen == null)
+            // Try to get physical resolution (DPI-aware)
+            if (DisplayService.GetPrimaryMonitorPhysicalResolution(out boundsWidth, out boundsHeight))
+            {
+                if (Screen.PrimaryScreen != null)
+                {
+                    Log.Information($"Physical resolution: {boundsWidth}x{boundsHeight} (logical: {Screen.PrimaryScreen.Bounds.Width}x{Screen.PrimaryScreen.Bounds.Height})");
+                }
+                return;
+            }
+
+            // Fallback to logical resolution
+            if (Screen.PrimaryScreen != null)
+            {
+                boundsWidth = (uint)Screen.PrimaryScreen.Bounds.Width;
+                boundsHeight = (uint)Screen.PrimaryScreen.Bounds.Height;
+                Log.Warning("Using logical resolution as fallback");
+            }
+            else
             {
                 boundsWidth = 1920;
                 boundsHeight = 1080;
                 Log.Warning("Primary screen not found, defaulting to 1920x1080");
-                return;
             }
-
-            boundsWidth = (uint)Screen.PrimaryScreen.Bounds.Width;
-            boundsHeight = (uint)Screen.PrimaryScreen.Bounds.Height;
         }
 
         public static void GetResolution(string resolution, out uint width, out uint height)

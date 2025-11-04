@@ -19,6 +19,48 @@ namespace Segra.Backend.Windows.Display
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         public static extern bool EnumDisplayDevices(string lpDevice, uint iDevNum, ref DisplayDevice lpDisplayDevice, uint dwFlags);
 
+        [DllImport("user32.dll")]
+        private static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
+
+        private const int ENUM_CURRENT_SETTINGS = -1;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DEVMODE
+        {
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string dmDeviceName;
+            public short dmSpecVersion;
+            public short dmDriverVersion;
+            public short dmSize;
+            public short dmDriverExtra;
+            public int dmFields;
+            public int dmPositionX;
+            public int dmPositionY;
+            public int dmDisplayOrientation;
+            public int dmDisplayFixedOutput;
+            public short dmColor;
+            public short dmDuplex;
+            public short dmYResolution;
+            public short dmTTOption;
+            public short dmCollate;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string dmFormName;
+            public short dmLogPixels;
+            public int dmBitsPerPel;
+            public int dmPelsWidth;
+            public int dmPelsHeight;
+            public int dmDisplayFlags;
+            public int dmDisplayFrequency;
+            public int dmICMMethod;
+            public int dmICMIntent;
+            public int dmMediaType;
+            public int dmDitherType;
+            public int dmReserved1;
+            public int dmReserved2;
+            public int dmPanningWidth;
+            public int dmPanningHeight;
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
         {
@@ -54,6 +96,34 @@ namespace Segra.Backend.Windows.Display
             public string DeviceID;
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
             public string DeviceKey;
+        }
+
+        public static bool GetPrimaryMonitorPhysicalResolution(out uint width, out uint height)
+        {
+            width = 0;
+            height = 0;
+
+            try
+            {
+                var primaryScreen = Screen.PrimaryScreen;
+                if (primaryScreen == null) return false;
+
+                DEVMODE devMode = new DEVMODE();
+                devMode.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+
+                if (EnumDisplaySettings(primaryScreen.DeviceName, ENUM_CURRENT_SETTINGS, ref devMode))
+                {
+                    width = (uint)devMode.dmPelsWidth;
+                    height = (uint)devMode.dmPelsHeight;
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to get physical resolution: {ex.Message}");
+            }
+
+            return false;
         }
 
         public static void LoadAvailableMonitorsIntoState()
