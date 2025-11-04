@@ -26,6 +26,32 @@ namespace Segra.Backend.Obs
         // Constants
         private const uint OBS_SOURCE_FLAG_FORCE_MONO = 1u << 1; // from obs.h
         
+        // Executables that OBS internally blacklists from game capture (cannot be hooked)
+        // https://github.com/obsproject/obs-studio/blob/e448c0a963eda45f48515b2cb9a631daced9d503/plugins/win-capture/game-capture.c#L956
+        private static readonly string[] ObsInternalBlacklist =
+        [
+            "explorer.exe",
+            "steam.exe",
+            "battle.net.exe",
+            "galaxyclient.exe",
+            "skype.exe",
+            "uplay.exe",
+            "origin.exe",
+            "devenv.exe",
+            "taskmgr.exe",
+            "chrome.exe",
+            "discord.exe",
+            "firefox.exe",
+            "systemsettings.exe",
+            "applicationframehost.exe",
+            "cmd.exe",
+            "shellexperiencehost.exe",
+            "winstore.app.exe",
+            "searchui.exe",
+            "lockapp.exe",
+            "windowsinternal.composableshell.experiences.textinput.inputapp.exe"
+        ];
+        
         // Regex patterns for buffer parsing
         [GeneratedRegex(@"BufferDesc\.Width:\s*(\d+)")]
         private static partial Regex BufferDescWidthRegex();
@@ -232,7 +258,10 @@ namespace Segra.Backend.Obs
 
                     if (formattedMessage.Contains("attempting to hook fullscreen process") || formattedMessage.Contains("attempting to hook process"))
                     {
-                        if (Settings.Instance.State.PreRecording != null)
+                        // Don't update status if the process is in OBS's internal blacklist
+                        bool isBlacklisted = ObsInternalBlacklist.Any(exe => formattedMessage.Contains(exe));
+                        
+                        if (Settings.Instance.State.PreRecording != null && !isBlacklisted)
                         {
                             Settings.Instance.State.PreRecording.Status = "Waiting for game hook";
 
