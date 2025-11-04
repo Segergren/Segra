@@ -20,6 +20,10 @@ namespace Segra.Backend.App
     {
         [DllImport("user32.dll")]
         static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        
+        [DllImport("user32.dll")]
+        static extern bool SetProcessDPIAware();
+        
         const int SW_HIDE = 0;
         private static readonly AutoResetEvent ShowWindowEvent = new AutoResetEvent(false);
         public static bool hasLoadedInitialSettings = false;
@@ -35,6 +39,9 @@ namespace Segra.Backend.App
         [STAThread]
         static void Main(string[] args)
         {
+            // Set process DPI aware to ensure we capture at physical resolution
+            SetProcessDPIAware();
+            
             // Try to create a named mutex - this will fail if another instance exists
             singleInstanceMutex = new Mutex(true, "SegraApplicationMutex", out bool createdNew);
 
