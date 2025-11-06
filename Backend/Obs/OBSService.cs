@@ -392,12 +392,12 @@ namespace Segra.Backend.Obs
 
             // TODO: Implement a setting to disable this behavior
             // If the content is 4:3, stretch it to 16:9 while preserving height
+            // Only modify output dimensions, not base dimensions (base = actual capture size)
             if (is4by3 && customOutputWidth == null)
             {
-                // Calculate 16:9 width based on the current height
-                baseWidth = (uint)(baseHeight * (16.0 / 9.0));
-                outputWidth = baseWidth;
-                Log.Information($"Stretching 4:3 content to 16:9: {outputWidth}x{outputHeight}");
+                // Calculate 16:9 width based on the current height for output only
+                outputWidth = (uint)(baseHeight * (16.0 / 9.0));
+                Log.Information($"Stretching 4:3 content to 16:9: {baseWidth}x{baseHeight} -> {outputWidth}x{outputHeight}");
             }
 
             // If content height exceeds max height setting, downscale proportionally
@@ -406,6 +406,12 @@ namespace Segra.Backend.Obs
                 double scale = (double)maxHeight / outputHeight;
                 outputWidth = (uint)(outputWidth * scale);
                 outputHeight = maxHeight;
+                
+                // Round to nearest multiple of 4 (required by video encoders)
+                // Example: 1279 → 1280 instead of OBS rounding down to 1276
+                outputWidth = (uint)(Math.Round(outputWidth / 4.0) * 4);
+                outputHeight = (uint)(Math.Round(outputHeight / 4.0) * 4);
+                
                 Log.Information($"Downscaling from {baseWidth}x{baseHeight} to {outputWidth}x{outputHeight} (max height: {maxHeight})");
             }
 

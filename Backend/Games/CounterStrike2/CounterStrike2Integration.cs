@@ -129,7 +129,7 @@ namespace Segra.Backend.Games.CounterStrike2
                 if (context.Request.HttpMethod == "POST")
                 {
                     string body = await ReadRequestBodyAsync(context.Request);
-                    Log.Debug($"CS2 integration received payload: {body}");
+                    Log.Debug($"CS2 integration received payload: {body.Replace("\n", "").Replace("\r", "").Replace("\t", "")}");
 
                     GameState gameState = DeserializeState(body);
                     ProcessGameState(gameState);
@@ -184,7 +184,6 @@ namespace Segra.Backend.Games.CounterStrike2
             {
                 if (!IsValidState(gameState))
                 {
-                    Log.Debug($"Skipping invalid state - Phase: {gameState.Map?.Phase}, SteamId match: {gameState.Player?.SteamId == gameState.Provider?.SteamId}");
                     return;
                 }
 
@@ -237,21 +236,21 @@ namespace Segra.Backend.Games.CounterStrike2
 
         private static bool IsValidState(GameState gameState)
         {
+            // Check if the game is live
             if (gameState.Map?.Phase != "live" && gameState.Map?.Phase != "gameover")
             {
-                Log.Debug($"Skipping invalid state - Phase: {gameState.Map?.Phase}");
                 return false;
             }
 
+            // Check if the player has match stats
             if (gameState.Player?.MatchStats == null)
             {
-                Log.Debug($"Skipping invalid state - No player match stats");
                 return false;
             }
 
+            // Check if the player is the same as the provider (this might not be the case if the player is spectating another player)
             if (gameState.Player.SteamId != gameState.Provider?.SteamId)
             {
-                Log.Debug($"Skipping invalid state - Player Steam ID: {gameState.Player.SteamId}, Provider Steam ID: {gameState.Provider?.SteamId}");
                 return false;
             }
 
