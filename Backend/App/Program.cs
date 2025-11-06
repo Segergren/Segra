@@ -5,6 +5,7 @@ using Segra.Backend.Api;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Obs;
 using Segra.Backend.Services;
+using Segra.Backend.Shared;
 using Segra.Backend.Utils;
 using Segra.Backend.Windows.Storage;
 using Serilog;
@@ -195,6 +196,9 @@ namespace Segra.Backend.App
                 // Start WebSocket and Load Settings
                 Task.Run(MessageService.StartWebsocket);
                 Task.Run(StorageService.EnsureStorageBelowLimit);
+
+                // Check for recent Velopack update errors
+                Task.Run(() => VelopackUtils.CheckForRecentUpdateErrors());
 
                 // Check for updates
                 Task.Run(UpdateService.UpdateAppIfNecessary);
