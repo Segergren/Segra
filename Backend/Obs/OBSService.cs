@@ -360,6 +360,30 @@ namespace Segra.Backend.Obs
             GameDetectionService.StartAsync();
         }
 
+        public static void Shutdown()
+        {
+            if (!IsInitialized)
+            {
+                Log.Information("OBS is not initialized, skipping shutdown");
+                return;
+            }
+
+            try
+            {
+                Log.Information("Shutting down OBS...");
+                
+                // Call obs_shutdown to properly clean up OBS resources
+                obs_shutdown();
+                
+                IsInitialized = false;
+                Log.Information("OBS shutdown completed successfully");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during OBS shutdown");
+            }
+        }
+
         private static bool ResetAudioSettings()
         {
             obs_audio_info audioInfo = new obs_audio_info()

@@ -238,13 +238,33 @@ namespace Segra.Backend.App
             }
             finally
             {
-                Log.Information("Application shutting down.");
-                Log.CloseAndFlush(); // Ensure all logs are written before the application exits
+                Shutdown();
+            }
+        }
 
-                // Release the mutex when closing
-                if (singleInstanceMutex != null)
+        private static void Shutdown()
+        {
+            Log.Information("Application shutting down.");
+            
+            // Shutdown OBS if it was initialized
+            OBSService.Shutdown();
+            
+            Log.CloseAndFlush(); // Ensure all logs are written before the application exits
+
+            // Release the mutex when closing (only if we own it)
+            if (singleInstanceMutex != null)
+            {
+                try
                 {
                     singleInstanceMutex.ReleaseMutex();
+                }
+                catch (ApplicationException)
+                {
+                    // Mutex was not owned by this thread, which is fine
+                    // This can happen when exiting from the tray icon thread
+                }
+                finally
+                {
                     singleInstanceMutex.Dispose();
                 }
             }
@@ -470,7 +490,11 @@ namespace Segra.Backend.App
 
                     var menu = new ContextMenuStrip();
                     menu.Items.Add("Open", null, async (s, e) => await ShowApplicationWindow());
-                    menu.Items.Add("Exit", null, (s, e) => Environment.Exit(0));
+                    menu.Items.Add("Exit", null, (s, e) => 
+                    {
+                        Shutdown();
+                        Environment.Exit(0);
+                    });
                     icon.ContextMenuStrip = menu;
 
                     icon.MouseDoubleClick += async (s, e) =>
