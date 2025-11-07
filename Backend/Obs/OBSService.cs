@@ -1195,6 +1195,8 @@ namespace Segra.Backend.Obs
                 // Create video encoder for streaming
                 IntPtr videoEncoderSettings = obs_data_create();
                 obs_data_set_string(videoEncoderSettings, "preset", "Quality");
+                obs_data_set_string(videoEncoderSettings, "tune", "ll");
+                obs_data_set_int(videoEncoderSettings, "keyint_sec", 2);
                 obs_data_set_string(videoEncoderSettings, "profile", "high");
                 obs_data_set_bool(videoEncoderSettings, "use_bufsize", true);
                 
