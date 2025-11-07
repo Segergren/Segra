@@ -706,8 +706,6 @@ namespace Segra.Backend.Core.Models
                 if (_enableStreaming != value)
                 {
                     _enableStreaming = value;
-                    SendToFrontend("EnableStreaming changed");
-                    SettingsService.SaveSettings();
                 }
             }
         }
@@ -721,8 +719,6 @@ namespace Segra.Backend.Core.Models
                 if (_streamServer != value)
                 {
                     _streamServer = value;
-                    SendToFrontend("StreamServer changed");
-                    SettingsService.SaveSettings();
                 }
             }
         }
@@ -736,8 +732,6 @@ namespace Segra.Backend.Core.Models
                 if (_streamKey != value)
                 {
                     _streamKey = value;
-                    SendToFrontend("StreamKey changed");
-                    SettingsService.SaveSettings();
                 }
             }
         }

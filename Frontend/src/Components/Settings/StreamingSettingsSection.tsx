@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Settings as SettingsType } from '../../Models/types';
+import { sendMessageToBackend } from '../../Utils/MessageUtils';
 
 interface StreamingSettingsSectionProps {
   settings: SettingsType;
@@ -9,12 +11,15 @@ export default function StreamingSettingsSection({
   settings,
   updateSettings,
 }: StreamingSettingsSectionProps) {
+  const [localStreamServer, setLocalStreamServer] = useState(settings.streamServer);
+  const [localStreamKey, setLocalStreamKey] = useState(settings.streamKey);
+
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold mb-4">Streaming Settings</h2>
+    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+      <h2 className="text-xl font-semibold mb-4">Streaming Settings</h2>
 
       {/* Enable Streaming Toggle */}
-      <div className="form-control">
+      <div className="form-control mb-4">
         <label className="label cursor-pointer justify-start gap-4">
           <input
             type="checkbox"
@@ -23,84 +28,62 @@ export default function StreamingSettingsSection({
             onChange={(e) => updateSettings({ enableStreaming: e.target.checked })}
           />
           <div>
-            <span className="label-text font-semibold">Enable Streaming</span>
-            <p className="text-sm text-gray-400">Allow streaming to Twitch</p>
+            <span className="label-text text-base-content">Enable Streaming</span>
+            <p className="text-sm text-base-content text-opacity-60">Allow streaming to Twitch</p>
           </div>
         </label>
       </div>
 
       {settings.enableStreaming && (
-        <>
+        <div className="grid grid-cols-2 gap-4">
           {/* Stream Server */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-semibold">Stream Server</span>
+              <span className="label-text text-base-content">Stream Server</span>
             </label>
             <input
               type="text"
-              className="input input-bordered w-full"
-              value={settings.streamServer}
-              onChange={(e) => updateSettings({ streamServer: e.target.value })}
+              className="input input-bordered bg-base-200 w-full"
+              value={localStreamServer}
+              onChange={(e) => setLocalStreamServer(e.target.value)}
+              onBlur={() => updateSettings({ streamServer: localStreamServer })}
               placeholder="rtmp://live.twitch.tv/app/"
             />
-            <label className="label">
-              <span className="label-text-alt text-gray-400">
-                Default: rtmp://live.twitch.tv/app/
-              </span>
-            </label>
           </div>
 
           {/* Stream Key */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-semibold">Stream Key</span>
+              <span className="label-text text-base-content">Stream Key</span>
             </label>
             <input
               type="password"
-              className="input input-bordered w-full"
-              value={settings.streamKey}
-              onChange={(e) => updateSettings({ streamKey: e.target.value })}
+              className="input input-bordered bg-base-200 w-full"
+              value={localStreamKey}
+              onChange={(e) => setLocalStreamKey(e.target.value)}
+              onBlur={() => updateSettings({ streamKey: localStreamKey })}
               placeholder="Enter your Twitch stream key"
             />
-            <label className="label">
-              <span className="label-text-alt text-gray-400">
-                Get your stream key from{' '}
-                <a
-                  href="https://dashboard.twitch.tv/settings/stream"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="link link-primary"
-                >
-                  Twitch Dashboard
-                </a>
-              </span>
-            </label>
+            {localStreamKey.length === 0 && (
+              <label className="label">
+                <span className="label-text-alt text-base-content text-opacity-60">
+                  Get your stream key from{' '}
+                  <span 
+                    className="link link-primary cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      sendMessageToBackend('OpenInBrowser', {
+                        Url: `https://dashboard.twitch.tv/u/oiies/settings/stream#primary-stream-key`,
+                      });
+                    }}
+                  >
+                    Twitch Dashboard
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
-
-          {/* Info Box */}
-          <div className="alert alert-info">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              className="stroke-current shrink-0 w-6 h-6"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              ></path>
-            </svg>
-            <div>
-              <h3 className="font-bold">Streaming uses your video settings</h3>
-              <div className="text-sm">
-                The stream will use your configured resolution, frame rate, bitrate, and encoder
-                settings from the Video Settings section.
-              </div>
-            </div>
-          </div>
-        </>
+        </div>
       )}
     </div>
   );
