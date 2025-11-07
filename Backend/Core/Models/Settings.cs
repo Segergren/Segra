@@ -66,6 +66,9 @@ namespace Segra.Backend.Core.Models
         private bool _enableSeparateAudioTracks = false;
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "high";
+        private bool _enableStreaming = false;
+        private string _streamServer = "rtmp://live.twitch.tv/app/";
+        private string _streamKey = "";
 
         // Returns the default keybindings
         private static List<Keybind> GetDefaultKeybindings()
@@ -694,6 +697,51 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("enableStreaming")]
+        public bool EnableStreaming
+        {
+            get => _enableStreaming;
+            set
+            {
+                if (_enableStreaming != value)
+                {
+                    _enableStreaming = value;
+                    SendToFrontend("EnableStreaming changed");
+                    SettingsService.SaveSettings();
+                }
+            }
+        }
+
+        [JsonPropertyName("streamServer")]
+        public string StreamServer
+        {
+            get => _streamServer;
+            set
+            {
+                if (_streamServer != value)
+                {
+                    _streamServer = value;
+                    SendToFrontend("StreamServer changed");
+                    SettingsService.SaveSettings();
+                }
+            }
+        }
+
+        [JsonPropertyName("streamKey")]
+        public string StreamKey
+        {
+            get => _streamKey;
+            set
+            {
+                if (_streamKey != value)
+                {
+                    _streamKey = value;
+                    SendToFrontend("StreamKey changed");
+                    SettingsService.SaveSettings();
+                }
+            }
+        }
+
         [JsonPropertyName("selectedOBSVersion")]
         public string? SelectedOBSVersion
         {
@@ -828,6 +876,7 @@ namespace Segra.Backend.Core.Models
         private PreRecording? _preRecording = null;
         private Recording? _recording = null;
         private bool _hasLoadedObs = false;
+        private bool _isStreaming = false;
         private List<Content> _content = [];
 
         private List<AudioDevice> _inputDevices = [];
@@ -921,6 +970,20 @@ namespace Segra.Backend.Core.Models
                 {
                     _hasLoadedObs = value;
                     SendToFrontend("State update: HasLoadedObs");
+                }
+            }
+        }
+
+        [JsonPropertyName("isStreaming")]
+        public bool IsStreaming
+        {
+            get => _isStreaming;
+            set
+            {
+                if (_isStreaming != value)
+                {
+                    _isStreaming = value;
+                    SendToFrontend("State update: IsStreaming");
                 }
             }
         }

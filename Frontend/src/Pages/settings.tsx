@@ -4,6 +4,7 @@ import { useAuth } from '../Hooks/useAuth';
 import AccountSection from '../Components/Settings/AccountSection';
 import CaptureModeSection from '../Components/Settings/CaptureModeSection';
 import VideoSettingsSection from '../Components/Settings/VideoSettingsSection';
+import StreamingSettingsSection from '../Components/Settings/StreamingSettingsSection';
 import StorageSettingsSection from '../Components/Settings/StorageSettingsSection';
 import ClipSettingsSection from '../Components/Settings/ClipSettingsSection';
 import AudioDevicesSection from '../Components/Settings/AudioDevicesSection';
@@ -26,6 +27,8 @@ export default function Settings() {
       <CaptureModeSection settings={settings} updateSettings={updateSettings} />
 
       <VideoSettingsSection settings={settings} updateSettings={updateSettings} />
+
+      <StreamingSettingsSection settings={settings} updateSettings={updateSettings} />
 
       <AudioDevicesSection settings={settings} updateSettings={updateSettings} />
 

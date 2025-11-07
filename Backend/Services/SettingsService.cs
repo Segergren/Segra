@@ -359,6 +359,30 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update EnableStreaming
+            if (settings.EnableStreaming != updatedSettings.EnableStreaming)
+            {
+                Log.Information($"EnableStreaming changed from '{settings.EnableStreaming}' to '{updatedSettings.EnableStreaming}'");
+                settings.EnableStreaming = updatedSettings.EnableStreaming;
+                hasChanges = true;
+            }
+
+            // Update StreamServer
+            if (settings.StreamServer != updatedSettings.StreamServer)
+            {
+                Log.Information($"StreamServer changed from '{settings.StreamServer}' to '{updatedSettings.StreamServer}'");
+                settings.StreamServer = updatedSettings.StreamServer;
+                hasChanges = true;
+            }
+
+            // Update StreamKey
+            if (settings.StreamKey != updatedSettings.StreamKey)
+            {
+                Log.Information($"StreamKey changed");
+                settings.StreamKey = updatedSettings.StreamKey;
+                hasChanges = true;
+            }
+
             // Update Theme
             if (settings.Theme != updatedSettings.Theme)
             {

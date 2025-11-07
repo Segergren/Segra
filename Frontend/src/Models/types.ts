@@ -30,6 +30,7 @@ export interface State {
   preRecording?: PreRecording;
   recording?: Recording;
   hasLoadedObs: boolean;
+  isStreaming: boolean;
   content: Content[];
   inputDevices: AudioDevice[];
   outputDevices: AudioDevice[];
@@ -208,6 +209,9 @@ export interface Settings {
   enableSeparateAudioTracks: boolean; // Advanced: per-source audio tracks
   videoQualityPreset: VideoQualityPreset;
   clipQualityPreset: ClipQualityPreset;
+  enableStreaming: boolean;
+  streamServer: string;
+  streamKey: string;
   state: State;
 }
 
@@ -215,6 +219,7 @@ export const initialState: State = {
   gpuVendor: GpuVendor.Unknown,
   recording: undefined,
   hasLoadedObs: false,
+  isStreaming: false,
   content: [],
   inputDevices: [],
   outputDevices: [],
@@ -268,6 +273,9 @@ export const initialSettings: Settings = {
   enableSeparateAudioTracks: false,
   videoQualityPreset: 'custom',
   clipQualityPreset: 'custom',
+  enableStreaming: false,
+  streamServer: 'rtmp://live.twitch.tv/app/',
+  streamKey: '',
   keybindings: [
     { keys: [119], action: KeybindAction.CreateBookmark, enabled: true }, // 119 is F8
     { keys: [121], action: KeybindAction.SaveReplayBuffer, enabled: true }, // 121 is F10

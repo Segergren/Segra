@@ -68,6 +68,8 @@ namespace Segra.Backend.Obs
         // OBS output resources
         private static IntPtr _output = IntPtr.Zero;
         private static IntPtr _bufferOutput = IntPtr.Zero;
+        private static IntPtr _streamOutput = IntPtr.Zero;
+        private static IntPtr _streamService = IntPtr.Zero;
         
         // OBS source resources
         private static IntPtr _gameCaptureSource = IntPtr.Zero;
@@ -1120,6 +1122,258 @@ namespace Segra.Backend.Obs
             {
                 _stopRecordingSemaphore.Release();
             }
+        }
+
+        public static bool StartStreaming()
+        {
+            if (!Settings.Instance.EnableStreaming)
+            {
+                Log.Warning("Streaming is not enabled in settings");
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(Settings.Instance.StreamKey))
+            {
+                Log.Warning("Stream key is not configured");
+                _ = Task.Run(() => ShowModal("Stream Error", "Please configure your stream key in settings before streaming.", "error"));
+                return false;
+            }
+
+            if (_streamOutput != IntPtr.Zero)
+            {
+                Log.Information("Stream is already active");
+                return false;
+            }
+
+            if (!IsInitialized)
+            {
+                Log.Warning("OBS is not initialized");
+                return false;
+            }
+
+            try
+            {
+                Log.Information("Starting Twitch stream...");
+
+                // Configure video settings for streaming
+                if (!ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate))
+                {
+                    throw new Exception("Failed to configure video settings for streaming.");
+                }
+
+                // Create display capture source for streaming
+                if (_displaySource == IntPtr.Zero)
+                {
+                    IntPtr displaySettings = obs_data_create();
+                    
+                    // Select the display based on user's selected display
+                    int? monitorIndex = Settings.Instance.State.Displays
+                        .Select((d, i) => new { Display = d, Index = i })
+                        .Where(x => x.Display.DeviceId == Settings.Instance.SelectedDisplay?.DeviceId)
+                        .Select(x => (int?)x.Index)
+                        .FirstOrDefault();
+
+                    if (monitorIndex.HasValue)
+                    {
+                        obs_data_set_int(displaySettings, "monitor", (uint)monitorIndex.Value);
+                    }
+                    else
+                    {
+                        _ = ShowModal("Display streaming", $"Could not find selected display. Defaulting to first automatically detected display.", "warning");
+                    }
+                    
+                    obs_data_set_bool(displaySettings, "capture_cursor", true);
+                    _displaySource = obs_source_create("monitor_capture", "display", displaySettings, IntPtr.Zero);
+                    obs_data_release(displaySettings);
+                    
+                    if (_displaySource != IntPtr.Zero)
+                    {
+                        obs_set_output_source(0, _displaySource);
+                    }
+                }
+
+                // Create video encoder for streaming
+                IntPtr videoEncoderSettings = obs_data_create();
+                obs_data_set_string(videoEncoderSettings, "preset", "Quality");
+                obs_data_set_string(videoEncoderSettings, "profile", "high");
+                obs_data_set_bool(videoEncoderSettings, "use_bufsize", true);
+                
+                // Hardcode CBR at 6000 kbps for Twitch streaming
+                obs_data_set_string(videoEncoderSettings, "rate_control", "CBR");
+                obs_data_set_int(videoEncoderSettings, "bitrate", 6000);
+                obs_data_set_int(videoEncoderSettings, "max_bitrate", 6000);
+                obs_data_set_int(videoEncoderSettings, "bufsize", 6000);
+
+                string encoderId = Settings.Instance.Codec!.InternalEncoderId;
+                _videoEncoder = obs_video_encoder_create(encoderId, "Stream Encoder", videoEncoderSettings, IntPtr.Zero);
+                obs_encoder_set_video(_videoEncoder, obs_get_video());
+                obs_data_release(videoEncoderSettings);
+
+                // Setup audio sources and encoders
+                if (Settings.Instance.InputDevices != null && Settings.Instance.InputDevices.Count > 0)
+                {
+                    int audioSourceIndex = 2;
+                    foreach (var deviceSetting in Settings.Instance.InputDevices)
+                    {
+                        if (!string.IsNullOrEmpty(deviceSetting.Id))
+                        {
+                            IntPtr micSettings = obs_data_create();
+                            obs_data_set_string(micSettings, "device_id", deviceSetting.Id);
+                            string sourceName = $"Microphone_{_micSources.Count + 1}";
+                            IntPtr micSource = obs_source_create("wasapi_input_capture", sourceName, micSettings, IntPtr.Zero);
+                            obs_data_release(micSettings);
+                            SetForceMono(micSource, Settings.Instance.ForceMonoInputSources);
+                            obs_source_set_volume(micSource, deviceSetting.Volume);
+                            obs_set_output_source((uint)audioSourceIndex, micSource);
+                            _micSources.Add(micSource);
+                            audioSourceIndex++;
+                        }
+                    }
+                }
+
+                if (Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
+                {
+                    int desktopSourceIndex = _micSources.Count + 2;
+                    foreach (var deviceSetting in Settings.Instance.OutputDevices)
+                    {
+                        if (!string.IsNullOrEmpty(deviceSetting.Id))
+                        {
+                            IntPtr desktopSettings = obs_data_create();
+                            obs_data_set_string(desktopSettings, "device_id", deviceSetting.Id);
+                            string sourceName = $"DesktopAudio_{_desktopSources.Count + 1}";
+                            IntPtr desktopSource = obs_source_create("wasapi_output_capture", sourceName, desktopSettings, IntPtr.Zero);
+                            obs_data_release(desktopSettings);
+                            obs_source_set_volume(desktopSource, 1.0f);
+                            obs_set_output_source((uint)desktopSourceIndex, desktopSource);
+                            _desktopSources.Add(desktopSource);
+                            desktopSourceIndex++;
+                        }
+                    }
+                }
+
+                // Create audio encoder for streaming
+                _audioEncoders.Clear();
+                IntPtr audioEncoderSettings = obs_data_create();
+                obs_data_set_int(audioEncoderSettings, "bitrate", 128);
+                IntPtr audioEncoder = obs_audio_encoder_create("ffmpeg_aac", "stream_audio_encoder", audioEncoderSettings, (UIntPtr)0, IntPtr.Zero);
+                obs_data_release(audioEncoderSettings);
+                obs_encoder_set_audio(audioEncoder, obs_get_audio());
+                _audioEncoders.Add(audioEncoder);
+
+                // Create service for RTMP streaming
+                IntPtr serviceSettings = obs_data_create();
+                obs_data_set_string(serviceSettings, "server", Settings.Instance.StreamServer);
+                obs_data_set_string(serviceSettings, "key", Settings.Instance.StreamKey);
+                
+                _streamService = obs_service_create("rtmp_custom", "twitch_service", serviceSettings, IntPtr.Zero);
+                obs_data_release(serviceSettings);
+
+                if (_streamService == IntPtr.Zero)
+                {
+                    Log.Error("Failed to create streaming service");
+                    return false;
+                }
+
+                // Create RTMP stream output
+                _streamOutput = obs_output_create("rtmp_output", "twitch_stream", IntPtr.Zero, IntPtr.Zero);
+
+                if (_streamOutput == IntPtr.Zero)
+                {
+                    Log.Error("Failed to create stream output");
+                    obs_service_release(_streamService);
+                    _streamService = IntPtr.Zero;
+                    return false;
+                }
+
+                obs_output_set_video_encoder(_streamOutput, _videoEncoder);
+                obs_output_set_audio_encoder(_streamOutput, audioEncoder, 0);
+                obs_output_set_service(_streamOutput, _streamService);
+                
+                // Keep service alive - it will be released in DisposeStreamOutput()
+
+                // Start streaming
+                if (!obs_output_start(_streamOutput))
+                {
+                    string error = obs_output_get_last_error(_streamOutput);
+                    Log.Error($"Failed to start stream: {error}");
+                    _ = Task.Run(() => ShowModal("Stream Error", $"Failed to start stream: {error}", "error"));
+                    DisposeStreamOutput();
+                    return false;
+                }
+
+                Settings.Instance.State.IsStreaming = true;
+                _ = MessageService.SendSettingsToFrontend("Stream started");
+                Log.Information("Twitch stream started successfully");
+                _ = Task.Run(() => PlaySound("start", 50));
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error starting stream");
+                _ = Task.Run(() => ShowModal("Stream Error", $"Failed to start stream: {ex.Message}", "error"));
+                DisposeStreamOutput();
+                return false;
+            }
+        }
+
+        public static async Task StopStreaming()
+        {
+            if (_streamOutput == IntPtr.Zero)
+            {
+                Log.Information("No active stream to stop");
+                return;
+            }
+
+            try
+            {
+                Log.Information("Stopping stream...");
+
+                obs_output_stop(_streamOutput);
+
+                // Wait for stream to stop (up to 10 seconds)
+                int attempts = 0;
+                while (obs_output_active(_streamOutput) && attempts < 100)
+                {
+                    await Task.Delay(100);
+                    attempts++;
+                }
+
+                if (obs_output_active(_streamOutput))
+                {
+                    Log.Warning("Stream did not stop gracefully, forcing stop");
+                    obs_output_force_stop(_streamOutput);
+                }
+
+                DisposeStreamOutput();
+                Settings.Instance.State.IsStreaming = false;
+                _ = MessageService.SendSettingsToFrontend("Stream stopped");
+                Log.Information("Stream stopped successfully");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error stopping stream");
+                DisposeStreamOutput();
+                Settings.Instance.State.IsStreaming = false;
+            }
+        }
+
+        private static void DisposeStreamOutput()
+        {
+            if (_streamOutput != IntPtr.Zero)
+            {
+                obs_output_release(_streamOutput);
+                _streamOutput = IntPtr.Zero;
+            }
+
+            if (_streamService != IntPtr.Zero)
+            {
+                obs_service_release(_streamService);
+                _streamService = IntPtr.Zero;
+            }
+
+            DisposeSources();
+            DisposeEncoders();
         }
 
         [System.Diagnostics.DebuggerStepThrough]
