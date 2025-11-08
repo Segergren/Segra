@@ -140,17 +140,42 @@ namespace Segra.Backend.Media
                 _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
             }
 
-            await FFmpegService.RunWithProgress(id,
-                $"-y -f concat -safe 0 -i \"{concatFilePath}\" -c copy -movflags +faststart \"{outputFilePath}\"",
-                totalDuration,
-                progress =>
-                {
-                    if (updateFrontend)
+            try
+            {
+                await FFmpegService.RunWithProgress(id,
+                    $"-y -f concat -safe 0 -i \"{concatFilePath}\" -c copy -movflags +faststart \"{outputFilePath}\"",
+                    totalDuration,
+                    progress =>
                     {
-                        _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
+                        if (updateFrontend)
+                        {
+                            _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
+                        }
+                    },
+                    process =>
+                    {
+                        // Track the concatenation process so it can be cancelled
+                        lock (ProcessLock)
+                        {
+                            if (!ActiveFFmpegProcesses.ContainsKey(id))
+                            {
+                                ActiveFFmpegProcesses[id] = new List<Process>();
+                            }
+                            ActiveFFmpegProcesses[id].Add(process);
+                            Log.Information($"[Clip {id}] Tracking concatenation FFmpeg process (PID: {process.Id})");
+                        }
                     }
+                );
+            }
+            finally
+            {
+                // Clean up the process from tracking after completion or error
+                lock (ProcessLock)
+                {
+                    ActiveFFmpegProcesses.Remove(id);
+                    Log.Information($"[Clip {id}] Removed concatenation process from active processes");
                 }
-            );
+            }
 
             // Cleanup
             tempClipFiles.ForEach(f => SafeDelete(f));
@@ -362,32 +387,83 @@ namespace Segra.Backend.Media
                              $"-c:a aac -b:a {settings.ClipAudioQuality} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");
-            await FFmpegService.RunWithProgress(clipId, arguments, duration, progressCallback);
+            
+            try
+            {
+                await FFmpegService.RunWithProgress(clipId, arguments, duration, progressCallback, process =>
+                {
+                    // Track the process so it can be cancelled
+                    lock (ProcessLock)
+                    {
+                        if (!ActiveFFmpegProcesses.ContainsKey(clipId))
+                        {
+                            ActiveFFmpegProcesses[clipId] = new List<Process>();
+                        }
+                        ActiveFFmpegProcesses[clipId].Add(process);
+                        Log.Information($"[Clip {clipId}] Tracking FFmpeg process (PID: {process.Id})");
+                    }
+                });
+            }
+            finally
+            {
+                // Clean up the process from tracking after completion or error
+                lock (ProcessLock)
+                {
+                    ActiveFFmpegProcesses.Remove(clipId);
+                    Log.Information($"[Clip {clipId}] Removed from active processes");
+                }
+            }
         }
 
 
-        public static void CancelClip(int clipId)
+        public static async void CancelClip(int clipId)
         {
+            Log.Information($"[Clip {clipId}] Cancel requested");
+            
+            bool wasCancelled = false;
+            
             lock (ProcessLock)
             {
                 if (ActiveFFmpegProcesses.TryGetValue(clipId, out var processes))
                 {
+                    Log.Information($"[Clip {clipId}] Found {processes.Count} active process(es) to cancel");
+                    
                     foreach (var process in processes.ToList())
                     {
                         try
                         {
+                            int processId = process.Id; // Capture ID before killing
+                            
                             if (!process.HasExited)
                             {
-                                process.Kill(true); // Force kill the process
+                                Log.Information($"[Clip {clipId}] Killing FFmpeg process (PID: {processId})");
+                                process.Kill(true); // Force kill the process and child processes
+                                Log.Information($"[Clip {clipId}] Successfully killed process (PID: {processId})");
+                            }
+                            else
+                            {
+                                Log.Information($"[Clip {clipId}] Process (PID: {processId}) already exited");
                             }
                         }
                         catch (Exception ex)
                         {
-                            Log.Error($"Error killing FFmpeg process: {ex.Message}");
+                            Log.Error($"[Clip {clipId}] Error killing FFmpeg process: {ex.Message}");
                         }
                     }
+                    
                     ActiveFFmpegProcesses.Remove(clipId);
+                    Log.Information($"[Clip {clipId}] Removed from active processes after cancellation");
+                    wasCancelled = true;
                 }
+                else
+                {
+                    Log.Warning($"[Clip {clipId}] No active processes found to cancel (may have already completed)");
+                }
+            }
+            
+            if (wasCancelled)
+            {
+                await MessageService.SendFrontendMessage("ClipProgress", new { id = clipId, progress = 100, selections = new List<Selection>() });
             }
         }
 

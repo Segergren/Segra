@@ -11,6 +11,7 @@ interface ClippingCardProps {
 const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
   const { cancelClip } = useClipping();
   const [displayProgress, setDisplayProgress] = useState(0);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
     if (clipping.progress > 95) {
@@ -29,6 +30,11 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
     return () => clearInterval(timer);
   }, [clipping.progress]);
 
+  const handleCancel = () => {
+    setIsCancelling(true);
+    cancelClip(clipping.id);
+  };
+
   return (
     <div className="w-full px-2">
       <div className="bg-base-300 border border-base-400 border-opacity-75 rounded-lg p-3">
@@ -44,8 +50,9 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
           <div className="min-w-0 flex-1">
             {clipping.progress < 100 && (
               <button
-                onClick={() => cancelClip(clipping.id)}
-                className="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-red-500 hover:text-red-400 transition-colors"
+                onClick={handleCancel}
+                disabled={isCancelling}
+                className="absolute right-0 top-1/2 -translate-y-1/2 p-1 transition-colors cursor-pointer disabled:opacity-50"
                 aria-label="Cancel clip"
               >
                 <MdClose size={16} />

@@ -32,7 +32,8 @@ namespace Segra.Backend.Media
             int processId,
             string arguments,
             double? totalDuration,
-            Action<double> progressCallback)
+            Action<double> progressCallback,
+            Action<Process>? onProcessStarted = null)
         {
             if (!FFmpegExists())
             {
@@ -96,6 +97,9 @@ namespace Segra.Backend.Media
                 {
                     process.Start();
                     Log.Information($"[Process {processId}] FFmpeg process started (PID: {process.Id})");
+
+                    // Notify caller that process has started (for tracking)
+                    onProcessStarted?.Invoke(process);
 
                     // Begin async reading of both streams to prevent buffer blocking
                     process.BeginOutputReadLine();
