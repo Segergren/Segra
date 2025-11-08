@@ -217,83 +217,10 @@ namespace Segra.Backend.Media
             {
                 Log.Information($"Temp file is larger than 1GB ({fileInfo.Length} bytes). Re-encoding...");
 
-                var currentSettings = Settings.Instance;
-                string videoCodecAi;
-                string qualityArgsAi = "";
-                string presetArgsAi = "";
-
-                if (currentSettings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
-                {
-                    GpuVendor gpuVendor = DetectGpuVendor();
-
-                    switch (gpuVendor)
-                    {
-                        case GpuVendor.Nvidia:
-                            if (currentSettings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                                videoCodecAi = "hevc_nvenc";
-                            else if (currentSettings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                                videoCodecAi = "av1_nvenc";
-                            else
-                                videoCodecAi = "h264_nvenc";
-
-                            qualityArgsAi = $"-cq {currentSettings.ClipQualityGpu}";
-                            presetArgsAi = $"-preset {currentSettings.ClipPreset}";
-                            break;
-
-                        case GpuVendor.AMD:
-                            if (currentSettings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                                videoCodecAi = "hevc_amf";
-                            else if (currentSettings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                                videoCodecAi = "av1_amf";
-                            else
-                                videoCodecAi = "h264_amf";
-
-                            qualityArgsAi = $"-qp_i {currentSettings.ClipQualityGpu} -qp_p {currentSettings.ClipQualityGpu}";
-                            presetArgsAi = $"-quality {currentSettings.ClipPreset}";
-                            break;
-
-                        case GpuVendor.Intel:
-                            if (currentSettings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                                videoCodecAi = "hevc_qsv";
-                            else if (currentSettings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                                videoCodecAi = "av1_qsv";
-                            else
-                                videoCodecAi = "h264_qsv";
-
-                            qualityArgsAi = $"-global_quality {currentSettings.ClipQualityGpu}";
-                            presetArgsAi = $"-preset {currentSettings.ClipPreset}";
-                            break;
-
-                        default:
-                            // Fall back to CPU encoding if GPU vendor is unknown
-                            Log.Warning("Unknown GPU vendor detected for AI clip, falling back to CPU encoding");
-                            if (currentSettings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                                videoCodecAi = "libx265";
-                            else
-                                videoCodecAi = "libx264";
-
-                            qualityArgsAi = $"-crf {currentSettings.ClipQualityCpu}";
-                            presetArgsAi = $"-preset {currentSettings.ClipPreset}";
-                            break;
-                    }
-                }
-                else
-                {
-                    if (currentSettings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                        videoCodecAi = "libx265";
-                    else
-                        videoCodecAi = "libx264";
-
-                    qualityArgsAi = $"-crf {currentSettings.ClipQualityCpu}";
-                    presetArgsAi = $"-preset {currentSettings.ClipPreset}";
-                }
-
-                string fpsArgAi = currentSettings.ClipFps > 0 ? $"-r {currentSettings.ClipFps}" : "";
-
                 string reencodeArguments =
                     $"-y -i \"{tempFilePath}\" " +
-                    $"-c:v {videoCodecAi} {presetArgsAi} {qualityArgsAi} {fpsArgAi} " +
-                    $"-c:a aac -b:a {currentSettings.ClipAudioQuality} -movflags +faststart \"{outputFilePath}\"";
+                    $"-c:v libx264 -preset veryfast -crf 28 " +
+                    $"-c:a aac -b:a 128k -movflags +faststart \"{outputFilePath}\"";
 
                 await FFmpegService.RunSimple(reencodeArguments);
 
