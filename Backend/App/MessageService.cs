@@ -42,6 +42,13 @@ namespace Segra.Backend.App
                 return;
             }
 
+            // Handle heartbeat ping (plain string, not JSON)
+            if (message == "ping")
+            {
+                await SendFrontendMessage("pong", new { });
+                return;
+            }
+
             try
             {
                 var jsonDoc = JsonDocument.Parse(message);
@@ -224,9 +231,6 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement importParameterElement);
                             await ImportService.HandleImportFile(importParameterElement);
                             Log.Information("ImportFile command received.");
-                            break;
-                        case "ping":
-                            await SendFrontendMessage("pong", new { });
                             break;
                         default:
                             Log.Information($"Unknown method: {method}");
