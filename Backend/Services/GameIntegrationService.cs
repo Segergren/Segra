@@ -8,7 +8,7 @@ namespace Segra.Backend.Services
 {
     public static class GameIntegrationService
     {
-        private const string PUBG = "PUBG: BATTLEGROUNDS";
+        private const string PUBG = "PLAYERUNKNOWN'S BATTLEGROUNDS";
         private const string LOL = "League of Legends";
         private const string CS2 = "Counter-Strike 2";
         private static Integration? _gameIntegration;
