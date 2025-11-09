@@ -1,7 +1,6 @@
 using Serilog;
 using System.Net;
 using System.Web;
-using Segra.Backend.Utils;
 using Segra.Backend.Media;
 
 namespace Segra.Backend.Api
@@ -14,7 +13,7 @@ namespace Segra.Backend.Api
         {
             _httpListener.Prefixes.Add(prefix);
             _httpListener.Start();
-            Console.WriteLine($"Server started at {prefix}");
+            Log.Information("Server started at {Prefix}", prefix);
             _httpListener.BeginGetContext(OnRequest, null);
         }
 
@@ -49,7 +48,7 @@ namespace Segra.Backend.Api
             {
                 if (ex.ErrorCode != 995)
                 {
-                    Log.Error(ex, "HttpListenerException occurred.");
+                    Log.Error(ex, "HttpListenerException occurred. ErrorCode: {ErrorCode}", ex.ErrorCode);
                 }
             }
             catch (Exception ex)

@@ -7,6 +7,7 @@ using Segra.Backend.Obs;
 using Segra.Backend.Services;
 using Segra.Backend.Shared;
 using Segra.Backend.Utils;
+using Segra.Backend.Windows.Power;
 using Segra.Backend.Windows.Storage;
 using Serilog;
 using System.Diagnostics;
@@ -210,6 +211,9 @@ namespace Segra.Backend.App
                 AddNotifyIcon();
 
                 GameDetectionService.ForegroundHook.Start();
+
+                // Start monitoring system power state changes (sleep/wake)
+                Task.Run(PowerModeMonitor.StartMonitoring);
 
                 // Run the OBS Initializer in a separate thread and application to make sure someting on the main thread doesn't block
                 Task.Run(() => Application.Run(new OBSWindow()));
