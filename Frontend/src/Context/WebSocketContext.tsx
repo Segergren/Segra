@@ -1,10 +1,12 @@
 import { createContext, useContext, ReactNode, useCallback, useEffect, useRef } from 'react';
-import useWebSocket from 'react-use-websocket';
+import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useAuth } from '../Hooks/useAuth.tsx';
 
 interface WebSocketContextType {
   sendMessage: (message: string) => void;
+  isConnected: boolean;
+  connectionState: ReadyState;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -19,16 +21,25 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
   // Ref to track if we've already handled a version mismatch (prevent multiple reloads)
   const versionCheckHandled = useRef(false);
+  // Ref to track if this is a reconnection (not initial connection)
+  const hasConnectedBefore = useRef(false);
 
   // Log when the WebSocket provider mounts or session changes
   useEffect(() => {
     console.log('WebSocketProvider: Session state changed:', !!session);
   }, [session]);
 
-  // We only need the onOpen and onMessage callbacks, not the returned functions
-  useWebSocket('ws://localhost:5000/', {
+  // Configure WebSocket with reconnection and heartbeat
+  const { readyState } = useWebSocket('ws://localhost:5000/', {
     onOpen: () => {
-      console.log('Connected to WebSocket server');
+      // Check if this is a reconnection
+      if (hasConnectedBefore.current) {
+        console.log('WebSocket reconnected after disconnect - resyncing state');
+      } else {
+        console.log('WebSocket connected for the first time');
+        hasConnectedBefore.current = true;
+      }
+
       sendMessageToBackend('NewConnection');
 
       // If we already have a session when connecting, ensure we're logged in
@@ -56,6 +67,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           );
         }, 1000);
       }
+    },
+    onClose: (event) => {
+      console.warn('WebSocket closed:', event.code, event.reason);
+    },
+    onError: (event) => {
+      console.error('WebSocket error:', event);
     },
     onMessage: (event) => {
       try {
@@ -88,12 +105,26 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         console.error('Failed to parse WebSocket message:', error);
       }
     },
+    shouldReconnect: () => {
+      console.log('WebSocket closed, will attempt to reconnect');
+      return true;
+    },
+    reconnectAttempts: Infinity,
+    reconnectInterval: 3000,
+    heartbeat: {
+      message: 'ping',
+      returnMessage: 'pong',
+      timeout: 30000,
+      interval: 15000,
+    },
   });
 
   const contextValue = {
     sendMessage: useCallback((message: string) => {
       sendMessageToBackend(message);
     }, []),
+    isConnected: readyState === ReadyState.OPEN,
+    connectionState: readyState,
   };
 
   return <WebSocketContext.Provider value={contextValue}>{children}</WebSocketContext.Provider>;
