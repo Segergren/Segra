@@ -307,5 +307,46 @@ namespace Segra.Backend.Utils
 
             return -1; // No matching bracket found
         }
+
+        /// <summary>
+        /// Ensures a file is fully written and readable, especially important for network drives.
+        /// Retries with delays to handle write caching and sync delays on network paths.
+        /// </summary>
+        public static async Task EnsureFileReady(string filePath)
+        {
+            // 30 seconds timeout
+            const int maxRetries = 150;
+            const int delayMs = 200;
+
+            for (int i = 0; i < maxRetries; i++)
+            {
+                try
+                {
+                    // Try to open the file for reading to verify it's accessible and complete
+                    using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        // Verify we can read at least some data
+                        if (fs.Length > 0)
+                        {
+                            byte[] buffer = new byte[1024];
+                            int bytesRead = await fs.ReadAsync(buffer, 0, Math.Min(buffer.Length, (int)fs.Length));
+                            if (bytesRead > 0)
+                            {
+                                Log.Information($"File verified ready: {filePath} ({fs.Length} bytes)");
+                                return;
+                            }
+                        }
+                    }
+                }
+                catch (IOException ex)
+                {
+                    Log.Warning($"File not ready yet (attempt {i + 1}/{maxRetries}): {ex.Message}");
+                }
+
+                await Task.Delay(delayMs);
+            }
+
+            Log.Warning($"File may not be fully synced after {maxRetries} attempts: {filePath}");
+        }
     }
 }

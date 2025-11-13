@@ -1,6 +1,7 @@
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
+using Segra.Backend.Utils;
 using Serilog;
 using System.Text.Json;
 
@@ -131,14 +132,14 @@ namespace Segra.Backend.Media
                         // Generate unique filename with timestamp
                         string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
                         string targetFileName = $"{timestamp}_{originalFileName}{fileExtension}";
-                        string targetFilePath = Path.Combine(targetFolder, targetFileName).Replace("\\", "/");
+                        string targetFilePath = Path.Combine(targetFolder, targetFileName);
 
                         // Ensure unique filename if file already exists
                         int counter = 1;
                         while (File.Exists(targetFilePath))
                         {
                             targetFileName = $"{timestamp}_{originalFileName}_{counter}{fileExtension}";
-                            targetFilePath = Path.Combine(targetFolder, targetFileName).Replace("\\", "/");
+                            targetFilePath = Path.Combine(targetFolder, targetFileName);
                             counter++;
                         }
 
@@ -177,6 +178,9 @@ namespace Segra.Backend.Media
 
                         // Create metadata file with detected game name and date
                         ContentService.CreateMetadataFile(targetFilePath, contentType, detectedGame, null, null, detectedDate);
+
+                        // Ensure file is fully written to disk/network before thumbnail generation
+                        await GeneralUtils.EnsureFileReady(targetFilePath);
 
                         // Send progress after metadata creation
                         try

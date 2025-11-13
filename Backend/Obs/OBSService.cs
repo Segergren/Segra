@@ -183,6 +183,9 @@ namespace Segra.Backend.Obs
             Log.Information($"Replay buffer saved to: {savedPath}");
             string game = Settings.Instance.State.Recording?.Game ?? "Unknown";
 
+            // Ensure file is fully written to disk/network before thumbnail generation
+            await EnsureFileReady(savedPath);
+
             // Create metadata for the buffer recording
             ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, game);
             await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer);
@@ -1000,6 +1003,9 @@ namespace Segra.Backend.Obs
                     // Might be null or empty if the recording failed to start
                     if (Settings.Instance.State.Recording != null && Settings.Instance.State.Recording.FilePath != null)
                     {
+                        // Ensure file is fully written to disk/network before thumbnail generation
+                        await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
+
                         ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
                         await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
                         ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
@@ -1073,6 +1079,9 @@ namespace Segra.Backend.Obs
 
                     if (Settings.Instance.State.Recording != null && Settings.Instance.State.Recording.FilePath != null)
                     {
+                        // Ensure file is fully written to disk/network before thumbnail generation
+                        await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
+
                         ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
                         await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
                         ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
