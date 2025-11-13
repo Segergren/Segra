@@ -285,7 +285,7 @@ namespace Segra.Backend.Services
 
         private static bool ContainsBlacklistedTextInFilePath(string exePath)
         {
-            string[] blacklistedPathTexts = ["wallpaper_engine", "launcher", "overlay"];
+            string[] blacklistedPathTexts = ["wallpaper_engine", "launcher", "overlay", "CrashHandler"];
 
             foreach (var text in blacklistedPathTexts)
             {
