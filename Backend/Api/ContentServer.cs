@@ -17,7 +17,7 @@ namespace Segra.Backend.Api
             _httpListener.BeginGetContext(OnRequest, null);
         }
 
-        private static void OnRequest(IAsyncResult result)
+        private static async void OnRequest(IAsyncResult result)
         {
             try
             {
@@ -28,7 +28,7 @@ namespace Segra.Backend.Api
 
                 if (request.RawUrl?.StartsWith("/api/thumbnail") ?? false)
                 {
-                    HandleThumbnailRequest(context);
+                    await HandleThumbnailRequest(context);
                 }
                 else if (request.RawUrl?.StartsWith("/api/content") ?? false)
                 {
@@ -57,7 +57,7 @@ namespace Segra.Backend.Api
             }
         }
 
-        private static void HandleThumbnailRequest(HttpListenerContext context)
+        private static async Task HandleThumbnailRequest(HttpListenerContext context)
         {
             var query = HttpUtility.ParseQueryString(context.Request?.Url?.Query ?? "");
             string input = query["input"] ?? "";
@@ -81,14 +81,31 @@ namespace Segra.Backend.Api
 
                 if (string.IsNullOrEmpty(timeParam))
                 {
-                    byte[] buffer = File.ReadAllBytes(input);
                     response.ContentType = "image/jpeg";
                     response.AddHeader("Cache-Control", "public, max-age=86400");
-                    response.AddHeader("Expires", DateTime.UtcNow.AddDays(1).ToString("R"));
-                    var lastModified = File.GetLastWriteTimeUtc(input);
-                    response.AddHeader("Last-Modified", lastModified.ToString("R"));
-                    response.ContentLength64 = buffer.Length;
-                    response.OutputStream.Write(buffer, 0, buffer.Length);
+                    response.AddHeader("Expires", DateTime.UtcNow.AddDays(7).ToString("R"));
+                    
+                    try
+                    {
+                        var lastModified = File.GetLastWriteTimeUtc(input);
+                        response.AddHeader("Last-Modified", lastModified.ToString("R"));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning("Could not get last modified time for {Input}: {Message}", input, ex.Message);
+                    }
+
+                    // Use FileStream for better network path handling
+                    using (FileStream fs = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        response.ContentLength64 = fs.Length;
+                        byte[] buffer = new byte[64 * 1024];
+                        int bytesRead;
+                        while ((bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            await response.OutputStream.WriteAsync(buffer, 0, bytesRead);
+                        }
+                    }
                 }
                 else
                 {

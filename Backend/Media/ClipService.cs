@@ -81,7 +81,7 @@ namespace Segra.Backend.Media
             double processedDuration = 0;
             foreach (var selection in selections)
             {
-                string inputFilePath = Path.Combine(videoFolder, selection.Type.ToLower() + "s", $"{selection.FileName}.mp4").Replace("\\", "/");
+                string inputFilePath = Path.Combine(videoFolder, selection.Type.ToLower() + "s", $"{selection.FileName}.mp4");
                 if (!File.Exists(inputFilePath))
                 {
                     Log.Information($"Input video file not found: {inputFilePath}");
@@ -131,7 +131,7 @@ namespace Segra.Backend.Media
             await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(f => $"file '{f.Replace("\\", "\\\\").Replace("'", "\\'")}"));
 
             string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
-            string outputFilePath = Path.Combine(outputFolder, outputFileName).Replace("\\", "/");
+            string outputFilePath = Path.Combine(outputFolder, outputFileName);
 
             if (aiProgressMessage != null)
             {
@@ -202,11 +202,11 @@ namespace Segra.Backend.Media
             string videoFolder = Settings.Instance.ContentFolder;
 
             // Create .ai directory if it doesn't exist
-            string aiOutputFolder = Path.Combine(videoFolder, ".ai").Replace("\\", "/");
+            string aiOutputFolder = Path.Combine(videoFolder, ".ai");
             DirectoryInfo dir = Directory.CreateDirectory(aiOutputFolder);
             dir.Attributes |= FileAttributes.Hidden;
 
-            string inputFilePath = Path.Combine(videoFolder, content.Type.ToString().ToLower() + "s", $"{content.FileName}.mp4").Replace("\\", "/");
+            string inputFilePath = Path.Combine(videoFolder, content.Type.ToString().ToLower() + "s", $"{content.FileName}.mp4");
             if (!File.Exists(inputFilePath))
             {
                 Log.Error($"Input video file not found: {inputFilePath}");
@@ -214,7 +214,7 @@ namespace Segra.Backend.Media
             }
 
             string outputFileName = $"{content.FileName}_{bookmark.Type}_{bookmark.Id}.mp4";
-            string outputFilePath = Path.Combine(aiOutputFolder, outputFileName).Replace("\\", "/");
+            string outputFilePath = Path.Combine(aiOutputFolder, outputFileName);
 
             if (!FFmpegService.FFmpegExists())
             {
