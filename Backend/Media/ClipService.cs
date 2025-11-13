@@ -181,6 +181,9 @@ namespace Segra.Backend.Media
             tempClipFiles.ForEach(f => SafeDelete(f));
             SafeDelete(concatFilePath);
 
+            // Ensure file is fully written to disk/network before thumbnail generation (required for network drives)
+            await EnsureFileReady(outputFilePath);
+
             // Finalization
             ContentService.CreateMetadataFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip, selections.FirstOrDefault()?.Game!, null, selections.FirstOrDefault()?.Title);
             await ContentService.CreateThumbnail(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip);
@@ -471,6 +474,46 @@ namespace Segra.Backend.Media
         {
             try { File.Delete(path); }
             catch (Exception ex) { Log.Information($"Error deleting file {path}: {ex.Message}"); }
+        }
+
+        /// <summary>
+        /// Ensures a file is fully written and readable, especially important for network drives
+        /// </summary>
+        private static async Task EnsureFileReady(string filePath)
+        {
+            // 30 seconds timeout
+            const int maxRetries = 150;
+            const int delayMs = 200;
+
+            for (int i = 0; i < maxRetries; i++)
+            {
+                try
+                {
+                    // Try to open the file for reading to verify it's accessible and complete
+                    using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        // Verify we can read at least some data
+                        if (fs.Length > 0)
+                        {
+                            byte[] buffer = new byte[1024];
+                            int bytesRead = await fs.ReadAsync(buffer, 0, Math.Min(buffer.Length, (int)fs.Length));
+                            if (bytesRead > 0)
+                            {
+                                Log.Information($"File verified ready: {filePath} ({fs.Length} bytes)");
+                                return;
+                            }
+                        }
+                    }
+                }
+                catch (IOException ex)
+                {
+                    Log.Warning($"File not ready yet (attempt {i + 1}/{maxRetries}): {ex.Message}");
+                }
+
+                await Task.Delay(delayMs);
+            }
+
+            Log.Warning($"File may not be fully synced after {maxRetries} attempts: {filePath}");
         }
     }
 }
