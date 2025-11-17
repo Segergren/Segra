@@ -1686,8 +1686,6 @@ namespace Segra.Backend.Obs
 
                 // ── CPU / software paths ───────────────────────────
                 ["obs_x264"] = "Software x264",
-                ["ffmpeg_svt_av1"] = "Software SVT-AV1",
-                ["ffmpeg_aom_av1"] = "Software AOM AV1",
                 ["ffmpeg_openh264"] = "Software OpenH264",
             };
 
