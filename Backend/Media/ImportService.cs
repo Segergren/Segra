@@ -230,7 +230,7 @@ namespace Segra.Backend.Media
                     catch (Exception ex)
                     {
                         failedCount++;
-                        Log.Error($"Failed to import {originalFileName}: {ex.Message}");
+                        Log.Error(ex, $"Failed to import {originalFileName}");
 
                         // Send error progress update
                         double progressPercent = (double)i / selectedFiles.Length * 100;

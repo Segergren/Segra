@@ -60,7 +60,7 @@ namespace Segra.Backend.Media
                             perSourceNames.AddRange(Settings.Instance.OutputDevices.Select(d => d.Name));
 
                         // OBS supports 6 tracks total; we already used 1 for the mix
-                        foreach (var name in perSourceNames.Take(Math.Max(0, 5)))
+                        foreach (var name in perSourceNames.Take(5))
                         {
                             trackNames.Add(name);
                         }
@@ -239,9 +239,9 @@ namespace Segra.Backend.Media
                     int end = Math.Min(totalSamples, i + samplesPerPixel);
                     short min16 = short.MaxValue;
                     short max16 = short.MinValue;
-                    int byteIndex = i * 2;
-                    for (int s = i; s < end; s++, byteIndex += 2)
+                    for (int s = i; s < end; s++)
                     {
+                        int byteIndex = s * 2;
                         short sample = BitConverter.ToInt16(pcmBytes, byteIndex);
                         if (sample < min16) min16 = sample;
                         if (sample > max16) max16 = sample;

@@ -318,6 +318,7 @@ namespace Segra.Backend.Utils
             const int maxRetries = 150;
             const int delayMs = 200;
 
+            Log.Information($"Verifying file ready: {filePath}");
             for (int i = 0; i < maxRetries; i++)
             {
                 try
@@ -329,7 +330,7 @@ namespace Segra.Backend.Utils
                         if (fs.Length > 0)
                         {
                             byte[] buffer = new byte[1024];
-                            int bytesRead = await fs.ReadAsync(buffer, 0, Math.Min(buffer.Length, (int)fs.Length));
+                            int bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length);
                             if (bytesRead > 0)
                             {
                                 Log.Information($"File verified ready: {filePath} ({fs.Length} bytes)");
