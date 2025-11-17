@@ -26,7 +26,30 @@ namespace Segra.Backend.Shared
                     return;
                 }
 
-                string[] logLines = await File.ReadAllLinesAsync(VelopackLogPath);
+                int attempts = 0;
+                bool success = false;
+
+                string[] logLines = [];
+                while (attempts < 30)
+                {
+                    try
+                    {
+                        logLines = await File.ReadAllLinesAsync(VelopackLogPath);
+                        success = true;
+                        break;
+                    }
+                    catch (IOException)
+                    {
+                        attempts++;
+                        await Task.Delay(1000);
+                    }
+                }
+
+                if (!success)
+                {
+                    Log.Error("Failed to read Velopack log file after multiple attempts, skipping update error check");
+                    return;
+                }
 
                 DateTime now = DateTime.Now;
                 DateTime cutoffTime = now.AddSeconds(-10);
