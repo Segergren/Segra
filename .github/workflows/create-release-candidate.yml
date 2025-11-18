@@ -20,7 +20,6 @@ jobs:
       contents: write
     outputs:
       new_version: ${{ steps.get_version.outputs.new_version }}
-      release_notes: ${{ steps.generate_release_notes.outputs.release_notes }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -123,11 +122,6 @@ jobs:
           echo "🎉 Generated Release Notes:"
           echo "$RELEASE_NOTES"
           echo ""
-        
-          # Set output
-          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Determine Version
         id: get_version
@@ -259,7 +253,7 @@ jobs:
         with:
           tag_name: v${{ needs.build.outputs.new_version }}
           release_name: "Release v${{ needs.build.outputs.new_version }}"
-          body: ${{ needs.build.outputs.release_notes }}
+          body: ""
           draft: false
           prerelease: true
 

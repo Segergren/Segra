@@ -16,7 +16,6 @@ jobs:
     outputs:
       final_version_tag: ${{ steps.create_final_tag.outputs.final_version_tag }}
       final_version_number: ${{ steps.extract_final_version.outputs.final_version_number }}
-      release_notes: ${{ steps.generate_final_release_notes.outputs.final_notes }}
 
     steps:
       - name: Get RC Tag Input
@@ -153,14 +152,7 @@ jobs:
           if ! command -v jq &> /dev/null
           then
               echo "::error::jq command could not be found. Please ensure jq is installed on the runner."
-              # Fallback: Use aggregated notes directly
-              echo "⚠️ AI summarization failed (jq not found). Using raw aggregated notes as fallback."
-              DELIMITER_JQ_FALLBACK=$(openssl rand -hex 16)
-              echo "final_notes<<$DELIMITER_JQ_FALLBACK" >> $GITHUB_OUTPUT
-              printf "%s" "$AGGREGATED_RC_NOTES" >> $GITHUB_OUTPUT
-              echo "" >> $GITHUB_OUTPUT # Ensure a newline if AGGREGATED_RC_NOTES doesn't end with one
-              echo "$DELIMITER_JQ_FALLBACK" >> $GITHUB_OUTPUT
-              exit 0 # Exit successfully with fallback
+              exit 1
           fi
           echo "ℹ️ Using jq from path: $(which jq)"
           echo "ℹ️ jq version: $(jq --version)"
@@ -214,25 +206,12 @@ jobs:
             if echo "$RESPONSE" | jq -e '.error' > /dev/null; then
               echo "API Error details: $(echo "$RESPONSE" | jq -c '.error')"
             fi
-            echo "Using raw aggregated notes as fallback."
-            FINAL_NOTES_CONTENT="$AGGREGATED_RC_NOTES"
           else
             echo "🎉 Successfully generated release notes with AI."
-            FINAL_NOTES_CONTENT="$AI_GENERATED_NOTES"
+            echo "📝 Final Release Notes:"
+            echo "$AI_GENERATED_NOTES"
+            echo ""
           fi
-
-          echo "📝 Final Release Notes (first 300 chars):"
-          echo "${FINAL_NOTES_CONTENT:0:300}..."
-          echo ""
-
-          # Set output using a heredoc for multiline content
-          # Using printf to avoid issues with echo and special characters in FINAL_NOTES_CONTENT
-          DELIMITER_FINAL=$(openssl rand -hex 16)
-          echo "final_notes<<$DELIMITER_FINAL" >> $GITHUB_OUTPUT
-          printf "%s" "$FINAL_NOTES_CONTENT" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT # Ensure a newline if FINAL_NOTES_CONTENT doesn't end with one
-          echo "$DELIMITER_FINAL" >> $GITHUB_OUTPUT
-          echo "✅ Final release notes output set."
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -331,7 +310,7 @@ jobs:
         with:
           tag_name: ${{ needs.build_and_release.outputs.final_version_tag }}
           release_name: "Release ${{ needs.build_and_release.outputs.final_version_tag }}"
-          body: ${{ needs.build_and_release.outputs.release_notes }}
+          body: ""
           draft: false
           prerelease: false # This is a final release
 
