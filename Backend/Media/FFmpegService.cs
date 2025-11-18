@@ -223,17 +223,15 @@ namespace Segra.Backend.Media
             {
                 ffmpegProcess.Start();
 
-                // Read the output bytes from stdout
-                byte[] outputBytes;
-                using (var ms = new MemoryStream())
-                {
-                    await ffmpegProcess.StandardOutput.BaseStream.CopyToAsync(ms);
-                    outputBytes = ms.ToArray();
-                }
+                // Read streams concurrently to prevent deadlocks from full buffers, using BaseStream for raw binary
+                using var ms = new MemoryStream();
+                var stdoutTask = ffmpegProcess.StandardOutput.BaseStream.CopyToAsync(ms);
+                var stderrTask = ffmpegProcess.StandardError.ReadToEndAsync();
 
-                // Read any error messages
-                string ffmpegStdErr = await ffmpegProcess.StandardError.ReadToEndAsync();
+                await Task.WhenAll(stdoutTask, stderrTask);
                 await ffmpegProcess.WaitForExitAsync();
+
+                string ffmpegStdErr = stderrTask.Result;
 
                 if (ffmpegProcess.ExitCode != 0)
                 {
@@ -241,7 +239,7 @@ namespace Segra.Backend.Media
                     throw new Exception($"FFmpeg error: {ffmpegStdErr}");
                 }
 
-                return outputBytes;
+                return ms.ToArray();
             }
         }
 
