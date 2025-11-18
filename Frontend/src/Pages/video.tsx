@@ -1700,7 +1700,7 @@ export default function VideoComponent({ video }: { video: Content }) {
               </div>
               {(video.type === 'Clip' || video.type === 'Highlight') && (
                 <button
-                  className="flex items-center h-10 px-6 text-gray-400 btn btn-sm btn-secondary border-custom hover:border-custom hover:text-accent"
+                  className="flex items-center h-10 text-gray-400 btn btn-sm btn-secondary border-custom hover:border-custom hover:text-accent"
                   onClick={handleUpload}
                   disabled={
                     uploads[video.fileName + '.mp4']?.status === 'uploading' ||

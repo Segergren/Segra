@@ -47,7 +47,7 @@ export default function GenericModal({ title, subtitle, description, type, onClo
         </div>
         {subtitle && <p className="text-gray-400 text-lg mt-2">{subtitle}</p>}
         <button
-          className="btn btn-circle btn-ghost absolute right-4 top-4 text-2xl hover:bg-base-100/30"
+          className="btn btn-circle btn-ghost absolute right-4 top-4 z-10 text-2xl hover:bg-white/10"
           onClick={onClose}
         >
           ✕

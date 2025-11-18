@@ -150,7 +150,7 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
             : `You are running v${__APP_VERSION__}`}
         </p>
         <button
-          className="btn btn-circle btn-ghost absolute right-4 top-4 text-2xl hover:bg-base-100/30"
+          className="btn btn-circle btn-ghost absolute right-4 top-4 z-10 text-2xl hover:bg-white/10"
           onClick={onClose}
         >
           ✕
