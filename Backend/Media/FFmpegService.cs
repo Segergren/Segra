@@ -154,35 +154,17 @@ namespace Segra.Backend.Media
                 try
                 {
                     Log.Information("Starting process...");
+
                     process.Start();
 
-                    var readErrorTask = Task.Run(async () =>
-                    {
-                        while (!process.StandardError.EndOfStream)
-                        {
-                            await process.StandardError.ReadLineAsync();
-                        }
-                    });
-
-                    var readOutputTask = Task.Run(async () =>
-                    {
-                        while (!process.StandardOutput.EndOfStream)
-                        {
-                            await process.StandardOutput.ReadLineAsync();
-                        }
-                    });
+                    // We must read the output streams to prevent the process from deadlocking if the buffers fill up
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
 
                     Log.Information("Waiting for process to complete...");
 
                     // Wait for the process to exit
                     await process.WaitForExitAsync();
-
-                    // Now that the process has exited, we can safely wait for the read tasks to complete
-                    // Use a timeout to prevent hanging if there's an issue
-                    await Task.WhenAll(
-                        Task.WhenAny(readErrorTask, Task.Delay(1000)),
-                        Task.WhenAny(readOutputTask, Task.Delay(1000))
-                    );
 
                     Log.Information("Process completed with exit code: " + process.ExitCode);
 
