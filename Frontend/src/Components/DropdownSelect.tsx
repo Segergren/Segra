@@ -85,7 +85,7 @@ export default function DropdownSelect({
   }, []);
 
   const sizeBtn = size === 'sm' ? 'btn-sm' : size === 'lg' ? 'btn-lg' : '';
-  const computedMenuClassName = menuClassName ?? `dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[999] w-full p-2 ${openDirection === 'up' ? 'mb-1' : 'mt-1'} shadow`;
+  const computedMenuClassName = menuClassName ?? `dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[999] w-full p-2 ${openDirection === 'up' ? 'mb-1' : 'mt-1'} shadow flex-nowrap`;
 
   return (
     <div
@@ -132,10 +132,10 @@ export default function DropdownSelect({
         {items.map((item) => {
           const isActive = item.value === value;
           return (
-            <li key={item.value}>
+            <li key={item.value} className="w-full">
               <button
                 type="button"
-                className={`${itemClassName} ${isActive ? 'active !text-primary' : 'text-base-content'}`}
+                className={`${itemClassName} ${isActive ? 'active !text-primary' : 'text-base-content'} w-full whitespace-nowrap`}
                 aria-current={isActive ? 'true' : undefined}
                 onClick={() => {
                   if (disabled) return;
