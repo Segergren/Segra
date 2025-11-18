@@ -172,9 +172,9 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
           </div>
         ) : (
           decodedReleaseNotes.map((note, index) => (
-            <div key={index} className="mb-10 last:mb-0">
+            <div key={index} className="mb-6 last:mb-0">
               {/* Version badge with date underneath */}
-              <div className="mb-6">
+              <div>
                 <div className="text-primary rounded-full font-bold text-2xl inline-block">
                   Version {note.version}
                 </div>
@@ -190,7 +190,7 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
 
               {/* Divider except for last item */}
               {index < decodedReleaseNotes.length - 1 && (
-                <div className="border-t border-gray-700 mt-8"></div>
+                <div className="border-t border-gray-700 mt-5"></div>
               )}
             </div>
           ))
