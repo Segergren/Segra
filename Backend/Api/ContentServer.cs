@@ -129,7 +129,7 @@ namespace Segra.Backend.Api
                     byte[] jpegBytes;
                     try
                     {
-                        jpegBytes = FFmpegService.GenerateThumbnail(input, timeSeconds).Result;
+                        jpegBytes = await FFmpegService.GenerateThumbnail(input, timeSeconds);
                     }
                     catch (Exception ex)
                     {

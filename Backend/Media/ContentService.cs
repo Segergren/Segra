@@ -311,8 +311,22 @@ namespace Segra.Backend.Media
                 // Ensure the video file exists before attempting deletion
                 if (File.Exists(normalizedFilePath))
                 {
-                    File.Delete(normalizedFilePath);
-                    Log.Information($"Video file deleted: {normalizedFilePath}");
+                    int maxRetries = 3;
+                    for (int i = 0; i < maxRetries; i++)
+                    {
+                        try
+                        {
+                            File.Delete(normalizedFilePath);
+                            Log.Information($"Video file deleted: {normalizedFilePath}");
+                            break;
+                        }
+                        catch (IOException)
+                        {
+                            if (i == maxRetries - 1) throw; // Re-throw on last attempt
+                            Log.Warning($"File is locked, retrying deletion in 500ms... (Attempt {i + 1}/{maxRetries})");
+                            await Task.Delay(500);
+                        }
+                    }
                 }
                 else
                 {
