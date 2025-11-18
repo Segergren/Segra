@@ -169,8 +169,8 @@ export default function UISettingsSection({
                 <div className="mb-1">
                   <span className="text-base-content">Update Channel</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-28">
+                <div className="flex items-center gap-3">
+                  <div className="w-40">
                     <DropdownSelect
                       size="sm"
                       items={[
@@ -182,15 +182,16 @@ export default function UISettingsSection({
                     />
                   </div>
                   <button
-                    className="btn btn-sm btn-ghost btn-circle"
+                    className="btn btn-sm btn-secondary border-base-400 hover:border-base-400 text-gray-400 hover:text-gray-300 flex items-center justify-center gap-2"
                     onClick={() => checkForUpdates()}
                     disabled={settings.state.isCheckingForUpdates}
                   >
                     {settings.state.isCheckingForUpdates ? (
-                      <span className="loading loading-spinner loading-md text-gray-400 loading-md" ></span>
+                      <span className="loading loading-spinner loading-sm w-[16px] h-[16px]"></span>
                     ) : (
-                      <GrUpdate size={18} className="text-gray-400" />
+                      <GrUpdate size={16} className="shrink-0" />
                     )}
+                    <span className="inline-block">Check for Updates</span>
                   </button>
                 </div>
               </div>
@@ -198,9 +199,9 @@ export default function UISettingsSection({
             <div className="flex items-center">
               <button
                 onClick={() => openReleaseNotesModal(null)}
-                className="btn btn-sm btn-secondary border-custom hover:border-custom text-gray-400 hover:text-gray-300 flex items-center justify-center"
+                className="btn btn-sm btn-secondary border-base-400 hover:border-base-400 text-gray-400 hover:text-gray-300 flex items-center justify-center w-40"
               >
-                <SiGithub className="text-lg shrink-0" aria-hidden="true" />
+                <SiGithub size={16} aria-hidden="true" />
                 <span className="inline-block">View Release Notes</span>
               </button>
             </div>
@@ -212,7 +213,7 @@ export default function UISettingsSection({
               <div className="mb-1">
                 <span className="text-base-content">OBS Version</span>
               </div>
-              <div className="w-48">
+              <div className="w-40">
                 <DropdownSelect
                   size="sm"
                   items={[

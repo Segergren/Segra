@@ -26,8 +26,7 @@ export default function DropdownSelect({
   onChange,
   placeholder = 'Select',
   buttonClassName,
-  // ✅ valid z-index + DaisyUI menu classes
-  menuClassName = 'dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[999] w-full p-2 mt-1 shadow',
+  menuClassName,
   // ✅ use important prefix BEFORE the utility (`!text-primary`)
   itemClassName = 'justify-start text-sm font-medium hover:bg-white/5 rounded-md transition-all duration-200 hover:pl-3.5',
   disabled = false,
@@ -51,7 +50,7 @@ export default function DropdownSelect({
     const spaceAbove = Math.max(0, rect.top - margin);
     let dir: 'down' | 'up' = 'down';
     let available = spaceBelow;
-    if (spaceBelow < 90 && spaceAbove > spaceBelow) {
+    if (spaceBelow < 140 && spaceAbove > spaceBelow) {
       dir = 'up';
       available = spaceAbove;
     }
@@ -86,6 +85,7 @@ export default function DropdownSelect({
   }, []);
 
   const sizeBtn = size === 'sm' ? 'btn-sm' : size === 'lg' ? 'btn-lg' : '';
+  const computedMenuClassName = menuClassName ?? `dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[999] w-full p-2 ${openDirection === 'up' ? 'mb-1' : 'mt-1'} shadow`;
 
   return (
     <div
@@ -126,7 +126,7 @@ export default function DropdownSelect({
       {/* Menu (DaisyUI v5 structure) */}
       <ul
         tabIndex={0}
-        className={menuClassName}
+        className={computedMenuClassName}
         style={menuMaxHeight ? { maxHeight: `${menuMaxHeight}px`, overflowY: 'auto' } : undefined}
       >
         {items.map((item) => {
