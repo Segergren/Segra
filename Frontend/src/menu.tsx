@@ -227,7 +227,31 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
 
       {/* Start and Stop Buttons */}
       <div className="mb-4 px-4">
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center space-y-2">
+          {/* Streaming Button */}
+          {settings.enableStreaming && (
+            <div className="w-full">
+              {settings.state.isStreaming ? (
+                <button
+                  className="btn bg-red-500/20 hover:bg-red-500/30 border-red-500/40 hover:border-red-500/50 disabled:border-base-400 disabled:bg-base-300 text-red-400 hover:text-red-300 w-full h-12"
+                  disabled={!settings.state.hasLoadedObs}
+                  onClick={() => sendMessageToBackend('StopStreaming')}
+                >
+                  Stop Live
+                </button>
+              ) : (
+                <button
+                  className="btn bg-primary/20 hover:bg-primary/30 border-primary/40 hover:border-primary/50 disabled:border-base-400 disabled:bg-base-300 text-primary hover:text-primary/80 w-full h-12"
+                  disabled={!settings.state.hasLoadedObs || !settings.streamKey}
+                  onClick={() => sendMessageToBackend('StartStreaming')}
+                >
+                  Start Live
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Recording Button */}
           {settings.state.recording ? (
             <button
               className="btn btn-secondary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12 text-gray-300"
