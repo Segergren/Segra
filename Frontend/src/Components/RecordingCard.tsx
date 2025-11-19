@@ -136,11 +136,11 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
             <span className="countdown">
               {elapsedTime.hours > 0 && (
                 <>
-                  <span style={{ '--value': elapsedTime.hours } as React.CSSProperties}></span>:
+                  <span style={{ '--value': elapsedTime.hours, '--digits': 2 } as React.CSSProperties}></span>:
                 </>
               )}
-              <span style={{ '--value': elapsedTime.minutes } as React.CSSProperties}></span>:
-              <span style={{ '--value': elapsedTime.seconds } as React.CSSProperties}></span>
+              <span style={{ '--value': elapsedTime.minutes, '--digits': 2 } as React.CSSProperties}></span>:
+              <span style={{ '--value': elapsedTime.seconds, '--digits': 2 } as React.CSSProperties}></span>
             </span>
             <p className="truncate ml-2">{preRecording ? preRecording.game : recording?.game}</p>
           </div>
