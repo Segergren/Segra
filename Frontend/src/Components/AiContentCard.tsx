@@ -1,6 +1,86 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { HiOutlineSparkles } from 'react-icons/hi';
+import React, { useEffect, useState, useRef, useMemo, memo } from 'react';
 import { AiProgress } from '../Models/types';
+
+interface VideoBackgroundProps {
+  videoUrl: string;
+  bookmarks: Array<{ id: number; type: string; time: string }>;
+}
+
+// Memoized video component to prevent re-renders
+const VideoBackground = memo(({ videoUrl, bookmarks }: VideoBackgroundProps) => {
+  const [currentKillIndex, setCurrentKillIndex] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const endTimeRef = useRef<number>(0);
+
+  // Convert time string (HH:MM:SS) to seconds
+  const timeToSeconds = (timeStr: string): number => {
+    const parts = timeStr.split(':').map(Number);
+    if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+      return parts[0] * 60 + parts[1];
+    }
+    return parts[0];
+  };
+
+  // Handle video playback of bookmarks
+  useEffect(() => {
+    if (!videoRef.current || bookmarks.length === 0) {
+      // If no kill bookmarks, just play the video normally
+      if (videoRef.current) {
+        videoRef.current.play().catch((err) => console.error('Video play error:', err));
+      }
+      return;
+    }
+
+    const video = videoRef.current;
+    const currentKill = bookmarks[currentKillIndex];
+    const killTime = timeToSeconds(currentKill.time);
+    const startTime = Math.max(0, killTime - 5); // 5 seconds before
+    const endTime = killTime + 5; // 5 seconds after
+    
+    endTimeRef.current = endTime;
+
+    // Seek to the start time
+    video.currentTime = startTime;
+    video.play().catch((err) => console.error('Video play error:', err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentKillIndex]);
+
+  // Separate effect for timeupdate listener to avoid re-creating it
+  useEffect(() => {
+    if (!videoRef.current || bookmarks.length === 0) return;
+
+    const video = videoRef.current;
+
+    const handleTimeUpdate = () => {
+      if (video.currentTime >= endTimeRef.current) {
+        // Move to next bookmark
+        const nextIndex = (currentKillIndex + 1) % bookmarks.length;
+        setCurrentKillIndex(nextIndex);
+      }
+    };
+
+    video.addEventListener('timeupdate', handleTimeUpdate);
+
+    return () => {
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+    };
+  }, [currentKillIndex, bookmarks.length]);
+
+  return (
+    <video
+      ref={videoRef}
+      src={videoUrl}
+      className="w-full h-full object-cover"
+      muted
+      loop={bookmarks.length === 0}
+      playsInline
+    />
+  );
+});
+
+VideoBackground.displayName = 'VideoBackground';
 
 interface AiContentCardProps {
   progress: AiProgress;
@@ -11,6 +91,16 @@ const AiContentCard: React.FC<AiContentCardProps> = ({ progress }) => {
   const [displayedPercentage, setDisplayedPercentage] = useState(progress.progress);
   const animationFrameRef = useRef<number | null>(null);
   const isFirstRender = useRef(true);
+
+  // Memoize video URL and kill bookmarks to prevent re-renders
+  const videoUrl = useMemo(() => {
+    return `http://localhost:2222/api/content?input=${encodeURIComponent(progress.content.filePath)}&type=${progress.content.type.toLowerCase()}`;
+  }, [progress.content.filePath, progress.content.type]);
+
+  // Get all bookmarks
+  const bookmarks = useMemo(() => {
+    return progress.content.bookmarks;
+  }, [progress.content.bookmarks]);
 
   useEffect(() => {
     // Skip animation on first render
@@ -60,37 +150,45 @@ const AiContentCard: React.FC<AiContentCardProps> = ({ progress }) => {
   }, [progress.progress, displayedPercentage]);
 
   return (
-    <div className="card card-compact shadow-xl w-full relative highlight-card min-h-[271.5px]">
+    <div className="card card-compact shadow-xl w-full relative highlight-card overflow-hidden">
       <div className="absolute inset-0 rounded-lg highlight-border">
         <div className="card absolute inset-px bg-base-300 z-2">
-          <figure className="relative aspect-w-16 aspect-h-9">
-            <div
-              className="w-full h-0 relative bg-base-300/70 rounded-none"
-              style={{ paddingTop: '56.25%' }}
-            >
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-base-200">
-                <HiOutlineSparkles className="w-12 h-12 text-purple-400 animate-pulse mb-2" />
-                <p className="text-sm font-medium text-white/80">Generating AI Clip</p>
-                <div className="mt-2 w-3/4">
-                  <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-white/80 rounded-full"
-                      style={{
-                        width: `${animatedProgress}%`,
-                        transition: 'width 1.2s ease-out',
-                      }}
-                    ></div>
-                  </div>
-                  <p className="text-xs text-center mt-1 text-white/80">
-                    <span>{displayedPercentage}%</span>
-                  </p>
+          {/* Video Figure */}
+          <figure className="relative aspect-video">
+            {/* Video Background */}
+            <VideoBackground videoUrl={videoUrl} bookmarks={bookmarks} />
+
+            {/* Backdrop Blur Overlay */}
+            <div className="absolute inset-0 backdrop-blur-[2px] bg-black/30" />
+
+            {/* Centered Content */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+              <p className="text-base  text-white/90">Generating AI Highlight</p>
+              <div className="mt-3 w-2/3">
+                <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-white/90 rounded-full"
+                    style={{
+                      width: `${animatedProgress}%`,
+                      transition: 'width 1.2s ease-out',
+                    }}
+                  ></div>
                 </div>
+                <p className="text-xs text-center mt-1.5 text-white/80">
+                  <span>{displayedPercentage}%</span>
+                </p>
               </div>
             </div>
           </figure>
-          <div className="card-body text-gray-300">
-            <h2 className="card-title">{progress.content.game}</h2>
-            <p className="text-sm text-gray-400">{progress.message}</p>
+
+          {/* Card Body - Game Title */}
+          <div className="card-body gap-1.5 pt-2 text-gray-300">
+            <div className="flex justify-between items-center">
+              <h2 className="card-title truncate h-[36px]">{progress.content.game}</h2>
+            </div>
+            <p className="text-sm">
+              {progress.message}
+            </p>
           </div>
         </div>
       </div>
