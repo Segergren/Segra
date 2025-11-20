@@ -44,6 +44,27 @@ namespace Segra.Backend.App
             // Set process DPI aware to ensure we capture at physical resolution
             SetProcessDPIAware();
             
+            // In debug mode, kill any existing instances before starting
+#if DEBUG
+            try
+            {
+                var currentProcess = Process.GetCurrentProcess();
+                var existingProcesses = Process.GetProcessesByName(currentProcess.ProcessName)
+                    .Where(p => p.Id != currentProcess.Id);
+                
+                foreach (var process in existingProcesses)
+                {
+                    Console.WriteLine($"[DEBUG] Killing existing instance: PID {process.Id}");
+                    process.Kill();
+                    process.WaitForExit(3000); // Wait up to 3 seconds for graceful exit
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DEBUG] Failed to kill existing instance: {ex.Message}");
+            }
+#endif
+            
             // Try to create a named mutex - this will fail if another instance exists
             singleInstanceMutex = new Mutex(true, "SegraApplicationMutex", out bool createdNew);
 
