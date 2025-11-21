@@ -208,11 +208,14 @@ namespace Segra.Backend.Services
         {
             if (string.IsNullOrEmpty(exePath) || Settings.Instance.State.Recording != null || Settings.Instance.State.PreRecording != null) return false;
 
+            // Normalize path for consistent comparison
+            string normalizedExePath = exePath.Replace("\\", "/");
+
             // 1. Check if the game is in the whitelist - if so, always record
             var whitelist = Settings.Instance.Whitelist;
             foreach (var game in whitelist)
             {
-                if (string.Equals(game.Path, exePath, StringComparison.OrdinalIgnoreCase))
+                if (game.Paths.Any(path => string.Equals(path.Replace("\\", "/"), normalizedExePath, StringComparison.OrdinalIgnoreCase)))
                 {
                     Log.Information($"Game {game.Name} found in whitelist, will record");
                     return true;
@@ -223,7 +226,7 @@ namespace Segra.Backend.Services
             var blacklist = Settings.Instance.Blacklist;
             foreach (var game in blacklist)
             {
-                if (string.Equals(game.Path, exePath, StringComparison.OrdinalIgnoreCase))
+                if (game.Paths.Any(path => string.Equals(path.Replace("\\", "/"), normalizedExePath, StringComparison.OrdinalIgnoreCase)))
                 {
                     Log.Information($"Game {game.Name} found in blacklist, will not record");
                     return false;

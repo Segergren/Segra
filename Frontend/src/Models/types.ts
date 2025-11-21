@@ -37,6 +37,7 @@ export interface State {
   codecs: Codec[];
   availableOBSVersions: OBSVersion[];
   isCheckingForUpdates: boolean;
+  gameList: GameListEntry[];
 }
 
 export enum GpuVendor {
@@ -114,7 +115,12 @@ export interface Codec {
 
 export interface Game {
   name: string;
-  path: string;
+  paths?: string[];
+}
+
+export interface GameListEntry {
+  name: string;
+  executables: string[];
 }
 
 export type ClipEncoder = 'gpu' | 'cpu';
@@ -222,6 +228,7 @@ export const initialState: State = {
   codecs: [],
   availableOBSVersions: [],
   isCheckingForUpdates: false,
+  gameList: [],
 };
 
 export const initialSettings: Settings = {

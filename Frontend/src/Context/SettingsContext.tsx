@@ -110,6 +110,15 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
       if (data.method === 'Settings') {
         updateSettings(data.content, true);
+      } else if (data.method === 'GameList') {
+        // Update the game list in state
+        setSettings((prev) => ({
+          ...prev,
+          state: {
+            ...prev.state,
+            gameList: data.content,
+          },
+        }));
       }
     };
 

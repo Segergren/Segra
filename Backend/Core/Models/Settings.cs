@@ -1337,7 +1337,12 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
 
+        [JsonPropertyName("paths")]
+        public List<string> Paths { get; set; } = new List<string>();
+
+        // TODO: Remove this property after migration is deployed and users have upgraded
         [JsonPropertyName("path")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public string Path { get; set; } = string.Empty;
     }
 
@@ -1347,13 +1352,17 @@ namespace Segra.Backend.Core.Models
         {
             if (x == null && y == null) return true;
             if (x == null || y == null) return false;
-            return x.Name == y.Name && x.Path == y.Path;
+            
+            // Games are equal if they have the same name and at least one common path
+            if (x.Name != y.Name) return false;
+            return x.Paths.Intersect(y.Paths, StringComparer.OrdinalIgnoreCase).Any();
         }
 
         public int GetHashCode(Game obj)
         {
             if (obj == null) return 0;
-            return (obj.Name + obj.Path).GetHashCode();
+            // Use name for hash code since paths can vary
+            return obj.Name.GetHashCode();
         }
     }
 }

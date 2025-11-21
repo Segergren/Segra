@@ -1,3 +1,4 @@
+using Segra.Backend.App;
 using Serilog;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -8,6 +9,7 @@ namespace Segra.Backend.Games
     {
         private static HashSet<string> _gameExePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static Dictionary<string, string> _exeToGameName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static List<GameEntry> _gamesList = new List<GameEntry>();
         private static bool _isInitialized = false;
 
         public static async Task InitializeAsync()
@@ -82,6 +84,15 @@ namespace Segra.Backend.Games
             return null;
         }
 
+        public static List<GameEntry> GetGameList()
+        {
+            return _gamesList.Select(game => new GameEntry
+            {
+                Name = game.Name,
+                Executables = game.Executables.Select(exe => exe.Replace("/", "\\")).ToList()
+            }).ToList();
+        }
+
         private static void LoadGamesFromJson()
         {
             string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
@@ -96,13 +107,13 @@ namespace Segra.Backend.Games
             try
             {
                 string jsonContent = File.ReadAllText(jsonPath);
-                var gamesList = JsonSerializer.Deserialize<List<GameEntry>>(jsonContent) ?? new List<GameEntry>();
+                _gamesList = JsonSerializer.Deserialize<List<GameEntry>>(jsonContent) ?? new List<GameEntry>();
 
                 // Build lookup collections for fast access
                 _gameExePaths.Clear();
                 _exeToGameName.Clear();
 
-                foreach (var entry in gamesList)
+                foreach (var entry in _gamesList)
                 {
                     foreach (var exe in entry.Executables)
                     {
@@ -113,12 +124,14 @@ namespace Segra.Backend.Games
                     }
                 }
 
-                Log.Information($"Loaded {gamesList.Count} games with {_gameExePaths.Count} executables from games.json");
+                Log.Information($"Loaded {_gamesList.Count} games with {_gameExePaths.Count} executables from games.json");
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error loading games.json");
             }
+
+            _ = MessageService.SendFrontendMessage("GameList", GetGameList());
         }
 
         private static async Task DownloadGamesJsonIfNeededAsync()
@@ -198,7 +211,7 @@ namespace Segra.Backend.Games
             }
         }
 
-        private class GameEntry
+        public class GameEntry
         {
             [JsonPropertyName("name")]
             public required string Name { get; set; }

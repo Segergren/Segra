@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Game } from '../Models/types';
 import { useSettings } from '../Context/SettingsContext';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
-import { isSelectedGameExecutableMessage } from '../Models/WebSocketMessages';
 
 interface GameListManagerProps {
   listType: 'whitelist' | 'blacklist';
@@ -11,62 +10,13 @@ interface GameListManagerProps {
 export const GameListManager: React.FC<GameListManagerProps> = ({ listType }) => {
   const settings = useSettings();
 
-  const [newGameName, setNewGameName] = useState('');
-  const [newGamePath, setNewGamePath] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
-  const [isSelectingFile, setIsSelectingFile] = useState(false);
-
   const gameList = listType === 'whitelist' ? settings.whitelist : settings.blacklist;
   const listTitle = listType === 'whitelist' ? 'Allow List' : 'Block List';
   const listDescription =
     listType === 'whitelist'
-      ? "If Segra doesn't auto-detect a game, add its executable here to force detection."
-      : 'Add game executables here to prevent Segra from recording or detecting them.';
+      ? "Games in your allow list are forced to be detected and recorded."
+      : 'Games in your block list are prevented from being recorded.';
   const emptyListLabel = listType === 'whitelist' ? 'allow list' : 'block list';
-
-  useEffect(() => {
-    const handleWebSocketMessage = (event: CustomEvent<any>) => {
-      const message = event.detail;
-
-      if (isSelectingFile && isSelectedGameExecutableMessage(message)) {
-        const selectedGame = message.content as Game;
-        setNewGameName(selectedGame.name);
-        setNewGamePath(selectedGame.path);
-        setIsSelectingFile(false);
-        setIsAdding(true); // Show the form after file is selected
-      }
-    };
-
-    window.addEventListener('websocket-message', handleWebSocketMessage as EventListener);
-
-    return () => {
-      window.removeEventListener('websocket-message', handleWebSocketMessage as EventListener);
-    };
-  }, [isSelectingFile]);
-
-  const handleSelectExecutable = () => {
-    setIsSelectingFile(true);
-    sendMessageToBackend('SelectGameExecutable');
-  };
-
-  const handleAddGame = () => {
-    if (!newGameName.trim() || !newGamePath.trim()) return;
-
-    const newGame: Game = {
-      name: newGameName.trim(),
-      path: newGamePath.trim(),
-    };
-
-    // Send to backend
-    sendMessageToBackend(listType === 'whitelist' ? 'AddToWhitelist' : 'AddToBlacklist', {
-      game: newGame,
-    });
-
-    // Reset form
-    setNewGameName('');
-    setNewGamePath('');
-    setIsAdding(false);
-  };
 
   const handleRemoveGame = (game: Game) => {
     sendMessageToBackend(listType === 'whitelist' ? 'RemoveFromWhitelist' : 'RemoveFromBlacklist', {
@@ -105,7 +55,18 @@ export const GameListManager: React.FC<GameListManagerProps> = ({ listType }) =>
                 gameList.map((game, index) => (
                   <tr key={index} className="border-b border-base-200">
                     <td className="font-medium">{game.name}</td>
-                    <td className="text-xs text-gray-400 truncate max-w-xs">{game.path}</td>
+                    <td className="text-xs text-gray-400 max-w-xs">
+                      {game.paths && game.paths.length > 1 ? (
+                        <div>
+                          <div className="font-semibold">{game.paths.length} executables</div>
+                          {game.paths.map((path, idx) => (
+                            <div key={idx} className="truncate">• {path}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="truncate">{game.paths?.[0] || ''}</div>
+                      )}
+                    </td>
                     <td>
                       <button
                         className="btn btn-sm btn-secondary border-base-400 hover:border-base-400"
@@ -121,80 +82,6 @@ export const GameListManager: React.FC<GameListManagerProps> = ({ listType }) =>
           </table>
         </div>
       </div>
-
-      {!isAdding && (
-        <div className="flex justify-start mt-4">
-          <button
-            className="btn btn-sm bg-base-300 border-base-400 hover:border-base-400"
-            onClick={handleSelectExecutable}
-          >
-            Add Game
-          </button>
-        </div>
-      )}
-
-      {isAdding && (
-        <div className="bg-base-200 rounded-lg p-4 mt-4 border border-base-400">
-          <h3 className="text-md font-semibold mb-3">Add Game</h3>
-          <div className="grid grid-cols-1 gap-3">
-            <div>
-              <label className="label pb-1">
-                <span className="label-text text-base-content">Game Name</span>
-              </label>
-              <input
-                type="text"
-                className="input input-bordered w-full bg-base-200"
-                value={newGameName}
-                onChange={(e) => setNewGameName(e.target.value)}
-                placeholder="Game Name"
-              />
-            </div>
-            <div>
-              <label className="label pb-1">
-                <span className="label-text text-base-content">Game Executable</span>
-              </label>
-              <div className="join w-full">
-                <input
-                  type="text"
-                  className="input input-bordered bg-base-200 w-full join-item select-none"
-                  value={newGamePath}
-                  onChange={(e) => setNewGamePath(e.target.value)}
-                  placeholder="C:\Program Files\Game\Game.exe"
-                />
-                <button
-                  className="btn btn-secondary join-item border-base-400 hover:border-base-400"
-                  onClick={handleSelectExecutable}
-                  disabled={isSelectingFile}
-                >
-                  {isSelectingFile ? (
-                    <span className="loading loading-spinner loading-xs"></span>
-                  ) : (
-                    'Browse'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-start gap-2 mt-4">
-            <button
-              className="btn btn-sm flex items-center gap-1 bg-base-300 border-base-400 hover:border-base-400"
-              onClick={handleAddGame}
-              disabled={!newGameName.trim() || !newGamePath.trim()}
-            >
-              Add to {listTitle}
-            </button>
-            <button
-              className="btn btn-sm btn-ghost flex items-center gap-1 bg-base-300 border-base-400 hover:border-base-400"
-              onClick={() => {
-                setIsAdding(false);
-                setIsSelectingFile(false);
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

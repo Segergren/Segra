@@ -108,7 +108,8 @@ internal static class MigrationService
         {
             new("0001_waveforms_json", Apply_0001_WaveformsJson),
             new("0002_hide_dotfolders", Apply_0002_HideDotfolders),
-            new("0003_delete_legacy_games_files", Apply_0003_DeleteLegacyGamesFiles)
+            new("0003_delete_legacy_games_files", Apply_0003_DeleteLegacyGamesFiles),
+            new("0004_game_path_to_paths", Apply_0004_GamePathToPaths)
         };
     }
 
@@ -228,6 +229,53 @@ internal static class MigrationService
         catch (Exception ex)
         {
             Log.Warning(ex, "Failed to delete legacy games files");
+        }
+    }
+
+    // Migration 0004: Convert Game.path to Game.paths array
+    private static void Apply_0004_GamePathToPaths()
+    {
+        try
+        {
+            bool needsSave = false;
+
+            // Migrate whitelist
+            foreach (var game in Settings.Instance.Whitelist)
+            {
+                if (game.Paths.Count == 0 && !string.IsNullOrEmpty(game.Path))
+                {
+                    game.Paths.Add(game.Path);
+                    game.Path = string.Empty;
+                    needsSave = true;
+                    Log.Information("Migrated whitelist game '{Name}' from path to paths", game.Name);
+                }
+            }
+
+            // Migrate blacklist
+            foreach (var game in Settings.Instance.Blacklist)
+            {
+                if (game.Paths.Count == 0 && !string.IsNullOrEmpty(game.Path))
+                {
+                    game.Paths.Add(game.Path);
+                    game.Path = string.Empty;
+                    needsSave = true;
+                    Log.Information("Migrated blacklist game '{Name}' from path to paths", game.Name);
+                }
+            }
+
+            if (needsSave)
+            {
+                SettingsService.SaveSettings();
+                Log.Information("Game path to paths migration completed");
+            }
+            else
+            {
+                Log.Debug("No games needed migration from path to paths");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to migrate game paths");
         }
     }
 }
