@@ -19,10 +19,39 @@ namespace Segra.Backend.Api
 
         private static async void OnRequest(IAsyncResult result)
         {
+            HttpListenerContext? context = null;
+            
             try
             {
-                _httpListener.BeginGetContext(OnRequest, null);
-                var context = _httpListener.EndGetContext(result);
+                context = _httpListener.EndGetContext(result);
+            }
+            catch (HttpListenerException ex)
+            {
+                if (ex.ErrorCode != 995)
+                {
+                    Log.Error(ex, "HttpListenerException in EndGetContext. ErrorCode: {ErrorCode}", ex.ErrorCode);
+                }
+                return;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Unexpected error in EndGetContext.");
+                return;
+            }
+            finally
+            {
+                try
+                {
+                    _httpListener.BeginGetContext(OnRequest, null);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to restart BeginGetContext - server may be stopping");
+                }
+            }
+
+            try
+            {
                 var request = context.Request;
                 var response = context.Response;
 
@@ -32,7 +61,7 @@ namespace Segra.Backend.Api
                 }
                 else if (request.RawUrl?.StartsWith("/api/content") ?? false)
                 {
-                    HandleContentRequest(context);
+                    await HandleContentRequest(context);
                 }
                 else
                 {
@@ -48,12 +77,12 @@ namespace Segra.Backend.Api
             {
                 if (ex.ErrorCode != 995)
                 {
-                    Log.Error(ex, "HttpListenerException occurred. ErrorCode: {ErrorCode}", ex.ErrorCode);
+                    Log.Error(ex, "HttpListenerException in request handler. ErrorCode: {ErrorCode}", ex.ErrorCode);
                 }
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Unexpected error in OnRequest.");
+                Log.Error(ex, "Unexpected error processing request.");
             }
         }
 
@@ -150,7 +179,7 @@ namespace Segra.Backend.Api
                         response.AddHeader("Pragma", "no-cache");
                         response.AddHeader("Expires", "0");
                         response.ContentLength64 = jpegBytes.Length;
-                        response.OutputStream.Write(jpegBytes, 0, jpegBytes.Length);
+                        await response.OutputStream.WriteAsync(jpegBytes, 0, jpegBytes.Length);
                     }
                     else
                     {
@@ -189,7 +218,7 @@ namespace Segra.Backend.Api
             }
         }
 
-        private static void HandleContentRequest(HttpListenerContext context)
+        private static async Task HandleContentRequest(HttpListenerContext context)
         {
             try
             {
@@ -230,17 +259,17 @@ namespace Segra.Backend.Api
                     long contentLength = end - start + 1;
                     response.ContentLength64 = contentLength;
 
-                    using (FileStream fs = new FileStream(fileName, FileMode.Open, FileAccess.Read))
+                    using (FileStream fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
                         fs.Seek(start, SeekOrigin.Begin);
                         byte[] buffer = new byte[64 * 1024];
                         long bytesRemaining = contentLength;
                         while (bytesRemaining > 0)
                         {
-                            int bytesRead = fs.Read(buffer, 0, (int)Math.Min(buffer.Length, bytesRemaining));
+                            int bytesRead = await fs.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, bytesRemaining));
                             if (bytesRead == 0)
                                 break;
-                            response.OutputStream.Write(buffer, 0, bytesRead);
+                            await response.OutputStream.WriteAsync(buffer, 0, bytesRead);
                             bytesRemaining -= bytesRead;
                         }
                     }
@@ -256,13 +285,13 @@ namespace Segra.Backend.Api
                     response.Headers.Add("Accept-Ranges", "bytes");
                     response.ContentLength64 = fileLength;
 
-                    using (FileStream fs = new FileStream(fileName, FileMode.Open, FileAccess.Read))
+                    using (FileStream fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
                         byte[] buffer = new byte[64 * 1024]; // 64KB buffer
                         int bytesRead;
-                        while ((bytesRead = fs.Read(buffer, 0, buffer.Length)) > 0)
+                        while ((bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length)) > 0)
                         {
-                            response.OutputStream.Write(buffer, 0, bytesRead);
+                            await response.OutputStream.WriteAsync(buffer, 0, bytesRead);
                         }
                     }
                 }
