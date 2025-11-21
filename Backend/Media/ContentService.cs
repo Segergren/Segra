@@ -16,7 +16,7 @@ namespace Segra.Backend.Media
             WriteIndented = true
         };
 
-        public static void CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null)
+        public static async Task CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null)
         {
             bookmarks ??= [];
 
@@ -88,7 +88,7 @@ namespace Segra.Backend.Media
 
                 string metadataJson = JsonSerializer.Serialize(metadataContent, _jsonOptions);
 
-                File.WriteAllText(metadataFilePath, metadataJson);
+                await File.WriteAllTextAsync(metadataFilePath, metadataJson);
                 Log.Information($"Metadata file created at: {metadataFilePath}");
             }
             catch (Exception ex)
@@ -167,7 +167,7 @@ namespace Segra.Backend.Media
             }
         }
 
-        public static async void CreateWaveformFile(string videoFilePath, Content.ContentType type)
+        public static async Task CreateWaveformFile(string videoFilePath, Content.ContentType type)
         {
             try
             {
@@ -207,7 +207,7 @@ namespace Segra.Backend.Media
                 }
 
                 // Read PCM and compute min/max pairs as 8-bit integers similar to audiowaveform output
-                byte[] pcmBytes = File.ReadAllBytes(tempPcmPath);
+                byte[] pcmBytes = await File.ReadAllBytesAsync(tempPcmPath);
                 int totalSamples = pcmBytes.Length / 2; // 16-bit mono
                 if (totalSamples == 0)
                 {
@@ -222,7 +222,7 @@ namespace Segra.Backend.Media
                         length = 0,
                         data = Array.Empty<int>()
                     };
-                    File.WriteAllText(waveformJsonPathTemp, JsonSerializer.Serialize(emptyJson));
+                    await File.WriteAllTextAsync(waveformJsonPathTemp, JsonSerializer.Serialize(emptyJson));
                     File.Move(waveformJsonPathTemp, waveformJsonPath, true);
                     return;
                 }
@@ -268,7 +268,7 @@ namespace Segra.Backend.Media
                 };
                 // Serialize JSON
                 var json = JsonSerializer.Serialize(wrapper);
-                File.WriteAllText(waveformJsonPathTemp, json);
+                await File.WriteAllTextAsync(waveformJsonPathTemp, json);
                 File.Move(waveformJsonPathTemp, waveformJsonPath, true);
                 Log.Information($"Waveform JSON successfully created at: {waveformJsonPath}");
 

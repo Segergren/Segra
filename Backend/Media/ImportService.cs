@@ -177,7 +177,7 @@ namespace Segra.Backend.Media
                         }
 
                         // Create metadata file with detected game name and date
-                        ContentService.CreateMetadataFile(targetFilePath, contentType, detectedGame, null, null, detectedDate);
+                        await ContentService.CreateMetadataFile(targetFilePath, contentType, detectedGame, null, null, detectedDate);
 
                         // Ensure file is fully written to disk/network before thumbnail generation
                         await GeneralUtils.EnsureFileReady(targetFilePath);
@@ -222,7 +222,7 @@ namespace Segra.Backend.Media
                         }
 
                         // Create waveform data asynchronously
-                        _ = Task.Run(() => ContentService.CreateWaveformFile(targetFilePath, contentType));
+                        _ = Task.Run(async () => await ContentService.CreateWaveformFile(targetFilePath, contentType));
 
                         importedCount++;
                         Log.Information($"Successfully imported {originalFileName}");

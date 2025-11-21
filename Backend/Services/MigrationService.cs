@@ -159,7 +159,7 @@ internal static class MigrationService
                     }
 
                     Log.Information("Generating waveform for: {File}", mp4);
-                    ContentService.CreateWaveformFile(mp4, type);
+                    _ = Task.Run(async () => await ContentService.CreateWaveformFile(mp4, type));
                 }
                 catch (Exception ex)
                 {

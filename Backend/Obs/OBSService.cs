@@ -187,9 +187,9 @@ namespace Segra.Backend.Obs
             await EnsureFileReady(savedPath);
 
             // Create metadata for the buffer recording
-            ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, game);
+            await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, game);
             await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer);
-            ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer);
+            await ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer);
 
             // Reload content list to include the new buffer file
             await SettingsService.LoadContentFromFolderIntoState(true);
@@ -1006,9 +1006,9 @@ namespace Segra.Backend.Obs
                         // Ensure file is fully written to disk/network before thumbnail generation
                         await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
 
-                        ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
+                        await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
                         await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
-                        ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
+                        await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
 
                         Log.Information($"Recording details:");
                         Log.Information($"Start Time: {Settings.Instance.State.Recording.StartTime}");
@@ -1082,9 +1082,9 @@ namespace Segra.Backend.Obs
                         // Ensure file is fully written to disk/network before thumbnail generation
                         await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
 
-                        ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
+                        await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
                         await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
-                        ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
+                        await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
                     }
 
                     await SettingsService.LoadContentFromFolderIntoState(false);
