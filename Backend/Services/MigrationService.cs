@@ -109,7 +109,8 @@ internal static class MigrationService
             new("0001_waveforms_json", Apply_0001_WaveformsJson),
             new("0002_hide_dotfolders", Apply_0002_HideDotfolders),
             new("0003_delete_legacy_games_files", Apply_0003_DeleteLegacyGamesFiles),
-            new("0004_game_path_to_paths", Apply_0004_GamePathToPaths)
+            new("0004_game_path_to_paths", Apply_0004_GamePathToPaths),
+            new("0005_clip_cpu_defaults", Apply_0005_ClipCpuDefaults)
         };
     }
 
@@ -276,6 +277,73 @@ internal static class MigrationService
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to migrate game paths");
+        }
+    }
+
+    // Migration 0005: Update clip settings to use CPU encoder by default instead of GPU
+    private static void Apply_0005_ClipCpuDefaults()
+    {
+        try
+        {
+            bool needsSave = false;
+            var settings = Settings.Instance;
+
+            // Migrate if user has old GPU-based quality presets (low, standard, or high)
+            // Old presets used GPU encoder with vendor-specific presets
+            
+            string qualityPreset = settings.ClipQualityPreset.ToLower();
+            bool isOldQualityPreset = qualityPreset == "low" || qualityPreset == "standard" || qualityPreset == "high";
+            bool isUsingGpuEncoder = settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase);
+
+            if (isOldQualityPreset && isUsingGpuEncoder)
+            {
+                Log.Information("Migrating clip quality preset '{Preset}' from GPU to CPU encoder", settings.ClipQualityPreset);
+                
+                // Switch to CPU encoder - keep the same quality preset (low/standard/high)
+                // The preset will now apply CPU-specific settings instead of GPU settings
+                settings.ClipEncoder = "cpu";
+                
+                // Apply appropriate CPU settings based on the quality preset
+                switch (qualityPreset)
+                {
+                    case "low":
+                        settings.ClipQualityCpu = 28;
+                        settings.ClipAudioQuality = "96k";
+                        settings.ClipPreset = "ultrafast";
+                        settings.ClipFps = 30;
+                        break;
+                    case "standard":
+                        settings.ClipQualityCpu = 23;
+                        settings.ClipAudioQuality = "128k";
+                        settings.ClipPreset = "veryfast";
+                        settings.ClipFps = 60;
+                        break;
+                    case "high":
+                        settings.ClipQualityCpu = 20;
+                        settings.ClipAudioQuality = "192k";
+                        settings.ClipPreset = "medium";
+                        settings.ClipFps = 60;
+                        break;
+                }
+                
+                needsSave = true;
+                Log.Information("Clip settings migrated to CPU: qualityPreset={Preset}, encoder=cpu, qualityCpu={Quality}, audioQuality={Audio}, preset={Preset}, fps={Fps}", 
+                    settings.ClipQualityPreset, settings.ClipQualityCpu, settings.ClipAudioQuality, settings.ClipPreset, settings.ClipFps);
+            }
+            else
+            {
+                Log.Debug("Clip settings don't match old defaults, skipping migration");
+            }
+
+            if (needsSave)
+            {
+                SettingsService.SaveSettings();
+                Log.Information("Clip CPU defaults migration completed");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to migrate clip settings to CPU defaults");
         }
     }
 }
