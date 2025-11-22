@@ -152,6 +152,9 @@ namespace Segra.Backend.Services
                 increment = clipPaths.Count > 0 ? uploadRange / clipPaths.Count : 0m;
                 int completed = 0;
 
+                const int maxConcurrentUploads = 5;
+                using var semaphore = new SemaphoreSlim(maxConcurrentUploads, maxConcurrentUploads);
+
                 var uploadTasks = new List<Task>();
                 foreach (var item in clipPaths)
                 {
@@ -160,6 +163,7 @@ namespace Segra.Backend.Services
 
                     uploadTasks.Add(Task.Run(async () =>
                     {
+                        await semaphore.WaitAsync();
                         try
                         {
                             await AnalyzeAiClipToAnalyzeAsync(content, bookmark, analysisId, clipPath);
@@ -168,13 +172,17 @@ namespace Segra.Backend.Services
                         {
                             Log.Error(ex, $"Upload failed for bookmark {bookmark.Id}");
                         }
+                        finally
+                        {
+                            semaphore.Release();
 
-                        var count = Interlocked.Increment(ref completed);
-                        var newProgress = 20 + (count * increment);
+                            var count = Interlocked.Increment(ref completed);
+                            var newProgress = 20 + (count * increment);
 
-                        aiProgressMessage.Progress = (int)Math.Floor(newProgress);
-                        aiProgressMessage.Message = $"Uploaded {count} of {clipPaths.Count} parts to analyze";
-                        _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
+                            aiProgressMessage.Progress = (int)Math.Floor(newProgress);
+                            aiProgressMessage.Message = $"Uploaded {count} of {clipPaths.Count} parts to analyze";
+                            _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
+                        }
                     }));
                 }
 
