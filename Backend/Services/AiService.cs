@@ -433,7 +433,10 @@ namespace Segra.Backend.Services
 
                 Log.Information($"Processing ai clip to analyze: {Path.GetFileName(clipPath)} for {bookmark.Type} bookmark");
 
-                using var client = new HttpClient();
+                using var client = new HttpClient
+                {
+                    Timeout = TimeSpan.FromMinutes(5)
+                };
                 using var formContent = new MultipartFormDataContent();
 
                 var fileBytes = await File.ReadAllBytesAsync(clipPath);
