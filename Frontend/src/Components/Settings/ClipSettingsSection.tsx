@@ -35,33 +35,6 @@ const CLIP_PRESETS_CPU = {
   },
 };
 
-// Preset configurations for GPU
-const CLIP_PRESETS_GPU = {
-  low: {
-    clipEncoder: 'gpu' as const,
-    clipQualityGpu: 30,
-    clipCodec: 'h264' as const,
-    clipFps: 30 as ClipFPS,
-    clipAudioQuality: '96k' as const,
-    clipPreset: 'fast' as ClipPreset,
-  },
-  standard: {
-    clipEncoder: 'gpu' as const,
-    clipQualityGpu: 23,
-    clipCodec: 'h264' as const,
-    clipFps: 60 as ClipFPS,
-    clipAudioQuality: '128k' as const,
-    clipPreset: 'medium' as ClipPreset,
-  },
-  high: {
-    clipEncoder: 'gpu' as const,
-    clipQualityGpu: 20,
-    clipCodec: 'h264' as const,
-    clipFps: 60 as ClipFPS,
-    clipAudioQuality: '192k' as const,
-    clipPreset: 'hq' as ClipPreset,
-  },
-};
 
 export default function ClipSettingsSection({ settings, updateSettings }: ClipSettingsSectionProps) {
   // Helper function to get available presets based on encoder settings
@@ -113,11 +86,10 @@ export default function ClipSettingsSection({ settings, updateSettings }: ClipSe
         ];
       case GpuVendor.AMD:
         return [
-          { value: 'slow', label: 'Slow' },
-          { value: 'medium', label: 'Medium' },
-          { value: 'fast', label: 'Fast' },
-          { value: 'hp', label: 'High Performance' },
-          { value: 'hq', label: 'High Quality' },
+          { value: 'quality', label: 'Quality' },
+          { value: 'transcoding', label: 'Transcoding (Balanced)' },
+          { value: 'lowlatency', label: 'Low Latency (Fast)' },
+          { value: 'ultralowlatency', label: 'Ultra Low Latency (Fastest)' },
         ];
       case GpuVendor.Intel:
         return [
@@ -134,12 +106,9 @@ export default function ClipSettingsSection({ settings, updateSettings }: ClipSe
     if (preset === 'custom') {
       updateSettings({ clipQualityPreset: preset });
     } else {
-      // Use GPU presets if GPU is available, otherwise use CPU presets
-      const hasGpu = settings.state.gpuVendor !== GpuVendor.Unknown;
-      const presetConfig = hasGpu ? CLIP_PRESETS_GPU[preset] : CLIP_PRESETS_CPU[preset];
       updateSettings({
         clipQualityPreset: preset,
-        ...presetConfig,
+        ...CLIP_PRESETS_CPU[preset],
       });
     }
   };
@@ -233,7 +202,19 @@ export default function ClipSettingsSection({ settings, updateSettings }: ClipSe
                         newSettings.clipCodec = 'h264';
                       }
                     } else if (val === 'gpu' && settings.clipEncoder !== 'gpu') {
-                      newSettings.clipPreset = 'medium' as ClipPreset;
+                      // Set default preset based on GPU vendor
+                      switch (settings.state.gpuVendor) {
+                        case GpuVendor.AMD:
+                          newSettings.clipPreset = 'transcoding' as ClipPreset;
+                          break;
+                        case GpuVendor.Intel:
+                          newSettings.clipPreset = 'medium' as ClipPreset;
+                          break;
+                        case GpuVendor.Nvidia:
+                        default:
+                          newSettings.clipPreset = 'medium' as ClipPreset;
+                          break;
+                      }
                     }
                     updateSettings(newSettings);
                   }}

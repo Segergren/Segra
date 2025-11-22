@@ -137,7 +137,7 @@ export type CpuClipPreset =
   | 'slow'
   | 'slower'
   | 'veryslow';
-export type GpuClipPreset =
+export type NvidiaClipPreset =
   | 'slow'
   | 'medium'
   | 'fast'
@@ -150,7 +150,9 @@ export type GpuClipPreset =
   | 'lossless'
   | 'losslesshp';
 export type Av1NvencPreset = 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | 'p6' | 'p7';
-export type ClipPreset = CpuClipPreset | GpuClipPreset | Av1NvencPreset;
+export type AmdClipPreset = 'quality' | 'transcoding' | 'lowlatency' | 'ultralowlatency';
+export type IntelClipPreset = 'fast' | 'medium' | 'slow';
+export type ClipPreset = CpuClipPreset | NvidiaClipPreset | Av1NvencPreset | AmdClipPreset | IntelClipPreset;
 
 export type VideoQualityPreset = 'low' | 'standard' | 'high' | 'custom';
 export type ClipQualityPreset = 'low' | 'standard' | 'high' | 'custom';
@@ -265,7 +267,7 @@ export const initialSettings: Settings = {
   clipQualityCpu: 23,
   clipQualityGpu: 23,
   clipCodec: 'h264',
-  clipFps: 0,
+  clipFps: 60,
   clipAudioQuality: '128k',
   clipPreset: 'veryfast',
   soundEffectsVolume: 1,
@@ -274,7 +276,7 @@ export const initialSettings: Settings = {
   showAudioWaveformInTimeline: true,
   enableSeparateAudioTracks: false,
   videoQualityPreset: 'custom',
-  clipQualityPreset: 'custom',
+  clipQualityPreset: 'standard',
   keybindings: [
     { keys: [119], action: KeybindAction.CreateBookmark, enabled: true }, // 119 is F8
     { keys: [121], action: KeybindAction.SaveReplayBuffer, enabled: true }, // 121 is F10

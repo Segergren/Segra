@@ -338,9 +338,10 @@ namespace Segra.Backend.Media
                         else
                             videoCodec = "h264_amf";
 
-                        // AMF uses -qp_i, -qp_p for quality control
+                        // AMF uses -qp_i, -qp_p for quality control and -usage for quality preset
                         qualityArgs = $"-qp_i {settings.ClipQualityGpu} -qp_p {settings.ClipQualityGpu}";
-                        presetArgs = $"-quality {settings.ClipPreset}";
+                        // Frontend sends AMD AMF usage modes directly: quality, transcoding, lowlatency, ultralowlatency
+                        presetArgs = $"-usage {settings.ClipPreset}";
                         break;
 
                     case GpuVendor.Intel:

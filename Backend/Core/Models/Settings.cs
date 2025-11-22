@@ -52,20 +52,20 @@ namespace Segra.Backend.Core.Models
         private Auth _auth = new Auth();
         private bool _clipClearSelectionsAfterCreatingClip = false;
         private bool _clipShowInBrowserAfterUpload = false;
-        private string _clipEncoder = "gpu";
-        private int _clipQualityCpu = 20; // CPU CRF: 17 (High) to 28 (Low)
-        private int _clipQualityGpu = 20; // GPU (CQ/QP/ICQ): 0-1 (High) to 51 (Low)
+        private string _clipEncoder = "cpu";
+        private int _clipQualityCpu = 23; // CPU CRF: 17 (High) to 28 (Low)
+        private int _clipQualityGpu = 23; // GPU (CQ/QP/ICQ): 0-1 (High) to 51 (Low)
         private string _clipCodec = "h264";
         private int _clipFps = 60; // 0 for 'Original'
-        private string _clipAudioQuality = "192k";
-        private string _clipPreset = "hq";
+        private string _clipAudioQuality = "128k";
+        private string _clipPreset = "veryfast";
         private float _soundEffectsVolume = 0.5f;
         private bool _showNewBadgeOnVideos = false;
         private bool _showGameBackground = true;
         private bool _showAudioWaveformInTimeline = true;
         private bool _enableSeparateAudioTracks = false;
         private string _videoQualityPreset = "high";
-        private string _clipQualityPreset = "high";
+        private string _clipQualityPreset = "standard";
 
         // Returns the default keybindings
         private static List<Keybind> GetDefaultKeybindings()
