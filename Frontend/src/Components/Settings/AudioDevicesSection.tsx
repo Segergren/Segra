@@ -265,7 +265,7 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-col gap-3">
         <label className="cursor-pointer flex items-center">
           <input
             type="checkbox"
@@ -275,6 +275,17 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
             className="checkbox checkbox-sm checkbox-accent"
           />
           <span className="ml-2">Mono Input Devices</span>
+        </label>
+
+        <label className="cursor-pointer flex items-center">
+          <input
+            type="checkbox"
+            name="enableSeparateAudioTracks"
+            checked={settings.enableSeparateAudioTracks}
+            onChange={(e) => updateSettings({ enableSeparateAudioTracks: e.target.checked })}
+            className="checkbox checkbox-sm checkbox-accent"
+          />
+          <span className="ml-2">Separate Audio Tracks</span>
         </label>
 
         <AnimatePresence>
