@@ -735,6 +735,19 @@ namespace Segra.Backend.Obs
             allAudioSources.AddRange(_micSources);
             allAudioSources.AddRange(_desktopSources);
 
+            // Build list of device names for encoder naming
+            var audioDeviceNames = new List<string>();
+            if (Settings.Instance.InputDevices != null)
+            {
+                foreach (var device in Settings.Instance.InputDevices.Where(d => !string.IsNullOrEmpty(d.Id)))
+                    audioDeviceNames.Add(device.Name.Replace(" (Default)", "") ?? "Microphone");
+            }
+            if (Settings.Instance.OutputDevices != null)
+            {
+                foreach (var device in Settings.Instance.OutputDevices.Where(d => !string.IsNullOrEmpty(d.Id)))
+                    audioDeviceNames.Add(device.Name.Replace(" (Default)", "") ?? "Desktop Audio");
+            }
+
             bool separateTracks = Settings.Instance.EnableSeparateAudioTracks;
             int maxTracks = 6; // OBS supports up to 6 audio tracks
             int perSourceTracks = separateTracks ? Math.Min(allAudioSources.Count, maxTracks - 1) : 0; // tracks 2..6 for sources
@@ -771,7 +784,12 @@ namespace Segra.Backend.Obs
             {
                 IntPtr audioEncoderSettings = obs_data_create();
                 obs_data_set_int(audioEncoderSettings, "bitrate", 128);
-                string encoderName = $"simple_aac_encoder_{t + 1}";
+                
+                // Track 0 is the full mix, tracks 1+ are individual devices
+                string encoderName = t == 0 
+                    ? "Full Mix" 
+                    : (t - 1 < audioDeviceNames.Count ? audioDeviceNames[t - 1] : $"Audio Track {t + 1}");
+                
                 IntPtr enc = obs_audio_encoder_create("ffmpeg_aac", encoderName, audioEncoderSettings, (UIntPtr)(uint)t, IntPtr.Zero);
                 obs_data_release(audioEncoderSettings);
                 obs_encoder_set_audio(enc, obs_get_audio());
