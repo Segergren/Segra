@@ -700,14 +700,14 @@ namespace Segra.Backend.Obs
 
                         obs_data_release(desktopSettings);
 
-                        float desktopVolume = 1.0f; // Use fixed volume (100%)
-                        obs_source_set_volume(desktopSource, desktopVolume);
+                        float volume = deviceSetting.Volume;
+                        obs_source_set_volume(desktopSource, volume);
 
                         obs_set_output_source((uint)desktopSourceIndex, desktopSource);
                         _desktopSources.Add(desktopSource);
 
                         desktopSourceIndex++;
-                        Log.Information($"Added output device: {deviceSetting.Name} ({deviceSetting.Id}) as {sourceName} with fixed volume {desktopVolume}");
+                        Log.Information($"Added output device: {deviceSetting.Name} ({deviceSetting.Id}) as {sourceName} with volume {volume}");
                     }
                 }
             }

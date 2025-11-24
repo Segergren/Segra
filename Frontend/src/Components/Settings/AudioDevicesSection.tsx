@@ -116,8 +116,8 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
                   ) : null;
                 })()}
               </span>
-              {/* Volume slider - only for input devices */}
-              {isInput && selectedDevices.some((d) => d.id === device.id) && (
+              {/* Volume slider for selected devices */}
+              {selectedDevices.some((d) => d.id === device.id) && (
                 <div className="flex items-center gap-1 w-32">
                   <input
                     type="range"
@@ -189,8 +189,8 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
                   </div>
                   {deviceSetting.name.replace(' (Default)', '')}
                 </span>
-                {/* Volume slider - only for input devices */}
-                {isInput && (
+                {/* Volume slider for selected devices */}
+                {(
                   <div className="flex items-center gap-1 w-32">
                     <input
                       type="range"
