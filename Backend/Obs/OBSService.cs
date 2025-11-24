@@ -464,6 +464,10 @@ namespace Segra.Backend.Obs
 
         public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null)
         {
+            // Wait for pending StopRecording to complete before starting. Prevents race conditions where a new recording starts before cleanup finishes
+            _stopRecordingSemaphore.Wait();
+            _stopRecordingSemaphore.Release();
+
             Settings.Instance.State.PreRecording = new PreRecording { Game = name, Status = "Waiting to start" };
             bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
             bool isSessionMode = Settings.Instance.RecordingMode == RecordingMode.Session;
