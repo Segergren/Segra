@@ -468,6 +468,18 @@ namespace Segra.Backend.Obs
             _stopRecordingSemaphore.Wait();
             _stopRecordingSemaphore.Release();
 
+            if (!IsOBSInstalled())
+            {
+                Log.Information("OBS is not installed. Skipping recording.");
+                return false;
+            }
+
+            if(!IsInitialized)
+            {
+                Log.Information("OBS is not initialized. Skipping recording.");
+                return false;
+            }
+
             Settings.Instance.State.PreRecording = new PreRecording { Game = name, Status = "Waiting to start" };
             bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
             bool isSessionMode = Settings.Instance.RecordingMode == RecordingMode.Session;
@@ -1471,6 +1483,12 @@ namespace Segra.Backend.Obs
             }
         }
 
+        public static bool IsOBSInstalled()
+        {
+            string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "obs.dll");
+            return File.Exists(dllPath);
+        }
+
         public static async Task CheckIfExistsOrDownloadAsync(bool isUpdate = false)
         {
             Log.Information("Checking if OBS is installed");
@@ -1488,14 +1506,13 @@ namespace Segra.Backend.Obs
                 return;
             }
 
-            string currentDirectory = AppDomain.CurrentDomain.BaseDirectory;
-            string dllPath = Path.Combine(currentDirectory, "obs.dll");
-
-            if (File.Exists(dllPath) && !isUpdate && !Settings.Instance.PendingOBSUpdate)
+            if (IsOBSInstalled() && !isUpdate && !Settings.Instance.PendingOBSUpdate)
             {
                 Log.Information("OBS is installed");
                 return;
             }
+
+            string currentDirectory = AppDomain.CurrentDomain.BaseDirectory;
 
             // Store obs.zip and hash in AppData to preserve them across updates
             string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
