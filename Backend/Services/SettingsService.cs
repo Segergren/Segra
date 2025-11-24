@@ -821,5 +821,97 @@ namespace Segra.Backend.Services
                 Settings.Instance.SelectedOBSVersion = null;
             }
         }
+
+        /// <summary>
+        /// Reconciles selected device settings with currently available devices.
+        /// If a selected device's ID no longer exists but a device with a matching name is found,
+        /// the selected device's ID is updated to the new ID. This handles cases where Windows
+        /// assigns new IDs to devices after updates or hardware changes.
+        /// </summary>
+        public static void ReconcileDeviceSettings(List<DeviceSetting> selectedDevices, List<AudioDevice> availableDevices, string deviceType)
+        {
+            bool hasChanges = false;
+
+            foreach (DeviceSetting selectedDevice in selectedDevices)
+            {
+                bool idExists = availableDevices.Any(d => d.Id == selectedDevice.Id);
+                if (idExists)
+                {
+                    continue;
+                }
+
+                string savedNameNormalized = NormalizeDeviceName(selectedDevice.Name);
+
+                AudioDevice? matchingDevice = availableDevices.FirstOrDefault(d =>
+                    NormalizeDeviceName(d.Name).Equals(savedNameNormalized, StringComparison.OrdinalIgnoreCase));
+
+                if (matchingDevice != null)
+                {
+                    Log.Information($"Reconciling {deviceType} device: '{selectedDevice.Name}' ID changed from '{selectedDevice.Id}' to '{matchingDevice.Id}'");
+                    selectedDevice.Id = matchingDevice.Id;
+                    selectedDevice.Name = matchingDevice.Name;
+                    hasChanges = true;
+                }
+                else
+                {
+                    Log.Warning($"Saved {deviceType} device '{selectedDevice.Name}' (ID: {selectedDevice.Id}) not found in available devices");
+                }
+            }
+
+            if (hasChanges)
+            {
+                SaveSettings();
+            }
+        }
+
+        private static string NormalizeDeviceName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return string.Empty;
+            }
+
+            const string defaultSuffix = " (Default)";
+            if (name.EndsWith(defaultSuffix, StringComparison.OrdinalIgnoreCase))
+            {
+                return name[..^defaultSuffix.Length];
+            }
+
+            return name;
+        }
+
+        public static void SelectDefaultDevices()
+        {
+            List<AudioDevice> inputDevices = Settings.Instance.State.InputDevices;
+            List<AudioDevice> outputDevices = Settings.Instance.State.OutputDevices;
+
+            AudioDevice? defaultInputDevice = inputDevices.FirstOrDefault(d => d.IsDefault);
+            if (defaultInputDevice != null)
+            {
+                Settings.Instance.BeginBulkUpdate();
+                Settings.Instance.InputDevices.Add(new DeviceSetting
+                {
+                    Id = defaultInputDevice.Id,
+                    Name = defaultInputDevice.Name,
+                    Volume = 1.0f
+                });
+                Settings.Instance.EndBulkUpdateAndSaveSettings();
+                Log.Information($"Auto-selected default input device: {defaultInputDevice.Name}");
+            }
+
+            AudioDevice? defaultOutputDevice = outputDevices.FirstOrDefault(d => d.IsDefault);
+            if (defaultOutputDevice != null)
+            {
+                Settings.Instance.BeginBulkUpdate();
+                Settings.Instance.OutputDevices.Add(new DeviceSetting
+                {
+                    Id = defaultOutputDevice.Id,
+                    Name = defaultOutputDevice.Name,
+                    Volume = 1.0f
+                });
+                Settings.Instance.EndBulkUpdateAndSaveSettings();
+                Log.Information($"Auto-selected default output device: {defaultOutputDevice.Name}");
+            }
+        }
     }
 }

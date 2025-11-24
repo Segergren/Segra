@@ -201,6 +201,7 @@ namespace Segra.Backend.App
                     _ = SettingsService.LoadContentFromFolderIntoState(true);
                     StartupService.SetStartupStatus(true);
                     Settings.Instance.State.GpuVendor = GeneralUtils.DetectGpuVendor();
+                    SettingsService.SelectDefaultDevices();
                 }
 
                 // Ensure content folder exists

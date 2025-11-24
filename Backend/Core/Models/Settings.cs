@@ -853,13 +853,6 @@ namespace Segra.Backend.Core.Models
 
             UpdateAudioDevices();
             UpdateDisplays();
-
-            bool hasNoSelectedAudioDevices = Settings.Instance.InputDevices.Count == 0 && Settings.Instance.OutputDevices.Count == 0;
-            Log.Information($"Has no selected audio devices: {hasNoSelectedAudioDevices}");
-            if (hasNoSelectedAudioDevices)
-            {
-                SelectDefaultDevices();
-            }
         }
 
         private static void SendToFrontend(string cause)
@@ -1048,14 +1041,14 @@ namespace Segra.Backend.Core.Models
         public void UpdateAudioDevices()
         {
             // Get the list of input devices
-            var inputDevices = AudioDeviceService.GetInputDevices();
+            List<AudioDevice> inputDevices = AudioDeviceService.GetInputDevices();
             if (!Enumerable.SequenceEqual(_inputDevices, inputDevices))
             {
                 _inputDevices = inputDevices;
             }
 
             // Get the list of output devices
-            var outputDevices = AudioDeviceService.GetOutputDevices();
+            List<AudioDevice> outputDevices = AudioDeviceService.GetOutputDevices();
             if (!Enumerable.SequenceEqual(_outputDevices, outputDevices))
             {
                 _outputDevices = outputDevices;
@@ -1063,16 +1056,22 @@ namespace Segra.Backend.Core.Models
 
             Log.Information("Audio devices");
             Log.Information("-------------");
-            foreach (var device in InputDevices)
+            foreach (AudioDevice device in InputDevices)
             {
                 Log.Information($"Input device: {device.Name} {device.Id}");
             }
 
-            foreach (var device in OutputDevices)
+            foreach (AudioDevice device in OutputDevices)
             {
                 Log.Information($"Output device: {device.Name} {device.Id}");
             }
             Log.Information("-------------");
+
+            // Reconcile selected device settings with available devices
+            // This handles cases where device IDs change (e.g., after Windows/driver updates)
+            SettingsService.ReconcileDeviceSettings(Settings.Instance.InputDevices, inputDevices, "input");
+            SettingsService.ReconcileDeviceSettings(Settings.Instance.OutputDevices, outputDevices, "output");
+
             _ = MessageService.SendSettingsToFrontend("Updated audio devices");
         }
 
@@ -1080,37 +1079,6 @@ namespace Segra.Backend.Core.Models
         {
             DisplayService.LoadAvailableMonitorsIntoState();
             SendToFrontend("Display change detected");
-        }
-
-        private void SelectDefaultDevices()
-        {
-            var defaultInputDevice = _inputDevices.FirstOrDefault(d => d.IsDefault);
-            if (defaultInputDevice != null)
-            {
-                Settings.Instance.BeginBulkUpdate();
-                Settings.Instance.InputDevices.Add(new DeviceSetting
-                {
-                    Id = defaultInputDevice.Id,
-                    Name = defaultInputDevice.Name,
-                    Volume = 1.0f
-                });
-                Settings.Instance.EndBulkUpdateAndSaveSettings();
-                Log.Information($"Auto-selected default input device: {defaultInputDevice.Name}");
-            }
-
-            var defaultOutputDevice = _outputDevices.FirstOrDefault(d => d.IsDefault);
-            if (defaultOutputDevice != null)
-            {
-                Settings.Instance.BeginBulkUpdate();
-                Settings.Instance.OutputDevices.Add(new DeviceSetting
-                {
-                    Id = defaultOutputDevice.Id,
-                    Name = defaultOutputDevice.Name,
-                    Volume = 1.0f
-                });
-                Settings.Instance.EndBulkUpdateAndSaveSettings();
-                Log.Information($"Auto-selected default output device: {defaultOutputDevice.Name}");
-            }
         }
 
         public void UpdateRecordingEndTime(DateTime endTime)
