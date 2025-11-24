@@ -842,7 +842,11 @@ namespace Segra.Backend.Services
 
                 string savedNameNormalized = NormalizeDeviceName(selectedDevice.Name);
 
+                // Prevent matching the same device multiple times if they have the same name
+                HashSet<string> alreadyUsedIds = selectedDevices.Select(d => d.Id).ToHashSet();
+
                 AudioDevice? matchingDevice = availableDevices.FirstOrDefault(d =>
+                    !alreadyUsedIds.Contains(d.Id) &&
                     NormalizeDeviceName(d.Name).Equals(savedNameNormalized, StringComparison.OrdinalIgnoreCase));
 
                 if (matchingDevice != null)
