@@ -202,6 +202,8 @@ namespace Segra.Backend.App
                     StartupService.SetStartupStatus(true);
                     Settings.Instance.State.GpuVendor = GeneralUtils.DetectGpuVendor();
                     SettingsService.SelectDefaultDevices();
+                    _ = PresetsService.ApplyVideoPreset("high");
+                    _ = PresetsService.ApplyClipPreset("standard");
                 }
 
                 // Ensure content folder exists

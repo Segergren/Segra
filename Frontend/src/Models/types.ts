@@ -38,6 +38,7 @@ export interface State {
   availableOBSVersions: OBSVersion[];
   isCheckingForUpdates: boolean;
   gameList: GameListEntry[];
+  maxDisplayHeight: number;
 }
 
 export enum GpuVendor {
@@ -231,6 +232,7 @@ export const initialState: State = {
   availableOBSVersions: [],
   isCheckingForUpdates: false,
   gameList: [],
+  maxDisplayHeight: 1080,
 };
 
 export const initialSettings: Settings = {
@@ -275,7 +277,7 @@ export const initialSettings: Settings = {
   showGameBackground: true,
   showAudioWaveformInTimeline: true,
   enableSeparateAudioTracks: false,
-  videoQualityPreset: 'custom',
+  videoQualityPreset: 'high',
   clipQualityPreset: 'standard',
   keybindings: [
     { keys: [119], action: KeybindAction.CreateBookmark, enabled: true }, // 119 is F8

@@ -132,6 +132,8 @@ namespace Segra.Backend.Windows.Display
             Log.Information("=== Available Monitors ===");
             EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, MonitorEnumProc, IntPtr.Zero);
             Settings.Instance.State.Displays = displays;
+            Settings.Instance.State.MaxDisplayHeight = GetMaxDisplayHeight();
+            Log.Information("Max display height: {MaxHeight}p", Settings.Instance.State.MaxDisplayHeight);
             Log.Information("=== End Monitor List ===");
         }
 
@@ -164,6 +166,45 @@ namespace Segra.Backend.Windows.Display
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Checks if any connected display has a height of at least the specified value
+        /// </summary>
+        public static bool HasDisplayWithMinHeight(int minHeight)
+        {
+            return GetMaxDisplayHeight() >= minHeight;
+        }
+
+        /// <summary>
+        /// Gets the maximum height among all connected displays
+        /// </summary>
+        public static int GetMaxDisplayHeight()
+        {
+            int maxHeight = 1080; // Default fallback
+
+            try
+            {
+                foreach (var screen in Screen.AllScreens)
+                {
+                    DEVMODE devMode = new DEVMODE();
+                    devMode.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+
+                    if (EnumDisplaySettings(screen.DeviceName, ENUM_CURRENT_SETTINGS, ref devMode))
+                    {
+                        if (devMode.dmPelsHeight > maxHeight)
+                        {
+                            maxHeight = devMode.dmPelsHeight;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("Failed to get max display height: {Message}", ex.Message);
+            }
+
+            return maxHeight;
         }
 
         private static string GetFriendlyMonitorName(string deviceId, string fallback)

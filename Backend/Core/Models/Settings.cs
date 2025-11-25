@@ -836,6 +836,7 @@ namespace Segra.Backend.Core.Models
         private List<Codec> _codecs = [];
         private List<OBSVersion> _availableOBSVersions = [];
         private bool _isCheckingForUpdates = false;
+        private int _maxDisplayHeight = 1080;
 
         private AudioDeviceWatcher? _deviceWatcher;
         private DisplayWatcher? _displayWatcher;
@@ -970,6 +971,20 @@ namespace Segra.Backend.Core.Models
                 {
                     _displays = value;
                     SendToFrontend("State update: Displays");
+                }
+            }
+        }
+
+        [JsonPropertyName("maxDisplayHeight")]
+        public int MaxDisplayHeight
+        {
+            get => _maxDisplayHeight;
+            set
+            {
+                if (_maxDisplayHeight != value)
+                {
+                    _maxDisplayHeight = value;
+                    SendToFrontend("State update: MaxDisplayHeight");
                 }
             }
         }

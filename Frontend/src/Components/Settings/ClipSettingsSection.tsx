@@ -1,40 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import DropdownSelect from '../DropdownSelect';
 import { Settings as SettingsType, GpuVendor, ClipFPS, ClipPreset, ClipQualityPreset } from '../../Models/types';
+import { sendMessageToBackend } from '../../Utils/MessageUtils';
 
 interface ClipSettingsSectionProps {
   settings: SettingsType;
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
-
-// Preset configurations for CPU
-const CLIP_PRESETS_CPU = {
-  low: {
-    clipEncoder: 'cpu' as const,
-    clipQualityCpu: 28,
-    clipCodec: 'h264' as const,
-    clipFps: 30 as ClipFPS,
-    clipAudioQuality: '96k' as const,
-    clipPreset: 'ultrafast' as ClipPreset,
-  },
-  standard: {
-    clipEncoder: 'cpu' as const,
-    clipQualityCpu: 23,
-    clipCodec: 'h264' as const,
-    clipFps: 60 as ClipFPS,
-    clipAudioQuality: '128k' as const,
-    clipPreset: 'veryfast' as ClipPreset,
-  },
-  high: {
-    clipEncoder: 'cpu' as const,
-    clipQualityCpu: 20,
-    clipCodec: 'h264' as const,
-    clipFps: 60 as ClipFPS,
-    clipAudioQuality: '192k' as const,
-    clipPreset: 'medium' as ClipPreset,
-  },
-};
-
 
 export default function ClipSettingsSection({ settings, updateSettings }: ClipSettingsSectionProps) {
   // Helper function to get available presets based on encoder settings
@@ -103,14 +75,7 @@ export default function ClipSettingsSection({ settings, updateSettings }: ClipSe
   };
 
   const handlePresetChange = (preset: ClipQualityPreset) => {
-    if (preset === 'custom') {
-      updateSettings({ clipQualityPreset: preset });
-    } else {
-      updateSettings({
-        clipQualityPreset: preset,
-        ...CLIP_PRESETS_CPU[preset],
-      });
-    }
+    sendMessageToBackend('ApplyClipPreset', { preset });
   };
 
   return (

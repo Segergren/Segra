@@ -2,40 +2,12 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DropdownSelect from '../DropdownSelect';
 import { Settings as SettingsType, VideoQualityPreset } from '../../Models/types';
+import { sendMessageToBackend } from '../../Utils/MessageUtils';
 
 interface VideoSettingsSectionProps {
   settings: SettingsType;
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
-
-// Preset configurations
-const VIDEO_PRESETS = {
-  low: {
-    resolution: '720p' as const,
-    frameRate: 30,
-    rateControl: 'CBR',
-    bitrate: 10,
-    encoder: 'gpu' as const,
-  },
-  standard: {
-    resolution: '1080p' as const,
-    frameRate: 60,
-    rateControl: 'VBR',
-    bitrate: 40,
-    minBitrate: 40,
-    maxBitrate: 60,
-    encoder: 'gpu' as const,
-  },
-  high: {
-    resolution: '1440p' as const,
-    frameRate: 60,
-    rateControl: 'VBR',
-    bitrate: 70,
-    minBitrate: 70,
-    maxBitrate: 100,
-    encoder: 'gpu' as const,
-  },
-};
 
 export default function VideoSettingsSection({ settings, updateSettings }: VideoSettingsSectionProps) {
   const [localReplayBufferDuration, setLocalReplayBufferDuration] = useState<number>(
@@ -53,15 +25,7 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
   const isRecording = settings.state.recording != null || settings.state.preRecording != null;
 
   const handlePresetChange = (preset: VideoQualityPreset) => {
-    if (preset === 'custom') {
-      updateSettings({ videoQualityPreset: preset });
-    } else {
-      const presetConfig = VIDEO_PRESETS[preset];
-      updateSettings({
-        videoQualityPreset: preset,
-        ...presetConfig,
-      });
-    }
+    sendMessageToBackend('ApplyVideoPreset', { preset });
   };
 
   return (
@@ -93,7 +57,7 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
             onClick={() => handlePresetChange('high')}
           >
             <div className="text-sm font-semibold">High Quality</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">1440p • 60fps</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">{settings.state.maxDisplayHeight >= 1440 ? '1440p' : '1080p'} • 60fps</div>
           </div>
           <div
             className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${settings.videoQualityPreset === 'custom' ? 'border-primary' : 'border-base-400'
@@ -213,8 +177,8 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                   items={[
                     { value: '720p', label: '720p' },
                     { value: '1080p', label: '1080p' },
-                    { value: '1440p', label: '1440p' },
-                    { value: '4K', label: '4K' },
+                    ...(settings.state.maxDisplayHeight >= 1440 ? [{ value: '1440p', label: '1440p' }] : []),
+                    ...(settings.state.maxDisplayHeight >= 2160 ? [{ value: '4K', label: '4K' }] : []),
                   ]}
                   value={settings.resolution}
                   onChange={(val) => updateSettings({ resolution: val as '720p' | '1080p' | '1440p' | '4K' })}

@@ -240,6 +240,28 @@ namespace Segra.Backend.App
                             await ImportService.HandleImportFile(importParameterElement);
                             Log.Information("ImportFile command received.");
                             break;
+                        case "ApplyVideoPreset":
+                            if (root.TryGetProperty("Parameters", out var videoPresetParams) &&
+                                videoPresetParams.TryGetProperty("preset", out var videoPresetEl))
+                            {
+                                string? videoPreset = videoPresetEl.GetString();
+                                if (!string.IsNullOrEmpty(videoPreset))
+                                {
+                                    await PresetsService.ApplyVideoPreset(videoPreset);
+                                }
+                            }
+                            break;
+                        case "ApplyClipPreset":
+                            if (root.TryGetProperty("Parameters", out var clipPresetParams) &&
+                                clipPresetParams.TryGetProperty("preset", out var clipPresetEl))
+                            {
+                                string? clipPreset = clipPresetEl.GetString();
+                                if (!string.IsNullOrEmpty(clipPreset))
+                                {
+                                    await PresetsService.ApplyClipPreset(clipPreset);
+                                }
+                            }
+                            break;
                         default:
                             Log.Information($"Unknown method: {method}");
                             break;
