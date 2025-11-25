@@ -92,7 +92,7 @@ export default function ClipSettingsSection({ settings, updateSettings }: ClipSe
             onClick={() => handlePresetChange('low')}
           >
             <div className="text-sm font-semibold">Low Quality</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">Fast encode</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">Fast • 30fps</div>
           </div>
           <div
             className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
@@ -101,7 +101,7 @@ export default function ClipSettingsSection({ settings, updateSettings }: ClipSe
             onClick={() => handlePresetChange('standard')}
           >
             <div className="text-sm font-semibold">Standard</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">Balanced</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">Balanced • 60fps</div>
           </div>
           <div
             className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
@@ -110,7 +110,7 @@ export default function ClipSettingsSection({ settings, updateSettings }: ClipSe
             onClick={() => handlePresetChange('high')}
           >
             <div className="text-sm font-semibold">High Quality</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">Best quality</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">Quality • 60fps</div>
           </div>
           <div
             className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
