@@ -62,7 +62,7 @@ namespace Segra.Backend.Services
                 string responseBody;
                 try
                 {
-                    responseBody = response.Content.ReadAsStringAsync().Result.Trim();
+                    responseBody = (await response.Content.ReadAsStringAsync()).Trim();
                 }
                 catch (Exception ex)
                 {

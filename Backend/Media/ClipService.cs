@@ -1,10 +1,10 @@
 using System.Diagnostics;
-using Serilog;
 using System.Globalization;
-using Segra.Backend.Core.Models;
-using static Segra.Backend.Utils.GeneralUtils;
 using Segra.Backend.App;
+using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
+using Serilog;
+using static Segra.Backend.Utils.GeneralUtils;
 
 namespace Segra.Backend.Media
 {
@@ -48,150 +48,218 @@ namespace Segra.Backend.Media
         public static async Task CreateClips(List<Selection> selections, bool updateFrontend = true, AiProgressMessage? aiProgressMessage = null)
         {
             int id = Guid.NewGuid().GetHashCode();
-            if (updateFrontend)
-            {
-                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 0, selections });
-            }
-            string videoFolder = Settings.Instance.ContentFolder;
-
-            if (selections == null || !selections.Any())
-            {
-                Log.Error("No selections provided.");
-                return;
-            }
-
-            double totalDuration = selections.Sum(s => s.EndTime - s.StartTime);
-            if (totalDuration <= 0)
-            {
-                Log.Error("Total clip duration is zero or negative.");
-                return;
-            }
-
-            string outputFolder = Path.Combine(videoFolder, aiProgressMessage != null ? "highlights" : "clips");
-            Directory.CreateDirectory(outputFolder);
-
             List<string> tempClipFiles = new List<string>();
-
-            if (!FFmpegService.FFmpegExists())
-            {
-                Log.Error($"FFmpeg executable not found at path: {FFmpegService.GetFFmpegPath()}");
-                return;
-            }
-
-            double processedDuration = 0;
-            foreach (var selection in selections)
-            {
-                string inputFilePath = Path.Combine(videoFolder, selection.Type.ToLower() + "s", $"{selection.FileName}.mp4");
-                if (!File.Exists(inputFilePath))
-                {
-                    Log.Information($"Input video file not found: {inputFilePath}");
-                    continue;
-                }
-
-                string tempFileName = Path.Combine(Path.GetTempPath(), $"clip{Guid.NewGuid()}.mp4");
-                double clipDuration = selection.EndTime - selection.StartTime;
-
-                await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, progress =>
-                {
-                    double currentProgress = (processedDuration + (progress * clipDuration)) / totalDuration * 100;
-                    if (updateFrontend)
-                    {
-                        _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, selections });
-                    }
-
-                    if (aiProgressMessage != null && !string.IsNullOrEmpty(aiProgressMessage.Id))
-                    {
-                        // Update from 80% to 98%
-                        double fraction = (processedDuration + (progress * clipDuration)) / totalDuration;
-                        double aiProgress = 80 + fraction * 18;
-                        if (aiProgress > 98) aiProgress = 98;
-
-                        aiProgressMessage.Progress = (int)Math.Floor(aiProgress);
-                        aiProgressMessage.Message = $"Rendering clips...";
-                        _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
-                    }
-                });
-
-                processedDuration += clipDuration;
-                tempClipFiles.Add(tempFileName);
-                if (updateFrontend)
-                {
-                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = (processedDuration / totalDuration) * 100, selections });
-                }
-            }
-
-            if (!tempClipFiles.Any())
-            {
-                Log.Information("No valid clips were extracted.");
-                return;
-            }
-
-            // Concatenation phase (progress completes to 100% when done)
-            string concatFilePath = Path.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
-            await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(f => $"file '{f.Replace("\\", "\\\\").Replace("'", "\\'")}"));
-
-            string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
-            string outputFilePath = Path.Combine(outputFolder, outputFileName);
-
-            if (aiProgressMessage != null)
-            {
-                aiProgressMessage.Progress = 99;
-                aiProgressMessage.Message = "Rendering final clip...";
-                _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
-            }
+            string? concatFilePath = null;
+            string? outputFilePath = null;
 
             try
             {
-                await FFmpegService.RunWithProgress(id,
-                    $"-y -f concat -safe 0 -i \"{concatFilePath}\" -c copy -movflags +faststart \"{outputFilePath}\"",
-                    totalDuration,
-                    progress =>
+                if (updateFrontend)
+                {
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 0, selections });
+                }
+                string videoFolder = Settings.Instance.ContentFolder;
+
+                if (selections == null || !selections.Any())
+                {
+                    Log.Error("No selections provided.");
+                    if (updateFrontend)
                     {
+                        await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "No selections provided" });
+                    }
+                    return;
+                }
+
+                double totalDuration = selections.Sum(s => s.EndTime - s.StartTime);
+                if (totalDuration <= 0)
+                {
+                    Log.Error("Total clip duration is zero or negative.");
+                    if (updateFrontend)
+                    {
+                        await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "Invalid clip duration" });
+                    }
+                    return;
+                }
+
+                string outputFolder = Path.Combine(videoFolder, aiProgressMessage != null ? "highlights" : "clips");
+                Directory.CreateDirectory(outputFolder);
+
+                if (!FFmpegService.FFmpegExists())
+                {
+                    Log.Error($"FFmpeg executable not found at path: {FFmpegService.GetFFmpegPath()}");
+                    if (updateFrontend)
+                    {
+                        await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "FFmpeg not found" });
+                    }
+                    return;
+                }
+
+                double processedDuration = 0;
+                foreach (var selection in selections)
+                {
+                    string inputFilePath = Path.Combine(videoFolder, selection.Type.ToLower() + "s", $"{selection.FileName}.mp4");
+                    if (!File.Exists(inputFilePath))
+                    {
+                        Log.Information($"Input video file not found: {inputFilePath}");
+                        continue;
+                    }
+
+                    string tempFileName = Path.Combine(Path.GetTempPath(), $"clip{Guid.NewGuid()}.mp4");
+                    double clipDuration = selection.EndTime - selection.StartTime;
+
+                    await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, progress =>
+                    {
+                        double currentProgress = (processedDuration + (progress * clipDuration)) / totalDuration * 96;
                         if (updateFrontend)
                         {
-                            _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
+                            _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, selections });
                         }
-                    },
-                    process =>
-                    {
-                        // Track the concatenation process so it can be cancelled
-                        lock (ProcessLock)
+
+                        if (aiProgressMessage != null && !string.IsNullOrEmpty(aiProgressMessage.Id))
                         {
-                            if (!ActiveFFmpegProcesses.ContainsKey(id))
-                            {
-                                ActiveFFmpegProcesses[id] = new List<Process>();
-                            }
-                            ActiveFFmpegProcesses[id].Add(process);
-                            Log.Information($"[Clip {id}] Tracking concatenation FFmpeg process (PID: {process.Id})");
+                            // Update from 80% to 98%
+                            double fraction = (processedDuration + (progress * clipDuration)) / totalDuration;
+                            double aiProgress = 80 + fraction * 18;
+                            if (aiProgress > 98) aiProgress = 98;
+
+                            aiProgressMessage.Progress = (int)Math.Floor(aiProgress);
+                            aiProgressMessage.Message = $"Rendering clips...";
+                            _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
                         }
+                    });
+
+                    if (updateFrontend)
+                    {
+                        _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 97, selections });
                     }
-                );
+
+                    // Verify the temp file was created successfully
+                    if (!File.Exists(tempFileName))
+                    {
+                        Log.Error($"Failed to create temp clip file: {tempFileName}");
+                        throw new Exception($"Failed to extract clip from {selection.FileName}");
+                    }
+
+                    processedDuration += clipDuration;
+                    tempClipFiles.Add(tempFileName);
+                }
+
+                if (updateFrontend)
+                {
+                    _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, selections });
+                }
+
+                if (!tempClipFiles.Any())
+                {
+                    Log.Error("No valid clips were extracted.");
+                    if (updateFrontend)
+                    {
+                        await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "No valid clips were extracted" });
+                    }
+                    return;
+                }
+
+                // Concatenation phase (progress completes to 100% when done)
+                concatFilePath = Path.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
+                await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(f => $"file '{f.Replace("\\", "\\\\").Replace("'", "\\'")}"));
+
+                string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
+                outputFilePath = Path.Combine(outputFolder, outputFileName);
+
+                if (aiProgressMessage != null)
+                {
+                    aiProgressMessage.Progress = 99;
+                    aiProgressMessage.Message = "Rendering final clip...";
+                    _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
+                }
+
+                if (updateFrontend)
+                {
+                    _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, selections });
+                }
+
+                try
+                {
+                    await FFmpegService.RunWithProgress(id,
+                        $"-y -f concat -safe 0 -i \"{concatFilePath}\" -c copy -movflags +faststart \"{outputFilePath}\"",
+                        totalDuration,
+                        progress => { },
+                        process =>
+                        {
+                            // Track the concatenation process so it can be cancelled
+                            lock (ProcessLock)
+                            {
+                                if (!ActiveFFmpegProcesses.ContainsKey(id))
+                                {
+                                    ActiveFFmpegProcesses[id] = new List<Process>();
+                                }
+                                ActiveFFmpegProcesses[id].Add(process);
+                                Log.Information($"[Clip {id}] Tracking concatenation FFmpeg process (PID: {process.Id})");
+                            }
+                        }
+                    );
+                }
+                finally
+                {
+                    // Clean up the process from tracking after completion or error
+                    lock (ProcessLock)
+                    {
+                        ActiveFFmpegProcesses.Remove(id);
+                        Log.Information($"[Clip {id}] Removed concatenation process from active processes");
+                    }
+                }
+
+                // Verify the output file was created successfully
+                if (!File.Exists(outputFilePath))
+                {
+                    throw new Exception("Failed to create final clip file");
+                }
+
+                // Ensure file is fully written to disk/network before thumbnail generation (required for network drives)
+                await EnsureFileReady(outputFilePath);
+
+                // Finalization
+                await ContentService.CreateMetadataFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip, selections.FirstOrDefault()?.Game!, null, selections.FirstOrDefault()?.Title);
+                await ContentService.CreateThumbnail(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip);
+                await ContentService.CreateWaveformFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip);
+                await SettingsService.LoadContentFromFolderIntoState();
+                if (updateFrontend)
+                {
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[Clip {id}] Error creating clip: {ex.Message}");
+                Log.Error($"[Clip {id}] Stack trace: {ex.StackTrace}");
+
+                // Clean up any partially created output file
+                if (!string.IsNullOrEmpty(outputFilePath))
+                {
+                    SafeDelete(outputFilePath);
+                }
+
+                // Notify frontend of failure
+                if (updateFrontend)
+                {
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = ex.Message });
+                }
+
+                if (aiProgressMessage != null)
+                {
+                    aiProgressMessage.Progress = -1;
+                    aiProgressMessage.Message = $"Failed to create clip: {ex.Message}";
+                    await MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
+                }
             }
             finally
             {
-                // Clean up the process from tracking after completion or error
-                lock (ProcessLock)
+                // Always cleanup temp files
+                tempClipFiles.ForEach(SafeDelete);
+                if (!string.IsNullOrEmpty(concatFilePath))
                 {
-                    ActiveFFmpegProcesses.Remove(id);
-                    Log.Information($"[Clip {id}] Removed concatenation process from active processes");
+                    SafeDelete(concatFilePath);
                 }
-            }
-
-            // Cleanup
-            tempClipFiles.ForEach(f => SafeDelete(f));
-            SafeDelete(concatFilePath);
-
-            // Ensure file is fully written to disk/network before thumbnail generation (required for network drives)
-            await EnsureFileReady(outputFilePath);
-
-            // Finalization
-            await ContentService.CreateMetadataFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip, selections.FirstOrDefault()?.Game!, null, selections.FirstOrDefault()?.Title);
-            await ContentService.CreateThumbnail(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip);
-            await ContentService.CreateWaveformFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip);
-            await SettingsService.LoadContentFromFolderIntoState();
-            if (updateFrontend)
-            {
-                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
             }
         }
 
@@ -391,7 +459,7 @@ namespace Segra.Backend.Media
                              $"-c:a aac -b:a {settings.ClipAudioQuality} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");
-            
+
             try
             {
                 await FFmpegService.RunWithProgress(clipId, arguments, duration, progressCallback, process =>
@@ -423,21 +491,21 @@ namespace Segra.Backend.Media
         public static async void CancelClip(int clipId)
         {
             Log.Information($"[Clip {clipId}] Cancel requested");
-            
+
             bool wasCancelled = false;
-            
+
             lock (ProcessLock)
             {
                 if (ActiveFFmpegProcesses.TryGetValue(clipId, out var processes))
                 {
                     Log.Information($"[Clip {clipId}] Found {processes.Count} active process(es) to cancel");
-                    
+
                     foreach (var process in processes.ToList())
                     {
                         try
                         {
                             int processId = process.Id; // Capture ID before killing
-                            
+
                             if (!process.HasExited)
                             {
                                 Log.Information($"[Clip {clipId}] Killing FFmpeg process (PID: {processId})");
@@ -454,7 +522,7 @@ namespace Segra.Backend.Media
                             Log.Error($"[Clip {clipId}] Error killing FFmpeg process: {ex.Message}");
                         }
                     }
-                    
+
                     ActiveFFmpegProcesses.Remove(clipId);
                     Log.Information($"[Clip {clipId}] Removed from active processes after cancellation");
                     wasCancelled = true;
@@ -464,7 +532,7 @@ namespace Segra.Backend.Media
                     Log.Warning($"[Clip {clipId}] No active processes found to cancel (may have already completed)");
                 }
             }
-            
+
             if (wasCancelled)
             {
                 await MessageService.SendFrontendMessage("ClipProgress", new { id = clipId, progress = 100, selections = new List<Selection>() });

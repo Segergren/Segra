@@ -35,12 +35,16 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
     cancelClip(clipping.id);
   };
 
+  const isError = clipping.progress === -1;
+
   return (
     <div className="w-full px-2">
-      <div className="bg-base-300 border border-base-400 border-opacity-75 rounded-lg p-3">
+      <div className={`bg-base-300 border ${isError ? 'border-error' : 'border-base-400'} border-opacity-75 rounded-lg p-3`}>
         <div className="flex items-center gap-3 w-full relative">
           {/* Progress */}
-          {clipping.progress < 100 ? (
+          {isError ? (
+            <div className="w-4 h-4 rounded-full bg-error"></div>
+          ) : clipping.progress < 100 ? (
             <span className="loading loading-spinner text-primary"></span>
           ) : (
             <div className="w-4 h-4 rounded-full bg-success"></div>
@@ -48,7 +52,7 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
 
           {/* Clipping Details */}
           <div className="min-w-0 flex-1">
-            {clipping.progress < 100 && (
+            {clipping.progress >= 0 && clipping.progress < 100 && (
               <button
                 onClick={handleCancel}
                 disabled={isCancelling}
@@ -58,8 +62,12 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
                 <MdClose size={16} />
               </button>
             )}
-            <div className="text-gray-200 text-sm font-medium truncate">Creating Clip</div>
-            <div className="text-gray-400 text-xs truncate">{Math.round(displayProgress)}%</div>
+            <div className={`text-sm font-medium truncate ${isError ? 'text-error' : 'text-gray-200'}`}>
+              {isError ? 'Clip Failed' : 'Creating Clip'}
+            </div>
+            <div className={`text-xs truncate ${isError ? 'text-error/70' : 'text-gray-400'}`}>
+              {isError ? (clipping.error || 'Unknown error') : `${Math.round(displayProgress)}%`}
+            </div>
           </div>
         </div>
       </div>

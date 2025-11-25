@@ -276,6 +276,11 @@ namespace Segra.Backend.App
             {
                 Log.Error($"Failed to parse message as JSON: {ex.Message}");
             }
+            catch (Exception ex)
+            {
+                Log.Error($"Unhandled exception in message handler: {ex.Message}");
+                Log.Error($"Stack trace: {ex.StackTrace}");
+            }
         }
         private static async Task HandleCreateAiClip(JsonElement message)
         {

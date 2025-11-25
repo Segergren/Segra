@@ -8,6 +8,7 @@ export interface ClippingProgress {
   id: number;
   progress: number;
   selections: Selection[];
+  error?: string;
 }
 
 export interface ClippingContextType {
@@ -51,6 +52,15 @@ export function ClippingProvider({ children }: { children: ReactNode }) {
             const { [progress.id]: _, ...rest } = prev;
             return rest;
           });
+        } else if (progress.progress === -1) {
+          // Error occurred - keep in progress list briefly to show error, then remove
+          console.error('Clip creation failed:', progress.error);
+          setTimeout(() => {
+            setClippingProgress((prev) => {
+              const { [progress.id]: _, ...rest } = prev;
+              return rest;
+            });
+          }, 5000); // Remove after 5 seconds so user can see the error
         }
       }
     };

@@ -249,12 +249,20 @@ namespace Segra.Backend.Media
                 CreateNoWindow = true
             };
 
-            using (var process = new Process { StartInfo = processStartInfo })
+            using var process = new Process { StartInfo = processStartInfo };
+            process.Start();
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            try
             {
-                process.Start();
-                string output = await process.StandardError.ReadToEndAsync();
-                await process.WaitForExitAsync();
+                string output = await process.StandardError.ReadToEndAsync(cts.Token);
+                await process.WaitForExitAsync(cts.Token);
                 return output;
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(); } catch { }
+                throw new TimeoutException($"FFmpeg metadata read timed out for: {inputFilePath}");
             }
         }
 
@@ -284,18 +292,34 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Gets video duration from a file
         /// </summary>
-        public static async Task<TimeSpan> GetVideoDuration(string videoFilePath)
+        public static async Task<TimeSpan> GetVideoDuration(string videoFilePath, int maxRetries = 3, int delayMs = 2000)
         {
-            try
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                string metadata = await GetMetadata(videoFilePath);
-                return ExtractDuration(metadata);
+                try
+                {
+                    string metadata = await GetMetadata(videoFilePath);
+                    var duration = ExtractDuration(metadata);
+                    if (duration != TimeSpan.Zero)
+                    {
+                        return duration;
+                    }
+                    
+                    Log.Warning($"Could not extract duration from {videoFilePath} (attempt {attempt}/{maxRetries}). FFmpeg output: {metadata.Substring(0, Math.Min(500, metadata.Length))}");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Error getting video duration for {videoFilePath} (attempt {attempt}/{maxRetries}): {ex.Message}");
+                }
+                
+                if (attempt < maxRetries)
+                {
+                    await Task.Delay(delayMs);
+                }
             }
-            catch (Exception ex)
-            {
-                Log.Error($"Error getting video duration: {ex.Message}");
-                return TimeSpan.Zero;
-            }
+            
+            Log.Error($"Failed to get video duration for {videoFilePath} after {maxRetries} attempts");
+            return TimeSpan.Zero;
         }
 
         /// <summary>
