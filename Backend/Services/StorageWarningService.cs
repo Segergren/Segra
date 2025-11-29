@@ -56,7 +56,7 @@ namespace Segra.Backend.Services
                     if (confirmed)
                     {
                         Log.Information($"User confirmed import despite storage warning");
-                        await Media.ImportService.ExecuteImport(pendingImport.Files, pendingImport.ContentType);
+                        _ = Task.Run(() => Media.ImportService.ExecuteImport(pendingImport.Files, pendingImport.ContentType));
                     }
                     else
                     {

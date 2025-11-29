@@ -71,6 +71,7 @@ namespace Segra.Backend.Media
                     Log.Warning($"Failed to build audio track names for metadata: {ex.Message}");
                 }
 
+                var duration = await GetVideoDurationAsync(filePath);
                 var metadataContent = new Content
                 {
                     Type = type,
@@ -82,7 +83,7 @@ namespace Segra.Backend.Media
                     FileSize = displaySize,
                     FileSizeKb = sizeKb,
                     CreatedAt = createdAt ?? DateTime.Now,
-                    Duration = GetVideoDuration(filePath),
+                    Duration = duration,
                     AudioTrackNames = trackNames
                 };
 
@@ -281,15 +282,15 @@ namespace Segra.Backend.Media
             }
         }
 
-        public static TimeSpan GetVideoDuration(string videoFilePath)
+        public static async Task<TimeSpan> GetVideoDurationAsync(string videoFilePath)
         {
             try
             {
-                return FFmpegService.GetVideoDuration(videoFilePath).Result;
+                return await FFmpegService.GetVideoDuration(videoFilePath);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error getting video duration: {ex.Message}");
+                Log.Error($"Error getting video duration: {ex.Message}");
                 return TimeSpan.Zero; // Return zero duration in case of error
             }
         }

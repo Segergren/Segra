@@ -86,10 +86,10 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement loginParameterElement);
                             string accessToken = loginParameterElement.GetProperty("accessToken").GetString()!;
                             string refreshToken = loginParameterElement.GetProperty("refreshToken").GetString()!;
-                            await AuthService.Login(accessToken, refreshToken);
+                            _ = Task.Run(() => AuthService.Login(accessToken, refreshToken));
                             break;
                         case "Logout":
-                            await AuthService.Logout();
+                            _ = Task.Run(AuthService.Logout);
                             break;
                         case "CancelClip":
                             if (root.TryGetProperty("Parameters", out var cancelClipParams) &&
@@ -100,11 +100,11 @@ namespace Segra.Backend.App
                             break;
                         case "CreateClip":
                             root.TryGetProperty("Parameters", out JsonElement clipParameterElement);
-                            await HandleCreateClip(clipParameterElement);
+                            _ = Task.Run(() => HandleCreateClip(clipParameterElement));
                             break;
                         case "CreateAiClip":
                             root.TryGetProperty("Parameters", out JsonElement aiClipParameterElement);
-                            await HandleCreateAiClip(aiClipParameterElement);
+                            _ = Task.Run(() => HandleCreateAiClip(aiClipParameterElement));
                             break;
                         case "ApplyUpdate":
                             UpdateService.ApplyUpdate();
@@ -135,11 +135,11 @@ namespace Segra.Backend.App
                             break;
                         case "DeleteContent":
                             root.TryGetProperty("Parameters", out JsonElement deleteContentParameterElement);
-                            await HandleDeleteContent(deleteContentParameterElement);
+                            _ = Task.Run(() => HandleDeleteContent(deleteContentParameterElement));
                             break;
                         case "UploadContent":
                             root.TryGetProperty("Parameters", out JsonElement uploadContentParameterElement);
-                            await UploadService.HandleUploadContent(uploadContentParameterElement);
+                            _ = Task.Run(() => UploadService.HandleUploadContent(uploadContentParameterElement));
                             break;
                         case "OpenFileLocation":
                             root.TryGetProperty("Parameters", out JsonElement openFileLocationParameterElement);
@@ -185,10 +185,10 @@ namespace Segra.Backend.App
                                 return;
                             }
 
-                            await Task.Run(() => OBSService.StartRecording(startManually: true));
+                            _ = Task.Run(() => OBSService.StartRecording(startManually: true));
                             break;
                         case "StopRecording":
-                            await Task.Run(OBSService.StopRecording);
+                            _ = Task.Run(OBSService.StopRecording);
                             break;
                         case "NewConnection":
                             Log.Information("NewConnection command received.");
@@ -237,12 +237,12 @@ namespace Segra.Backend.App
                             break;
                         case "ImportFile":
                             root.TryGetProperty("Parameters", out JsonElement importParameterElement);
-                            await ImportService.HandleImportFile(importParameterElement);
+                            _ = Task.Run(() => ImportService.HandleImportFile(importParameterElement));
                             Log.Information("ImportFile command received.");
                             break;
                         case "StorageWarningConfirm":
                             root.TryGetProperty("Parameters", out JsonElement storageWarningParameterElement);
-                            await StorageWarningService.HandleStorageWarningConfirm(storageWarningParameterElement);
+                            _ = Task.Run(() => StorageWarningService.HandleStorageWarningConfirm(storageWarningParameterElement));
                             Log.Information("StorageWarningConfirm command received.");
                             break;
                         case "ApplyVideoPreset":
@@ -280,6 +280,11 @@ namespace Segra.Backend.App
             catch (JsonException ex)
             {
                 Log.Error($"Failed to parse message as JSON: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Unhandled exception in message handler: {ex.Message}");
+                Log.Error($"Stack trace: {ex.StackTrace}");
             }
         }
         private static async Task HandleCreateAiClip(JsonElement message)
