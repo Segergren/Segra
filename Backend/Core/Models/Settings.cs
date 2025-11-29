@@ -837,6 +837,7 @@ namespace Segra.Backend.Core.Models
         private List<OBSVersion> _availableOBSVersions = [];
         private bool _isCheckingForUpdates = false;
         private int _maxDisplayHeight = 1080;
+        private double _currentFolderSizeGb = 0;
 
         private AudioDeviceWatcher? _deviceWatcher;
         private DisplayWatcher? _displayWatcher;
@@ -1027,6 +1028,20 @@ namespace Segra.Backend.Core.Models
                 {
                     _isCheckingForUpdates = value;
                     SendToFrontend("State update: IsCheckingForUpdates");
+                }
+            }
+        }
+
+        [JsonPropertyName("currentFolderSizeGb")]
+        public double CurrentFolderSizeGb
+        {
+            get => _currentFolderSizeGb;
+            set
+            {
+                if (Math.Abs(_currentFolderSizeGb - value) > 0.001)
+                {
+                    _currentFolderSizeGb = value;
+                    SendToFrontend("State update: CurrentFolderSizeGb");
                 }
             }
         }

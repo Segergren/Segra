@@ -24,6 +24,16 @@ export interface ImportProgressMessage {
   message?: string;
 }
 
+export interface StorageWarningMessage {
+  warningId: string;
+  title: string;
+  description: string;
+  confirmText: string;
+  cancelText: string;
+  action: 'import';
+  actionData: any;
+}
+
 export interface SettingsMessage {
   settings: Settings;
 }
@@ -81,4 +91,8 @@ export function isShowModalMessage(message: WebSocketMessage<any>): boolean {
 
 export function isSelectedGameExecutableMessage(message: WebSocketMessage<any>): boolean {
   return message.method === 'SelectedGameExecutable';
+}
+
+export function isStorageWarningMessage(message: WebSocketMessage<any>): boolean {
+  return message.method === 'StorageWarning';
 }

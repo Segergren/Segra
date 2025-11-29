@@ -6,7 +6,27 @@ namespace Segra.Backend.Windows.Storage
 {
     internal class StorageService
     {
-        private const long BYTES_PER_GB = 1073741824; // 1024 * 1024 * 1024
+        public const long BYTES_PER_GB = 1073741824; // 1024 * 1024 * 1024
+
+        public static double GetCurrentFolderSizeGb()
+        {
+            string contentFolder = Settings.Instance.ContentFolder;
+            if (string.IsNullOrEmpty(contentFolder) || !Directory.Exists(contentFolder))
+            {
+                return 0;
+            }
+
+            long currentUsageBytes = CalculateFolderSize(contentFolder);
+            double currentUsageGb = Math.Round((double)currentUsageBytes / BYTES_PER_GB, 2);
+            return currentUsageGb;
+        }
+
+        public static void UpdateFolderSizeInState()
+        {
+            double currentSizeGb = GetCurrentFolderSizeGb();
+            Settings.Instance.State.CurrentFolderSizeGb = currentSizeGb;
+            Log.Information($"Updated folder size in state: {currentSizeGb:F2} GB");
+        }
 
         public static async Task EnsureStorageBelowLimit()
         {
