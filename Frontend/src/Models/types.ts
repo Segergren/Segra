@@ -39,6 +39,7 @@ export interface State {
   isCheckingForUpdates: boolean;
   gameList: GameListEntry[];
   maxDisplayHeight: number;
+  currentFolderSizeGb: number;
 }
 
 export enum GpuVendor {
@@ -233,6 +234,7 @@ export const initialState: State = {
   isCheckingForUpdates: false,
   gameList: [],
   maxDisplayHeight: 1080,
+  currentFolderSizeGb: 0,
 };
 
 export const initialSettings: Settings = {

@@ -191,7 +191,7 @@ namespace Segra.Backend.Services
             }
         }
 
-        public static void HandleUpdateSettings(JsonElement settingsElement)
+        public static async Task HandleUpdateSettings(JsonElement settingsElement)
         {
             try
             {
@@ -206,7 +206,7 @@ namespace Segra.Backend.Services
 
                 if (updatedSettings != null)
                 {
-                    UpdateSettingsInstance(updatedSettings);
+                    await UpdateSettingsInstance(updatedSettings);
                 }
             }
             catch (Exception ex)
@@ -215,7 +215,7 @@ namespace Segra.Backend.Services
             }
         }
 
-        private static void UpdateSettingsInstance(Settings updatedSettings)
+        private static async Task UpdateSettingsInstance(Settings updatedSettings)
         {
             var settings = Settings.Instance;
             bool hasChanges = false;
@@ -307,7 +307,7 @@ namespace Segra.Backend.Services
                 Log.Information($"SoundEffectsVolume changed from '{settings.SoundEffectsVolume}' to '{updatedSettings.SoundEffectsVolume}'");
                 settings.SoundEffectsVolume = updatedSettings.SoundEffectsVolume;
                 // Play the sound with the new volume to provide immediate feedback
-                Task.Run(() => OBSService.PlaySound("start"));
+                _ = Task.Run(() => OBSService.PlaySound("start"));
                 hasChanges = true;
             }
 
@@ -371,8 +371,15 @@ namespace Segra.Backend.Services
             if (settings.ContentFolder != updatedSettings.ContentFolder)
             {
                 Log.Information($"ContentFolder changed from '{settings.ContentFolder}' to '{updatedSettings.ContentFolder}'");
-                settings.ContentFolder = updatedSettings.ContentFolder;
-                hasChanges = true;
+                
+                // Check if the new folder would exceed storage limit
+                bool shouldProceed = await StorageWarningService.CheckContentFolderChange(updatedSettings.ContentFolder);
+                if (shouldProceed)
+                {
+                    settings.ContentFolder = updatedSettings.ContentFolder;
+                    hasChanges = true;
+                }
+                // If not proceeding, a warning modal was sent to the frontend
             }
 
             // Update RecordingMode
@@ -738,6 +745,9 @@ namespace Segra.Backend.Services
             }
 
             Settings.Instance.State.SetContent(content, sendToFrontend);
+
+            // Update folder size in state
+            Windows.Storage.StorageService.UpdateFolderSizeInState();
         }
 
         public static void GetPrimaryMonitorResolution(out uint boundsWidth, out uint boundsHeight)

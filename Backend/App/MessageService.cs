@@ -218,7 +218,7 @@ namespace Segra.Backend.App
                         case "UpdateSettings":
                             root.TryGetProperty("Parameters", out JsonElement settingsParameterElement);
                             Log.Information("UpdateSettings command received.");
-                            SettingsService.HandleUpdateSettings(settingsParameterElement);
+                            await SettingsService.HandleUpdateSettings(settingsParameterElement);
                             break;
                         case "AddBookmark":
                             root.TryGetProperty("Parameters", out JsonElement bookmarkParameterElement);
@@ -239,6 +239,11 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement importParameterElement);
                             await ImportService.HandleImportFile(importParameterElement);
                             Log.Information("ImportFile command received.");
+                            break;
+                        case "StorageWarningConfirm":
+                            root.TryGetProperty("Parameters", out JsonElement storageWarningParameterElement);
+                            await StorageWarningService.HandleStorageWarningConfirm(storageWarningParameterElement);
+                            Log.Information("StorageWarningConfirm command received.");
                             break;
                         case "ApplyVideoPreset":
                             if (root.TryGetProperty("Parameters", out var videoPresetParams) &&
@@ -363,7 +368,7 @@ namespace Segra.Backend.App
             }
         }
 
-        private static Task SetVideoLocationAsync()
+        private static async Task SetVideoLocationAsync()
         {
             using (var fbd = new FolderBrowserDialog())
             {
@@ -380,16 +385,20 @@ namespace Segra.Backend.App
                     string selectedPath = fbd.SelectedPath;
                     Log.Information($"Selected Folder: {selectedPath}");
 
-                    // Update settings with the selected folder path
-                    Settings.Instance.ContentFolder = selectedPath;
+                    // Check if the new folder would exceed storage limit
+                    bool shouldProceed = await StorageWarningService.CheckContentFolderChange(selectedPath);
+                    if (shouldProceed)
+                    {
+                        // Update settings with the selected folder path
+                        Settings.Instance.ContentFolder = selectedPath;
+                    }
+                    // If not proceeding, a warning modal was sent to the frontend
                 }
                 else
                 {
                     Log.Information("Folder selection was canceled.");
                 }
             }
-
-            return Task.CompletedTask;
         }
 
         public static async Task StartWebsocket()

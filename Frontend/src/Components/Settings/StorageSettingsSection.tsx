@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Settings as SettingsType } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
+import { useModal } from '../../Context/ModalContext';
+import ConfirmationModal from '../ConfirmationModal';
 
 interface StorageSettingsSectionProps {
   settings: SettingsType;
@@ -9,6 +11,7 @@ interface StorageSettingsSectionProps {
 
 export default function StorageSettingsSection({ settings, updateSettings }: StorageSettingsSectionProps) {
   const [localStorageLimit, setLocalStorageLimit] = useState<number>(settings.storageLimit);
+  const { openModal, closeModal } = useModal();
 
   useEffect(() => {
     setLocalStorageLimit(settings.storageLimit);
@@ -17,6 +20,34 @@ export default function StorageSettingsSection({ settings, updateSettings }: Sto
   const handleBrowseClick = () => {
     sendMessageToBackend('SetVideoLocation');
   };
+
+  const handleStorageLimitBlur = () => {
+    const currentFolderSizeGb = settings.state.currentFolderSizeGb;
+
+    // Check if the new limit is below the current folder size
+    if (localStorageLimit < currentFolderSizeGb) {
+      openModal(
+        <ConfirmationModal
+          title="Storage Limit Warning"
+          description={`The storage limit you entered (${localStorageLimit} GB) is lower than your current folder size (${currentFolderSizeGb.toFixed(2)} GB).\n\nThis will cause older recordings to be automatically deleted to free up space.\n\nAre you sure you want to continue?`}
+          confirmText="Apply Limit"
+          cancelText="Cancel"
+          onConfirm={() => {
+            updateSettings({ storageLimit: localStorageLimit });
+            closeModal();
+          }}
+          onCancel={() => {
+            // Reset to the previous value
+            setLocalStorageLimit(settings.storageLimit);
+            closeModal();
+          }}
+        />,
+      );
+    } else {
+      updateSettings({ storageLimit: localStorageLimit });
+    }
+  };
+
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <h2 className="text-xl font-semibold mb-4">Storage Settings</h2>
@@ -57,7 +88,7 @@ export default function StorageSettingsSection({ settings, updateSettings }: Sto
             name="storageLimit"
             value={localStorageLimit}
             onChange={(e) => setLocalStorageLimit(Number(e.target.value))}
-            onBlur={() => updateSettings({ storageLimit: localStorageLimit })}
+            onBlur={handleStorageLimitBlur}
             placeholder="Set maximum storage in GB"
             min="1"
             className="input input-bordered bg-base-200 w-full block"
