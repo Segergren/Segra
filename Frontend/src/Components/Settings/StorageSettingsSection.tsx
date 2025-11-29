@@ -10,11 +10,11 @@ interface StorageSettingsSectionProps {
 }
 
 export default function StorageSettingsSection({ settings, updateSettings }: StorageSettingsSectionProps) {
-  const [localStorageLimit, setLocalStorageLimit] = useState<number>(settings.storageLimit);
+  const [localStorageLimit, setLocalStorageLimit] = useState<string>(String(settings.storageLimit));
   const { openModal, closeModal } = useModal();
 
   useEffect(() => {
-    setLocalStorageLimit(settings.storageLimit);
+    setLocalStorageLimit(String(settings.storageLimit));
   }, [settings.storageLimit]);
 
   const handleBrowseClick = () => {
@@ -23,28 +23,34 @@ export default function StorageSettingsSection({ settings, updateSettings }: Sto
 
   const handleStorageLimitBlur = () => {
     const currentFolderSizeGb = settings.state.currentFolderSizeGb;
+    const numericLimit = Number(localStorageLimit) || 1; // Default to 1 if empty/invalid
+    
+    // Update display if empty/invalid
+    if (!localStorageLimit || isNaN(Number(localStorageLimit))) {
+      setLocalStorageLimit('1');
+    }
 
     // Check if the new limit is below the current folder size
-    if (localStorageLimit < currentFolderSizeGb) {
+    if (numericLimit < currentFolderSizeGb) {
       openModal(
         <ConfirmationModal
           title="Storage Limit Warning"
-          description={`The storage limit you entered (${localStorageLimit} GB) is lower than your current folder size (${currentFolderSizeGb.toFixed(2)} GB).\n\nThis will cause older recordings to be automatically deleted to free up space.\n\nAre you sure you want to continue?`}
+          description={`The storage limit you entered (${numericLimit} GB) is lower than your current folder size (${currentFolderSizeGb.toFixed(2)} GB).\n\nThis will cause older recordings to be automatically deleted to free up space.\n\nAre you sure you want to continue?`}
           confirmText="Apply Limit"
           cancelText="Cancel"
           onConfirm={() => {
-            updateSettings({ storageLimit: localStorageLimit });
+            updateSettings({ storageLimit: numericLimit });
             closeModal();
           }}
           onCancel={() => {
             // Reset to the previous value
-            setLocalStorageLimit(settings.storageLimit);
+            setLocalStorageLimit(String(settings.storageLimit));
             closeModal();
           }}
         />,
       );
     } else {
-      updateSettings({ storageLimit: localStorageLimit });
+      updateSettings({ storageLimit: numericLimit });
     }
   };
 
@@ -87,11 +93,11 @@ export default function StorageSettingsSection({ settings, updateSettings }: Sto
             type="number"
             name="storageLimit"
             value={localStorageLimit}
-            onChange={(e) => setLocalStorageLimit(Number(e.target.value))}
+            onChange={(e) => setLocalStorageLimit(e.target.value)}
             onBlur={handleStorageLimitBlur}
             placeholder="Set maximum storage in GB"
             min="1"
-            className="input input-bordered bg-base-200 w-full block"
+            className="input input-bordered bg-base-200 w-full block outline-none focus:border-base-400"
           />
         </div>
       </div>

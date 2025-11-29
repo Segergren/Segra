@@ -10,18 +10,28 @@ interface VideoSettingsSectionProps {
 }
 
 export default function VideoSettingsSection({ settings, updateSettings }: VideoSettingsSectionProps) {
-  const [localReplayBufferDuration, setLocalReplayBufferDuration] = useState<number>(
-    settings.replayBufferDuration,
+  const [localReplayBufferDuration, setLocalReplayBufferDuration] = useState<string>(
+    String(settings.replayBufferDuration),
   );
-  const [localReplayBufferMaxSize, setLocalReplayBufferMaxSize] = useState<number>(settings.replayBufferMaxSize);
+  const [localReplayBufferMaxSize, setLocalReplayBufferMaxSize] = useState<string>(String(settings.replayBufferMaxSize));
+  const [localCrfValue, setLocalCrfValue] = useState<string>(String(settings.crfValue));
+  const [localCqLevel, setLocalCqLevel] = useState<string>(String(settings.cqLevel));
 
   useEffect(() => {
-    setLocalReplayBufferDuration(settings.replayBufferDuration);
+    setLocalReplayBufferDuration(String(settings.replayBufferDuration));
   }, [settings.replayBufferDuration]);
 
   useEffect(() => {
-    setLocalReplayBufferMaxSize(settings.replayBufferMaxSize);
+    setLocalReplayBufferMaxSize(String(settings.replayBufferMaxSize));
   }, [settings.replayBufferMaxSize]);
+
+  useEffect(() => {
+    setLocalCrfValue(String(settings.crfValue));
+  }, [settings.crfValue]);
+
+  useEffect(() => {
+    setLocalCqLevel(String(settings.cqLevel));
+  }, [settings.cqLevel]);
   const isRecording = settings.state.recording != null || settings.state.preRecording != null;
 
   const handlePresetChange = (preset: VideoQualityPreset) => {
@@ -108,12 +118,16 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                   type="number"
                   name="replayBufferDuration"
                   value={localReplayBufferDuration}
-                  onChange={(e) => setLocalReplayBufferDuration(Number(e.target.value))}
-                  onBlur={() => updateSettings({ replayBufferDuration: localReplayBufferDuration })}
+                  onChange={(e) => setLocalReplayBufferDuration(e.target.value)}
+                  onBlur={() => {
+                    const val = Number(localReplayBufferDuration) || 30;
+                    if (!localReplayBufferDuration) setLocalReplayBufferDuration('30');
+                    updateSettings({ replayBufferDuration: val });
+                  }}
                   min="5"
                   max="600"
                   disabled={isRecording}
-                  className={`input input-bordered bg-base-200 disabled:bg-base-200 disabled:input-bordered disabled:opacity-80 w-full`}
+                  className={`input input-bordered bg-base-200 disabled:bg-base-200 disabled:input-bordered disabled:opacity-80 w-full outline-none focus:border-base-400`}
                 />
                 <div className="help-text-container">
                   <span className="text-xs text-base-content/60 mt-1">
@@ -132,12 +146,16 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                   type="number"
                   name="replayBufferMaxSize"
                   value={localReplayBufferMaxSize}
-                  onChange={(e) => setLocalReplayBufferMaxSize(Number(e.target.value))}
-                  onBlur={() => updateSettings({ replayBufferMaxSize: localReplayBufferMaxSize })}
+                  onChange={(e) => setLocalReplayBufferMaxSize(e.target.value)}
+                  onBlur={() => {
+                    const val = Number(localReplayBufferMaxSize) || 1000;
+                    if (!localReplayBufferMaxSize) setLocalReplayBufferMaxSize('1000');
+                    updateSettings({ replayBufferMaxSize: val });
+                  }}
                   min="100"
                   max="5000"
                   disabled={isRecording}
-                  className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:input-bordered disabled:opacity-80 w-full"
+                  className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:input-bordered disabled:opacity-80 w-full outline-none focus:border-base-400"
                 />
               </div>
             </motion.div>
@@ -283,11 +301,16 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                   <input
                     type="number"
                     name="crfValue"
-                    value={settings.crfValue}
-                    onChange={(e) => updateSettings({ crfValue: Number(e.target.value) })}
+                    value={localCrfValue}
+                    onChange={(e) => setLocalCrfValue(e.target.value)}
+                    onBlur={() => {
+                      const val = Number(localCrfValue) || 23;
+                      if (!localCrfValue) setLocalCrfValue('23');
+                      updateSettings({ crfValue: val });
+                    }}
                     min="0"
                     max="51"
-                    className="input input-bordered bg-base-200 w-full"
+                    className="input input-bordered bg-base-200 w-full outline-none focus:border-base-400"
                   />
                 </div>
               )}
@@ -301,11 +324,16 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                   <input
                     type="number"
                     name="cqLevel"
-                    value={settings.cqLevel}
-                    onChange={(e) => updateSettings({ cqLevel: Number(e.target.value) })}
+                    value={localCqLevel}
+                    onChange={(e) => setLocalCqLevel(e.target.value)}
+                    onBlur={() => {
+                      const val = Number(localCqLevel) || 20;
+                      if (!localCqLevel) setLocalCqLevel('20');
+                      updateSettings({ cqLevel: val });
+                    }}
                     min="0"
                     max="30"
-                    className="input input-bordered bg-base-200 w-full"
+                    className="input input-bordered bg-base-200 w-full outline-none focus:border-base-400"
                   />
                 </div>
               )}
