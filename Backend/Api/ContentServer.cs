@@ -148,7 +148,7 @@ namespace Segra.Backend.Api
                     Log.Warning(ex, "Could not get last modified time for {Input}", input);
                 }
 
-                using (var fs = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true))
+                using (var fs = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 81920, useAsync: true))
                 {
                     response.ContentLength64 = fs.Length;
                     await fs.CopyToAsync(response.OutputStream);
@@ -244,7 +244,7 @@ namespace Segra.Backend.Api
             long start = 0;
             long end;
             
-            using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, 262144, 
+            using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 262144, 
                 FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
                 long fileLength = fs.Length;
@@ -314,7 +314,7 @@ namespace Segra.Backend.Api
             response.AddHeader("Accept-Ranges", "bytes");
             response.ContentLength64 = fileInfo.Length;
 
-            using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true))
+            using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 81920, useAsync: true))
             {
                 await fs.CopyToAsync(response.OutputStream);
             }
