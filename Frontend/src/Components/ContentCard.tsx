@@ -230,7 +230,7 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
 
       <div className="card-body gap-1.5 pt-2">
         <div className="flex justify-between items-center">
-          <h2 className="card-title truncate">{content!.title || content!.game || 'Untitled'}</h2>
+          <h2 className="card-title !block truncate">{content!.title || content!.game || 'Untitled'}</h2>
           <div className="dropdown dropdown-end" onClick={(e) => e.stopPropagation()}>
             <label
               tabIndex={0}
