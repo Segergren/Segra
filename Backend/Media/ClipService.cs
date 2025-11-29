@@ -159,10 +159,6 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                // Concatenation phase (progress completes to 100% when done)
-                concatFilePath = Path.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
-                await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(f => $"file '{f.Replace("\\", "\\\\").Replace("'", "\\'")}"));
-
                 string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
                 outputFilePath = Path.Combine(outputFolder, outputFileName);
 
@@ -178,34 +174,45 @@ namespace Segra.Backend.Media
                     _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, selections });
                 }
 
-                try
+                if (tempClipFiles.Count == 1)
                 {
-                    await FFmpegService.RunWithProgress(id,
-                        $"-y -f concat -safe 0 -i \"{concatFilePath}\" -c copy -movflags +faststart \"{outputFilePath}\"",
-                        totalDuration,
-                        progress => { },
-                        process =>
-                        {
-                            // Track the concatenation process so it can be cancelled
-                            lock (ProcessLock)
-                            {
-                                if (!ActiveFFmpegProcesses.ContainsKey(id))
-                                {
-                                    ActiveFFmpegProcesses[id] = new List<Process>();
-                                }
-                                ActiveFFmpegProcesses[id].Add(process);
-                                Log.Information($"[Clip {id}] Tracking concatenation FFmpeg process (PID: {process.Id})");
-                            }
-                        }
-                    );
+                    File.Move(tempClipFiles[0], outputFilePath);
+                    tempClipFiles.Clear();
                 }
-                finally
+                else
                 {
-                    // Clean up the process from tracking after completion or error
-                    lock (ProcessLock)
+                    concatFilePath = Path.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
+                    await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(f => $"file '{f.Replace("\\", "\\\\").Replace("'", "\\'")}"));
+
+                    try
                     {
-                        ActiveFFmpegProcesses.Remove(id);
-                        Log.Information($"[Clip {id}] Removed concatenation process from active processes");
+                        await FFmpegService.RunWithProgress(id,
+                            $"-y -f concat -safe 0 -i \"{concatFilePath}\" -c copy -movflags +faststart \"{outputFilePath}\"",
+                            totalDuration,
+                            progress => { },
+                            process =>
+                            {
+                                // Track the concatenation process so it can be cancelled
+                                lock (ProcessLock)
+                                {
+                                    if (!ActiveFFmpegProcesses.ContainsKey(id))
+                                    {
+                                        ActiveFFmpegProcesses[id] = new List<Process>();
+                                    }
+                                    ActiveFFmpegProcesses[id].Add(process);
+                                    Log.Information($"[Clip {id}] Tracking concatenation FFmpeg process (PID: {process.Id})");
+                                }
+                            }
+                        );
+                    }
+                    finally
+                    {
+                        // Clean up the process from tracking after completion or error
+                        lock (ProcessLock)
+                        {
+                            ActiveFFmpegProcesses.Remove(id);
+                            Log.Information($"[Clip {id}] Removed concatenation process from active processes");
+                        }
                     }
                 }
 
