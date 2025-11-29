@@ -32,7 +32,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       {children}
       <dialog
         ref={modalRef}
-        className="modal modal-bottom sm:modal-middle"
+        className="modal modal-bottom sm:modal-middle outline-none"
         onMouseDown={(e) => {
           // Only mark as backdrop interaction if the mousedown started on the dialog backdrop
           backdropMouseDownRef.current = e.target === modalRef.current;
@@ -47,7 +47,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           }
         }}
       >
-        <div className="modal-box max-h-[90vh] bg-base-300" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-box max-h-[90vh] bg-base-300 outline-none" onClick={(e) => e.stopPropagation()}>
           {modalContent}
         </div>
         <form
