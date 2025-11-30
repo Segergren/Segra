@@ -1158,6 +1158,9 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("status")]
         public required string Status { get; set; }
+
+        [JsonPropertyName("coverImageId")]
+        public string? CoverImageId { get; set; }
     }
 
     // Recording class
@@ -1192,6 +1195,9 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("bookmarks")]
         public List<Bookmark> Bookmarks { get; set; } = new List<Bookmark>();
+
+        [JsonPropertyName("coverImageId")]
+        public string? CoverImageId { get; set; }
 
         [JsonPropertyName("duration")]
         public TimeSpan? Duration

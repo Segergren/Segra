@@ -10,6 +10,7 @@ namespace Segra.Backend.Games
         private static HashSet<string> _gameExePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static Dictionary<string, string> _exeToGameName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static Dictionary<string, int> _exeToIgdbId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, string> _exeToCoverImageId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static List<GameEntry> _gamesList = new List<GameEntry>();
         private static bool _isInitialized = false;
 
@@ -116,6 +117,35 @@ namespace Segra.Backend.Games
             return null;
         }
 
+        public static string? GetCoverImageIdFromExePath(string exePath)
+        {
+            if (!_isInitialized || string.IsNullOrEmpty(exePath))
+                return null;
+
+            string normalizedPath = exePath.Replace("\\", "/");
+            string fileName = Path.GetFileName(exePath);
+
+            foreach (var entry in _exeToCoverImageId)
+            {
+                if (entry.Key.Contains('/'))
+                {
+                    if (normalizedPath.Contains(entry.Key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return entry.Value;
+                    }
+                }
+                else
+                {
+                    if (fileName.Equals(entry.Key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return entry.Value;
+                    }
+                }
+            }
+
+            return null;
+        }
+
         public static List<GameEntry> GetGameList()
         {
             return _gamesList.Select(game => new GameEntry
@@ -145,6 +175,7 @@ namespace Segra.Backend.Games
                 _gameExePaths.Clear();
                 _exeToGameName.Clear();
                 _exeToIgdbId.Clear();
+                _exeToCoverImageId.Clear();
 
                 foreach (var entry in _gamesList)
                 {
@@ -155,10 +186,14 @@ namespace Segra.Backend.Games
                         _gameExePaths.Add(normalizedExe);
                         _exeToGameName[normalizedExe] = entry.Name;
 
-                        // Store IGDB ID if available
+                        // Store IGDB ID and cover image ID if available
                         if (entry.Igdb?.Id != null)
                         {
                             _exeToIgdbId[normalizedExe] = entry.Igdb.Id;
+                        }
+                        if (!string.IsNullOrEmpty(entry.Igdb?.CoverImageId))
+                        {
+                            _exeToCoverImageId[normalizedExe] = entry.Igdb.CoverImageId;
                         }
                     }
                 }

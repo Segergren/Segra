@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { PreRecording, Recording, GameResponse } from '../Models/types';
 import { LuGamepad2 } from 'react-icons/lu';
 import { BsDisplay } from 'react-icons/bs';
@@ -13,6 +13,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
   const [elapsedTime, setElapsedTime] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const { showGameBackground } = useSettings();
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const lastFetchedGameRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (preRecording) {
@@ -59,6 +60,19 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
     }
 
     try {
+      // Use coverImageId directly if available, otherwise search by name
+      const coverImageId = recording?.coverImageId || preRecording?.coverImageId;
+      if (coverImageId) {
+        setCoverUrl(`https://segra.tv/api/games/cover/${coverImageId}`);
+        lastFetchedGameRef.current = gameName;
+        return;
+      }
+
+      // Skip if we already fetched for this game
+      if (lastFetchedGameRef.current === gameName) {
+        return;
+      }
+
       const response = await fetch(
         `https://segra.tv/api/games/search?name=${encodeURIComponent(gameName)}`,
       );
@@ -69,15 +83,16 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
 
       const data: GameResponse = await response.json();
 
-      // If we have a cover image_id, fetch the cover URL
       if (data.game?.cover?.image_id) {
         setCoverUrl(`https://segra.tv/api/games/cover/${data.game.cover.image_id}`);
       }
+      lastFetchedGameRef.current = gameName;
     } catch (error) {
       console.error('Error fetching game data:', error);
       setCoverUrl(null);
+      lastFetchedGameRef.current = gameName;
     }
-  }, [preRecording, recording, setCoverUrl, showGameBackground]);
+  }, [preRecording, recording, showGameBackground]);
 
   // Call fetchGameData when game changes
   useEffect(() => {

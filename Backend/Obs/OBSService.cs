@@ -482,7 +482,7 @@ namespace Segra.Backend.Obs
                 return false;
             }
 
-            Settings.Instance.State.PreRecording = new PreRecording { Game = name, Status = "Waiting to start" };
+            Settings.Instance.State.PreRecording = new PreRecording { Game = name, Status = "Waiting to start", CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath) };
             bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
             bool isSessionMode = Settings.Instance.RecordingMode == RecordingMode.Session;
             bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
@@ -902,7 +902,8 @@ namespace Segra.Backend.Obs
                 Pid = pid,
                 IsUsingGameHook = _isGameCaptureHooked,
                 GameImage = gameImage,
-                ExePath = exePath
+                ExePath = exePath,
+                CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath)
             };
             Settings.Instance.State.PreRecording = null;
             _ = MessageService.SendSettingsToFrontend("OBS Start recording");

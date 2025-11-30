@@ -84,12 +84,14 @@ export interface Recording {
   endTime: Date;
   game: string;
   isUsingGameHook: boolean;
+  coverImageId?: string;
   gameImage?: string; // Base64 encoded image of the game executable icon
 }
 
 export interface PreRecording {
   game: string;
   status: string;
+  coverImageId?: string;
 }
 
 export interface AudioDevice {
