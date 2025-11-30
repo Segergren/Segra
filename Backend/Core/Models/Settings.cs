@@ -66,6 +66,7 @@ namespace Segra.Backend.Core.Models
         private bool _enableSeparateAudioTracks = false;
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "standard";
+        private bool _removeOriginalAfterCompression = false;
 
         // Returns the default keybindings
         private static List<Keybind> GetDefaultKeybindings()
@@ -690,6 +691,19 @@ namespace Segra.Backend.Core.Models
                 if (_clipQualityPreset != value)
                 {
                     _clipQualityPreset = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("removeOriginalAfterCompression")]
+        public bool RemoveOriginalAfterCompression
+        {
+            get => _removeOriginalAfterCompression;
+            set
+            {
+                if (_removeOriginalAfterCompression != value)
+                {
+                    _removeOriginalAfterCompression = value;
                 }
             }
         }

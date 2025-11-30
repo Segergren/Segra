@@ -221,6 +221,7 @@ export interface Settings {
   enableSeparateAudioTracks: boolean; // Advanced: per-source audio tracks
   videoQualityPreset: VideoQualityPreset;
   clipQualityPreset: ClipQualityPreset;
+  removeOriginalAfterCompression: boolean;
   state: State;
 }
 
@@ -284,6 +285,7 @@ export const initialSettings: Settings = {
   enableSeparateAudioTracks: false,
   videoQualityPreset: 'high',
   clipQualityPreset: 'standard',
+  removeOriginalAfterCompression: false,
   keybindings: [
     { keys: [119], action: KeybindAction.CreateBookmark, enabled: true }, // 119 is F8
     { keys: [121], action: KeybindAction.SaveReplayBuffer, enabled: true }, // 121 is F10

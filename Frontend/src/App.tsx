@@ -18,6 +18,7 @@ import { ImportProvider } from './Context/ImportContext';
 import { WebSocketProvider } from './Context/WebSocketContext';
 import { ClippingProvider } from './Context/ClippingContext';
 import { AiHighlightsProvider } from './Context/AiHighlightsContext';
+import { CompressionProvider } from './Context/CompressionContext';
 import { UpdateProvider } from './Context/UpdateContext';
 import { ReleaseNote } from './Models/WebSocketMessages';
 import { ScrollProvider } from './Context/ScrollContext';
@@ -95,9 +96,11 @@ export default function AppWrapper() {
                     <ImportProvider>
                       <ClippingProvider>
                         <AiHighlightsProvider>
-                          <UpdateProvider>
-                            <App />
-                          </UpdateProvider>
+                          <CompressionProvider>
+                            <UpdateProvider>
+                              <App />
+                            </UpdateProvider>
+                          </CompressionProvider>
                         </AiHighlightsProvider>
                       </ClippingProvider>
                     </ImportProvider>

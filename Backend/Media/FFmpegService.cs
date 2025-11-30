@@ -153,20 +153,19 @@ namespace Segra.Backend.Media
             {
                 try
                 {
-                    Log.Information("Starting process...");
+                    // Attach event handlers before starting
+                    process.OutputDataReceived += (sender, e) => { };
+                    process.ErrorDataReceived += (sender, e) => { };
 
                     process.Start();
 
-                    // We must read the output streams to prevent the process from deadlocking if the buffers fill up
+                    // Begin async reading to prevent buffer deadlock
                     process.BeginOutputReadLine();
                     process.BeginErrorReadLine();
 
-                    Log.Information("Waiting for process to complete...");
-
-                    // Wait for the process to exit
                     await process.WaitForExitAsync();
 
-                    Log.Information("Process completed with exit code: " + process.ExitCode);
+                    Log.Information($"FFmpeg process completed with exit code: {process.ExitCode}");
 
                     if (process.ExitCode != 0)
                     {

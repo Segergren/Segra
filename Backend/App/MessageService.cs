@@ -107,6 +107,10 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement aiClipParameterElement);
                             _ = Task.Run(() => HandleCreateAiClip(aiClipParameterElement));
                             break;
+                        case "CompressVideo":
+                            root.TryGetProperty("Parameters", out JsonElement compressParameterElement);
+                            _ = Task.Run(() => HandleCompressVideo(compressParameterElement));
+                            break;
                         case "ApplyUpdate":
                             UpdateService.ApplyUpdate();
                             break;
@@ -293,6 +297,13 @@ namespace Segra.Backend.App
             Log.Information($"{message}");
             message.TryGetProperty("FileName", out JsonElement fileNameElement);
             await AiService.CreateHighlight(fileNameElement.GetString()!);
+        }
+
+        private static async Task HandleCompressVideo(JsonElement message)
+        {
+            Log.Information($"CompressVideo: {message}");
+            message.TryGetProperty("FilePath", out JsonElement filePathElement);
+            await CompressionService.CompressVideo(filePathElement.GetString()!);
         }
 
         private static async Task HandleCreateClip(JsonElement message)

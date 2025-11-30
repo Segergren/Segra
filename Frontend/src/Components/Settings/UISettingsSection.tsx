@@ -68,6 +68,20 @@ export default function UISettingsSection({
             </label>
           </div>
           <div className="flex items-center">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="removeOriginalAfterCompression"
+                checked={settings.removeOriginalAfterCompression}
+                onChange={(e) => updateSettings({ removeOriginalAfterCompression: e.target.checked })}
+                className="checkbox checkbox-primary checkbox-sm"
+              />
+              <span className="flex items-center gap-1 cursor-pointer">
+                Delete Original File After Compression
+              </span>
+            </label>
+          </div>
+          <div className="flex items-center">
             <label className="label cursor-pointer justify-start gap-2 px-0">
               <input
                 type="checkbox"

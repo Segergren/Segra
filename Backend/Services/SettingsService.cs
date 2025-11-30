@@ -359,6 +359,13 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            if (settings.RemoveOriginalAfterCompression != updatedSettings.RemoveOriginalAfterCompression)
+            {
+                Log.Information($"RemoveOriginalAfterCompression changed from '{settings.RemoveOriginalAfterCompression}' to '{updatedSettings.RemoveOriginalAfterCompression}'");
+                settings.RemoveOriginalAfterCompression = updatedSettings.RemoveOriginalAfterCompression;
+                hasChanges = true;
+            }
+
             // Update Theme
             if (settings.Theme != updatedSettings.Theme)
             {

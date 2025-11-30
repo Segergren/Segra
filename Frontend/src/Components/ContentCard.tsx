@@ -13,9 +13,11 @@ import {
   MdDeleteOutline,
   MdOutlineLink,
   MdOutlineMoreHoriz,
+  MdOutlineCompress,
 } from 'react-icons/md';
 import { HiOutlineSparkles } from 'react-icons/hi';
 import { useAiHighlights } from '../Context/AiHighlightsContext';
+import { useCompression } from '../Context/CompressionContext';
 import { FiExternalLink } from 'react-icons/fi';
 
 type VideoType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
@@ -32,6 +34,10 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
   const { session } = useAuth();
   const { openModal, closeModal } = useModal();
   const { aiProgress } = useAiHighlights();
+  const { compressionProgress, isCompressing } = useCompression();
+  
+  const isBeingCompressed = content?.filePath ? isCompressing(content.filePath) : false;
+  const currentCompressionProgress = content?.filePath ? compressionProgress[content.filePath] : undefined;
 
   if (isLoading) {
     // Render a skeleton card
@@ -204,8 +210,9 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
 
   return (
     <div
-      className="card card-compact bg-base-300 text-gray-300 w-full cursor-pointer border border-[#49515b]"
+      className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'}`}
       onClick={() => {
+        if (isBeingCompressed) return;
         markAsViewed();
         onClick?.(content!);
       }}
@@ -227,14 +234,38 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
             NEW
           </span>
         )}
+        {currentCompressionProgress && (
+          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
+            <p className="text-white text-sm mb-2">
+              {currentCompressionProgress.status === 'compressing' 
+                ? 'Compressing...' 
+                : currentCompressionProgress.status === 'done'
+                  ? 'Done!'
+                  : currentCompressionProgress.status === 'skipped'
+                    ? 'Skipped'
+                    : 'Error'}
+            </p>
+            {currentCompressionProgress.status === 'compressing' && (
+              <div className="w-2/3 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white/90 rounded-full transition-all duration-1000"
+                  style={{ width: `${currentCompressionProgress.progress}%` }}
+                />
+              </div>
+            )}
+            {currentCompressionProgress.message && (
+              <p className="text-white/70 text-xs mt-1">{currentCompressionProgress.message}</p>
+            )}
+          </div>
+        )}
       </figure>
 
       <div className="card-body gap-1.5 pt-2">
         <div className="flex justify-between items-center">
           <h2 className="card-title !block truncate">{content!.title || content!.game || 'Untitled'}</h2>
-          <div className="dropdown dropdown-end" onClick={(e) => e.stopPropagation()}>
+          <div className={`dropdown dropdown-end ${isBeingCompressed ? 'pointer-events-none opacity-50' : ''}`} onClick={(e) => e.stopPropagation()}>
             <label
-              tabIndex={0}
+              tabIndex={isBeingCompressed ? -1 : 0}
               className="btn btn-ghost btn-sm btn-circle hover:bg-white/10 active:bg-white/10"
             >
               <MdOutlineMoreHoriz size="28" />
@@ -296,13 +327,25 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
                   })()}
                 </li>
               )}
+              {(type === 'Clip' || type === 'Highlight') && !content?.fileName?.endsWith('_compressed') && (
+                <li>
+                  <a
+                    className="flex w-full items-center gap-2 px-4 py-3 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
+                    onClick={() => {
+                      (document.activeElement as HTMLElement).blur();
+                      sendMessageToBackend('CompressVideo', { FilePath: content!.filePath });
+                    }}
+                  >
+                    <MdOutlineCompress size="20" />
+                    <span>Compress</span>
+                  </a>
+                </li>
+              )}
               <li>
                 <a
                   className="flex w-full items-center gap-2 px-4 py-3 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
                   onClick={() => {
-                    // I don't know why it doesn't hide by itself?
                     (document.activeElement as HTMLElement).blur();
-
                     handleRename();
                   }}
                 >
@@ -314,9 +357,7 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
                 <a
                   className="flex w-full items-center gap-2 px-4 py-3 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
                   onClick={() => {
-                    // I don't know why it doesn't hide by itself?
                     (document.activeElement as HTMLElement).blur();
-
                     handleOpenFileLocation();
                   }}
                 >
