@@ -1187,6 +1187,9 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("gameImage")]
         public string? GameImage { get; set; }
 
+        [JsonPropertyName("exePath")]
+        public string? ExePath { get; set; }
+
         [JsonPropertyName("bookmarks")]
         public List<Bookmark> Bookmarks { get; set; } = new List<Bookmark>();
 
@@ -1241,6 +1244,8 @@ namespace Segra.Backend.Core.Models
         public AiAnalysis? AiAnalysis { get; set; }
 
         public string? UploadId { get; set; }
+
+        public int? IgdbId { get; set; }
 
         // Names for the audio tracks in the recording/container.
         // Track 1 is always the mixed track ("Full Mix").

@@ -1208,6 +1208,7 @@ export default function VideoComponent({ video }: { video: Content }) {
             Title: title,
             Description: '', // TODO: implement description
             Visibility: visibility, // TODO: implement description
+            IgdbId: video.igdbId?.toString(),
           };
 
           sendMessageToBackend('UploadContent', parameters);

@@ -22,6 +22,7 @@ namespace Segra.Backend.Media
             {
                 string filePath = message.GetProperty("FilePath").GetString()!;
                 string fileName = Path.GetFileName(filePath);
+                string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
                 string title = message.GetProperty("Title").GetString()!;
 
                 byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
@@ -54,6 +55,7 @@ namespace Segra.Backend.Media
                 AddOptionalContent(formData, message, "Game");
                 AddOptionalContent(formData, message, "Title");
                 AddOptionalContent(formData, message, "Description");
+                AddOptionalContent(formData, message, "IgdbId");
 
                 await MessageService.SendFrontendMessage("UploadProgress", new
                 {
@@ -104,7 +106,6 @@ namespace Segra.Backend.Media
 
                                 // Update the content with the uploadId
                                 var contentList = Settings.Instance.State.Content.ToList();
-                                string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
                                 Log.Information($"File name: {fileName}, without extension: {fileNameWithoutExtension}");
 
                                 var contentToUpdate = contentList.FirstOrDefault(c =>

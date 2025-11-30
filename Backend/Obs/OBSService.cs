@@ -182,12 +182,14 @@ namespace Segra.Backend.Obs
 
             Log.Information($"Replay buffer saved to: {savedPath}");
             string game = Settings.Instance.State.Recording?.Game ?? "Unknown";
+            string? exePath = Settings.Instance.State.Recording?.ExePath;
+            int? igdbId = !string.IsNullOrEmpty(exePath) ? GameUtils.GetIgdbIdFromExePath(exePath) : null;
 
             // Ensure file is fully written to disk/network before thumbnail generation
             await EnsureFileReady(savedPath);
 
             // Create metadata for the buffer recording
-            await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, game);
+            await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, game, igdbId: igdbId);
             await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer);
             await ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer);
 
@@ -899,7 +901,8 @@ namespace Segra.Backend.Obs
                 FileName = fileName,
                 Pid = pid,
                 IsUsingGameHook = _isGameCaptureHooked,
-                GameImage = gameImage
+                GameImage = gameImage,
+                ExePath = exePath
             };
             Settings.Instance.State.PreRecording = null;
             _ = MessageService.SendSettingsToFrontend("OBS Start recording");
@@ -1040,7 +1043,10 @@ namespace Segra.Backend.Obs
                         // Ensure file is fully written to disk/network before thumbnail generation
                         await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
 
-                        await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
+                        int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath) 
+                            ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath) 
+                            : null;
+                        await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
                         await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
                         await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
 
@@ -1116,7 +1122,10 @@ namespace Segra.Backend.Obs
                         // Ensure file is fully written to disk/network before thumbnail generation
                         await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
 
-                        await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks);
+                        int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath) 
+                            ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath) 
+                            : null;
+                        await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
                         await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
                         await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
                     }

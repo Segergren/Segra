@@ -14,6 +14,7 @@ export interface Content {
   duration: string;
   createdAt: string;
   uploadId?: string;
+  igdbId?: number;
 }
 
 export interface OBSVersion {

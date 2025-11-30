@@ -156,6 +156,7 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
             Title: title,
             Description: '', // TODO: implement description
             Visibility: visibility, // TODO: implement description
+            IgdbId: content?.igdbId?.toString(),
           };
 
           sendMessageToBackend('UploadContent', parameters);

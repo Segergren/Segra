@@ -9,6 +9,7 @@ namespace Segra.Backend.Games
     {
         private static HashSet<string> _gameExePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static Dictionary<string, string> _exeToGameName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, int> _exeToIgdbId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private static List<GameEntry> _gamesList = new List<GameEntry>();
         private static bool _isInitialized = false;
 
@@ -84,6 +85,37 @@ namespace Segra.Backend.Games
             return null;
         }
 
+        public static int? GetIgdbIdFromExePath(string exePath)
+        {
+            if (!_isInitialized || string.IsNullOrEmpty(exePath))
+                return null;
+
+            string normalizedPath = exePath.Replace("\\", "/");
+            string fileName = Path.GetFileName(exePath);
+
+            foreach (var entry in _exeToIgdbId)
+            {
+                // If the key contains a slash, it's a path - check if it's contained in the full path
+                if (entry.Key.Contains('/'))
+                {
+                    if (normalizedPath.Contains(entry.Key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return entry.Value;
+                    }
+                }
+                // Otherwise it's just a filename - check exact match
+                else
+                {
+                    if (fileName.Equals(entry.Key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return entry.Value;
+                    }
+                }
+            }
+
+            return null;
+        }
+
         public static List<GameEntry> GetGameList()
         {
             return _gamesList.Select(game => new GameEntry
@@ -112,6 +144,7 @@ namespace Segra.Backend.Games
                 // Build lookup collections for fast access
                 _gameExePaths.Clear();
                 _exeToGameName.Clear();
+                _exeToIgdbId.Clear();
 
                 foreach (var entry in _gamesList)
                 {
@@ -121,6 +154,12 @@ namespace Segra.Backend.Games
                         string normalizedExe = exe.Replace("\\", "/");
                         _gameExePaths.Add(normalizedExe);
                         _exeToGameName[normalizedExe] = entry.Name;
+
+                        // Store IGDB ID if available
+                        if (entry.Igdb?.Id != null)
+                        {
+                            _exeToIgdbId[normalizedExe] = entry.Igdb.Id;
+                        }
                     }
                 }
 
@@ -218,6 +257,21 @@ namespace Segra.Backend.Games
 
             [JsonPropertyName("executables")]
             public required List<string> Executables { get; set; }
+
+            [JsonPropertyName("igdb")]
+            public IgdbInfo? Igdb { get; set; }
+        }
+
+        public class IgdbInfo
+        {
+            [JsonPropertyName("id")]
+            public int Id { get; set; }
+
+            [JsonPropertyName("name")]
+            public string? Name { get; set; }
+
+            [JsonPropertyName("cover_image_id")]
+            public string? CoverImageId { get; set; }
         }
     }
 }
