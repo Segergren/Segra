@@ -225,19 +225,10 @@ namespace Segra.Backend.Media
                 // Ensure file is fully written to disk/network before thumbnail generation (required for network drives)
                 await EnsureFileReady(outputFilePath);
 
-                // Look up IGDB ID from source content
+                // Finalization
                 // TODO Implement methods to have multiple games in one clip
                 var firstSelection = selections.FirstOrDefault();
-                int? igdbId = null;
-                if (firstSelection != null && Enum.TryParse<Content.ContentType>(firstSelection.Type, true, out var sourceType))
-                {
-                    var sourceContent = Settings.Instance.State.Content.FirstOrDefault(c => 
-                        c.FileName == firstSelection.FileName && c.Type == sourceType);
-                    igdbId = sourceContent?.IgdbId;
-                }
-
-                // Finalization
-                await ContentService.CreateMetadataFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip, selections.FirstOrDefault()?.Game!, null, selections.FirstOrDefault()?.Title, igdbId: igdbId);
+                await ContentService.CreateMetadataFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId);
                 await ContentService.CreateThumbnail(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip);
                 await ContentService.CreateWaveformFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip);
                 await SettingsService.LoadContentFromFolderIntoState();

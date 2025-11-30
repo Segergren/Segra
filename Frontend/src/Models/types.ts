@@ -301,6 +301,7 @@ export interface Selection {
   fileName: string;
   game?: string;
   title?: string;
+  igdbId?: number;
 }
 
 export interface SelectionCardProps {

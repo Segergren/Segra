@@ -918,6 +918,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       fileName: video.fileName,
       game: video.game,
       title: video.title,
+      igdbId: video.igdbId,
     };
     addSelection(newSelection);
     // Kick off thumbnail generation; uses latest state and guards against stale overwrites
@@ -941,6 +942,7 @@ export default function VideoComponent({ video }: { video: Content }) {
         title: s.title,
         startTime: s.startTime,
         endTime: s.endTime,
+        igdbId: s.igdbId,
       })),
     };
     sendMessageToBackend('CreateClip', params);

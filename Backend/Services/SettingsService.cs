@@ -726,7 +726,9 @@ namespace Segra.Backend.Services
                                 FileSizeKb = metadata.FileSizeKb,
                                 Duration = metadata.Duration,
                                 CreatedAt = metadata.CreatedAt,
-                                UploadId = metadata.UploadId
+                                UploadId = metadata.UploadId,
+                                IgdbId = metadata.IgdbId,
+                                AudioTrackNames = metadata.AudioTrackNames
                             });
                         }
                         catch (Exception ex)

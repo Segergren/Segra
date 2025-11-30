@@ -23,6 +23,7 @@ namespace Segra.Backend.App
         public required string FileName { get; set; }
         public required string Game { get; set; }
         public string Title { get; set; } = string.Empty;
+        public int? IgdbId { get; set; }
     }
 
     public static class MessageService
@@ -318,6 +319,9 @@ namespace Segra.Backend.App
                         string type = videoTypeElement.GetString()!;
                         string game = gameElement.GetString()!;
                         string title = titleElement.GetString() ?? string.Empty;
+                        int? igdbId = selectionElement.TryGetProperty("igdbId", out JsonElement igdbIdElement) && igdbIdElement.ValueKind == JsonValueKind.Number
+                            ? igdbIdElement.GetInt32()
+                            : null;
 
                         // Create a new Selection instance with all required properties.
                         selections.Add(new Selection
@@ -328,7 +332,8 @@ namespace Segra.Backend.App
                             EndTime = endTime,
                             FileName = fileName,
                             Game = game,
-                            Title = title
+                            Title = title,
+                            IgdbId = igdbId
                         });
                     }
                 }
