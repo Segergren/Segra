@@ -1161,6 +1161,9 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("coverImageId")]
         public string? CoverImageId { get; set; }
+
+        [JsonPropertyName("pid")]
+        public int? Pid { get; set; }
     }
 
     // Recording class

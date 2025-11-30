@@ -138,7 +138,7 @@ namespace Segra.Backend.Services
 
         private static void OnProcessStopped(object sender, EventArrivedEventArgs e)
         {
-            if (Settings.Instance.State.Recording == null) return;
+            if (Settings.Instance.State.Recording == null && Settings.Instance.State.PreRecording == null) return;
 
             try
             {
@@ -155,7 +155,15 @@ namespace Segra.Backend.Services
                     Log.Information($"[OnProcessStopped] Application stopped: PID {pid}, Path: {exePath}");
                 }
 
-                if (fileNameWithExtension == Settings.Instance.State.Recording?.FileName)
+                var recordingPid = Settings.Instance.State.Recording?.Pid;
+                var preRecordingPid = Settings.Instance.State.PreRecording?.Pid;
+                var recordingFileName = Settings.Instance.State.Recording?.FileName;
+
+                bool matchesFileName = !string.IsNullOrEmpty(recordingFileName) && fileNameWithExtension == recordingFileName;
+                bool matchesRecordingPid = recordingPid.HasValue && pid == recordingPid.Value;
+                bool matchesPreRecordingPid = preRecordingPid.HasValue && pid == preRecordingPid.Value;
+
+                if (matchesFileName || matchesRecordingPid || matchesPreRecordingPid)
                 {
                     Log.Information($"[OnTrackedProcessExited] Confirmed that PID {pid} is no longer running. Stopping recording.");
                     _ = Task.Run(OBSService.StopRecording);

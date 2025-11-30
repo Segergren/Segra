@@ -482,7 +482,7 @@ namespace Segra.Backend.Obs
                 return false;
             }
 
-            Settings.Instance.State.PreRecording = new PreRecording { Game = name, Status = "Waiting to start", CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath) };
+            Settings.Instance.State.PreRecording = new PreRecording { Game = name, Status = "Waiting to start", CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath), Pid = pid };
             bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
             bool isSessionMode = Settings.Instance.RecordingMode == RecordingMode.Session;
             bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
@@ -1152,6 +1152,7 @@ namespace Segra.Backend.Obs
                 // If the recording ends before it started, don't do anything
                 if (Settings.Instance.State.Recording == null || (!isReplayBufferMode && Settings.Instance.State.Recording.FilePath == null))
                 {
+                    Settings.Instance.State.PreRecording = null;
                     return;
                 }
 
@@ -1256,6 +1257,11 @@ namespace Segra.Backend.Obs
             while (Settings.Instance.State.PreRecording?.Status != "Waiting for game hook")
             {
                 Thread.Sleep(step);
+                
+                if(Settings.Instance.State.PreRecording == null && Settings.Instance.State.Recording == null) {
+                    return false;
+                }
+                
                 elapsed += step;
                 Log.Information("PreRecording Status: {PreRecordingStatus}", Settings.Instance.State.PreRecording?.Status);
                 if (elapsed >= timeoutMs)
