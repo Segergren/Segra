@@ -14,6 +14,23 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
   const { showGameBackground } = useSettings();
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const lastFetchedGameRef = useRef<string | null>(null);
+  const [showShockwave, setShowShockwave] = useState(false);
+
+  // Listen for bookmark created events
+  useEffect(() => {
+    const handleBookmarkCreated = (event: CustomEvent) => {
+      if (event.detail?.method === 'BookmarkCreated') {
+        setShowShockwave(true);
+        // Reset after animation completes
+        setTimeout(() => setShowShockwave(false), 600);
+      }
+    };
+
+    window.addEventListener('websocket-message', handleBookmarkCreated as EventListener);
+    return () => {
+      window.removeEventListener('websocket-message', handleBookmarkCreated as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     if (preRecording) {
@@ -101,7 +118,13 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
 
   return (
     <div className="mb-2 px-2">
-      <div className="bg-base-300 border border-base-400 border-opacity-75 rounded-lg px-3 py-3.5 cursor-default relative">
+      <div className="bg-base-300 border border-base-400 border-opacity-75 rounded-lg px-3 py-3.5 cursor-default relative overflow-hidden">
+        {/* Shockwave effect on bookmark creation */}
+        {showShockwave && (
+          <div className="absolute inset-0 z-20 pointer-events-none">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 rounded-full bg-primary/40 animate-shockwave" />
+          </div>
+        )}
         {/* Background image with game cover */}
         {coverUrl && showGameBackground && (
           <div className="absolute inset-0 z-0 opacity-25">

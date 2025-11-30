@@ -1,4 +1,5 @@
 using NAudio.Wave;
+using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Obs;
 using Serilog;
@@ -86,6 +87,7 @@ namespace Segra.Backend.Windows.Input
                                             Time = DateTime.Now - recording.StartTime
                                         });
                                         Task.Run(PlayBookmarkSound);
+                                        _ = MessageService.SendFrontendMessage("BookmarkCreated", new { });
                                     }
                                     break;
 
