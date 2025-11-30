@@ -261,17 +261,13 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
               {type === 'Session' && enableAi && (
                 <li>
                   {(() => {
-                    // Get authentication status
-                    const { session } = useAuth();
-                    const isLoggedIn = !!session;
-
-                    const hasBookmarks = content?.bookmarks && content.bookmarks.length > 0;
+                    const hasKillBookmarks = content?.bookmarks?.some(b => b.type === 'Kill');
                     const isProcessing = Object.values(aiProgress).some(
                       (progress) =>
                         progress.content.fileName === content?.fileName &&
                         progress.status === 'processing',
                     );
-                    const isDisabled = !hasBookmarks || isProcessing || !isLoggedIn;
+                    const isDisabled = !hasKillBookmarks || isProcessing;
 
                     return (
                       <a
@@ -281,9 +277,7 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
                             : 'text-purple-400 hover:bg-purple-500/10 active:bg-purple-500/20'
                         } rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
                         onClick={() => {
-                          // Only proceed if there are bookmarks, user is logged in, and no processing
-                          if (hasBookmarks && !isProcessing && isLoggedIn) {
-                            // Blur the active element before handling create AI clip
+                          if (hasKillBookmarks && !isProcessing) {
                             (document.activeElement as HTMLElement).blur();
                             handleCreateAiClip();
                           }
@@ -292,12 +286,10 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
                         <HiOutlineSparkles size="20" />
                         <span>
                           {isProcessing
-                            ? 'Generating AI Clip...'
-                            : !isLoggedIn
-                              ? 'Log In to Create AI Clip'
-                              : hasBookmarks
-                                ? 'Create AI Highlight'
-                                : 'No Highlights'}
+                            ? 'Creating Highlight...'
+                            : hasKillBookmarks
+                              ? 'Create Highlight'
+                              : 'No Highlights'}
                         </span>
                       </a>
                     );

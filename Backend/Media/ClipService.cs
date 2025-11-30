@@ -15,37 +15,7 @@ namespace Segra.Backend.Media
         // Lock for thread safety
         private static readonly object ProcessLock = new object();
 
-        public static async Task CreateAiClipFromBookmarks(List<Bookmark> bookmarks, AiProgressMessage aiProgressMessage)
-        {
-            // Convert bookmarks to initial selections with buffer times
-            List<Selection> initialSelections = new List<Selection>();
-
-            foreach (var bookmark in bookmarks)
-            {
-                // Calculate start and end times (5 seconds before and after the bookmark time)
-                // TODO (os): add so the AI calculates the added time before and after
-                double startTime = Math.Max(0, bookmark.Time.TotalSeconds - 5); // Ensure not negative
-                double endTime = bookmark.Time.TotalSeconds + 5;
-
-                initialSelections.Add(new Selection
-                {
-                    Type = aiProgressMessage.Content.Type.ToString(),
-                    StartTime = startTime,
-                    EndTime = endTime,
-                    FileName = aiProgressMessage.Content.FileName,
-                    Game = aiProgressMessage.Content.Game
-                });
-            }
-
-            // Merge overlapping selections
-            List<Selection> mergedSelections = MergeOverlappingSelections(initialSelections);
-
-            Log.Information($"Merged {initialSelections.Count} bookmarks into {mergedSelections.Count} clip sections");
-
-            await CreateClips(mergedSelections, false, aiProgressMessage);
-        }
-
-        public static async Task CreateClips(List<Selection> selections, bool updateFrontend = true, AiProgressMessage? aiProgressMessage = null)
+        public static async Task CreateClips(List<Selection> selections)
         {
             int id = Guid.NewGuid().GetHashCode();
             List<string> tempClipFiles = new List<string>();
@@ -54,19 +24,13 @@ namespace Segra.Backend.Media
 
             try
             {
-                if (updateFrontend)
-                {
-                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 0, selections });
-                }
+                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 0, selections });
                 string videoFolder = Settings.Instance.ContentFolder;
 
                 if (selections == null || !selections.Any())
                 {
                     Log.Error("No selections provided.");
-                    if (updateFrontend)
-                    {
-                        await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "No selections provided" });
-                    }
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "No selections provided" });
                     return;
                 }
 
@@ -74,23 +38,17 @@ namespace Segra.Backend.Media
                 if (totalDuration <= 0)
                 {
                     Log.Error("Total clip duration is zero or negative.");
-                    if (updateFrontend)
-                    {
-                        await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "Invalid clip duration" });
-                    }
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "Invalid clip duration" });
                     return;
                 }
 
-                string outputFolder = Path.Combine(videoFolder, aiProgressMessage != null ? "highlights" : "clips");
+                string outputFolder = Path.Combine(videoFolder, "clips");
                 Directory.CreateDirectory(outputFolder);
 
                 if (!FFmpegService.FFmpegExists())
                 {
                     Log.Error($"FFmpeg executable not found at path: {FFmpegService.GetFFmpegPath()}");
-                    if (updateFrontend)
-                    {
-                        await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "FFmpeg not found" });
-                    }
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "FFmpeg not found" });
                     return;
                 }
 
@@ -110,28 +68,10 @@ namespace Segra.Backend.Media
                     await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, progress =>
                     {
                         double currentProgress = (processedDuration + (progress * clipDuration)) / totalDuration * 96;
-                        if (updateFrontend)
-                        {
-                            _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, selections });
-                        }
-
-                        if (aiProgressMessage != null && !string.IsNullOrEmpty(aiProgressMessage.Id))
-                        {
-                            // Update from 80% to 98%
-                            double fraction = (processedDuration + (progress * clipDuration)) / totalDuration;
-                            double aiProgress = 80 + fraction * 18;
-                            if (aiProgress > 98) aiProgress = 98;
-
-                            aiProgressMessage.Progress = (int)Math.Floor(aiProgress);
-                            aiProgressMessage.Message = $"Rendering clips...";
-                            _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
-                        }
+                        _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, selections });
                     });
 
-                    if (updateFrontend)
-                    {
-                        _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 97, selections });
-                    }
+                    _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 97, selections });
 
                     // Verify the temp file was created successfully
                     if (!File.Exists(tempFileName))
@@ -144,35 +84,19 @@ namespace Segra.Backend.Media
                     tempClipFiles.Add(tempFileName);
                 }
 
-                if (updateFrontend)
-                {
-                    _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, selections });
-                }
+                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, selections });
 
                 if (!tempClipFiles.Any())
                 {
                     Log.Error("No valid clips were extracted.");
-                    if (updateFrontend)
-                    {
-                        await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "No valid clips were extracted" });
-                    }
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "No valid clips were extracted" });
                     return;
                 }
 
                 string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
                 outputFilePath = Path.Combine(outputFolder, outputFileName);
 
-                if (aiProgressMessage != null)
-                {
-                    aiProgressMessage.Progress = 99;
-                    aiProgressMessage.Message = "Rendering final clip...";
-                    _ = MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
-                }
-
-                if (updateFrontend)
-                {
-                    _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, selections });
-                }
+                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, selections });
 
                 if (tempClipFiles.Count == 1)
                 {
@@ -228,14 +152,11 @@ namespace Segra.Backend.Media
                 // Finalization
                 // TODO Implement methods to have multiple games in one clip
                 var firstSelection = selections.FirstOrDefault();
-                await ContentService.CreateMetadataFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId);
-                await ContentService.CreateThumbnail(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip);
-                await ContentService.CreateWaveformFile(outputFilePath, aiProgressMessage != null ? Content.ContentType.Highlight : Content.ContentType.Clip);
+                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId);
+                await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Clip);
+                await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Clip);
                 await SettingsService.LoadContentFromFolderIntoState();
-                if (updateFrontend)
-                {
-                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
-                }
+                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
             }
             catch (Exception ex)
             {
@@ -249,17 +170,7 @@ namespace Segra.Backend.Media
                 }
 
                 // Notify frontend of failure
-                if (updateFrontend)
-                {
-                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = ex.Message });
-                }
-
-                if (aiProgressMessage != null)
-                {
-                    aiProgressMessage.Progress = -1;
-                    aiProgressMessage.Message = $"Failed to create clip: {ex.Message}";
-                    await MessageService.SendFrontendMessage("AiProgress", aiProgressMessage);
-                }
+                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = ex.Message });
             }
             finally
             {
@@ -270,77 +181,6 @@ namespace Segra.Backend.Media
                     SafeDelete(concatFilePath);
                 }
             }
-        }
-
-        public static async Task<string?> CreateAiClipToAnalyzeFromBookmark(Bookmark bookmark, Content content)
-        {
-            // Calculate start and end times (10 seconds before and 10 seconds after the bookmark time) for the Ai to analyze
-            Log.Information("Creating AI clip to analyze for " + bookmark);
-            double startTime = Math.Max(0, bookmark.Time.TotalSeconds - 10); // Ensure not negative
-            double endTime = bookmark.Time.TotalSeconds + 10; // TODO (os): what happens if this is longer than the clip if it's right at the end?
-
-            string videoFolder = Settings.Instance.ContentFolder;
-
-            // Create .ai directory if it doesn't exist
-            string aiOutputFolder = Path.Combine(videoFolder, ".ai");
-            DirectoryInfo dir = Directory.CreateDirectory(aiOutputFolder);
-            dir.Attributes |= FileAttributes.Hidden;
-
-            string inputFilePath = Path.Combine(videoFolder, content.Type.ToString().ToLower() + "s", $"{content.FileName}.mp4");
-            if (!File.Exists(inputFilePath))
-            {
-                Log.Error($"Input video file not found: {inputFilePath}");
-                return null;
-            }
-
-            string outputFileName = $"{content.FileName}_{bookmark.Type}_{bookmark.Id}.mp4";
-            string outputFilePath = Path.Combine(aiOutputFolder, outputFileName);
-
-            if (!FFmpegService.FFmpegExists())
-            {
-                Log.Error($"FFmpeg executable not found at path: {FFmpegService.GetFFmpegPath()}");
-                return null;
-            }
-
-            double clipDuration = endTime - startTime;
-
-            // 1) Extract WITHOUT re-encoding to a temp file (fastest way)
-            string tempFilePath = Path.GetTempFileName().Replace(".tmp", ".mp4");
-            string copyArguments =
-                $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} " +
-                $"-t {clipDuration.ToString(CultureInfo.InvariantCulture)} " +
-                $"-i \"{inputFilePath}\" " +
-                $"-c copy -movflags +faststart \"{tempFilePath}\"";
-
-            await FFmpegService.RunSimple(copyArguments);
-
-            var fileInfo = new FileInfo(tempFilePath);
-            const long oneGB = 1L << 30; // 1GB in bytes
-
-            // The file limit is 1GB, so if it's larger, we need to compress it (this takes longer time)
-            if (fileInfo.Length > oneGB)
-            {
-                Log.Information($"Temp file is larger than 1GB ({fileInfo.Length} bytes). Re-encoding...");
-
-                string reencodeArguments =
-                    $"-y -i \"{tempFilePath}\" " +
-                    $"-c:v libx264 -preset veryfast -crf 28 " +
-                    $"-c:a aac -b:a 128k -movflags +faststart \"{outputFilePath}\"";
-
-                await FFmpegService.RunSimple(reencodeArguments);
-
-                // After re-encode is done, we no longer need the temp file and the compressed file is already at the final output path
-                SafeDelete(tempFilePath);
-            }
-            else
-            {
-                // If the file is <= 1GB, just move it to the final output path
-                SafeDelete(outputFilePath);
-                File.Move(tempFilePath, outputFilePath);
-            }
-
-            // Return the generated filepath so it can be tracked
-            return outputFilePath;
         }
 
         private static List<Selection> MergeOverlappingSelections(List<Selection> selections)

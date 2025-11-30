@@ -1,6 +1,5 @@
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useUpdate } from '../Context/UpdateContext';
-import { useAuth } from '../Hooks/useAuth';
 import AccountSection from '../Components/Settings/AccountSection';
 import CaptureModeSection from '../Components/Settings/CaptureModeSection';
 import VideoSettingsSection from '../Components/Settings/VideoSettingsSection';
@@ -12,7 +11,6 @@ import GameDetectionSection from '../Components/Settings/GameDetectionSection';
 import UISettingsSection from '../Components/Settings/UISettingsSection';
 
 export default function Settings() {
-  const { session } = useAuth();
   const { openReleaseNotesModal, checkForUpdates } = useUpdate();
   const settings = useSettings();
   const updateSettings = useSettingsUpdater();
@@ -38,7 +36,6 @@ export default function Settings() {
       <GameDetectionSection />
 
       <UISettingsSection
-        session={session}
         settings={settings}
         updateSettings={updateSettings}
         openReleaseNotesModal={openReleaseNotesModal}

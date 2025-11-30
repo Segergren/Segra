@@ -292,7 +292,7 @@ namespace Segra.Backend.App
         {
             Log.Information($"{message}");
             message.TryGetProperty("FileName", out JsonElement fileNameElement);
-            await AiService.AnalyzeVideo(fileNameElement.GetString()!);
+            await AiService.CreateHighlight(fileNameElement.GetString()!);
         }
 
         private static async Task HandleCreateClip(JsonElement message)

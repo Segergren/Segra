@@ -630,6 +630,7 @@ namespace Segra.Backend.Obs
             obs_data_set_string(videoEncoderSettings, "profile", "high");
             obs_data_set_bool(videoEncoderSettings, "use_bufsize", true);
             obs_data_set_string(videoEncoderSettings, "rate_control", Settings.Instance.RateControl);
+            obs_data_set_int(videoEncoderSettings, "keyint_sec", 1);
 
             switch (Settings.Instance.RateControl)
             {
@@ -1164,10 +1165,10 @@ namespace Segra.Backend.Obs
                 Settings.Instance.State.PreRecording = null;
 
                 // If the recording is not a replay buffer recording, AI is enabled, user is authenticated, and auto generate highlights is enabled -> analyze the video!
-                if (Settings.Instance.EnableAi && AuthService.IsAuthenticated() && Settings.Instance.AutoGenerateHighlights && !isReplayBufferMode)
+                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && !isReplayBufferMode)
                 {
                     string fileName = Path.GetFileNameWithoutExtension(filePath);
-                    _ = AiService.AnalyzeVideo(fileName);
+                    _ = AiService.CreateHighlight(fileName);
                 }
             }
             finally

@@ -139,7 +139,7 @@ const AiContentCard: React.FC<AiContentCardProps> = ({ progress }) => {
       };
 
       animationFrameRef.current = requestAnimationFrame(animateCount);
-    }, 50);
+    }, 10);
 
     return () => {
       clearTimeout(timer);
@@ -163,14 +163,14 @@ const AiContentCard: React.FC<AiContentCardProps> = ({ progress }) => {
 
             {/* Centered Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-              <p className="text-base  text-white/90">Generating AI Highlight</p>
+              <p className="text-base  text-white/90">Creating Highlight</p>
               <div className="mt-3 w-2/3">
                 <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-white/90 rounded-full"
                     style={{
                       width: `${animatedProgress}%`,
-                      transition: 'width 1.2s ease-out',
+                      transition: 'width 0.7s ease-out',
                     }}
                   ></div>
                 </div>

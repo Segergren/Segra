@@ -1,16 +1,13 @@
 import { useState } from 'react';
-import { MdOutlineDescription, MdLock } from 'react-icons/md';
+import { MdOutlineDescription } from 'react-icons/md';
 import { SiGithub } from 'react-icons/si';
 import { GrUpdate } from 'react-icons/gr';
-import { Session } from '@supabase/supabase-js';
 import CloudBadge from '../CloudBadge';
-import AiBadge from '../AiBadge';
 import DropdownSelect from '../DropdownSelect';
 import { Settings as SettingsType } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 
 interface UISettingsSectionProps {
-  session: Session | null;
   settings: SettingsType;
   updateSettings: (updates: Partial<SettingsType>) => void;
   openReleaseNotesModal: (version: string | null) => void;
@@ -18,7 +15,6 @@ interface UISettingsSectionProps {
 }
 
 export default function UISettingsSection({
-  session,
   settings,
   updateSettings,
   openReleaseNotesModal,
@@ -42,12 +38,6 @@ export default function UISettingsSection({
               <span className="font-medium cursor-pointer">Run on Startup</span>
             </label>
           </div>
-          {!session && (
-            <div className="flex items-center gap-2 text-sm text-warning">
-              <MdLock className="w-4 h-4" />
-              <span>Sign in to access AI features</span>
-            </div>
-          )}
           <div className="flex items-center">
             <label className="flex items-center gap-2">
               <input
@@ -56,12 +46,9 @@ export default function UISettingsSection({
                 checked={settings.enableAi}
                 onChange={(e) => updateSettings({ enableAi: e.target.checked })}
                 className="checkbox checkbox-primary checkbox-sm"
-                disabled={!session}
               />
               <span className="flex items-center gap-1 cursor-pointer">
-                Enable Segra AI
-                <AiBadge />
-                <CloudBadge />
+                Enable Highlights
               </span>
             </label>
           </div>
@@ -73,12 +60,10 @@ export default function UISettingsSection({
                 checked={settings.autoGenerateHighlights}
                 onChange={(e) => updateSettings({ autoGenerateHighlights: e.target.checked })}
                 className="checkbox checkbox-primary checkbox-sm"
-                disabled={!session || !settings.enableAi}
+                disabled={!settings.enableAi}
               />
               <span className="flex items-center gap-1 cursor-pointer">
-                Auto-Generate Highlights
-                <AiBadge />
-                <CloudBadge />
+                Auto-Generate Highlights After Recording
               </span>
             </label>
           </div>
