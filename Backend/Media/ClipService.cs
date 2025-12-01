@@ -67,11 +67,10 @@ namespace Segra.Backend.Media
 
                     await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, progress =>
                     {
-                        double currentProgress = (processedDuration + (progress * clipDuration)) / totalDuration * 96;
+                        double clampedProgress = Math.Min(progress, 1.0);
+                        double currentProgress = (processedDuration + (clampedProgress * clipDuration)) / totalDuration * 95;
                         _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, selections });
                     });
-
-                    _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 97, selections });
 
                     // Verify the temp file was created successfully
                     if (!File.Exists(tempFileName))
@@ -84,8 +83,6 @@ namespace Segra.Backend.Media
                     tempClipFiles.Add(tempFileName);
                 }
 
-                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, selections });
-
                 if (!tempClipFiles.Any())
                 {
                     Log.Error("No valid clips were extracted.");
@@ -93,10 +90,10 @@ namespace Segra.Backend.Media
                     return;
                 }
 
+                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 96, selections });
+
                 string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
                 outputFilePath = Path.Combine(outputFolder, outputFileName);
-
-                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, selections });
 
                 if (tempClipFiles.Count == 1)
                 {
@@ -116,7 +113,6 @@ namespace Segra.Backend.Media
                             progress => { },
                             process =>
                             {
-                                // Track the concatenation process so it can be cancelled
                                 lock (ProcessLock)
                                 {
                                     if (!ActiveFFmpegProcesses.ContainsKey(id))
@@ -131,30 +127,31 @@ namespace Segra.Backend.Media
                     }
                     finally
                     {
-                        // Clean up the process from tracking after completion or error
                         lock (ProcessLock)
                         {
                             ActiveFFmpegProcesses.Remove(id);
-                            Log.Information($"[Clip {id}] Removed concatenation process from active processes");
                         }
                     }
                 }
 
-                // Verify the output file was created successfully
+                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 97, selections });
+
                 if (!File.Exists(outputFilePath))
                 {
                     throw new Exception("Failed to create final clip file");
                 }
 
-                // Ensure file is fully written to disk/network before thumbnail generation (required for network drives)
                 await EnsureFileReady(outputFilePath);
 
-                // Finalization
-                // TODO Implement methods to have multiple games in one clip
+                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, selections });
+
                 var firstSelection = selections.FirstOrDefault();
                 await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId);
                 await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Clip);
                 await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Clip);
+
+                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, selections });
+
                 await SettingsService.LoadContentFromFolderIntoState();
                 await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
             }

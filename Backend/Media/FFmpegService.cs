@@ -121,10 +121,6 @@ namespace Segra.Backend.Media
                     throw;
                 }
             }
-
-            // Always make sure we report completion
-            Log.Information($"[Process {processId}] Reporting final progress: 100%");
-            progressCallback?.Invoke(1.0);
         }
 
         /// <summary>
