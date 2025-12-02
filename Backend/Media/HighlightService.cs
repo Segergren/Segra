@@ -12,10 +12,10 @@ namespace Segra.Backend.Media
     public static class HighlightService
     {
         /// <summary>
-        /// Creates a highlight video from all Kill bookmarks in a session.
+        /// Creates a highlight video from all highlight-worthy bookmarks (Kill, Goal, etc.).
         /// Uses stream copy for fast extraction without re-encoding.
         /// </summary>
-        public static async Task CreateHighlightFromKills(string fileName, Action<int, string>? progressCallback = null)
+        public static async Task CreateHighlightFromBookmarks(string fileName, Action<int, string>? progressCallback = null)
         {
             try
             {
@@ -28,24 +28,24 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                // Get all Kill bookmarks
-                List<Bookmark> killBookmarks = content.Bookmarks
-                    .Where(b => b.Type == BookmarkType.Kill)
+                // Get all highlight-worthy bookmarks
+                List<Bookmark> highlightBookmarks = content.Bookmarks
+                    .Where(b => b.Type.IncludeInHighlight())
                     .OrderBy(b => b.Time)
                     .ToList();
 
-                if (killBookmarks.Count == 0)
+                if (highlightBookmarks.Count == 0)
                 {
-                    Log.Information($"No kill bookmarks found for: {fileName}");
-                    progressCallback?.Invoke(-1, "No kills found in this session");
+                    Log.Information($"No highlight bookmarks found for: {fileName}");
+                    progressCallback?.Invoke(-1, "No highlight moments found in this session");
                     return;
                 }
 
-                Log.Information($"Found {killBookmarks.Count} kill bookmarks to include in highlight");
-                progressCallback?.Invoke(5, $"Found {killBookmarks.Count} kills");
+                Log.Information($"Found {highlightBookmarks.Count} bookmarks to include in highlight");
+                progressCallback?.Invoke(5, $"Found {highlightBookmarks.Count} moments");
 
-                // Convert bookmarks to time segments (4 seconds before and after each kill)
-                var segments = killBookmarks.Select(b => new TimeSegment
+                // Convert bookmarks to time segments (4 seconds before and after each moment)
+                var segments = highlightBookmarks.Select(b => new TimeSegment
                 {
                     StartTime = Math.Max(0, b.Time.TotalSeconds - 4),
                     EndTime = b.Time.TotalSeconds + 4

@@ -1160,12 +1160,15 @@ namespace Segra.Backend.Obs
                 // Get the file path before nullifying the recording (FilePath is not null at this point because of the previous check)
                 string filePath = Settings.Instance.State.Recording.FilePath!;
 
+                // Get the bookmarks before nullifying the recording
+                List<Bookmark> bookmarks = Settings.Instance.State.Recording.Bookmarks;
+
                 // Reset the recording and pre-recording
                 Settings.Instance.State.Recording = null;
                 Settings.Instance.State.PreRecording = null;
 
                 // If the recording is not a replay buffer recording, AI is enabled, user is authenticated, and auto generate highlights is enabled -> analyze the video!
-                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && !isReplayBufferMode)
+                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && !isReplayBufferMode && bookmarks.Any(b => b.Type.IncludeInHighlight()))
                 {
                     string fileName = Path.GetFileNameWithoutExtension(filePath);
                     _ = AiService.CreateHighlight(fileName);

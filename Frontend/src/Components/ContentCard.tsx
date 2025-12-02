@@ -1,5 +1,5 @@
 import { useSettings } from '../Context/SettingsContext';
-import { Content } from '../Models/types';
+import { Content, includeInHighlight } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { openFileLocation } from '../Utils/FileUtils';
 import { useAuth } from '../Hooks/useAuth.tsx';
@@ -292,13 +292,13 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
               {type === 'Session' && enableAi && (
                 <li>
                   {(() => {
-                    const hasKillBookmarks = content?.bookmarks?.some(b => b.type === 'Kill');
+                    const hasHighlightBookmarks = content?.bookmarks?.some(b => includeInHighlight(b.type));
                     const isProcessing = Object.values(aiProgress).some(
                       (progress) =>
                         progress.content.fileName === content?.fileName &&
                         progress.status === 'processing',
                     );
-                    const isDisabled = !hasKillBookmarks || isProcessing;
+                    const isDisabled = !hasHighlightBookmarks || isProcessing;
 
                     return (
                       <a
@@ -308,7 +308,7 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
                             : 'text-purple-400 hover:bg-purple-500/10 active:bg-purple-500/20'
                         } rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
                         onClick={() => {
-                          if (hasKillBookmarks && !isProcessing) {
+                          if (hasHighlightBookmarks && !isProcessing) {
                             (document.activeElement as HTMLElement).blur();
                             handleCreateAiClip();
                           }
@@ -318,7 +318,7 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
                         <span>
                           {isProcessing
                             ? 'Creating Highlight...'
-                            : hasKillBookmarks
+                            : hasHighlightBookmarks
                               ? 'Create Highlight'
                               : 'No Highlights'}
                         </span>
