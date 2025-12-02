@@ -53,6 +53,7 @@ export enum GpuVendor {
 export enum BookmarkType {
   Manual = 'Manual',
   Kill = 'Kill',
+  Goal = 'Goal',
   Assist = 'Assist',
   Death = 'Death',
 }

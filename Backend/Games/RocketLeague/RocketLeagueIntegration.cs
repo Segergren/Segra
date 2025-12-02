@@ -64,6 +64,9 @@ namespace Segra.Backend.Games.RocketLeague
         private const uint PROCESS_VM_READ = 0x0010;
         private const uint PROCESS_QUERY_INFORMATION = 0x0400;
 
+        /// <summary>
+        /// Starts the Rocket League integration by launching the monitoring loop.
+        /// </summary>
         public override async Task Start()
         {
             _cts = new CancellationTokenSource();
@@ -72,6 +75,9 @@ namespace Segra.Backend.Games.RocketLeague
             await Task.Run(() => MonitorLoop(_cts.Token));
         }
 
+        /// <summary>
+        /// Shuts down the integration and releases process handles.
+        /// </summary>
         public override Task Shutdown()
         {
             Log.Information("[RL] Shutting down Rocket League integration");
@@ -86,6 +92,10 @@ namespace Segra.Backend.Games.RocketLeague
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Main loop that attaches to the game process and monitors for goals.
+        /// </summary>
+        /// <param name="token">Cancellation token to stop the loop.</param>
         private void MonitorLoop(CancellationToken token)
         {
             while (!token.IsCancellationRequested)
@@ -109,6 +119,10 @@ namespace Segra.Backend.Games.RocketLeague
             }
         }
 
+        /// <summary>
+        /// Attaches to the Rocket League process and initializes memory reading.
+        /// </summary>
+        /// <returns>True if successfully attached, false otherwise.</returns>
         private bool Attach()
         {
             if (_processHandle != IntPtr.Zero)
@@ -183,6 +197,11 @@ namespace Segra.Backend.Games.RocketLeague
             }
         }
 
+        /// <summary>
+        /// Finds GObjects and GNames addresses using pattern scanning.
+        /// These are Unreal Engine structures needed to enumerate game objects.
+        /// </summary>
+        /// <returns>True if both addresses were found and validated.</returns>
         private bool FindOffsetsWithPatternScan()
         {
             Log.Information("[RL] Starting pattern scan for GObjects/GNames...");
@@ -244,6 +263,13 @@ namespace Segra.Backend.Games.RocketLeague
             return success;
         }
 
+        /// <summary>
+        /// Scans memory for a byte pattern. Bytes with value 0x00 act as wildcards.
+        /// </summary>
+        /// <param name="memory">The memory buffer to search.</param>
+        /// <param name="pattern">The byte pattern to find (0x00 = wildcard).</param>
+        /// <param name="patternName">Name for logging purposes.</param>
+        /// <returns>Offset where pattern was found, or -1 if not found.</returns>
         private long ScanPattern(byte[] memory, byte[] pattern, string patternName)
         {
             for (int i = 0; i < memory.Length - pattern.Length; i++)
@@ -265,6 +291,12 @@ namespace Segra.Backend.Games.RocketLeague
             return -1;
         }
 
+        /// <summary>
+        /// Extracts the GObjects array address from a pattern match.
+        /// </summary>
+        /// <param name="memory">Module memory buffer.</param>
+        /// <param name="patternOffset">Offset where the pattern was found.</param>
+        /// <returns>The resolved GObjects address.</returns>
         private IntPtr ExtractGObjectsAddress(byte[] memory, long patternOffset)
         {
             // Pattern: 48 8B C8 48 8B 05 ?? ?? ?? ?? 48 8B 0C C8
@@ -283,6 +315,12 @@ namespace Segra.Backend.Games.RocketLeague
             }
         }
 
+        /// <summary>
+        /// Extracts the GNames array address using pattern method 1.
+        /// </summary>
+        /// <param name="memory">Module memory buffer.</param>
+        /// <param name="patternOffset">Offset where the pattern was found.</param>
+        /// <returns>The resolved GNames address.</returns>
         private IntPtr ExtractGNamesAddress1(byte[] memory, long patternOffset)
         {
             // Pattern: 48 8B 0D ?? ?? ?? ?? 48 8B 0C C1
@@ -301,6 +339,12 @@ namespace Segra.Backend.Games.RocketLeague
             }
         }
 
+        /// <summary>
+        /// Extracts the GNames array address using pattern method 2 (fallback).
+        /// </summary>
+        /// <param name="memory">Module memory buffer.</param>
+        /// <param name="patternOffset">Offset where the pattern was found.</param>
+        /// <returns>The resolved GNames address.</returns>
         private IntPtr ExtractGNamesAddress2(byte[] memory, long patternOffset)
         {
             // Pattern: 49 63 06 48 8D 55 E8 48 8B 0D ?? ?? ?? ?? 48 8B 0C C1
@@ -319,6 +363,9 @@ namespace Segra.Backend.Games.RocketLeague
             }
         }
 
+        /// <summary>
+        /// Detaches from the game process and resets all state.
+        /// </summary>
         private void Detach()
         {
             if (_processHandle != IntPtr.Zero)
@@ -334,6 +381,11 @@ namespace Segra.Backend.Games.RocketLeague
             _localPlayerPtr = IntPtr.Zero;
         }
 
+        /// <summary>
+        /// Monitors the local player's goal count and adds bookmarks when goals are scored.
+        /// Polls every 50ms for instant detection, refreshes player every ~2 seconds.
+        /// </summary>
+        /// <param name="token">Cancellation token to stop monitoring.</param>
         private void MonitorGoals(CancellationToken token)
         {
             int refreshCounter = 0;
@@ -381,7 +433,7 @@ namespace Segra.Backend.Games.RocketLeague
                     {
                         // Single goal scored (normal case at 50ms polling)
                         Log.Information($"[RL] YOU SCORED! Goals: {_lastGoals} -> {currentGoals}");
-                        AddBookmark(BookmarkType.Kill);
+                        AddBookmark(BookmarkType.Goal);
                         _lastGoals = currentGoals;
                     }
                     else if (currentGoals > _lastGoals + 1)
@@ -408,6 +460,10 @@ namespace Segra.Backend.Games.RocketLeague
             }
         }
 
+        /// <summary>
+        /// Identifies the local player by finding their GFxData_PRI_TA (for name) and PRI_TA (for live stats).
+        /// Uses name frequency analysis since the local player's name appears most often in UI data.
+        /// </summary>
         private void FindLocalPlayer()
         {
             var players = FindPlayerInstances();
@@ -524,6 +580,10 @@ namespace Segra.Backend.Games.RocketLeague
             
         }
 
+        /// <summary>
+        /// Iterates through GObjects to find all player-related instances (PRI_TA, GFxData_PRI_TA, etc.).
+        /// </summary>
+        /// <returns>List of pointers to player-related game objects.</returns>
         private List<IntPtr> FindPlayerInstances()
         {
             var players = new List<IntPtr>();
@@ -573,6 +633,12 @@ namespace Segra.Backend.Games.RocketLeague
             return players;
         }
 
+        /// <summary>
+        /// Reads a value of type T from the game's process memory.
+        /// </summary>
+        /// <typeparam name="T">The struct type to read.</typeparam>
+        /// <param name="address">The memory address to read from.</param>
+        /// <returns>The value read, or default(T) on failure.</returns>
         private T Read<T>(IntPtr address) where T : struct
         {
             int size = Marshal.SizeOf<T>();
@@ -594,6 +660,11 @@ namespace Segra.Backend.Games.RocketLeague
             }
         }
 
+        /// <summary>
+        /// Reads a name string from the GNames array by index.
+        /// </summary>
+        /// <param name="nameIndex">The FName index to look up.</param>
+        /// <returns>The name string, or null if not found.</returns>
         private string? ReadGName(int nameIndex)
         {
             try
@@ -632,6 +703,11 @@ namespace Segra.Backend.Games.RocketLeague
             }
         }
         
+        /// <summary>
+        /// Checks if a string contains only printable ASCII characters (32-126).
+        /// </summary>
+        /// <param name="s">The string to check.</param>
+        /// <returns>True if all characters are printable ASCII.</returns>
         private static bool IsPrintableString(string s)
         {
             if (string.IsNullOrEmpty(s)) return false;
@@ -643,6 +719,11 @@ namespace Segra.Backend.Games.RocketLeague
             return true;
         }
 
+        /// <summary>
+        /// Reads the player name from a GFxData_PRI_TA instance.
+        /// </summary>
+        /// <param name="playerPtr">Pointer to the GFxData_PRI_TA object.</param>
+        /// <returns>The player name, or empty string on failure.</returns>
         private string ReadPlayerName(IntPtr playerPtr)
         {
             try
@@ -664,6 +745,10 @@ namespace Segra.Backend.Games.RocketLeague
             }
         }
 
+        /// <summary>
+        /// Adds a bookmark to the current recording.
+        /// </summary>
+        /// <param name="type">The type of bookmark (e.g., Kill for goals).</param>
         private static void AddBookmark(BookmarkType type)
         {
             if (Settings.Instance.State.Recording == null)
@@ -681,6 +766,9 @@ namespace Segra.Backend.Games.RocketLeague
             Log.Information($"[RL] BOOKMARK ADDED: {type} at {bookmark.Time}");
         }
 
+        /// <summary>
+        /// Disposes resources by shutting down the integration.
+        /// </summary>
         public void Dispose()
         {
             Shutdown().Wait();

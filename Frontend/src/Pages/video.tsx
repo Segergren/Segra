@@ -36,6 +36,7 @@ import { IoSkull, IoAdd, IoRemove } from 'react-icons/io5';
 import SelectionCard from '../Components/SelectionCard';
 import WaveSurfer from 'wavesurfer.js';
 import { TbZoomIn, TbZoomOut } from 'react-icons/tb';
+import { IoIosFootball } from 'react-icons/io';
 
 // Converts time string in format "HH:MM:SS.mmm" to seconds
 const timeStringToSeconds = (timeStr: string): number => {
@@ -340,6 +341,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const iconMapping: Record<BookmarkType, IconType> = {
     Manual: MdBookmark,
     Kill: FaGun,
+    Goal: IoIosFootball,
     Assist: MdOutlineHandshake,
     Death: IoSkull,
   };
@@ -1577,7 +1579,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       }}
                     >
                       <div className="bg-[#EFAF2B] w-[26px] h-[26px] rounded-full flex items-center justify-center mb-0">
-                        <Icon size={16} />
+                        {bookmark.type === 'Goal' ? <Icon size={20} /> : <Icon size={16} />}
                       </div>
                       <div className="w-[2px] h-[16px] bg-[#EFAF2B]" />
                     </div>

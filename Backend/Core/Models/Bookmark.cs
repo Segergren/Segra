@@ -19,9 +19,26 @@ namespace Segra.Backend.Core.Models
     public enum BookmarkType
     {
         Manual,
-        Kill,
+        [IncludeInHighlight] Kill,
+        [IncludeInHighlight] Goal,
         Assist,
         Death
+    }
+
+    /// <summary>
+    /// Marks a BookmarkType as one that should be included in auto-generated highlights.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Field)]
+    public class IncludeInHighlightAttribute : Attribute { }
+
+    public static class BookmarkTypeExtensions
+    {
+        /// <summary>
+        /// Returns true if this bookmark type should be included in auto-generated highlights.
+        /// </summary>
+        public static bool IncludeInHighlight(this BookmarkType type) =>
+            typeof(BookmarkType).GetField(type.ToString())!
+                .GetCustomAttributes(typeof(IncludeInHighlightAttribute), false).Length > 0;
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
