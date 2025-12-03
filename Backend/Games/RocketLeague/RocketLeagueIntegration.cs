@@ -7,6 +7,24 @@ using System.Text;
 
 namespace Segra.Backend.Games.RocketLeague
 {
+    /// <summary>
+    /// How it works:
+    /// 1. Uses pattern scanning to find GObjects/GNames arrays (adapts to ASLR)
+    /// 2. Scans GObjects for GFxData_PRI_TA instances (UI player data with names)
+    /// 3. Identifies local player by name frequency (local player appears most often)
+    /// 4. Links GFxData_PRI_TA to PRI_TA (live stats) via offset 0x138
+    /// 5. Monitors PRI_TA.Goals every 50ms and creates bookmarks on increment
+    /// 
+    /// Edge cases handled:
+    /// - New match detection (Goals reset to 0)
+    /// - Stale memory pointers (sanity checks on read values)
+    /// - Multiple GFxData instances with same name
+    /// 
+    /// References:
+    /// - BakkesMod SDK: https://github.com/bakkesmodorg/BakkesModSDK
+    /// - Rocket League class dumps: https://github.com/AJM55/RLObjectDumps
+    /// - Unreal Engine GObjects/GNames: https://docs.unrealengine.com/udk/Three/UnrealScriptReference.html
+    /// </summary>
     internal class RocketLeagueIntegration : Integration, IDisposable
     {
         private const string ProcessName = "RocketLeague";
