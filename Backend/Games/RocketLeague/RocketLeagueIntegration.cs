@@ -28,8 +28,7 @@ namespace Segra.Backend.Games.RocketLeague
         // PRI_TA offsets (live stats)
         private const int PRI_ScoreOffset = 0x458;
         private const int PRI_GoalsOffset = 0x45C;
-        private const int PRI_ShotsOffset = 0x46C;
-        
+
         // GFxData_PRI_TA to PRI_TA link offset
         private const int GfxDataToPriOffset = 0x138;
         private const int GfxDataToPriFallbackStart = 0x40;

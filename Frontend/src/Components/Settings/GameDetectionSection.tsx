@@ -115,6 +115,14 @@ export default function GameDetectionSection() {
     return combined.sort((a, b) => a.name.localeCompare(b.name));
   }, [settings.whitelist, settings.blacklist]);
 
+  // Check if user has Rocket League (in whitelist, blacklist, currently recording, or in content)
+  const hasRocketLeague = useMemo(() => {
+    const rocketLeagueName = 'Rocket League';
+    const currentlyRecording = settings.state.recording?.game === rocketLeagueName;
+    const inContent = settings.state.content.some(c => c.game === rocketLeagueName);
+    return currentlyRecording || inContent;
+  }, [settings.state.recording, settings.state.content]);
+
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <h2 className="text-xl font-semibold mb-2">Game Detection</h2>
@@ -208,6 +216,45 @@ export default function GameDetectionSection() {
           </div>
         )}
       </div>
+
+      {/* Rocket League Integration - only show if user has Rocket League */}
+      {hasRocketLeague && (
+        <div className="relative bg-base-200 p-4 rounded-lg border border-custom mt-4 overflow-hidden">
+          {/* Background image */}
+          {settings.showGameBackground && (
+            <div
+              className="absolute inset-0 bg-cover bg-center opacity-12 pointer-events-none blur-[4px]"
+              style={{ backgroundImage: 'url(https://segra.tv/api/games/cover/coaiyq)' }}
+            />
+          )}
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="text-lg font-semibold">Rocket League Integration</h3>
+              <span className="badge badge-primary badge-sm">Beta</span>
+            </div>
+            <p className="text-xs opacity-70 mb-2">
+              Automatically detect and bookmark your goals in Rocket League.
+            </p>
+            <p className="text-xs text-warning mb-3">
+              We have tested this without any issues, but use at your own risk. We take no responsibility for any game bans.
+            </p>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="toggle toggle-primary"
+                checked={settings.enableRocketLeagueIntegration}
+                onChange={(e) => {
+                  sendMessageToBackend('UpdateSettings', {
+                    ...settings,
+                    enableRocketLeagueIntegration: e.target.checked,
+                  });
+                }}
+              />
+              <span className="text-sm">Enable Game Integration</span>
+            </label>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

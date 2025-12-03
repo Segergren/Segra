@@ -67,6 +67,7 @@ namespace Segra.Backend.Core.Models
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "standard";
         private bool _removeOriginalAfterCompression = false;
+        private bool _enableRocketLeagueIntegration = false;
 
         // Returns the default keybindings
         private static List<Keybind> GetDefaultKeybindings()
@@ -356,6 +357,19 @@ namespace Segra.Backend.Core.Models
                 if (_autoGenerateHighlights != value)
                 {
                     _autoGenerateHighlights = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("enableRocketLeagueIntegration")]
+        public bool EnableRocketLeagueIntegration
+        {
+            get => _enableRocketLeagueIntegration;
+            set
+            {
+                if (_enableRocketLeagueIntegration != value)
+                {
+                    _enableRocketLeagueIntegration = value;
                 }
             }
         }

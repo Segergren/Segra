@@ -1,3 +1,4 @@
+using Segra.Backend.Core.Models;
 using Segra.Backend.Games;
 using Segra.Backend.Games.CounterStrike2;
 using Segra.Backend.Games.LeagueOfLegends;
@@ -29,7 +30,7 @@ namespace Segra.Backend.Services
                 PUBG => new PubgIntegration(),
                 LOL => new LeagueOfLegendsIntegration(),
                 CS2 => new CounterStrike2Integration(),
-                ROCKET_LEAGUE => new RocketLeagueIntegration(),
+                ROCKET_LEAGUE => Settings.Instance.EnableRocketLeagueIntegration ? new RocketLeagueIntegration() : null,
                 _ => null,
             };
 
