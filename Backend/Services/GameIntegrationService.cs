@@ -1,7 +1,9 @@
+using Segra.Backend.Core.Models;
 using Segra.Backend.Games;
 using Segra.Backend.Games.CounterStrike2;
 using Segra.Backend.Games.LeagueOfLegends;
 using Segra.Backend.Games.Pubg;
+using Segra.Backend.Games.RocketLeague;
 using Serilog;
 
 namespace Segra.Backend.Services
@@ -11,6 +13,7 @@ namespace Segra.Backend.Services
         private const string PUBG = "PLAYERUNKNOWN'S BATTLEGROUNDS";
         private const string LOL = "League of Legends";
         private const string CS2 = "Counter-Strike 2";
+        private const string ROCKET_LEAGUE = "Rocket League";
         private static Integration? _gameIntegration;
         public static Integration? GameIntegration => _gameIntegration;
 
@@ -27,6 +30,7 @@ namespace Segra.Backend.Services
                 PUBG => new PubgIntegration(),
                 LOL => new LeagueOfLegendsIntegration(),
                 CS2 => new CounterStrike2Integration(),
+                ROCKET_LEAGUE => Settings.Instance.EnableRocketLeagueIntegration ? new RocketLeagueIntegration() : null,
                 _ => null,
             };
 

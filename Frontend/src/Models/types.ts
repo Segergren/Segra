@@ -53,9 +53,13 @@ export enum GpuVendor {
 export enum BookmarkType {
   Manual = 'Manual',
   Kill = 'Kill',
+  Goal = 'Goal',
   Assist = 'Assist',
   Death = 'Death',
 }
+
+export const includeInHighlight = (type: BookmarkType): boolean =>
+  type === BookmarkType.Kill || type === BookmarkType.Goal;
 
 export enum BookmarkSubtype {
   Headshot = 'Headshot',
@@ -214,6 +218,7 @@ export interface Settings {
   keybindings: Keybind[];
   whitelist: Game[];
   blacklist: Game[];
+  enableRocketLeagueIntegration: boolean;
   soundEffectsVolume: number; // Volume for UI sound effects (0.0 to 1.0)
   showNewBadgeOnVideos: boolean;
   showGameBackground: boolean; // Show game background while recording
@@ -292,6 +297,7 @@ export const initialSettings: Settings = {
   ],
   whitelist: [],
   blacklist: [],
+  enableRocketLeagueIntegration: false,
   state: initialState,
 };
 

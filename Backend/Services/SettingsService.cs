@@ -366,6 +366,14 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update EnableRocketLeagueIntegration
+            if (settings.EnableRocketLeagueIntegration != updatedSettings.EnableRocketLeagueIntegration)
+            {
+                Log.Information($"EnableRocketLeagueIntegration changed from '{settings.EnableRocketLeagueIntegration}' to '{updatedSettings.EnableRocketLeagueIntegration}'");
+                settings.EnableRocketLeagueIntegration = updatedSettings.EnableRocketLeagueIntegration;
+                hasChanges = true;
+            }
+
             // Update Theme
             if (settings.Theme != updatedSettings.Theme)
             {

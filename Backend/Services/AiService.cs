@@ -23,17 +23,17 @@ namespace Segra.Backend.Services
                     return;
                 }
 
-                int killCount = content.Bookmarks.Count(b => b.Type == BookmarkType.Kill);
-                if (killCount == 0)
+                int momentCount = content.Bookmarks.Count(b => b.Type.IncludeInHighlight());
+                if (momentCount == 0)
                 {
-                    Log.Information($"No kill bookmarks found for: {fileName}");
-                    await SendProgress(highlightId, -1, "error", "No kills found in this session", content);
+                    Log.Information($"No highlight bookmarks found for: {fileName}");
+                    await SendProgress(highlightId, -1, "error", "No highlight moments found in this session", content);
                     return;
                 }
 
-                await SendProgress(highlightId, 0, "processing", $"Found {killCount} kills", content);
+                await SendProgress(highlightId, 0, "processing", $"Found {momentCount} moments", content);
 
-                await HighlightService.CreateHighlightFromKills(fileName, async (progress, message) =>
+                await HighlightService.CreateHighlightFromBookmarks(fileName, async (progress, message) =>
                 {
                     string status = progress < 0 ? "error" : progress >= 100 ? "done" : "processing";
                     await SendProgress(highlightId, progress, status, message, content);

@@ -27,6 +27,14 @@ export function AiHighlightsProvider({ children }: { children: ReactNode }) {
             const { [progress.id]: _, ...rest } = prev;
             return rest;
           });
+        } else if (progress.progress < 0) {
+          // This is an error, remove error after 5 seconds so user can see the message
+          setTimeout(() => {
+            setAiProgress((prev) => {
+              const { [progress.id]: _, ...rest } = prev;
+              return rest;
+            });
+          }, 5000);
         }
       }
     };
