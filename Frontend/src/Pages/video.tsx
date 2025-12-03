@@ -1579,7 +1579,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       }}
                     >
                       <div className="bg-[#EFAF2B] w-[26px] h-[26px] rounded-full flex items-center justify-center mb-0">
-                        {bookmark.type === 'Goal' ? <Icon size={20} /> : <Icon size={16} />}
+                        {bookmark.type === 'Goal' || bookmark.type === 'Assist' ? <Icon size={20} /> : <Icon size={16} />}
                       </div>
                       <div className="w-[2px] h-[16px] bg-[#EFAF2B]" />
                     </div>

@@ -46,6 +46,7 @@ namespace Segra.Backend.Games.RocketLeague
         // PRI_TA offsets (live stats)
         private const int PRI_ScoreOffset = 0x458;
         private const int PRI_GoalsOffset = 0x45C;
+        private const int PRI_AssistsOffset = 0x464;
 
         // GFxData_PRI_TA to PRI_TA link offset
         private const int GfxDataToPriOffset = 0x138;
@@ -64,6 +65,7 @@ namespace Segra.Backend.Games.RocketLeague
         
         private CancellationTokenSource? _cts;
         private int _lastGoals = 0;
+        private int _lastAssists = 0;
         private bool _initialStatsCaptured = false;
         private IntPtr _localPlayerPtr = IntPtr.Zero;  // GFxData_PRI_TA for name
         private IntPtr _localPriTaPtr = IntPtr.Zero;   // PRI_TA for live stats
@@ -394,6 +396,7 @@ namespace Segra.Backend.Games.RocketLeague
             _gObjectsAddress = IntPtr.Zero;
             _gNamesAddress = IntPtr.Zero;
             _lastGoals = 0;
+            _lastAssists = 0;
             _initialStatsCaptured = false;
             _localPlayerPtr = IntPtr.Zero;
         }
@@ -424,12 +427,13 @@ namespace Segra.Backend.Games.RocketLeague
                     }
                     refreshCounter++;
                     
-                    // Read current goals from PRI_TA (live stats)
+                    // Read current stats from PRI_TA (live stats)
                     int currentGoals = Read<int>(_localPriTaPtr + PRI_GoalsOffset);
+                    int currentAssists = Read<int>(_localPriTaPtr + PRI_AssistsOffset);
                     int score = Read<int>(_localPriTaPtr + PRI_ScoreOffset);
                     
                     // Sanity check - detect garbage data (e.g., when game loses focus)
-                    if (currentGoals < 0 || currentGoals > 50 || score < 0 || score > 10000)
+                    if (currentGoals < 0 || currentGoals > 50 || currentAssists < 0 || currentAssists > 50 || score < 0 || score > 10000)
                     {
                         // Invalid data - pointer likely stale, force rescan
                         _localPlayerPtr = IntPtr.Zero;
@@ -442,9 +446,10 @@ namespace Segra.Backend.Games.RocketLeague
                     if (!_initialStatsCaptured)
                     {
                         _lastGoals = currentGoals;
+                        _lastAssists = currentAssists;
                         _initialStatsCaptured = true;
                         string playerName = _localPlayerPtr != IntPtr.Zero ? ReadPlayerName(_localPlayerPtr) : "Unknown";
-                        Log.Information($"[RL] Initial stats for local player '{playerName}': Goals={currentGoals}, Score={score}");
+                        Log.Information($"[RL] Initial stats for local player '{playerName}': Goals={currentGoals}, Assists={currentAssists}, Score={score}");
                     }
                     else if (currentGoals == _lastGoals + 1)
                     {
@@ -461,8 +466,26 @@ namespace Segra.Backend.Games.RocketLeague
                     else if (currentGoals < _lastGoals)
                     {
                         // New match started, reset
-                        Log.Information($"[RL] New match detected, resetting goals ({_lastGoals} -> {currentGoals})");
+                        Log.Information($"[RL] New match detected, resetting stats");
                         _lastGoals = currentGoals;
+                    }
+                    
+                    // Check for assists
+                    if (currentAssists == _lastAssists + 1)
+                    {
+                        Log.Information($"[RL] YOU ASSISTED! Assists: {_lastAssists} -> {currentAssists}");
+                        AddBookmark(BookmarkType.Assist);
+                        _lastAssists = currentAssists;
+                    }
+                    else if (currentAssists > _lastAssists + 1)
+                    {
+                        // Multiple assists at once = likely stale data, just update without bookmark
+                        _lastAssists = currentAssists;
+                    }
+                    else if (currentAssists < _lastAssists)
+                    {
+                        // New match started, reset assists
+                        _lastAssists = currentAssists;
                     }
                     
                     Thread.Sleep(50);
