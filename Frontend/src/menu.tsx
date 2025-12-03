@@ -19,7 +19,7 @@ import {
   MdReplay30,
 } from 'react-icons/md';
 import { HiOutlineSparkles } from 'react-icons/hi';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useEffect, useState } from 'react';
 
 interface MenuProps {
@@ -80,8 +80,12 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
     }
   }, [selectedMenu]);
 
-  // Check if there are any active AI highlight generations
-  const hasActiveAiHighlights = Object.values(aiProgress).length > 0;
+  // Check if there are any active AI highlight generations and calculate average progress
+  const aiProgressValues = Object.values(aiProgress);
+  const hasActiveAiHighlights = aiProgressValues.length > 0;
+  const averageProgress = hasActiveAiHighlights
+    ? Math.round(aiProgressValues.reduce((sum, p) => sum + p.progress, 0) / aiProgressValues.length)
+    : 0;
 
   const hasUnavailableDevices = () => {
     const unavailableInput = settings.inputDevices.some(
@@ -134,17 +138,26 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         </button>
         <button
           ref={highlightsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Highlights' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          className={`btn btn-secondary ${selectedMenu === 'Highlights' ? 'text-primary' : ''} w-full justify-between border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
           onMouseDown={() => onSelectMenu('Highlights')}
         >
-          <div className="relative w-6 h-6 flex items-center justify-center">
-            <HiOutlineSparkles
-              className={`w-6 h-6 ${hasActiveAiHighlights ? 'text-purple-400 animate-pulse' : ''}`}
-            />
-          </div>
-          <span className={hasActiveAiHighlights ? 'text-purple-400 animate-pulse' : ''}>
+          <span className="flex items-center gap-2">
+            <HiOutlineSparkles className="w-6 h-6" />
             Highlights
           </span>
+          <AnimatePresence>
+            {hasActiveAiHighlights && selectedMenu !== 'Highlights' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="radial-progress text-primary"
+                style={{ '--value': averageProgress, '--size': '1.5rem', '--thickness': '3px' } as React.CSSProperties}
+                role="progressbar"
+              />
+            )}
+          </AnimatePresence>
         </button>
         <button
           ref={settingsRef}
