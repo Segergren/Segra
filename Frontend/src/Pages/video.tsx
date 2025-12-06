@@ -1226,9 +1226,8 @@ export default function VideoComponent({ video }: { video: Content }) {
   );
 
   const availableBookmarkTypes = useMemo(() => {
-    const types = new Set<BookmarkType>();
-    video.bookmarks.forEach((bookmark) => types.add(bookmark.type));
-    return Array.from(types);
+    const order = [BookmarkType.Kill, BookmarkType.Goal, BookmarkType.Assist, BookmarkType.Death, BookmarkType.Manual];
+    return order.filter((type) => video.bookmarks.some((b) => b.type === type));
   }, [video.bookmarks]);
 
   const filteredBookmarks = useMemo(() => {
