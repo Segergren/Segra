@@ -21,7 +21,7 @@ export const ClippingContext = createContext<ClippingContextType | undefined>(un
 
 export function ClippingProvider({ children }: { children: ReactNode }) {
   const [clippingProgress, setClippingProgress] = useState<Record<number, ClippingProgress>>({});
-  const cancelledIds = useRef<Set<number>>(new Set());
+  const suppressedIds = useRef<Set<number>>(new Set());
   const { removeSelection } = useSelections();
   const settings = useSettings();
 
@@ -32,10 +32,8 @@ export function ClippingProvider({ children }: { children: ReactNode }) {
       if (method === 'ClipProgress') {
         const progress = content as ClippingProgress;
         
-        if (cancelledIds.current.has(progress.id)) {
-          if (progress.progress === 100 || progress.progress === -1) {
-            cancelledIds.current.delete(progress.id);
-          }
+        // Suppress messages for cancelled clips
+        if (suppressedIds.current.has(progress.id)) {
           return;
         }
         
@@ -88,7 +86,7 @@ export function ClippingProvider({ children }: { children: ReactNode }) {
   };
 
   const cancelClip = (id: number) => {
-    cancelledIds.current.add(id);
+    suppressedIds.current.add(id);
     sendMessageToBackend('CancelClip', { id });
     setClippingProgress((prev) => {
       const { [id]: _, ...rest } = prev;
