@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useClipping } from '../Hooks/useClipping';
 import { MdClose } from 'react-icons/md';
+import CircularProgress from './CircularProgress';
 
 import { ClippingProgress } from '../Context/ClippingContext';
 
@@ -45,7 +46,7 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
           {isError ? (
             <div className="w-4 h-4 rounded-full bg-error"></div>
           ) : clipping.progress < 100 ? (
-            <span className="loading loading-spinner text-primary"></span>
+            <CircularProgress progress={displayProgress} size={24} strokeWidth={2} duration={100} />
           ) : (
             <div className="w-4 h-4 rounded-full bg-success"></div>
           )}

@@ -1,5 +1,6 @@
 import { useSettings } from './Context/SettingsContext';
 import RecordingCard from './Components/RecordingCard';
+import CircularProgress from './Components/CircularProgress';
 import { sendMessageToBackend } from './Utils/MessageUtils';
 import { useUploads } from './Context/UploadContext';
 import { useImports } from './Context/ImportContext';
@@ -83,7 +84,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   // Check if there are any active AI highlight generations and calculate average progress
   const aiProgressValues = Object.values(aiProgress);
   const hasActiveAiHighlights = aiProgressValues.length > 0;
-  const averageProgress = hasActiveAiHighlights
+  const averageAiProgress = hasActiveAiHighlights
     ? Math.round(aiProgressValues.reduce((sum, p) => sum + p.progress, 0) / aiProgressValues.length)
     : 0;
 
@@ -152,10 +153,9 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="radial-progress text-primary"
-                style={{ '--value': averageProgress, '--size': '1.5rem', '--thickness': '3px' } as React.CSSProperties}
-                role="progressbar"
-              />
+              >
+                <CircularProgress progress={averageAiProgress} size={24} strokeWidth={2} />
+              </motion.div>
             )}
           </AnimatePresence>
         </button>

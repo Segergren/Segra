@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSelections } from './SelectionsContext';
 import { useSettings } from './SettingsContext';
@@ -21,6 +21,7 @@ export const ClippingContext = createContext<ClippingContextType | undefined>(un
 
 export function ClippingProvider({ children }: { children: ReactNode }) {
   const [clippingProgress, setClippingProgress] = useState<Record<number, ClippingProgress>>({});
+  const cancelledIds = useRef<Set<number>>(new Set());
   const { removeSelection } = useSelections();
   const settings = useSettings();
 
@@ -30,6 +31,14 @@ export function ClippingProvider({ children }: { children: ReactNode }) {
 
       if (method === 'ClipProgress') {
         const progress = content as ClippingProgress;
+        
+        if (cancelledIds.current.has(progress.id)) {
+          if (progress.progress === 100 || progress.progress === -1) {
+            cancelledIds.current.delete(progress.id);
+          }
+          return;
+        }
+        
         setClippingProgress((prev) => ({
           ...prev,
           [progress.id]: progress,
@@ -79,7 +88,12 @@ export function ClippingProvider({ children }: { children: ReactNode }) {
   };
 
   const cancelClip = (id: number) => {
+    cancelledIds.current.add(id);
     sendMessageToBackend('CancelClip', { id });
+    setClippingProgress((prev) => {
+      const { [id]: _, ...rest } = prev;
+      return rest;
+    });
   };
 
   return (
