@@ -37,6 +37,7 @@ import SelectionCard from '../Components/SelectionCard';
 import WaveSurfer from 'wavesurfer.js';
 import { TbZoomIn, TbZoomOut } from 'react-icons/tb';
 import { IoIosFootball } from 'react-icons/io';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // Converts time string in format "HH:MM:SS.mmm" to seconds
 const timeStringToSeconds = (timeStr: string): number => {
@@ -1550,41 +1551,46 @@ export default function VideoComponent({ video }: { video: Content }) {
                 overflow: 'hidden',
               }}
             >
-              {bookmarksReady
-                ? filteredBookmarks.map((bookmark, index) => {
-                  const timeInSeconds = timeStringToSeconds(bookmark.time);
-                  const leftPos = timeInSeconds * pixelsPerSecond;
-                  const Icon = iconMapping[bookmark.type as BookmarkType] || IoSkull;
+              <AnimatePresence>
+                {bookmarksReady &&
+                  filteredBookmarks.map((bookmark, index) => {
+                    const timeInSeconds = timeStringToSeconds(bookmark.time);
+                    const leftPos = timeInSeconds * pixelsPerSecond;
+                    const Icon = iconMapping[bookmark.type as BookmarkType] || IoSkull;
 
-                  return (
-                    <div
-                      key={`bookmark-${bookmark.id ?? index}`}
-                      className="tooltip absolute bottom-0 transform -translate-x-1/2 cursor-pointer z-10 flex flex-col items-center text-[#25272e]"
-                      data-tip={`${bookmark.type}${bookmark.subtype ? ` - ${bookmark.subtype}` : ''} (${bookmark.time})`}
-                      style={{ left: `${leftPos}px` }}
-                      onClick={() => {
-                        const seekTo = Math.max(
-                          0,
-                          timeInSeconds - (bookmark.type == BookmarkType.Manual ? 10 : 5),
-                        );
-                        setCurrentTime(seekTo);
-                        if (videoRef.current) {
-                          videoRef.current.currentTime = seekTo;
-                        }
-                      }}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        handleDeleteBookmark(bookmark.id);
-                      }}
-                    >
-                      <div className="bg-[#EFAF2B] w-[26px] h-[26px] rounded-full flex items-center justify-center mb-0">
-                        {bookmark.type === 'Goal' || bookmark.type === 'Assist' ? <Icon size={20} /> : <Icon size={16} />}
-                      </div>
-                      <div className="w-[2px] h-[16px] bg-[#EFAF2B]" />
-                    </div>
-                  );
-                })
-                : null}
+                    return (
+                      <motion.div
+                        key={`bookmark-${bookmark.id ?? index}`}
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        transition={{ duration: 0.1 }}
+                        className="tooltip absolute bottom-0 transform -translate-x-1/2 cursor-pointer z-10 flex flex-col items-center text-[#25272e]"
+                        data-tip={`${bookmark.type}${bookmark.subtype ? ` - ${bookmark.subtype}` : ''} (${bookmark.time})`}
+                        style={{ left: `${leftPos}px` }}
+                        onClick={() => {
+                          const seekTo = Math.max(
+                            0,
+                            timeInSeconds - (bookmark.type == BookmarkType.Manual ? 10 : 5),
+                          );
+                          setCurrentTime(seekTo);
+                          if (videoRef.current) {
+                            videoRef.current.currentTime = seekTo;
+                          }
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          handleDeleteBookmark(bookmark.id);
+                        }}
+                      >
+                        <div className="bg-[#EFAF2B] w-[26px] h-[26px] rounded-full flex items-center justify-center mb-0">
+                          {bookmark.type === 'Goal' || bookmark.type === 'Assist' ? <Icon size={20} /> : <Icon size={16} />}
+                        </div>
+                        <div className="w-[2px] h-[16px] bg-[#EFAF2B]" />
+                      </motion.div>
+                    );
+                  })}
+              </AnimatePresence>
               {minorTicks.map((tickTime, index) => {
                 if (tickTime >= duration) return null;
                 const leftPos = tickTime * pixelsPerSecond;
