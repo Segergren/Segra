@@ -180,41 +180,6 @@ namespace Segra.Backend.Media
             }
         }
 
-        private static List<Selection> MergeOverlappingSelections(List<Selection> selections)
-        {
-            // Sort selections by start time
-            var sortedSelections = selections.OrderBy(s => s.StartTime).ToList();
-            List<Selection> mergedSelections = new List<Selection>();
-
-            // Start with the first selection
-            Selection current = sortedSelections[0];
-
-            // Iterate through the sorted selections
-            for (int i = 1; i < sortedSelections.Count; i++)
-            {
-                var next = sortedSelections[i];
-
-                // Check if the current selection overlaps with the next one
-                if (current.EndTime >= next.StartTime)
-                {
-                    // Merge by extending the end time if needed
-                    current.EndTime = Math.Max(current.EndTime, next.EndTime);
-                }
-                else
-                {
-                    // No overlap, add current to result and move to next
-                    mergedSelections.Add(current);
-                    current = next;
-                }
-            }
-
-            // Add the last merged selection
-            mergedSelections.Add(current);
-
-            return mergedSelections;
-        }
-
-
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
                             Action<double> progressCallback)
         {

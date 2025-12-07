@@ -353,13 +353,41 @@ namespace Segra.Backend.App
             }
         }
 
+        private static Size? _windowSizeBeforeFullscreen;
+        private static Point? _windowLocationBeforeFullscreen;
+        private static bool _wasMaximizedBeforeFullscreen;
+
         public static void SetFullscreen(bool enabled)
         {
             try
             {
                 if (Window == null) return;
-                Window.SetMaximized(enabled);
-                Log.Information($"Set maximized (fullscreen-mode): {enabled}");
+
+                if (enabled)
+                {
+                    _wasMaximizedBeforeFullscreen = Window.Maximized;
+                    _windowSizeBeforeFullscreen = Window.Size;
+                    _windowLocationBeforeFullscreen = Window.Location;
+                    Window.SetMaximized(true);
+                }
+                else
+                {
+                    if (_wasMaximizedBeforeFullscreen)
+                    {
+                        return;
+                    }
+                    else if (_windowSizeBeforeFullscreen.HasValue && _windowLocationBeforeFullscreen.HasValue)
+                    {
+                        // Was not maximized, restore size and position
+                        Window.SetMaximized(false);
+                        Window.SetSize(_windowSizeBeforeFullscreen.Value);
+                        Window.SetLocation(_windowLocationBeforeFullscreen.Value);
+                    }
+                    else
+                    {
+                        Window.SetMaximized(false);
+                    }
+                }
             }
             catch (Exception ex)
             {
