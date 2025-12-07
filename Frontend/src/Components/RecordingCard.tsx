@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { PreRecording, Recording, GameResponse } from '../Models/types';
 import { LuGamepad2 } from 'react-icons/lu';
 import { BsDisplay } from 'react-icons/bs';
+import { MdHdrOn } from 'react-icons/md';
 import { useSettings } from '../Context/SettingsContext';
 
 interface RecordingCardProps {
@@ -118,7 +119,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
 
   return (
     <div className="mb-2 px-2">
-      <div className="bg-base-300 border border-base-400 border-opacity-75 rounded-lg px-3 py-3.5 cursor-default relative overflow-hidden">
+      <div className="bg-base-300 border border-base-400 border-opacity-75 rounded-lg px-3 py-3.5 cursor-default relative">
         {/* Shockwave effect on bookmark creation */}
         {showShockwave && (
           <div className="absolute inset-0 z-20 pointer-events-none">
@@ -141,7 +142,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
         )}
 
         {/* Recording Indicator */}
-        <div className="flex items-center mb-1 relative z-10">
+        <div className="flex items-center justify-between mb-1 relative z-10">
           <div className="flex items-center">
             <span
               className={`w-3 h-3 rounded-full mr-2 ${preRecording ? 'bg-orange-500' : 'bg-red-500 animate-pulse'}`}
@@ -149,21 +150,26 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
             <span className="text-gray-200 text-sm font-medium">
               {preRecording ? preRecording.status : 'Recording'}
             </span>
-          </div>
-          {!preRecording && (
-            <div
-              className={`tooltip tooltip-right ${recording?.isUsingGameHook ? 'tooltip-success' : 'tooltip-warning'} flex items-center ml-1.5`}
-              data-tip={`${recording?.isUsingGameHook ? 'Game capture (using game hook)' : 'Display capture (not using game hook)'}`}
-            >
-              <div className={`swap swap-flip cursor-default overflow-hidden justify-center`}>
-                <input type="checkbox" checked={recording?.isUsingGameHook} />
-                <div className={`swap-on`}>
-                  <LuGamepad2 className="h-5 w-5 text-gray-300" />
-                </div>
-                <div className={`swap-off`}>
-                  <BsDisplay className="h-5 w-5 text-gray-300 scale-90" />
+            {!preRecording && (
+              <div
+                className={`tooltip tooltip-right ${recording?.isUsingGameHook ? 'tooltip-success' : 'tooltip-warning'} flex items-center ml-1.5`}
+                data-tip={`${recording?.isUsingGameHook ? 'Game capture (using game hook)' : 'Display capture (not using game hook)'}`}
+              >
+                <div className={`swap swap-flip cursor-default overflow-hidden justify-center`}>
+                  <input type="checkbox" checked={recording?.isUsingGameHook} readOnly />
+                  <div className={`swap-on`}>
+                    <LuGamepad2 className="h-5 w-5 text-gray-300" />
+                  </div>
+                  <div className={`swap-off`}>
+                    <BsDisplay className="h-5 w-5 text-gray-300 scale-90" />
+                  </div>
                 </div>
               </div>
+            )}
+          </div>
+          {!preRecording && recording?.isHdr && (
+            <div className="tooltip tooltip-right tooltip-success m-0" data-tip="Recording in HDR">
+              <MdHdrOn className="h-5 w-5 text-gray-300" />
             </div>
           )}
         </div>
