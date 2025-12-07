@@ -3,9 +3,10 @@ import ContentCard from './ContentCard';
 import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { Content, ContentType } from '../Models/types';
 import { useScroll } from '../Context/ScrollContext';
-import { useLayoutEffect, useRef, useState, useMemo } from 'react';
+import { useLayoutEffect, useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import { IconType } from 'react-icons';
-import { MdUploadFile } from 'react-icons/md';
+import { MdUploadFile, MdDeleteOutline } from 'react-icons/md';
+import { AnimatePresence, motion } from 'framer-motion';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import ContentFilters, { SortOption } from './ContentFilters';
 
@@ -34,10 +35,10 @@ export default function ContentPage({
   const containerRef = useRef<HTMLDivElement>(null);
   const isSettingScroll = useRef(false);
 
-  // Get content items of the specified type
-  const contentItems = state.content.filter((video) => video.type === contentType);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [isCtrlPressed, setIsCtrlPressed] = useState(false);
 
-  // Filter and sort state
+  const contentItems = state.content.filter((video) => video.type === contentType);
   const [selectedGames, setSelectedGames] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(`${sectionId}-filters`);
@@ -56,22 +57,18 @@ export default function ContentPage({
     }
   });
 
-  // Get unique games for filter dropdown
   const uniqueGames = useMemo(() => {
     const games = contentItems.map((item) => item.game);
     return [...new Set(games)].sort();
   }, [contentItems]);
 
-  // Apply filters and sorting
   const filteredItems = useMemo(() => {
     let filtered = [...contentItems];
 
-    // Apply game filter
     if (selectedGames.length > 0) {
       filtered = filtered.filter((item) => selectedGames.includes(item.game));
     }
 
-    // Apply sorting
     filtered.sort((a, b) => {
       switch (sortOption) {
         case 'newest':
@@ -99,13 +96,11 @@ export default function ContentPage({
     return filtered;
   }, [contentItems, selectedGames, sortOption]);
 
-  // Handle filter changes
   const handleGameFilterChange = (games: string[]) => {
     setSelectedGames(games);
     localStorage.setItem(`${sectionId}-filters`, JSON.stringify(games));
   };
 
-  // Handle sort changes
   const handleSortChange = (option: SortOption) => {
     setSortOption(option);
     localStorage.setItem(`${sectionId}-sort`, JSON.stringify(option));
@@ -115,9 +110,90 @@ export default function ContentPage({
     setSelectedVideo(video);
   };
 
-  // Restore scroll position on mount
+  const handleCardClick = useCallback(
+    (video: Content) => {
+      if (isCtrlPressed) {
+        setSelectedItems((prev) => {
+          const newSet = new Set(prev);
+          if (newSet.has(video.fileName)) {
+            newSet.delete(video.fileName);
+          } else {
+            newSet.add(video.fileName);
+          }
+          return newSet;
+        });
+      } else {
+        if (selectedItems.size === 0) {
+          handlePlay(video);
+        } else {
+          setSelectedItems(new Set());
+        }
+      }
+    },
+    [isCtrlPressed, selectedItems.size],
+  );
+
+  const handleDeleteSelected = useCallback(() => {
+    if (selectedItems.size === 0) return;
+
+    const items = Array.from(selectedItems).map((fileName) => ({
+      FileName: fileName,
+      ContentType: contentType,
+    }));
+
+    sendMessageToBackend('DeleteMultipleContent', { Items: items });
+    setSelectedItems(new Set());
+  }, [selectedItems, contentType]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        setIsCtrlPressed(true);
+      }
+
+      if (e.ctrlKey && e.key === 'a') {
+        e.preventDefault();
+        if (selectedItems.size === filteredItems.length && filteredItems.length > 0) {
+          setSelectedItems(new Set());
+        } else {
+          setSelectedItems(new Set(filteredItems.map((item) => item.fileName)));
+        }
+      }
+
+      if (e.key === 'Escape') {
+        setSelectedItems(new Set());
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        setIsCtrlPressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [filteredItems, selectedItems.size]);
+
+  useEffect(() => {
+    setSelectedItems((prev) => {
+      const validFileNames = new Set(contentItems.map((item) => item.fileName));
+      const newSet = new Set<string>();
+      prev.forEach((fileName) => {
+        if (validFileNames.has(fileName)) {
+          newSet.add(fileName);
+        }
+      });
+      return newSet;
+    });
+  }, [contentItems]);
+
   useLayoutEffect(() => {
-    // Type-safe access to scroll positions
     const position =
       sectionId === 'clips'
         ? scrollPositions.clips
@@ -140,7 +216,6 @@ export default function ContentPage({
 
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Save scroll position when scrolling
   const handleScroll = () => {
     if (containerRef.current && !isSettingScroll.current) {
       if (scrollTimeout.current) {
@@ -151,7 +226,6 @@ export default function ContentPage({
         const currentPos = containerRef.current?.scrollTop;
         if (currentPos === undefined) return;
 
-        // Type-safe scroll position update
         const pageKey =
           sectionId === 'clips'
             ? 'clips'
@@ -170,7 +244,6 @@ export default function ContentPage({
     }
   };
 
-  // Check if we have progress items
   const progressValues = Object.values(progressItems);
   const hasProgress = progressValues.length > 0;
 
@@ -181,7 +254,9 @@ export default function ContentPage({
       onScroll={handleScroll}
     >
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-3xl font-bold">{title}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold">{title}</h1>
+        </div>
         <div className="flex items-center gap-2">
           {(sectionId === 'sessions' || sectionId === 'replayBuffer') && (
             <button
@@ -205,16 +280,16 @@ export default function ContentPage({
 
       {contentItems.length > 0 || hasProgress ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-          {/* Show progress card if applicable */}
           {isProgressVisible && progressCardElement}
 
-          {/* Show content cards */}
           {filteredItems.map((video, index) => (
             <ContentCard
               key={index}
               content={video}
-              onClick={() => handlePlay(video)}
+              onClick={() => handleCardClick(video)}
               type={contentType}
+              isSelected={selectedItems.has(video.fileName)}
+              isSelectionMode={isCtrlPressed || selectedItems.size > 0}
             />
           ))}
         </div>
@@ -224,6 +299,35 @@ export default function ContentPage({
           <p className="text-xl">No {title.toLowerCase()} found</p>
         </div>
       )}
+
+      <AnimatePresence>
+        {selectedItems.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-3 left-1/2 -translate-x-1/2 bg-base-300 border border-base-400 rounded-xl px-4 py-2 flex items-center gap-3 shadow-lg z-50"
+          >
+            <span className="text-sm text-gray-300">
+              {selectedItems.size} Selected
+            </span>
+            <button
+              className="btn btn-sm btn-ghost bg-error/20 hover:bg-error/10 text-error border-error h-8"
+              onClick={handleDeleteSelected}
+            >
+              <MdDeleteOutline size={16} />
+              Delete
+            </button>
+            <button
+              className="btn btn-sm btn-secondary border-base-400 hover:border-base-400 text-gray-400 hover:text-gray-300 h-8"
+              onClick={() => setSelectedItems(new Set())}
+            >
+              Cancel
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

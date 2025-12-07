@@ -142,6 +142,10 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement deleteContentParameterElement);
                             _ = Task.Run(() => HandleDeleteContent(deleteContentParameterElement));
                             break;
+                        case "DeleteMultipleContent":
+                            root.TryGetProperty("Parameters", out JsonElement deleteMultipleContentParameterElement);
+                            _ = Task.Run(() => HandleDeleteMultipleContent(deleteMultipleContentParameterElement));
+                            break;
                         case "UploadContent":
                             root.TryGetProperty("Parameters", out JsonElement uploadContentParameterElement);
                             _ = Task.Run(() => UploadService.HandleUploadContent(uploadContentParameterElement));
@@ -386,6 +390,53 @@ namespace Segra.Backend.App
             else
             {
                 Log.Information("FileName or ContentType property not found in DeleteContent message.");
+            }
+        }
+
+        public static async Task HandleDeleteMultipleContent(JsonElement message)
+        {
+            Log.Information($"Handling DeleteMultipleContent with message: {message}");
+
+            if (!message.TryGetProperty("Items", out JsonElement itemsElement))
+            {
+                Log.Information("Items property not found in DeleteMultipleContent message.");
+                return;
+            }
+
+            // Use bulk update to prevent multiple frontend updates
+            Settings.Instance._isBulkUpdating = true;
+            try
+            {
+                foreach (var item in itemsElement.EnumerateArray())
+                {
+                    if (item.TryGetProperty("FileName", out JsonElement fileNameElement) &&
+                        item.TryGetProperty("ContentType", out JsonElement contentTypeElement))
+                    {
+                        string fileName = fileNameElement.GetString()!;
+                        string contentTypeStr = contentTypeElement.GetString()!;
+
+                        if (Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
+                        {
+                            string videoFolder = Settings.Instance.ContentFolder;
+                            string contentTypeFolder = Path.Combine(videoFolder, contentType.ToString().ToLower() + "s");
+                            string filePath = Path.Combine(contentTypeFolder, $"{fileName}.mp4");
+
+                            // Delete without sending to frontend (sendToFrontend = false)
+                            await ContentService.DeleteContent(filePath, contentType, sendToFrontend: false);
+                            Log.Information($"Deleted content: {fileName}");
+                        }
+                        else
+                        {
+                            Log.Error($"Invalid ContentType provided: {contentTypeStr}");
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                Settings.Instance._isBulkUpdating = false;
+                // Reload content and send single update to frontend
+                await SettingsService.LoadContentFromFolderIntoState(true);
             }
         }
 

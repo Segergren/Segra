@@ -27,9 +27,11 @@ interface VideoCardProps {
   type: VideoType;
   onClick?: (video: Content) => void; // Click handler for the entire card
   isLoading?: boolean; // Indicates if this is a loading (skeleton) card
+  isSelected?: boolean; // Whether this card is selected in multi-select mode
+  isSelectionMode?: boolean; // Whether multi-select mode is active
 }
 
-export default function ContentCard({ content, type, onClick, isLoading }: VideoCardProps) {
+export default function ContentCard({ content, type, onClick, isLoading, isSelected = false, isSelectionMode = false }: VideoCardProps) {
   const { contentFolder, enableAi, showNewBadgeOnVideos } = useSettings();
   const { session } = useAuth();
   const { openModal, closeModal } = useModal();
@@ -210,10 +212,10 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
 
   return (
     <div
-      className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'}`}
+      className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
       onClick={() => {
         if (isBeingCompressed) return;
-        markAsViewed();
+        if (!isSelectionMode) markAsViewed();
         onClick?.(content!);
       }}
     >
@@ -229,7 +231,15 @@ export default function ContentCard({ content, type, onClick, isLoading }: Video
         <span className="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
           {formattedDuration}
         </span>
-        {isRecent() && (type === 'Session' || type === 'Buffer') && showNewBadgeOnVideos && (
+        {isSelectionMode && (
+          <input
+            type="checkbox"
+            className="checkbox checkbox-primary checkbox-sm absolute top-2 left-2"
+            checked={isSelected}
+            readOnly
+          />
+        )}
+        {isRecent() && (type === 'Session' || type === 'Buffer') && showNewBadgeOnVideos && !isSelectionMode && (
           <span className="absolute top-2 left-2 badge badge-primary badge-sm text-base-300 opacity-90">
             NEW
           </span>
