@@ -88,6 +88,7 @@ export interface Recording {
   endTime: Date;
   game: string;
   isUsingGameHook: boolean;
+  isHdr: boolean;
   coverImageId?: string;
   gameImage?: string; // Base64 encoded image of the game executable icon
 }

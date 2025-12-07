@@ -60,11 +60,18 @@ namespace Segra.Backend.Obs
         [GeneratedRegex(@"BufferDesc\.Height:\s*(\d+)")]
         private static partial Regex BufferDescHeightRegex();
         
+        [GeneratedRegex(@"BufferDesc\.Format:\s*(\d+)")]
+        private static partial Regex BufferDescFormatRegex();
+        
         // Public properties
         public static bool IsInitialized { get; private set; }
         public static GpuVendor DetectedGpuVendor { get; private set; } = DetectGpuVendor();
         public static uint? CapturedWindowWidth { get; private set; } = null;
         public static uint? CapturedWindowHeight { get; private set; } = null;
+        public static bool IsHdrDetected { get; private set; } = false;
+        
+        // HDR
+        private static readonly HashSet<uint> HdrDxgiFormats = new() { 10, 23, 24 }; // DXGI HDR formats
         
         // OBS output resources
         private static IntPtr _output = IntPtr.Zero;
@@ -285,6 +292,16 @@ namespace Segra.Backend.Obs
                         }
                     }
 
+                    if (formattedMessage.Contains("BufferDesc.Format:"))
+                    {
+                        var match = BufferDescFormatRegex().Match(formattedMessage);
+                        if (match.Success && uint.TryParse(match.Groups[1].Value, out uint dxgiFormat))
+                        {
+                            IsHdrDetected = HdrDxgiFormats.Contains(dxgiFormat);
+                            Log.Information($"Captured DXGI format: {dxgiFormat} (HDR: {IsHdrDetected})");
+                        }
+                    }
+
                     // Check if this is a replay buffer save message
                     if (formattedMessage.Contains("Wrote replay buffer to"))
                     {
@@ -433,7 +450,7 @@ namespace Segra.Backend.Obs
             return obs_reset_audio(ref audioInfo);
         }
 
-        private static bool ResetVideoSettings(uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null)
+        private static bool ResetVideoSettings(uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null, bool isHdr = false)
         {
             SettingsService.GetPrimaryMonitorResolution(out uint baseWidth, out uint baseHeight);
 
@@ -477,6 +494,25 @@ namespace Segra.Backend.Obs
                 Log.Information($"Downscaling from {baseWidth}x{baseHeight} to {outputWidth}x{outputHeight} (max height: {maxHeight})");
             }
 
+            video_format outputFormat;
+            video_colorspace colorspace;
+            video_range_type range;
+
+            if (isHdr)
+            {
+                outputFormat = video_format.VIDEO_FORMAT_P010;
+                colorspace = video_colorspace.VIDEO_CS_2100_PQ;
+                range = video_range_type.VIDEO_RANGE_FULL;
+                Log.Information("Configuring HDR video: P010, Rec.2100 PQ, Full range");
+            }
+            else
+            {
+                outputFormat = video_format.VIDEO_FORMAT_NV12;
+                colorspace = video_colorspace.VIDEO_CS_709;
+                range = video_range_type.VIDEO_RANGE_PARTIAL;
+                Log.Information("Configuring SDR video: NV12, Rec.709, Partial range");
+            }
+
             obs_video_info videoInfo = new obs_video_info()
             {
                 adapter = 0,
@@ -487,10 +523,10 @@ namespace Segra.Backend.Obs
                 base_height = baseHeight,
                 output_width = outputWidth,
                 output_height = outputHeight,
-                output_format = video_format.VIDEO_FORMAT_NV12,
+                output_format = outputFormat,
                 gpu_conversion = true,
-                colorspace = video_colorspace.VIDEO_CS_DEFAULT,
-                range = video_range_type.VIDEO_RANGE_DEFAULT,
+                colorspace = colorspace,
+                range = range,
                 scale_type = obs_scale_type.OBS_SCALE_BILINEAR
             };
 
@@ -533,11 +569,16 @@ namespace Segra.Backend.Obs
             // Reset the stopping flag when starting a new recording
             _isStoppingOrStopped = false;
             _signalOutputStop = false;
+            
+            // Reset HDR detection state for new recording
+            IsHdrDetected = false;
+            CapturedWindowWidth = null;
+            CapturedWindowHeight = null;
 
             // Note: According to docs, audio settings cannot be reconfigured after initialization
             // but video can be reset as long as no outputs are active
 
-            // Configure video settings specifically for this recording/buffer
+            // Configure initial video settings (will be reconfigured after game hook if HDR is detected)
             if (!ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate))
             {
                 throw new Exception("Failed to configure video settings for recording.");
@@ -611,38 +652,12 @@ namespace Segra.Backend.Obs
                 }
             }
 
-            // Reset video settings to set correct output width for games with custom resolution
-            Task.Delay(500).Wait();
-            
-            // If recording windowed applications, try to get the window dimensions
-            if (Settings.Instance.RecordWindowedApplications)
+            // Wait for game capture to hook BEFORE configuring video settings (needed for HDR detection)
+            // Skip waiting if started manually - just use display capture immediately
+            if (!startManually && _gameCaptureSource != IntPtr.Zero)
             {
-                if (WindowUtils.GetWindowDimensionsByExe(fileName, out uint windowWidth, out uint windowHeight))
-                {
-                    ResetVideoSettings(
-                        customFps: (uint)Settings.Instance.FrameRate,
-                        customOutputWidth: windowWidth,
-                        customOutputHeight: windowHeight
-                    );
-                }
-                else
-                {
-                    Log.Warning("Could not determine window size, using default video settings");
-                    ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
-                }
-            }
-            else
-            {
-                ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
-            }
-            
-            Task.Delay(1000).Wait();
-
-            // If display recording is disabled, wait for game capture to hook
-            if (!Settings.Instance.EnableDisplayRecording && _gameCaptureSource != IntPtr.Zero)
-            {
-                bool hooked = WaitUntilGameCaptureHooks(startManually ? 90000 : 30000);
-                if (!hooked)
+                bool hooked = WaitUntilGameCaptureHooks(30000);
+                if (!hooked && !Settings.Instance.EnableDisplayRecording)
                 {
                     Settings.Instance.State.Recording = null;
                     Settings.Instance.State.PreRecording = null;
@@ -652,15 +667,72 @@ namespace Segra.Backend.Obs
                 }
             }
 
-            // Add monitor capture if enabled and game capture has not hooked yet
-            if (Settings.Instance.EnableDisplayRecording && !_isGameCaptureHooked && _gameCaptureSource != IntPtr.Zero)
+            Task.Delay(1000).Wait();
+            
+            if (Settings.Instance.RecordWindowedApplications)
+            {
+                if (WindowUtils.GetWindowDimensionsByExe(fileName, out uint windowWidth, out uint windowHeight))
+                {
+                    ResetVideoSettings(
+                        customFps: (uint)Settings.Instance.FrameRate,
+                        customOutputWidth: windowWidth,
+                        customOutputHeight: windowHeight,
+                        isHdr: IsHdrDetected
+                    );
+                }
+                else
+                {
+                    Log.Warning("Could not determine window size, using default video settings");
+                    ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate, isHdr: IsHdrDetected);
+                }
+            }
+            else
+            {
+                ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate, isHdr: IsHdrDetected);
+            }
+            
+            if (IsHdrDetected && _gameCaptureSource != IntPtr.Zero)
+            {
+                obs_set_video_levels(300.0f, 1000.0f);
+                
+                IntPtr hdrSettings = obs_data_create();
+                obs_data_set_string(hdrSettings, "rgb10a2_space", "2100pq");
+                obs_source_update(_gameCaptureSource, hdrSettings);
+                obs_data_release(hdrSettings);
+                
+                Log.Information("HDR configured: video levels set, game capture updated");
+            }
+
+            // Add monitor capture if enabled and game capture has not hooked
+            if (Settings.Instance.EnableDisplayRecording && !_isGameCaptureHooked)
             {
                 AddMonitorCapture();
             }
 
+            // Determine encoder to use, switching to HEVC for HDR if needed
+            // H.264 encoders don't support 10-bit HDR, must use HEVC or AV1
+            string encoderId = Settings.Instance.Codec!.InternalEncoderId;
+            
+            if (IsHdrDetected)
+            {
+                // Check if current encoder is H.264 and switch to HEVC equivalent
+                string? hevcEncoderId = GetHdr10BitEncoderFallback(encoderId);
+                if (hevcEncoderId != null && hevcEncoderId != encoderId)
+                {
+                    Log.Information($"HDR detected: Switching encoder from {encoderId} to {hevcEncoderId} (10-bit support required)");
+
+                    encoderId = hevcEncoderId;
+                }
+            }
+
             IntPtr videoEncoderSettings = obs_data_create();
             obs_data_set_string(videoEncoderSettings, "preset", "Quality");
-            obs_data_set_string(videoEncoderSettings, "profile", "high");
+            
+            // Use main10 profile for HDR (10-bit), high profile for SDR (8-bit)
+            string profile = IsHdrDetected ? "main10" : "high";
+            obs_data_set_string(videoEncoderSettings, "profile", profile);
+            Log.Information($"Using encoder profile: {profile}");
+            
             obs_data_set_bool(videoEncoderSettings, "use_bufsize", true);
             obs_data_set_string(videoEncoderSettings, "rate_control", Settings.Instance.RateControl);
             obs_data_set_int(videoEncoderSettings, "keyint_sec", 1);
@@ -698,9 +770,8 @@ namespace Segra.Backend.Obs
                     throw new Exception("Unsupported Rate Control method.");
             }
 
-            // Select the appropriate encoder based on settings and available hardware
-            Log.Information($"Using encoder: {Settings.Instance.Codec!.FriendlyName} ({Settings.Instance.Codec.InternalEncoderId})");
-            string encoderId = Settings.Instance.Codec!.InternalEncoderId;
+            // Create the video encoder
+            Log.Information($"Using encoder: {encoderId} (HDR: {IsHdrDetected})");
             _videoEncoder = obs_video_encoder_create(encoderId, "Segra Recorder", videoEncoderSettings, IntPtr.Zero);
             obs_encoder_set_video(_videoEncoder, obs_get_video());
             obs_data_release(videoEncoderSettings);
@@ -935,6 +1006,7 @@ namespace Segra.Backend.Obs
                 FileName = fileName,
                 Pid = pid,
                 IsUsingGameHook = _isGameCaptureHooked,
+                IsHdr = IsHdrDetected,
                 GameImage = gameImage,
                 ExePath = exePath,
                 CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath)
@@ -1757,6 +1829,50 @@ namespace Segra.Backend.Obs
                 Thread.Sleep(50);
         }
 
+        /// <summary>
+        /// Maps H.264 encoders to their HEVC equivalents for HDR support.
+        /// H.264 does not support 10-bit encoding required for HDR, so we need to use HEVC or AV1.
+        /// </summary>
+        private static readonly Dictionary<string, string> H264ToHevcEncoderMap =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["jim_nvenc"] = "jim_hevc_nvenc",           // NVIDIA H.264 → H.265
+                ["h264_texture_amf"] = "h265_texture_amf",  // AMD H.264 → H.265
+                ["obs_qsv11_v2"] = "obs_qsv11_hevc",        // Intel H.264 → H.265
+            };
+        
+        /// <summary>
+        /// Gets the HEVC/10-bit capable encoder fallback for HDR content.
+        /// Returns the HEVC equivalent if the current encoder is H.264, or null if already HEVC/AV1 capable.
+        /// </summary>
+        private static string? GetHdr10BitEncoderFallback(string encoderId)
+        {
+            // If encoder is already HEVC or AV1, it supports 10-bit - return as-is
+            if (encoderId.Contains("hevc", StringComparison.OrdinalIgnoreCase) ||
+                encoderId.Contains("h265", StringComparison.OrdinalIgnoreCase) ||
+                encoderId.Contains("av1", StringComparison.OrdinalIgnoreCase))
+            {
+                return encoderId;
+            }
+            
+            // Try to find HEVC equivalent in our map
+            if (H264ToHevcEncoderMap.TryGetValue(encoderId, out string? hevcEncoder))
+            {
+                // Verify the HEVC encoder is available
+                bool hevcAvailable = Settings.Instance.State.Codecs.Any(
+                    c => c.InternalEncoderId.Equals(hevcEncoder, StringComparison.OrdinalIgnoreCase));
+                
+                if (hevcAvailable)
+                {
+                    return hevcEncoder;
+                }
+                
+                Log.Warning($"HEVC encoder {hevcEncoder} not available, HDR recording may not work correctly");
+            }
+            
+            // Return original if no mapping or HEVC not available
+            return encoderId;
+        }
 
         private static readonly Dictionary<string, string> EncoderFriendlyNames =
             new(StringComparer.OrdinalIgnoreCase)
