@@ -18,6 +18,7 @@ using Segra.Backend.Windows.Display;
 using Segra.Backend.Games;
 using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Storage;
+using System.Threading.Channels;
 
 namespace Segra.Backend.Obs
 {
@@ -110,6 +111,14 @@ namespace Segra.Backend.Obs
         
         // Threading primitives
         private static readonly SemaphoreSlim _stopRecordingSemaphore = new SemaphoreSlim(1, 1);
+        
+        // Log processing queue - prevents OBS thread from blocking on log operations
+        private static readonly Channel<(int level, string message)> _logChannel = 
+            Channel.CreateUnbounded<(int, string)>(new UnboundedChannelOptions 
+            { 
+                SingleReader = true, 
+                SingleWriter = false 
+            });
 
         public static async Task<bool> SaveReplayBuffer()
         {
@@ -204,39 +213,16 @@ namespace Segra.Backend.Obs
             return true;
         }
 
-        public static async Task InitializeAsync()
+        /// <summary>
+        /// Processes OBS log messages from the queue asynchronously.
+        /// This runs on a background thread to prevent blocking OBS's internal logging thread.
+        /// </summary>
+        private static async Task ProcessLogQueueAsync()
         {
-            // Detect GPU vendor early in initialization
-            DetectGpuVendor();
-
-            if (IsInitialized)
-                return;
-
-            try
-            {
-                await CheckIfExistsOrDownloadAsync();
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"OBS installation failed: {ex.Message}");
-                await MessageService.ShowModal(
-                    "Recorder Error",
-                    "The recorder installation failed. Please check your internet connection and try again. If you have any games running, please close them and restart Segra.",
-                    "error",
-                    "Could not install recorder"
-                );
-                Settings.Instance.State.HasLoadedObs = true;
-                return;
-            }
-
-            if (obs_initialized())
-                throw new Exception("Error: OBS is already initialized.");
-
-            base_set_log_handler(new log_handler_t(async (level, msg, args, p) =>
+            await foreach (var (level, formattedMessage) in _logChannel.Reader.ReadAllAsync())
             {
                 try
                 {
-                    string formattedMessage = MarshalUtils.GetLogMessage(msg, args);
                     Log.Information($"{((LogErrorLevel)level)}: {formattedMessage}");
 
                     if (formattedMessage.Contains("capture window no longer exists, terminating capture"))
@@ -323,6 +309,53 @@ namespace Segra.Backend.Obs
                     {
                         Log.Error(e.StackTrace);
                     }
+                }
+            }
+        }
+
+        public static async Task InitializeAsync()
+        {
+            // Detect GPU vendor early in initialization
+            DetectGpuVendor();
+
+            if (IsInitialized)
+                return;
+
+            try
+            {
+                await CheckIfExistsOrDownloadAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"OBS installation failed: {ex.Message}");
+                await MessageService.ShowModal(
+                    "Recorder Error",
+                    "The recorder installation failed. Please check your internet connection and try again. If you have any games running, please close them and restart Segra.",
+                    "error",
+                    "Could not install recorder"
+                );
+                Settings.Instance.State.HasLoadedObs = true;
+                return;
+            }
+
+            if (obs_initialized())
+                throw new Exception("Error: OBS is already initialized.");
+
+            // Start the log queue processor before setting the log handler
+            _ = Task.Run(ProcessLogQueueAsync);
+
+            // Non-blocking log handler - just queues messages for async processing
+            base_set_log_handler(new log_handler_t((level, msg, args, p) =>
+            {
+                try
+                {
+                    string formattedMessage = MarshalUtils.GetLogMessage(msg, args);
+                    // Queue the message for async processing - this is non-blocking
+                    _logChannel.Writer.TryWrite((level, formattedMessage));
+                }
+                catch
+                {
+                    // Silently ignore marshaling errors to never block OBS
                 }
             }), IntPtr.Zero);
 
