@@ -120,3 +120,24 @@
 .animate-shockwave {
   animation: shockwave 0.6s ease-out forwards;
 }
+
+/* Remove all focus rings globally */
+*,
+*:focus,
+*:focus-visible,
+*:focus-within,
+dialog,
+dialog:focus,
+.modal,
+.modal-box {
+  outline: none !important;
+  outline-width: 0 !important;
+  outline-style: none !important;
+  outline-color: transparent !important;
+  outline-offset: 0 !important;
+  --tw-ring-offset-width: 0px !important;
+  --tw-ring-width: 0px !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-offset-color: transparent !important;
+  box-shadow: none !important;
+}

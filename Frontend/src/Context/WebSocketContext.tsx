@@ -51,22 +51,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      // Check if we have an old version stored, if so, show release notes
-      const storedOldVersion = localStorage.getItem('oldAppVersion');
-      if (storedOldVersion) {
-        // Clear the flag so it only runs once
-        localStorage.removeItem('oldAppVersion');
-
-        // Wait 1 second before showing release notes
-        setTimeout(() => {
-          // Dispatch a custom event that UpdateContext can listen for
-          window.dispatchEvent(
-            new CustomEvent('show-release-notes', {
-              detail: { filterVersion: storedOldVersion },
-            }),
-          );
-        }, 1000);
-      }
     },
     onClose: (event) => {
       console.warn('WebSocket closed:', event.code, event.reason);

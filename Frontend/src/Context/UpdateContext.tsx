@@ -99,18 +99,18 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     // Listen for WebSocket messages
     window.addEventListener('websocket-message', handleWebSocketMessage as EventListener);
 
-    // Listen for the custom show-release-notes event
-    const handleShowReleaseNotes = (event: CustomEvent<any>) => {
-      if (event.detail && event.detail.filterVersion) {
-        openReleaseNotesModal(event.detail.filterVersion);
-      }
-    };
-
-    window.addEventListener('show-release-notes', handleShowReleaseNotes as EventListener);
+    // Check if there's an old version stored (set during app update)
+    const oldVersion = localStorage.getItem('oldAppVersion');
+    if (oldVersion) {
+      localStorage.removeItem('oldAppVersion');
+      // Small delay to ensure modal system is ready
+      setTimeout(() => {
+        openReleaseNotesModal(oldVersion);
+      }, 1000);
+    }
 
     return () => {
       window.removeEventListener('websocket-message', handleWebSocketMessage as EventListener);
-      window.removeEventListener('show-release-notes', handleShowReleaseNotes as EventListener);
     };
   }, []);
 
