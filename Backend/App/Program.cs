@@ -36,7 +36,7 @@ namespace Segra.Backend.App
         private static Mutex? singleInstanceMutex;
         private static Thread? pipeServerThread;
         private static string? appUrl;
-        private const long maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
+        private const long maxFileSizeBytes = 8 * 1024 * 1024; // 8MB
 
         [STAThread]
         static void Main(string[] args)
@@ -304,8 +304,8 @@ namespace Segra.Backend.App
 
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
-                .WriteTo.Console()
                 .WriteTo.Debug()
+                //.WriteTo.Debug(restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning) // Remove restricted minimum level to show all logs but increase lag while debugging
                 .WriteTo.File(
                     path: LogFilePath,
                     fileSizeLimitBytes: maxFileSizeBytes,
