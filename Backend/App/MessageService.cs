@@ -146,6 +146,10 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement deleteMultipleContentParameterElement);
                             _ = Task.Run(() => HandleDeleteMultipleContent(deleteMultipleContentParameterElement));
                             break;
+                        case "PermanentDeleteContent":
+                            root.TryGetProperty("Parameters", out JsonElement permanentDeleteContentParameterElement);
+                            _ = Task.Run(() => HandlePermanentDeleteContent(permanentDeleteContentParameterElement));
+                            break;
                         case "UploadContent":
                             root.TryGetProperty("Parameters", out JsonElement uploadContentParameterElement);
                             _ = Task.Run(() => UploadService.HandleUploadContent(uploadContentParameterElement));
@@ -437,6 +441,38 @@ namespace Segra.Backend.App
                 Settings.Instance._isBulkUpdating = false;
                 // Reload content and send single update to frontend
                 await SettingsService.LoadContentFromFolderIntoState(true);
+            }
+        }
+
+        public static async Task HandlePermanentDeleteContent(JsonElement message)
+        {
+            Log.Information($"Handling PermanentDeleteContent with message: {message}");
+
+            // Extract FileName and ContentType
+            if (message.TryGetProperty("FileName", out JsonElement fileNameElement) &&
+                message.TryGetProperty("ContentType", out JsonElement contentTypeElement))
+            {
+                string fileName = fileNameElement.GetString()!;
+                string contentTypeStr = contentTypeElement.GetString()!;
+
+                if (Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
+                {
+                    // Construct the full file path based on the file name and content type
+                    string videoFolder = Settings.Instance.ContentFolder;
+                    string contentTypeFolder = Path.Combine(videoFolder, contentType.ToString().ToLower() + "s");
+                    string filePath = Path.Combine(contentTypeFolder, $"{fileName}.mp4"); // Assuming .mp4 extension
+
+                    // Invoke the permanent deletion asynchronously
+                    await ContentService.PermanentDeleteContent(filePath, contentType);
+                }
+                else
+                {
+                    Log.Error($"Invalid ContentType provided: {contentTypeStr}");
+                }
+            }
+            else
+            {
+                Log.Information("FileName or ContentType property not found in PermanentDeleteContent message.");
             }
         }
 
@@ -854,7 +890,8 @@ namespace Segra.Backend.App
                 Log.Error($"Error moving game: {ex.Message}");
                 await ShowModal("Error", $"Failed to move game: {ex.Message}", "error");
             }
-            finally {
+            finally
+            {
                 Settings.Instance._isBulkUpdating = false;
                 _ = SendSettingsToFrontend("Moved game");
             }
