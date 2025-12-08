@@ -439,8 +439,8 @@ export default function ContentCard({
                   className={`flex w-full items-center gap-2 px-4 py-3 rounded-lg transition-all duration-200 hover:pl-5 outline-none ${
                     isShiftPressed
                       ? isDeleteConfirm
-                        ? 'text-error bg-error/20 hover:bg-error/30 active:bg-error/40'
-                        : 'text-error bg-error/10 hover:bg-error/20 active:bg-error/30'
+                        ? 'text-error hover:bg-error/30 active:bg-error/40'
+                        : 'text-error hover:bg-error/20 active:bg-error/30'
                       : 'text-error hover:bg-error/10 active:bg-error/20'
                   }`}
                   onClick={(e) => {
