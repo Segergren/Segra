@@ -170,9 +170,9 @@ namespace Segra.Backend.Windows.Display
                 {
                     uint capturedWidth = OBSService.CapturedWindowWidth.Value;
                     uint capturedHeight = OBSService.CapturedWindowHeight.Value;
-                    
+
                     SettingsService.GetPrimaryMonitorResolution(out uint displayWidth, out uint displayHeight);
-                    
+
                     if (capturedWidth == displayWidth && capturedHeight == displayHeight)
                     {
                         width = capturedWidth;
@@ -225,13 +225,13 @@ namespace Segra.Backend.Windows.Display
                         {
                             // Dimensions are stable, increment stability counter
                             stabilityChecks++;
-                            
+
                             if (stabilityChecks >= requiredStabilityChecks)
                             {
                                 Log.Information($"Retrieved stable window dimensions: {width}x{height} after {stabilityChecks} checks");
                                 return true;
                             }
-                            
+
                             Log.Information($"Window dimensions stable at {width}x{height}, check {stabilityChecks}/{requiredStabilityChecks}");
                             Thread.Sleep(1000);
                         }
@@ -241,11 +241,11 @@ namespace Segra.Backend.Windows.Display
                             Log.Information($"Window dimensions changed from {lastWidth}x{lastHeight} to {width}x{height}, resetting stability timer...");
                             lastWidth = width;
                             lastHeight = height;
-                            
+
                             bool isStandardAspectRatio = IsStandardAspectRatio(width, height);
                             requiredStabilityChecks = isStandardAspectRatio ? 10 : 20;
                             stabilityChecks = 0;
-                            
+
                             Thread.Sleep(1000);
                         }
                     }
@@ -255,10 +255,10 @@ namespace Segra.Backend.Windows.Display
                         bool isStandardAspectRatio = IsStandardAspectRatio(width, height);
                         requiredStabilityChecks = isStandardAspectRatio ? 10 : 20;
                         stabilityChecks = 0;
-                        
+
                         string aspectRatioNote = isStandardAspectRatio ? "standard aspect ratio" : "non-standard aspect ratio";
                         Log.Information($"Window dimensions are {width}x{height} ({aspectRatioNote}), waiting {requiredStabilityChecks} seconds to verify stability...");
-                        
+
                         lastWidth = width;
                         lastHeight = height;
                         Thread.Sleep(1000);

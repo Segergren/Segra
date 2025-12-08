@@ -22,10 +22,10 @@ namespace Segra.Backend.App
     {
         [DllImport("user32.dll")]
         static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-        
+
         [DllImport("user32.dll")]
         static extern bool SetProcessDPIAware();
-        
+
         const int SW_HIDE = 0;
         private static readonly AutoResetEvent ShowWindowEvent = new AutoResetEvent(false);
         public static bool hasLoadedInitialSettings = false;
@@ -43,7 +43,7 @@ namespace Segra.Backend.App
         {
             // Set process DPI aware to ensure we capture at physical resolution
             SetProcessDPIAware();
-            
+
             // In debug mode, kill any existing instances before starting
 #if DEBUG
             try
@@ -51,7 +51,7 @@ namespace Segra.Backend.App
                 var currentProcess = Process.GetCurrentProcess();
                 var existingProcesses = Process.GetProcessesByName(currentProcess.ProcessName)
                     .Where(p => p.Id != currentProcess.Id);
-                
+
                 foreach (var process in existingProcesses)
                 {
                     Console.WriteLine($"[DEBUG] Killing existing instance: PID {process.Id}");
@@ -64,7 +64,7 @@ namespace Segra.Backend.App
                 Console.WriteLine($"[DEBUG] Failed to kill existing instance: {ex.Message}");
             }
 #endif
-            
+
             // Try to create a named mutex - this will fail if another instance exists
             singleInstanceMutex = new Mutex(true, "SegraApplicationMutex", out bool createdNew);
 
@@ -273,10 +273,10 @@ namespace Segra.Backend.App
         private static void Shutdown()
         {
             Log.Information("Application shutting down.");
-            
+
             // Shutdown OBS if it was initialized
             OBSService.Shutdown();
-            
+
             Log.CloseAndFlush(); // Ensure all logs are written before the application exits
 
             // Release the mutex when closing (only if we own it)
@@ -546,7 +546,7 @@ namespace Segra.Backend.App
 
                     var menu = new ContextMenuStrip();
                     menu.Items.Add("Open", null, async (s, e) => await ShowApplicationWindow());
-                    menu.Items.Add("Exit", null, (s, e) => 
+                    menu.Items.Add("Exit", null, (s, e) =>
                     {
                         Shutdown();
                         Environment.Exit(0);

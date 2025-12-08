@@ -15,7 +15,7 @@ namespace Segra.Backend.Api
             _httpListener.Prefixes.Add(prefix);
             _httpListener.Start();
             Log.Information("Server started at {Prefix}", prefix);
-            
+
             _cancellationTokenSource = new CancellationTokenSource();
             _ = Task.Run(() => AcceptRequestsAsync(_cancellationTokenSource.Token));
         }
@@ -23,7 +23,7 @@ namespace Segra.Backend.Api
         private static async Task AcceptRequestsAsync(CancellationToken cancellationToken)
         {
             Log.Information("ContentServer now accepting requests");
-            
+
             while (!cancellationToken.IsCancellationRequested && _httpListener.IsListening)
             {
                 try
@@ -47,14 +47,14 @@ namespace Segra.Backend.Api
                     Log.Error(ex, "Error accepting request");
                 }
             }
-            
+
             Log.Information("ContentServer stopped accepting requests");
         }
 
         private static async Task ProcessRequestAsync(HttpListenerContext context)
         {
             var response = context.Response;
-            
+
             try
             {
                 var rawUrl = context.Request.RawUrl ?? "";
@@ -87,7 +87,7 @@ namespace Segra.Backend.Api
                 {
                     if (!response.OutputStream.CanWrite)
                         return;
-                        
+
                     response.StatusCode = (int)HttpStatusCode.InternalServerError;
                     response.ContentType = "text/plain";
                     using (var writer = new StreamWriter(response.OutputStream))
@@ -137,7 +137,7 @@ namespace Segra.Backend.Api
                 response.ContentType = "image/jpeg";
                 response.AddHeader("Cache-Control", "public, max-age=86400");
                 response.AddHeader("Expires", DateTime.UtcNow.AddDays(7).ToString("R"));
-                
+
                 try
                 {
                     var lastModified = File.GetLastWriteTimeUtc(input);
@@ -239,12 +239,12 @@ namespace Segra.Backend.Api
         private static async Task StreamVideoFile(string fileName, HttpListenerContext context)
         {
             var response = context.Response;
-            
+
             string rangeHeader = context.Request.Headers["Range"] ?? "";
             long start = 0;
             long end;
-            
-            using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 262144, 
+
+            using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 262144,
                 FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
                 long fileLength = fs.Length;
@@ -275,12 +275,12 @@ namespace Segra.Backend.Api
                 response.StatusCode = string.IsNullOrEmpty(rangeHeader) ? (int)HttpStatusCode.OK : (int)HttpStatusCode.PartialContent;
                 response.ContentType = "video/mp4";
                 response.AddHeader("Accept-Ranges", "bytes");
-                
+
                 if (!string.IsNullOrEmpty(rangeHeader))
                 {
                     response.AddHeader("Content-Range", $"bytes {start}-{end}/{fileLength}");
                 }
-                
+
                 response.ContentLength64 = contentLength;
 
                 if (start > 0)
@@ -295,7 +295,7 @@ namespace Segra.Backend.Api
                 {
                     int bytesToRead = (int)Math.Min(buffer.Length, bytesRemaining);
                     int bytesRead = await fs.ReadAsync(buffer, 0, bytesToRead);
-                    
+
                     if (bytesRead == 0)
                         break;
 
@@ -308,7 +308,7 @@ namespace Segra.Backend.Api
         private static async Task StreamJsonFile(string fileName, HttpListenerResponse response)
         {
             var fileInfo = new FileInfo(fileName);
-            
+
             response.StatusCode = (int)HttpStatusCode.OK;
             response.ContentType = "application/json";
             response.AddHeader("Accept-Ranges", "bytes");

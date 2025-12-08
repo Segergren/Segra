@@ -28,21 +28,21 @@ namespace Segra.Backend.Games.RocketLeague
     internal class RocketLeagueIntegration : Integration, IDisposable
     {
         private const string ProcessName = "RocketLeague";
-        
+
         // Pattern scanning - these patterns find GObjects/GNames dynamically
         private static readonly byte[] GObjectsPattern = { 0x48, 0x8B, 0xC8, 0x48, 0x8B, 0x05, 0x00, 0x00, 0x00, 0x00, 0x48, 0x8B, 0x0C, 0xC8 };
         private static readonly byte[] GNamesPattern1 = { 0x48, 0x8B, 0x0D, 0x00, 0x00, 0x00, 0x00, 0x48, 0x8B, 0x0C, 0xC1 };
         private static readonly byte[] GNamesPattern2 = { 0x49, 0x63, 0x06, 0x48, 0x8D, 0x55, 0xE8, 0x48, 0x8B, 0x0D, 0x00, 0x00, 0x00, 0x00, 0x48, 0x8B, 0x0C, 0xC1 };
-        
+
         // Expected offset between GNames and GObjects (for validation/fallback)
         private const long ExpectedGNamesGObjectsOffset = 0x48;
-        
+
         // GFxData_PRI_TA offsets
         private const int NameIndexOffset = 0x48;
         private const int ClassOffset = 0x50;
         private const int PlayerNameOffset = 0x98;
         private const int TeamOffset = 0xD0;
-        
+
         // PRI_TA offsets (live stats)
         private const int PRI_ScoreOffset = 0x458;
         private const int PRI_GoalsOffset = 0x45C;
@@ -52,34 +52,34 @@ namespace Segra.Backend.Games.RocketLeague
         private const int GfxDataToPriOffset = 0x138;
         private const int GfxDataToPriFallbackStart = 0x40;
         private const int GfxDataToPriFallbackEnd = 0x200;
-        
+
         // GObjects/GNames structure offsets
         private const int GObjectsNumElementsOffset = 0x08;
         private const int FNameEntryNameOffset = 0x18;
-        
+
         private IntPtr _processHandle = IntPtr.Zero;
         private IntPtr _baseAddress = IntPtr.Zero;
         private int _moduleSize = 0;
         private IntPtr _gObjectsAddress = IntPtr.Zero;
         private IntPtr _gNamesAddress = IntPtr.Zero;
-        
+
         private CancellationTokenSource? _cts;
         private int _lastGoals = 0;
         private int _lastAssists = 0;
         private bool _initialStatsCaptured = false;
         private IntPtr _localPlayerPtr = IntPtr.Zero;  // GFxData_PRI_TA for name
         private IntPtr _localPriTaPtr = IntPtr.Zero;   // PRI_TA for live stats
-        
+
         // P/Invoke
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
-        
+
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, int dwSize, out int lpNumberOfBytesRead);
-        
+
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool CloseHandle(IntPtr hObject);
-        
+
         private const uint PROCESS_VM_READ = 0x0010;
         private const uint PROCESS_QUERY_INFORMATION = 0x0400;
 
@@ -90,7 +90,7 @@ namespace Segra.Backend.Games.RocketLeague
         {
             _cts = new CancellationTokenSource();
             Log.Information("[RL] Starting Rocket League integration");
-            
+
             await Task.Run(() => MonitorLoop(_cts.Token));
         }
 
@@ -101,13 +101,13 @@ namespace Segra.Backend.Games.RocketLeague
         {
             Log.Information("[RL] Shutting down Rocket League integration");
             _cts?.Cancel();
-            
+
             if (_processHandle != IntPtr.Zero)
             {
                 CloseHandle(_processHandle);
                 _processHandle = IntPtr.Zero;
             }
-            
+
             return Task.CompletedTask;
         }
 
@@ -126,7 +126,7 @@ namespace Segra.Backend.Games.RocketLeague
                         Thread.Sleep(2000);
                         continue;
                     }
-                    
+
                     MonitorGoals(token);
                 }
                 catch (Exception ex)
@@ -162,14 +162,14 @@ namespace Segra.Backend.Games.RocketLeague
                     return false;
                 }
             }
-            
+
             var processes = Process.GetProcessesByName(ProcessName);
             var process = processes.FirstOrDefault();
             if (process == null)
             {
                 return false;
             }
-            
+
             try
             {
                 _processHandle = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, false, process.Id);
@@ -178,7 +178,7 @@ namespace Segra.Backend.Games.RocketLeague
                     Log.Warning("[RL] Failed to open Rocket League process");
                     return false;
                 }
-                
+
                 var mainModule = process.MainModule;
                 if (mainModule == null)
                 {
@@ -186,13 +186,13 @@ namespace Segra.Backend.Games.RocketLeague
                     Detach();
                     return false;
                 }
-                
+
                 _baseAddress = mainModule.BaseAddress;
                 _moduleSize = mainModule.ModuleMemorySize;
-                
+
                 Log.Information($"[RL] Attached to Rocket League PID={process.Id}");
                 Log.Information($"[RL] Base: 0x{_baseAddress.ToInt64():X}, Size: 0x{_moduleSize:X}");
-                
+
                 // Find GObjects and GNames using pattern scanning
                 if (!FindOffsetsWithPatternScan())
                 {
@@ -200,12 +200,12 @@ namespace Segra.Backend.Games.RocketLeague
                     Detach();
                     return false;
                 }
-                
+
                 _lastGoals = 0;
                 _initialStatsCaptured = false;
                 _localPlayerPtr = IntPtr.Zero;
                 _localPriTaPtr = IntPtr.Zero;
-                
+
                 return true;
             }
             catch (Exception ex)
@@ -224,7 +224,7 @@ namespace Segra.Backend.Games.RocketLeague
         private bool FindOffsetsWithPatternScan()
         {
             Log.Information("[RL] Starting pattern scan for GObjects/GNames...");
-            
+
             // Read module memory for pattern scanning
             byte[] moduleMemory = new byte[_moduleSize];
             if (!ReadProcessMemory(_processHandle, _baseAddress, moduleMemory, _moduleSize, out int bytesRead) || bytesRead != _moduleSize)
@@ -232,7 +232,7 @@ namespace Segra.Backend.Games.RocketLeague
                 Log.Warning($"[RL] Failed to read module memory. Read {bytesRead}/{_moduleSize} bytes");
                 return false;
             }
-            
+
             // Find GObjects
             long gobjectsPatternAddr = ScanPattern(moduleMemory, GObjectsPattern, "GObjects");
             if (gobjectsPatternAddr >= 0)
@@ -240,7 +240,7 @@ namespace Segra.Backend.Games.RocketLeague
                 _gObjectsAddress = ExtractGObjectsAddress(moduleMemory, gobjectsPatternAddr);
                 Log.Information($"[RL] GObjects address: 0x{_gObjectsAddress.ToInt64():X}");
             }
-            
+
             // Find GNames - try pattern 1 first
             long gnamesPatternAddr = ScanPattern(moduleMemory, GNamesPattern1, "GNames (Method 1)");
             if (gnamesPatternAddr >= 0)
@@ -258,7 +258,7 @@ namespace Segra.Backend.Games.RocketLeague
                     Log.Information($"[RL] GNames address (method 2): 0x{_gNamesAddress.ToInt64():X}");
                 }
             }
-            
+
             // Validate and adjust if needed
             if (_gObjectsAddress != IntPtr.Zero && _gNamesAddress == IntPtr.Zero)
             {
@@ -266,7 +266,7 @@ namespace Segra.Backend.Games.RocketLeague
                 _gNamesAddress = IntPtr.Subtract(_gObjectsAddress, (int)ExpectedGNamesGObjectsOffset);
                 Log.Warning($"[RL] Using fallback GNames address: 0x{_gNamesAddress.ToInt64():X}");
             }
-            
+
             bool success = _gObjectsAddress != IntPtr.Zero && _gNamesAddress != IntPtr.Zero;
             if (success)
             {
@@ -278,7 +278,7 @@ namespace Segra.Backend.Games.RocketLeague
                     return false;
                 }
             }
-            
+
             return success;
         }
 
@@ -303,7 +303,7 @@ namespace Segra.Backend.Games.RocketLeague
                         break;
                     }
                 }
-                
+
                 if (found)
                     return i;
             }
@@ -409,7 +409,7 @@ namespace Segra.Backend.Games.RocketLeague
         private void MonitorGoals(CancellationToken token)
         {
             int refreshCounter = 0;
-            
+
             while (!token.IsCancellationRequested && _processHandle != IntPtr.Zero)
             {
                 try
@@ -426,12 +426,12 @@ namespace Segra.Backend.Games.RocketLeague
                         }
                     }
                     refreshCounter++;
-                    
+
                     // Read current stats from PRI_TA (live stats)
                     int currentGoals = Read<int>(_localPriTaPtr + PRI_GoalsOffset);
                     int currentAssists = Read<int>(_localPriTaPtr + PRI_AssistsOffset);
                     int score = Read<int>(_localPriTaPtr + PRI_ScoreOffset);
-                    
+
                     // Sanity check - detect garbage data (e.g., when game loses focus)
                     if (currentGoals < 0 || currentGoals > 50 || currentAssists < 0 || currentAssists > 50 || score < 0 || score > 10000)
                     {
@@ -442,7 +442,7 @@ namespace Segra.Backend.Games.RocketLeague
                         Thread.Sleep(500);
                         continue;
                     }
-                    
+
                     if (!_initialStatsCaptured)
                     {
                         _lastGoals = currentGoals;
@@ -469,7 +469,7 @@ namespace Segra.Backend.Games.RocketLeague
                         Log.Information($"[RL] New match detected, resetting stats");
                         _lastGoals = currentGoals;
                     }
-                    
+
                     // Check for assists
                     if (currentAssists == _lastAssists + 1)
                     {
@@ -487,7 +487,7 @@ namespace Segra.Backend.Games.RocketLeague
                         // New match started, reset assists
                         _lastAssists = currentAssists;
                     }
-                    
+
                     Thread.Sleep(50);
                 }
                 catch (Exception ex)
@@ -507,25 +507,25 @@ namespace Segra.Backend.Games.RocketLeague
         private void FindLocalPlayer()
         {
             var players = FindPlayerInstances();
-            
+
             if (players.Count == 0)
             {
                 _localPlayerPtr = IntPtr.Zero;
                 _localPriTaPtr = IntPtr.Zero;
                 return;
             }
-            
+
             // Collect all instances by type
             var priTaInstances = new List<IntPtr>();
             var gfxDataInstances = new List<(IntPtr ptr, string name, int team)>();
             var nameCounts = new Dictionary<string, int>();
-            
+
             foreach (var playerPtr in players)
             {
                 IntPtr classPtr = Read<IntPtr>(playerPtr + ClassOffset);
                 int classNameIndex = classPtr != IntPtr.Zero ? Read<int>(classPtr + NameIndexOffset) : 0;
                 string? className = ReadGName(classNameIndex);
-                
+
                 if (className == "PRI_TA")
                 {
                     priTaInstances.Add(playerPtr);
@@ -534,11 +534,11 @@ namespace Segra.Backend.Games.RocketLeague
                 {
                     string name = ReadPlayerName(playerPtr);
                     int team = Read<int>(playerPtr + TeamOffset);
-                    
+
                     if (!string.IsNullOrEmpty(name))
                     {
                         gfxDataInstances.Add((playerPtr, name, team));
-                        
+
                         // Count name occurrences - local player's name appears most often (cached in UI)
                         if (!nameCounts.ContainsKey(name))
                             nameCounts[name] = 0;
@@ -546,7 +546,7 @@ namespace Segra.Backend.Games.RocketLeague
                     }
                 }
             }
-            
+
             // Find the local player's name (most frequent in GFxData_PRI_TA)
             string? localPlayerName = null;
             int maxCount = 0;
@@ -558,18 +558,18 @@ namespace Segra.Backend.Games.RocketLeague
                     localPlayerName = kvp.Key;
                 }
             }
-            
+
             if (localPlayerName != null)
             {
                 // Collect all candidates with their stats
                 var candidates = new List<(IntPtr gfxPtr, IntPtr priPtr, int goals, int score)>();
-                
+
                 foreach (var (ptr, name, team) in gfxDataInstances)
                 {
                     if (name == localPlayerName && (team == 0 || team == 1))
                     {
                         IntPtr linkedPri = Read<IntPtr>(ptr + GfxDataToPriOffset);
-                        
+
                         if (priTaInstances.Contains(linkedPri))
                         {
                             int priGoals = Read<int>(linkedPri + PRI_GoalsOffset);
@@ -578,7 +578,7 @@ namespace Segra.Backend.Games.RocketLeague
                         }
                     }
                 }
-                
+
                 // If we have a valid PRI, check if a NEW match started (another PRI has Goals=0)
                 if (_localPriTaPtr != IntPtr.Zero && priTaInstances.Contains(_localPriTaPtr))
                 {
@@ -594,7 +594,7 @@ namespace Segra.Backend.Games.RocketLeague
                     // No fresh match, keep current PRI
                     return;
                 }
-                
+
                 // No valid PRI yet - select candidate with lowest goals (most likely current match)
                 if (candidates.Count > 0)
                 {
@@ -603,7 +603,7 @@ namespace Segra.Backend.Games.RocketLeague
                     _localPriTaPtr = best.priPtr;
                 }
             }
-            
+
             // Fallback: scan for PRI link if candidate selection didn't find one
             if (_localPriTaPtr == IntPtr.Zero && _localPlayerPtr != IntPtr.Zero && priTaInstances.Count > 0)
             {
@@ -617,7 +617,7 @@ namespace Segra.Backend.Games.RocketLeague
                     }
                 }
             }
-            
+
         }
 
         /// <summary>
@@ -627,38 +627,38 @@ namespace Segra.Backend.Games.RocketLeague
         private List<IntPtr> FindPlayerInstances()
         {
             var players = new List<IntPtr>();
-            
+
             try
             {
                 IntPtr objectsArrayPtr = Read<IntPtr>(_gObjectsAddress);
                 int objectCount = Read<int>(_gObjectsAddress + GObjectsNumElementsOffset);
-                
+
                 if (objectsArrayPtr == IntPtr.Zero)
                 {
                     Log.Warning("[RL] GObjects.Objects pointer is null");
                     return players;
                 }
-                
+
                 if (objectCount <= 0 || objectCount > 500000)
                 {
                     Log.Warning($"[RL] Invalid object count: {objectCount}");
                     return players;
                 }
-                
+
                 for (int i = 0; i < objectCount; i++)
                 {
                     IntPtr objectPtr = Read<IntPtr>(objectsArrayPtr + (i * 8));
                     if (objectPtr == IntPtr.Zero)
                         continue;
-                    
+
                     IntPtr classPtr = Read<IntPtr>(objectPtr + ClassOffset);
                     if (classPtr == IntPtr.Zero)
                         continue;
-                    
+
                     int classNameIndex = Read<int>(classPtr + NameIndexOffset);
                     string? className = ReadGName(classNameIndex);
-                    
-                    if (className == "PRI_TA" || className == "GFxData_PRI_TA" || 
+
+                    if (className == "PRI_TA" || className == "GFxData_PRI_TA" ||
                         className == "PlayerController_TA" || className == "PlayerController")
                     {
                         players.Add(objectPtr);
@@ -669,7 +669,7 @@ namespace Segra.Backend.Games.RocketLeague
             {
                 Log.Warning($"[RL] Error finding player instances: {ex.Message}\n{ex.StackTrace}");
             }
-            
+
             return players;
         }
 
@@ -683,12 +683,12 @@ namespace Segra.Backend.Games.RocketLeague
         {
             int size = Marshal.SizeOf<T>();
             byte[] buffer = new byte[size];
-            
+
             if (!ReadProcessMemory(_processHandle, address, buffer, size, out _))
             {
                 return default;
             }
-            
+
             GCHandle handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
             try
             {
@@ -711,22 +711,22 @@ namespace Segra.Backend.Games.RocketLeague
             {
                 if (nameIndex < 0 || nameIndex > 500000)
                     return null;
-                
+
                 IntPtr gNamesArrayPtr = Read<IntPtr>(_gNamesAddress);
                 if (gNamesArrayPtr == IntPtr.Zero)
                     gNamesArrayPtr = _gNamesAddress;
-                
+
                 IntPtr nameEntryPtr = Read<IntPtr>(gNamesArrayPtr + (nameIndex * 8));
                 if (nameEntryPtr == IntPtr.Zero)
                     return null;
-                
+
                 byte[] buffer = new byte[256];
                 if (!ReadProcessMemory(_processHandle, nameEntryPtr + FNameEntryNameOffset, buffer, buffer.Length, out _))
                     return null;
-                
+
                 // Try Unicode first (wchar_t)
                 string unicodeResult = Encoding.Unicode.GetString(buffer).TrimEnd('\0').Split('\0')[0];
-                
+
                 // If Unicode gives garbage (non-printable chars), try ASCII
                 if (string.IsNullOrEmpty(unicodeResult) || !IsPrintableString(unicodeResult))
                 {
@@ -734,7 +734,7 @@ namespace Segra.Backend.Games.RocketLeague
                     if (!string.IsNullOrEmpty(asciiResult) && IsPrintableString(asciiResult))
                         return asciiResult;
                 }
-                
+
                 return unicodeResult;
             }
             catch
@@ -742,7 +742,7 @@ namespace Segra.Backend.Games.RocketLeague
                 return null;
             }
         }
-        
+
         /// <summary>
         /// Checks if a string contains only printable ASCII characters (32-126).
         /// </summary>
@@ -772,11 +772,11 @@ namespace Segra.Backend.Games.RocketLeague
                 IntPtr namePtr = Read<IntPtr>(playerPtr + PlayerNameOffset);
                 if (namePtr == IntPtr.Zero)
                     return string.Empty;
-                
+
                 byte[] buffer = new byte[64];
                 if (!ReadProcessMemory(_processHandle, namePtr, buffer, buffer.Length, out _))
                     return string.Empty;
-                
+
                 return Encoding.Unicode.GetString(buffer).TrimEnd('\0').Split('\0')[0];
             }
             catch
