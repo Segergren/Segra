@@ -40,7 +40,9 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
 
   return (
     <div className="w-full px-2">
-      <div className={`bg-base-300 border ${isError ? 'border-error' : 'border-base-400'} border-opacity-75 rounded-lg p-3`}>
+      <div
+        className={`bg-base-300 border ${isError ? 'border-error' : 'border-base-400'} border-opacity-75 rounded-lg p-3`}
+      >
         <div className="flex items-center gap-3 w-full relative">
           {/* Progress */}
           {isError ? (
@@ -63,11 +65,13 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
                 <MdClose size={16} />
               </button>
             )}
-            <div className={`text-sm font-medium truncate ${isError ? 'text-error' : 'text-gray-200'}`}>
+            <div
+              className={`text-sm font-medium truncate ${isError ? 'text-error' : 'text-gray-200'}`}
+            >
               {isError ? 'Clip Failed' : 'Creating Clip'}
             </div>
             <div className={`text-xs truncate ${isError ? 'text-error/70' : 'text-gray-400'}`}>
-              {isError ? (clipping.error || 'Unknown error') : `${Math.round(displayProgress)}%`}
+              {isError ? clipping.error || 'Unknown error' : `${Math.round(displayProgress)}%`}
             </div>
           </div>
         </div>

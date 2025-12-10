@@ -50,7 +50,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           refreshToken: session.refresh_token,
         });
       }
-
     },
     onClose: (event) => {
       console.warn('WebSocket closed:', event.code, event.reason);

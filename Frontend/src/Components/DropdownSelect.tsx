@@ -85,7 +85,9 @@ export default function DropdownSelect({
   }, []);
 
   const sizeBtn = size === 'sm' ? 'btn-sm' : size === 'lg' ? 'btn-lg' : '';
-  const computedMenuClassName = menuClassName ?? `dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[999] w-full p-2 ${openDirection === 'up' ? 'mb-1' : 'mt-1'} shadow flex-nowrap`;
+  const computedMenuClassName =
+    menuClassName ??
+    `dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[999] w-full p-2 ${openDirection === 'up' ? 'mb-1' : 'mt-1'} shadow flex-nowrap`;
 
   return (
     <div

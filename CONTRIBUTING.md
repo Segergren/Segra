@@ -51,7 +51,7 @@ There are two parts running during development: the backend (Photino.NET desktop
 
 ## Linting & Formatting
 - EditorConfig is enforced across the repo:
-  - Global: LF line endings and 2-space indent
+  - Global: CRLF line endings and 2-space indent
   - C#: CRLF line endings, 4-space indent
 - C# formatting (via `dotnet format`):
   - Pre-commit: formats staged `*.cs` files

@@ -41,10 +41,16 @@ export default function ConfirmationModal({
 
       {/* Footer with buttons */}
       <div className="modal-action mt-6 flex justify-end gap-3">
-        <button className="btn btn-secondary bg-base-300 border-base-400 hover:border-base-400 hover:bg-base-200" onClick={onCancel}>
+        <button
+          className="btn btn-secondary bg-base-300 border-base-400 hover:border-base-400 hover:bg-base-200"
+          onClick={onCancel}
+        >
           {cancelText}
         </button>
-        <button className="btn btn-ghost bg-error/20 hover:bg-error/10 text-error border-error" onClick={onConfirm}>
+        <button
+          className="btn btn-ghost bg-error/20 hover:bg-error/10 text-error border-error"
+          onClick={onConfirm}
+        >
           {confirmText}
         </button>
       </div>

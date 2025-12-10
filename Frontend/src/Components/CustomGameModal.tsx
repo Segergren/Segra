@@ -32,7 +32,8 @@ export default function CustomGameModal({ onSave, onClose }: CustomGameModalProp
     };
 
     window.addEventListener('websocket-message', handleWebSocketMessage as EventListener);
-    return () => window.removeEventListener('websocket-message', handleWebSocketMessage as EventListener);
+    return () =>
+      window.removeEventListener('websocket-message', handleWebSocketMessage as EventListener);
   }, [isSelectingFile, customGamePaths, customGameName]);
 
   const handleBrowseExecutable = () => {
@@ -41,7 +42,7 @@ export default function CustomGameModal({ onSave, onClose }: CustomGameModalProp
   };
 
   const handleRemoveCustomPath = (pathToRemove: string) => {
-    setCustomGamePaths(customGamePaths.filter(p => p !== pathToRemove));
+    setCustomGamePaths(customGamePaths.filter((p) => p !== pathToRemove));
   };
 
   const handleSave = () => {
@@ -69,7 +70,7 @@ export default function CustomGameModal({ onSave, onClose }: CustomGameModalProp
         </div>
         <div className="modal-body pt-8">
           <h3 className="font-bold text-2xl mb-6">Add Custom Game</h3>
-          
+
           <div className="form-control w-full mb-4">
             <label className="label">
               <span className="label-text text-base-content">Game Name</span>
@@ -95,11 +96,14 @@ export default function CustomGameModal({ onSave, onClose }: CustomGameModalProp
               <MdFolderOpen size={18} />
               {isSelectingFile ? 'Selecting...' : 'Browse Executable'}
             </button>
-            
+
             {customGamePaths.length > 0 && (
               <div className="mt-3 space-y-2">
                 {customGamePaths.map((path, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-base-200 p-2 rounded-lg border border-base-400">
+                  <div
+                    key={idx}
+                    className="flex items-center gap-2 bg-base-200 p-2 rounded-lg border border-base-400"
+                  >
                     <span className="text-xs flex-1 truncate text-gray-300">{path}</span>
                     <button
                       className="btn btn-ghost btn-xs hover:bg-error/20 hover:text-error"

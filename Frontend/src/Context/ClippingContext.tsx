@@ -31,12 +31,12 @@ export function ClippingProvider({ children }: { children: ReactNode }) {
 
       if (method === 'ClipProgress') {
         const progress = content as ClippingProgress;
-        
+
         // Suppress messages for cancelled clips
         if (suppressedIds.current.has(progress.id)) {
           return;
         }
-        
+
         setClippingProgress((prev) => ({
           ...prev,
           [progress.id]: progress,

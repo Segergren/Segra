@@ -38,13 +38,12 @@ const VideoBackground = memo(({ videoUrl, bookmarks }: VideoBackgroundProps) => 
     const killTime = timeToSeconds(currentKill.time);
     const startTime = Math.max(0, killTime - 5); // 5 seconds before
     const endTime = killTime + 5; // 5 seconds after
-    
+
     endTimeRef.current = endTime;
 
     // Seek to the start time
     video.currentTime = startTime;
     video.play().catch((err) => console.error('Video play error:', err));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentKillIndex]);
 
   // Separate effect for timeupdate listener to avoid re-creating it
@@ -186,9 +185,7 @@ const AiContentCard: React.FC<AiContentCardProps> = ({ progress }) => {
             <div className="flex justify-between items-center">
               <h2 className="card-title truncate h-[36px]">{progress.content.game}</h2>
             </div>
-            <p className="text-sm">
-              {progress.message}
-            </p>
+            <p className="text-sm">{progress.message}</p>
           </div>
         </div>
       </div>

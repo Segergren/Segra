@@ -10,7 +10,14 @@ interface GameCardProps {
   onRemove: (game: Game) => void;
 }
 
-export default function GameCard({ game, allPaths, type, onAllow, onBlock, onRemove }: GameCardProps) {
+export default function GameCard({
+  game,
+  allPaths,
+  type,
+  onAllow,
+  onBlock,
+  onRemove,
+}: GameCardProps) {
   const isAllowed = type === 'allowed';
   const isBlocked = type === 'blocked';
 
@@ -23,19 +30,21 @@ export default function GameCard({ game, allPaths, type, onAllow, onBlock, onRem
         <MdClose size={14} />
       </button>
       <div>
-        <div className={`text-xs font-semibold mb-1 ${isAllowed ? 'text-green-600' : 'text-red-600'}`}>
-            {isAllowed ? 'ALLOWED' : isBlocked ? 'BLOCKED' : '\u00A0'}
+        <div
+          className={`text-xs font-semibold mb-1 ${isAllowed ? 'text-green-600' : 'text-red-600'}`}
+        >
+          {isAllowed ? 'ALLOWED' : isBlocked ? 'BLOCKED' : '\u00A0'}
         </div>
         <div className="font-medium text-sm">{game.name}</div>
         {(() => {
           const paths = allPaths || game.paths || [];
           if (paths.length === 0) return null;
-          
+
           const truncatePath = (path: string) => {
             const parts = path.replace(/\\/g, '/').split('/');
             return parts.slice(-2).join('\\');
           };
-          
+
           const displayPaths = paths.map(truncatePath).join(', ');
           return <div className="text-xs text-gray-400 truncate mt-1 mb-2">{displayPaths}</div>;
         })()}

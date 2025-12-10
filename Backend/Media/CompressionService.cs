@@ -69,7 +69,7 @@ namespace Segra.Backend.Media
                     finalPath = Path.Combine(directory, $"{fileName}_compressed{extension}");
                     if (File.Exists(finalPath)) File.Delete(finalPath);
                     File.Move(tempOutputPath, finalPath);
-                    
+
                     Log.Information($"Replaced original with compressed file: {finalPath}");
                     await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent?.Bookmarks, originalContent?.Title, originalContent?.CreatedAt);
                     await ContentService.CreateThumbnail(finalPath, contentType);

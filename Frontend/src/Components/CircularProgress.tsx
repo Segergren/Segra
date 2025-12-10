@@ -42,16 +42,14 @@ export default function CircularProgress({
     return () => clearInterval(timer);
   }, [progress, showText]);
 
-  const fontSize = size * 0.30;
+  const fontSize = size * 0.3;
 
   return (
-    <div className={`relative inline-flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
-      <svg
-        className="-rotate-90"
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-      >
+    <div
+      className={`relative inline-flex items-center justify-center ${className}`}
+      style={{ width: size, height: size }}
+    >
+      <svg className="-rotate-90" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -70,14 +68,16 @@ export default function CircularProgress({
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           className="text-primary ease-in-out"
-          style={{ strokeDasharray: `${circumference} ${circumference}`, strokeDashoffset: offset, transitionProperty: 'all', transitionDuration: `${duration}ms` }}
+          style={{
+            strokeDasharray: `${circumference} ${circumference}`,
+            strokeDashoffset: offset,
+            transitionProperty: 'all',
+            transitionDuration: `${duration}ms`,
+          }}
         />
       </svg>
       {showText && (
-        <span
-          className="absolute text-gray-300 font-medium"
-          style={{ fontSize }}
-        >
+        <span className="absolute text-gray-300 font-medium" style={{ fontSize }}>
           {Math.round(displayProgress)}%
         </span>
       )}

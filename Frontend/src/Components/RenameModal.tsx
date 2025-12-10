@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { Content } from "../Models/types";
-import { MdDriveFileRenameOutline } from "react-icons/md";
+import { useState, useEffect, useRef } from 'react';
+import { Content } from '../Models/types';
+import { MdDriveFileRenameOutline } from 'react-icons/md';
 
 interface RenameModalProps {
   content: Content;
@@ -8,14 +8,10 @@ interface RenameModalProps {
   onClose: () => void;
 }
 
-export default function RenameModal({
-  content,
-  onRename,
-  onClose,
-}: RenameModalProps) {
+export default function RenameModal({ content, onRename, onClose }: RenameModalProps) {
   // Use the same logic as ContentCard: title || game || "Untitled"
-  const displayedTitle = content.title || content.game || "Untitled";
-  const actualTitle = content.title || "";
+  const displayedTitle = content.title || content.game || 'Untitled';
+  const actualTitle = content.title || '';
   const [newName, setNewName] = useState(actualTitle);
   const [nameError, setNameError] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -46,10 +42,10 @@ export default function RenameModal({
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       e.preventDefault();
       handleRename();
-    } else if (e.key === "Escape") {
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
     }
@@ -70,9 +66,7 @@ export default function RenameModal({
           <div className="flex items-center gap-3 mb-6 mt-4">
             <MdDriveFileRenameOutline className="w-8 h-8 text-primary" />
             <div>
-              <h3 className="text-lg font-semibold text-base-content">
-                Rename
-              </h3>
+              <h3 className="text-lg font-semibold text-base-content">Rename</h3>
               <p className="text-sm text-gray-400">
                 Enter a new title for this {content.type.toLowerCase()}
               </p>
@@ -89,7 +83,7 @@ export default function RenameModal({
                 setNameError(false);
               }}
               onKeyDown={handleKeyPress}
-              className={`input input-bordered bg-base-300 w-full ${nameError ? "input-error" : ""}`}
+              className={`input input-bordered bg-base-300 w-full ${nameError ? 'input-error' : ''}`}
               placeholder={displayedTitle}
             />
             {nameError && (

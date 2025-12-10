@@ -14,7 +14,7 @@ export const GameListManager: React.FC<GameListManagerProps> = ({ listType }) =>
   const listTitle = listType === 'whitelist' ? 'Allow List' : 'Block List';
   const listDescription =
     listType === 'whitelist'
-      ? "Games in your allow list are forced to be detected and recorded."
+      ? 'Games in your allow list are forced to be detected and recorded.'
       : 'Games in your block list are prevented from being recorded.';
   const emptyListLabel = listType === 'whitelist' ? 'allow list' : 'block list';
 
@@ -60,7 +60,9 @@ export const GameListManager: React.FC<GameListManagerProps> = ({ listType }) =>
                         <div>
                           <div className="font-semibold">{game.paths.length} executables</div>
                           {game.paths.map((path, idx) => (
-                            <div key={idx} className="truncate">• {path}</div>
+                            <div key={idx} className="truncate">
+                              • {path}
+                            </div>
                           ))}
                         </div>
                       ) : (

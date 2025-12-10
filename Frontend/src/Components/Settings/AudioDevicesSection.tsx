@@ -8,7 +8,10 @@ interface AudioDevicesSectionProps {
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
 
-export default function AudioDevicesSection({ settings, updateSettings }: AudioDevicesSectionProps) {
+export default function AudioDevicesSection({
+  settings,
+  updateSettings,
+}: AudioDevicesSectionProps) {
   const [draggingVolume, setDraggingVolume] = useState<{
     deviceId: string | null;
     volume: number | null;
@@ -24,7 +27,8 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
   const selectedOutputIds = settings.outputDevices.map((d) => d.id);
   const combinedSelectedIds = [...selectedInputIds, ...selectedOutputIds];
   const maxIsolatedTracks = 5;
-  const hasOverTrackLimit = settings.enableSeparateAudioTracks && combinedSelectedIds.length > maxIsolatedTracks;
+  const hasOverTrackLimit =
+    settings.enableSeparateAudioTracks && combinedSelectedIds.length > maxIsolatedTracks;
   const selectionSig = combinedSelectedIds.join(',');
 
   // Dismissible warning for track limit exceeded
@@ -44,7 +48,7 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
     const isInput = deviceType === 'input';
     const selectedDevices = isInput ? settings.inputDevices : settings.outputDevices;
     const availableDevices = isInput ? settings.state.inputDevices : settings.state.outputDevices;
-    
+
     const isSelected = selectedDevices.some((d) => d.id === deviceId);
     let updatedDevices;
 
@@ -53,10 +57,13 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
     } else {
       const deviceToAdd = availableDevices.find((d) => d.id === deviceId);
       if (deviceToAdd) {
-        updatedDevices = [...selectedDevices, { id: deviceId, name: deviceToAdd.name, volume: 1.0 }];
+        updatedDevices = [
+          ...selectedDevices,
+          { id: deviceId, name: deviceToAdd.name, volume: 1.0 },
+        ];
       }
     }
-    
+
     if (isInput) {
       updateSettings({ inputDevices: updatedDevices });
     } else {
@@ -68,11 +75,11 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
   const handleVolumeChange = (deviceId: string, volume: number, deviceType: 'input' | 'output') => {
     const isInput = deviceType === 'input';
     const selectedDevices = isInput ? settings.inputDevices : settings.outputDevices;
-    
+
     const updatedDevices = selectedDevices.map((device) =>
       device.id === deviceId ? { ...device, volume: volume } : device,
     );
-    
+
     if (isInput) {
       updateSettings({ inputDevices: updatedDevices });
     } else {
@@ -146,7 +153,11 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
                     }
                     onMouseUp={(e) => {
                       if (draggingVolume.deviceId === device.id) {
-                        handleVolumeChange(device.id, parseFloat(e.currentTarget.value), deviceType);
+                        handleVolumeChange(
+                          device.id,
+                          parseFloat(e.currentTarget.value),
+                          deviceType,
+                        );
                         setDraggingVolume({ deviceId: null, volume: null });
                       }
                     }}
@@ -190,7 +201,7 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
                   {deviceSetting.name.replace(' (Default)', '')}
                 </span>
                 {/* Volume slider for selected devices */}
-                {(
+                {
                   <div className="flex items-center gap-1 w-32">
                     <input
                       type="range"
@@ -219,7 +230,11 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
                       }
                       onMouseUp={(e) => {
                         if (draggingVolume.deviceId === deviceSetting.id) {
-                          handleVolumeChange(deviceSetting.id, parseFloat(e.currentTarget.value), deviceType);
+                          handleVolumeChange(
+                            deviceSetting.id,
+                            parseFloat(e.currentTarget.value),
+                            deviceType,
+                          );
                           setDraggingVolume({ deviceId: null, volume: null });
                         }
                       }}
@@ -233,7 +248,7 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
                       %
                     </span>
                   </div>
-                )}
+                }
               </label>
             </div>
           ))}
@@ -306,8 +321,9 @@ export default function AudioDevicesSection({ settings, updateSettings }: AudioD
               <div className="py-2 flex items-center w-full">
                 <MdWarning className="h-5 w-5 mr-2 shrink-0" />
                 <motion.span className="flex-1">
-                  You have selected more than 5 audio sources. Only the first 5 will be saved as separate audio
-                  tracks. Any additional sources will be recorded in the Full Mix only.
+                  You have selected more than 5 audio sources. Only the first 5 will be saved as
+                  separate audio tracks. Any additional sources will be recorded in the Full Mix
+                  only.
                 </motion.span>
                 <button
                   aria-label="Dismiss track limit warning"

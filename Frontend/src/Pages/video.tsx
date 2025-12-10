@@ -64,10 +64,10 @@ function TopInfoBar({ video }: { video: Content }) {
   const createdTimeStr = !isValidDate
     ? ''
     : created.toLocaleTimeString(isUS ? 'en-US' : undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: isUS,
-    });
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: isUS,
+      });
 
   return (
     <div className="flex items-center gap-2 px-2 py-1 mb-2 text-xs leading-tight text-gray-300 border rounded-lg bg-base-300 border-custom">
@@ -320,7 +320,8 @@ export default function VideoComponent({ video }: { video: Content }) {
   const videoWrapperClassName = [
     'block relative w-full',
     isFullscreen ? 'h-full' : 'rounded-lg overflow-hidden aspect-video max-h-[calc(100vh-100px)]',
-    !isFullscreen && (isHighlightOrClip ? 'md:max-h-[calc(100vh-230px)]' : 'md:max-h-[calc(100vh-200px)]'),
+    !isFullscreen &&
+      (isHighlightOrClip ? 'md:max-h-[calc(100vh-230px)]' : 'md:max-h-[calc(100vh-200px)]'),
   ]
     .filter(Boolean)
     .join(' ');
@@ -1227,7 +1228,13 @@ export default function VideoComponent({ video }: { video: Content }) {
   );
 
   const availableBookmarkTypes = useMemo(() => {
-    const order = [BookmarkType.Kill, BookmarkType.Goal, BookmarkType.Assist, BookmarkType.Death, BookmarkType.Manual];
+    const order = [
+      BookmarkType.Kill,
+      BookmarkType.Goal,
+      BookmarkType.Assist,
+      BookmarkType.Death,
+      BookmarkType.Manual,
+    ];
     return order.filter((type) => video.bookmarks.some((b) => b.type === type));
   }, [video.bookmarks]);
 
@@ -1426,9 +1433,9 @@ export default function VideoComponent({ video }: { video: Content }) {
                 >
                   {isMuted || volume === 0 ? (
                     <MdVolumeOff className="w-6 h-6" />
-                  ) : volume < 0.20 ? (
+                  ) : volume < 0.2 ? (
                     <MdVolumeMute className="w-6 h-6" />
-                  ) : volume < 0.70 ? (
+                  ) : volume < 0.7 ? (
                     <MdVolumeDown className="w-6 h-6" />
                   ) : (
                     <MdVolumeUp className="w-6 h-6" />
@@ -1584,7 +1591,11 @@ export default function VideoComponent({ video }: { video: Content }) {
                         }}
                       >
                         <div className="bg-[#EFAF2B] w-[26px] h-[26px] rounded-full flex items-center justify-center mb-0">
-                          {bookmark.type === 'Goal' || bookmark.type === 'Assist' ? <Icon size={20} /> : <Icon size={16} />}
+                          {bookmark.type === 'Goal' || bookmark.type === 'Assist' ? (
+                            <Icon size={20} />
+                          ) : (
+                            <Icon size={16} />
+                          )}
                         </div>
                         <div className="w-[2px] h-[16px] bg-[#EFAF2B]" />
                       </motion.div>

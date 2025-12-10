@@ -309,9 +309,7 @@ export default function ContentPage({
             transition={{ duration: 0.2 }}
             className="fixed bottom-3 left-1/2 -translate-x-1/2 bg-base-300 border border-base-400 rounded-xl px-4 py-2 flex items-center gap-3 shadow-lg z-50"
           >
-            <span className="text-sm text-gray-300">
-              {selectedItems.size} Selected
-            </span>
+            <span className="text-sm text-gray-300">{selectedItems.size} Selected</span>
             <button
               className="btn btn-sm btn-ghost bg-error/20 hover:bg-error/10 text-error border-error h-8"
               onClick={handleDeleteSelected}

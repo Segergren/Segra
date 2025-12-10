@@ -1,4 +1,12 @@
-import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useEffect,
+  useCallback,
+  useRef,
+} from 'react';
 import { Settings, initialSettings, initialState } from '../Models/types';
 import { useWebSocketContext } from './WebSocketContext';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
@@ -79,7 +87,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
         // Persist stable settings for faster startup rendering before backend connects
         saveCachedSettings(updatedSettings);
-        
+
         // Queue for backend update if this change originated from frontend
         if (!fromBackend) {
           pendingBackendUpdateRef.current = updatedSettings;
@@ -96,7 +104,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     if (pendingBackendUpdateRef.current !== null) {
       const settingsToSend = pendingBackendUpdateRef.current;
       pendingBackendUpdateRef.current = null;
-      
+
       // Send to backend on next tick to ensure state update is complete
       queueMicrotask(() => {
         sendMessageToBackend('UpdateSettings', settingsToSend);

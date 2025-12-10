@@ -9,11 +9,16 @@ interface VideoSettingsSectionProps {
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
 
-export default function VideoSettingsSection({ settings, updateSettings }: VideoSettingsSectionProps) {
+export default function VideoSettingsSection({
+  settings,
+  updateSettings,
+}: VideoSettingsSectionProps) {
   const [localReplayBufferDuration, setLocalReplayBufferDuration] = useState<string>(
     String(settings.replayBufferDuration),
   );
-  const [localReplayBufferMaxSize, setLocalReplayBufferMaxSize] = useState<string>(String(settings.replayBufferMaxSize));
+  const [localReplayBufferMaxSize, setLocalReplayBufferMaxSize] = useState<string>(
+    String(settings.replayBufferMaxSize),
+  );
   const [localCrfValue, setLocalCrfValue] = useState<string>(String(settings.crfValue));
   const [localCqLevel, setLocalCqLevel] = useState<string>(String(settings.cqLevel));
 
@@ -46,32 +51,38 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
       <div className="mb-4">
         <div className="grid grid-cols-4 gap-3">
           <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${settings.videoQualityPreset === 'low' ? 'border-primary' : 'border-base-400'
-              }`}
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+              settings.videoQualityPreset === 'low' ? 'border-primary' : 'border-base-400'
+            }`}
             onClick={() => handlePresetChange('low')}
           >
             <div className="text-sm font-semibold">Low Quality</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">720p • 30fps</div>
           </div>
           <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${settings.videoQualityPreset === 'standard' ? 'border-primary' : 'border-base-400'
-              }`}
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+              settings.videoQualityPreset === 'standard' ? 'border-primary' : 'border-base-400'
+            }`}
             onClick={() => handlePresetChange('standard')}
           >
             <div className="text-sm font-semibold">Standard</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">1080p • 60fps</div>
           </div>
           <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${settings.videoQualityPreset === 'high' ? 'border-primary' : 'border-base-400'
-              }`}
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+              settings.videoQualityPreset === 'high' ? 'border-primary' : 'border-base-400'
+            }`}
             onClick={() => handlePresetChange('high')}
           >
             <div className="text-sm font-semibold">High Quality</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">{settings.state.maxDisplayHeight >= 1440 ? '1440p' : '1080p'} • 60fps</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">
+              {settings.state.maxDisplayHeight >= 1440 ? '1440p' : '1080p'} • 60fps
+            </div>
           </div>
           <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${settings.videoQualityPreset === 'custom' ? 'border-primary' : 'border-base-400'
-              }`}
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+              settings.videoQualityPreset === 'custom' ? 'border-primary' : 'border-base-400'
+            }`}
             onClick={() => handlePresetChange('custom')}
           >
             <div className="text-sm font-semibold">Custom</div>
@@ -110,7 +121,10 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
             >
               {/* Buffer Duration */}
               <div className="form-control w-full">
-                <label htmlFor="replayBufferDuration" className="label text-base-content px-0 !block mb-1">
+                <label
+                  htmlFor="replayBufferDuration"
+                  className="label text-base-content px-0 !block mb-1"
+                >
                   <span className="label-text">Buffer Duration (seconds)</span>
                 </label>
                 <input
@@ -138,7 +152,10 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
 
               {/* Buffer Max Size */}
               <div className="form-control w-full">
-                <label htmlFor="replayBufferMaxSize" className="label text-base-content px-0 !block mb-1">
+                <label
+                  htmlFor="replayBufferMaxSize"
+                  className="label text-base-content px-0 !block mb-1"
+                >
                   <span className="label-text">Buffer Maximum Size (MB)</span>
                 </label>
                 <input
@@ -195,11 +212,17 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                   items={[
                     { value: '720p', label: '720p' },
                     { value: '1080p', label: '1080p' },
-                    ...(settings.state.maxDisplayHeight >= 1440 ? [{ value: '1440p', label: '1440p' }] : []),
-                    ...(settings.state.maxDisplayHeight >= 2160 ? [{ value: '4K', label: '4K' }] : []),
+                    ...(settings.state.maxDisplayHeight >= 1440
+                      ? [{ value: '1440p', label: '1440p' }]
+                      : []),
+                    ...(settings.state.maxDisplayHeight >= 2160
+                      ? [{ value: '4K', label: '4K' }]
+                      : []),
                   ]}
                   value={settings.resolution}
-                  onChange={(val) => updateSettings({ resolution: val as '720p' | '1080p' | '1440p' | '4K' })}
+                  onChange={(val) =>
+                    updateSettings({ resolution: val as '720p' | '1080p' | '1440p' | '4K' })
+                  }
                 />
               </div>
 
@@ -209,7 +232,10 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                   <span className="label-text text-base-content">Frame Rate (FPS)</span>
                 </label>
                 <DropdownSelect
-                  items={[24, 30, 60, 120, 144].map((v) => ({ value: String(v), label: String(v) }))}
+                  items={[24, 30, 60, 120, 144].map((v) => ({
+                    value: String(v),
+                    label: String(v),
+                  }))}
                   value={String(settings.frameRate)}
                   onChange={(val) => updateSettings({ frameRate: Number(val) })}
                 />
@@ -224,8 +250,12 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                   items={[
                     { value: 'CBR', label: 'CBR (Constant Bitrate)' },
                     { value: 'VBR', label: 'VBR (Variable Bitrate)' },
-                    ...(settings.encoder === 'cpu' ? [{ value: 'CRF', label: 'CRF (Constant Rate Factor)' }] : []),
-                    ...(settings.encoder !== 'cpu' ? [{ value: 'CQP', label: 'CQP (Constant Quantization Parameter)' }] : []),
+                    ...(settings.encoder === 'cpu'
+                      ? [{ value: 'CRF', label: 'CRF (Constant Rate Factor)' }]
+                      : []),
+                    ...(settings.encoder !== 'cpu'
+                      ? [{ value: 'CQP', label: 'CQP (Constant Quantization Parameter)' }]
+                      : []),
                   ]}
                   value={settings.rateControl}
                   onChange={(val) => updateSettings({ rateControl: val })}
@@ -280,7 +310,10 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                       }))}
                       value={String(
                         settings.maxBitrate ??
-                        Math.max(settings.minBitrate ?? settings.bitrate, Math.round((settings.bitrate || 10) * 1.5)),
+                          Math.max(
+                            settings.minBitrate ?? settings.bitrate,
+                            Math.round((settings.bitrate || 10) * 1.5),
+                          ),
                       )}
                       onChange={(val) => {
                         const max = Number(val);
@@ -360,7 +393,11 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                 </label>
                 <DropdownSelect
                   items={settings.state.codecs
-                    .filter((codec) => (settings.encoder === 'gpu' ? codec.isHardwareEncoder : !codec.isHardwareEncoder))
+                    .filter((codec) =>
+                      settings.encoder === 'gpu'
+                        ? codec.isHardwareEncoder
+                        : !codec.isHardwareEncoder,
+                    )
                     .sort((a, b) => {
                       const priorityOrder = ['jim_nvenc', 'h264_texture_amf', 'obs_x264'];
                       const aIndex = priorityOrder.indexOf(a.internalEncoderId);
@@ -370,10 +407,14 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                       if (bIndex !== -1) return 1;
                       return 0;
                     })
-                    .map((codec) => ({ value: codec.internalEncoderId, label: codec.friendlyName }))}
+                    .map((codec) => ({
+                      value: codec.internalEncoderId,
+                      label: codec.friendlyName,
+                    }))}
                   value={
-                    settings.state.codecs.find((c) => c.internalEncoderId === settings.codec?.internalEncoderId)
-                      ?.internalEncoderId
+                    settings.state.codecs.find(
+                      (c) => c.internalEncoderId === settings.codec?.internalEncoderId,
+                    )?.internalEncoderId
                   }
                   onChange={(val) =>
                     updateSettings({
@@ -437,7 +478,9 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
                 onChange={(val) =>
                   updateSettings({
                     selectedDisplay:
-                      val === 'Automatic' ? undefined : settings.state.displays.find((d) => d.deviceName === val),
+                      val === 'Automatic'
+                        ? undefined
+                        : settings.state.displays.find((d) => d.deviceName === val),
                   })
                 }
               />
@@ -461,7 +504,9 @@ export default function VideoSettingsSection({ settings, updateSettings }: Video
             <span className="badge badge-primary badge-sm">Beta</span>
           </label>
           {settings.enableDisplayRecording && (
-            <span className="text-xs text-warning ml-7">Cannot be enabled with Display Recording while this feature is in Beta</span>
+            <span className="text-xs text-warning ml-7">
+              Cannot be enabled with Display Recording while this feature is in Beta
+            </span>
           )}
         </div>
       </div>

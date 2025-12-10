@@ -31,15 +31,24 @@ interface VideoCardProps {
   isSelectionMode?: boolean; // Whether multi-select mode is active
 }
 
-export default function ContentCard({ content, type, onClick, isLoading, isSelected = false, isSelectionMode = false }: VideoCardProps) {
+export default function ContentCard({
+  content,
+  type,
+  onClick,
+  isLoading,
+  isSelected = false,
+  isSelectionMode = false,
+}: VideoCardProps) {
   const { contentFolder, enableAi, showNewBadgeOnVideos } = useSettings();
   const { session } = useAuth();
   const { openModal, closeModal } = useModal();
   const { aiProgress } = useAiHighlights();
   const { compressionProgress, isCompressing } = useCompression();
-  
+
   const isBeingCompressed = content?.filePath ? isCompressing(content.filePath) : false;
-  const currentCompressionProgress = content?.filePath ? compressionProgress[content.filePath] : undefined;
+  const currentCompressionProgress = content?.filePath
+    ? compressionProgress[content.filePath]
+    : undefined;
 
   if (isLoading) {
     // Render a skeleton card
@@ -239,16 +248,19 @@ export default function ContentCard({ content, type, onClick, isLoading, isSelec
             readOnly
           />
         )}
-        {isRecent() && (type === 'Session' || type === 'Buffer') && showNewBadgeOnVideos && !isSelectionMode && (
-          <span className="absolute top-2 left-2 badge badge-primary badge-sm text-base-300 opacity-90">
-            NEW
-          </span>
-        )}
+        {isRecent() &&
+          (type === 'Session' || type === 'Buffer') &&
+          showNewBadgeOnVideos &&
+          !isSelectionMode && (
+            <span className="absolute top-2 left-2 badge badge-primary badge-sm text-base-300 opacity-90">
+              NEW
+            </span>
+          )}
         {currentCompressionProgress && (
           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
             <p className="text-white text-sm mb-2">
-              {currentCompressionProgress.status === 'compressing' 
-                ? 'Compressing...' 
+              {currentCompressionProgress.status === 'compressing'
+                ? 'Compressing...'
                 : currentCompressionProgress.status === 'done'
                   ? 'Done!'
                   : currentCompressionProgress.status === 'skipped'
@@ -272,8 +284,13 @@ export default function ContentCard({ content, type, onClick, isLoading, isSelec
 
       <div className="card-body gap-1.5 pt-2">
         <div className="flex justify-between items-center">
-          <h2 className="card-title !block truncate">{content!.title || content!.game || 'Untitled'}</h2>
-          <div className={`dropdown dropdown-end ${isBeingCompressed ? 'pointer-events-none opacity-50' : ''}`} onClick={(e) => e.stopPropagation()}>
+          <h2 className="card-title !block truncate">
+            {content!.title || content!.game || 'Untitled'}
+          </h2>
+          <div
+            className={`dropdown dropdown-end ${isBeingCompressed ? 'pointer-events-none opacity-50' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <label
               tabIndex={isBeingCompressed ? -1 : 0}
               className="btn btn-ghost btn-sm btn-circle hover:bg-white/10 active:bg-white/10"
@@ -302,7 +319,9 @@ export default function ContentCard({ content, type, onClick, isLoading, isSelec
               {type === 'Session' && enableAi && (
                 <li>
                   {(() => {
-                    const hasHighlightBookmarks = content?.bookmarks?.some(b => includeInHighlight(b.type));
+                    const hasHighlightBookmarks = content?.bookmarks?.some((b) =>
+                      includeInHighlight(b.type),
+                    );
                     const isProcessing = Object.values(aiProgress).some(
                       (progress) =>
                         progress.content.fileName === content?.fileName &&
@@ -337,20 +356,21 @@ export default function ContentCard({ content, type, onClick, isLoading, isSelec
                   })()}
                 </li>
               )}
-              {(type === 'Clip' || type === 'Highlight') && !content?.fileName?.endsWith('_compressed') && (
-                <li>
-                  <a
-                    className="flex w-full items-center gap-2 px-4 py-3 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
-                    onClick={() => {
-                      (document.activeElement as HTMLElement).blur();
-                      sendMessageToBackend('CompressVideo', { FilePath: content!.filePath });
-                    }}
-                  >
-                    <MdOutlineCompress size="20" />
-                    <span>Compress</span>
-                  </a>
-                </li>
-              )}
+              {(type === 'Clip' || type === 'Highlight') &&
+                !content?.fileName?.endsWith('_compressed') && (
+                  <li>
+                    <a
+                      className="flex w-full items-center gap-2 px-4 py-3 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
+                      onClick={() => {
+                        (document.activeElement as HTMLElement).blur();
+                        sendMessageToBackend('CompressVideo', { FilePath: content!.filePath });
+                      }}
+                    >
+                      <MdOutlineCompress size="20" />
+                      <span>Compress</span>
+                    </a>
+                  </li>
+                )}
               <li>
                 <a
                   className="flex w-full items-center gap-2 px-4 py-3 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"

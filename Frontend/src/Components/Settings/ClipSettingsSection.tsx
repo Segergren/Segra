@@ -1,6 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import DropdownSelect from '../DropdownSelect';
-import { Settings as SettingsType, GpuVendor, ClipFPS, ClipPreset, ClipQualityPreset } from '../../Models/types';
+import {
+  Settings as SettingsType,
+  GpuVendor,
+  ClipFPS,
+  ClipPreset,
+  ClipQualityPreset,
+} from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 
 interface ClipSettingsSectionProps {
@@ -8,7 +14,10 @@ interface ClipSettingsSectionProps {
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
 
-export default function ClipSettingsSection({ settings, updateSettings }: ClipSettingsSectionProps) {
+export default function ClipSettingsSection({
+  settings,
+  updateSettings,
+}: ClipSettingsSectionProps) {
   // Helper function to get available presets based on encoder settings
   const getAvailablePresets = (
     encoder: string,
@@ -155,11 +164,15 @@ export default function ClipSettingsSection({ settings, updateSettings }: ClipSe
                 <DropdownSelect
                   items={[
                     { value: 'cpu', label: 'CPU' },
-                    ...(settings.state.gpuVendor !== GpuVendor.Unknown ? [{ value: 'gpu', label: 'GPU' }] : []),
+                    ...(settings.state.gpuVendor !== GpuVendor.Unknown
+                      ? [{ value: 'gpu', label: 'GPU' }]
+                      : []),
                   ]}
                   value={settings.clipEncoder}
                   onChange={(val) => {
-                    const newSettings: Partial<SettingsType> = { clipEncoder: val as 'cpu' | 'gpu' };
+                    const newSettings: Partial<SettingsType> = {
+                      clipEncoder: val as 'cpu' | 'gpu',
+                    };
                     if (val === 'cpu' && settings.clipEncoder !== 'cpu') {
                       newSettings.clipPreset = 'veryfast' as ClipPreset;
                       // CPU doesn't support AV1, switch to H.264
@@ -367,7 +380,11 @@ export default function ClipSettingsSection({ settings, updateSettings }: ClipSe
                   <span className="label-text text-base-content">Preset</span>
                 </label>
                 <DropdownSelect
-                  items={getAvailablePresets(settings.clipEncoder, settings.clipCodec, settings.state.gpuVendor)}
+                  items={getAvailablePresets(
+                    settings.clipEncoder,
+                    settings.clipCodec,
+                    settings.state.gpuVendor,
+                  )}
                   value={settings.clipPreset}
                   onChange={(val) => updateSettings({ clipPreset: val as ClipPreset })}
                 />

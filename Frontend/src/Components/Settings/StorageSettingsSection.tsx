@@ -9,7 +9,10 @@ interface StorageSettingsSectionProps {
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
 
-export default function StorageSettingsSection({ settings, updateSettings }: StorageSettingsSectionProps) {
+export default function StorageSettingsSection({
+  settings,
+  updateSettings,
+}: StorageSettingsSectionProps) {
   const [localStorageLimit, setLocalStorageLimit] = useState<string>(String(settings.storageLimit));
   const { openModal, closeModal } = useModal();
 
@@ -24,7 +27,7 @@ export default function StorageSettingsSection({ settings, updateSettings }: Sto
   const handleStorageLimitBlur = () => {
     const currentFolderSizeGb = settings.state.currentFolderSizeGb;
     const numericLimit = Number(localStorageLimit) || 1; // Default to 1 if empty/invalid
-    
+
     // Update display if empty/invalid
     if (!localStorageLimit || isNaN(Number(localStorageLimit))) {
       setLocalStorageLimit('1');

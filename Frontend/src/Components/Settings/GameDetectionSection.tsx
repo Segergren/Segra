@@ -27,23 +27,22 @@ export default function GameDetectionSection() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-
   // Filter games based on search query
   const filteredGames = useMemo(() => {
     if (!searchQuery.trim()) return [];
-    
+
     const query = searchQuery.toLowerCase();
     return settings.state.gameList
-      .filter(game => {
+      .filter((game) => {
         const matchesQuery = game.name.toLowerCase().includes(query);
-        const hasExeInWhitelist = settings.whitelist.some(g => 
-          g.paths?.some(path => game.executables.includes(path))
+        const hasExeInWhitelist = settings.whitelist.some((g) =>
+          g.paths?.some((path) => game.executables.includes(path)),
         );
-        const hasExeInBlacklist = settings.blacklist.some(g => 
-          g.paths?.some(path => game.executables.includes(path))
+        const hasExeInBlacklist = settings.blacklist.some((g) =>
+          g.paths?.some((path) => game.executables.includes(path)),
         );
-        const hasExeInPending = pendingGames.some(g => 
-          g.paths?.some(path => game.executables.includes(path))
+        const hasExeInPending = pendingGames.some((g) =>
+          g.paths?.some((path) => game.executables.includes(path)),
         );
         return matchesQuery && !hasExeInWhitelist && !hasExeInBlacklist && !hasExeInPending;
       })
@@ -55,31 +54,31 @@ export default function GameDetectionSection() {
       name: game.name,
       paths: game.executables,
     };
-    
-    const isInWhitelist = settings.whitelist.some(g => g.name === newGame.name);
-    const isInBlacklist = settings.blacklist.some(g => g.name === newGame.name);
-    const isInPending = pendingGames.some(g => g.name === newGame.name);
-    
+
+    const isInWhitelist = settings.whitelist.some((g) => g.name === newGame.name);
+    const isInBlacklist = settings.blacklist.some((g) => g.name === newGame.name);
+    const isInPending = pendingGames.some((g) => g.name === newGame.name);
+
     if (!isInWhitelist && !isInBlacklist && !isInPending) {
       setPendingGames([...pendingGames, newGame]);
     }
-    
+
     setSearchQuery('');
     setShowDropdown(false);
   };
 
   const handleAllowPending = (game: Game) => {
     sendMessageToBackend('AddToWhitelist', { game });
-    setPendingGames(pendingGames.filter(g => g.name !== game.name));
+    setPendingGames(pendingGames.filter((g) => g.name !== game.name));
   };
 
   const handleBlockPending = (game: Game) => {
     sendMessageToBackend('AddToBlacklist', { game });
-    setPendingGames(pendingGames.filter(g => g.name !== game.name));
+    setPendingGames(pendingGames.filter((g) => g.name !== game.name));
   };
 
   const handleRemovePending = (game: Game) => {
-    setPendingGames(pendingGames.filter(g => g.name !== game.name));
+    setPendingGames(pendingGames.filter((g) => g.name !== game.name));
   };
 
   const handleRemoveFromWhitelist = (game: Game) => {
@@ -103,14 +102,14 @@ export default function GameDetectionSection() {
       <CustomGameModal
         onSave={(game) => setPendingGames([...pendingGames, game])}
         onClose={closeModal}
-      />
+      />,
     );
   };
 
   const allGames = useMemo(() => {
     const combined = [
-      ...settings.whitelist.map(game => ({ ...game, type: 'allowed' as const })),
-      ...settings.blacklist.map(game => ({ ...game, type: 'blocked' as const })),
+      ...settings.whitelist.map((game) => ({ ...game, type: 'allowed' as const })),
+      ...settings.blacklist.map((game) => ({ ...game, type: 'blocked' as const })),
     ];
     return combined.sort((a, b) => a.name.localeCompare(b.name));
   }, [settings.whitelist, settings.blacklist]);
@@ -119,7 +118,7 @@ export default function GameDetectionSection() {
   const hasRocketLeague = useMemo(() => {
     const rocketLeagueName = 'Rocket League';
     const currentlyRecording = settings.state.recording?.game === rocketLeagueName;
-    const inContent = settings.state.content.some(c => c.game === rocketLeagueName);
+    const inContent = settings.state.content.some((c) => c.game === rocketLeagueName);
     return currentlyRecording || inContent;
   }, [settings.state.recording, settings.state.content]);
 
@@ -127,8 +126,8 @@ export default function GameDetectionSection() {
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <h2 className="text-xl font-semibold mb-2">Game Detection</h2>
       <p className="text-sm opacity-80 mb-4">
-        Search for a game and add it to your Allow List or Block List. Segra auto-detects most games, but
-        you can manually add games if needed.
+        Search for a game and add it to your Allow List or Block List. Segra auto-detects most
+        games, but you can manually add games if needed.
       </p>
 
       {/* Search Bar with Add Custom Game Button */}
@@ -160,7 +159,7 @@ export default function GameDetectionSection() {
             Add Custom
           </button>
         </div>
-        
+
         {/* Dropdown Results */}
         {showDropdown && filteredGames.length > 0 && (
           <div className="absolute z-10 w-full mt-1 bg-base-200 border border-base-400 rounded-lg shadow-lg max-h-64 overflow-y-auto">
@@ -182,9 +181,10 @@ export default function GameDetectionSection() {
       <div className="bg-base-200 p-4 rounded-lg border border-custom">
         <h3 className="text-lg font-semibold mb-2">Allowed & Blocked Games</h3>
         <p className="text-xs opacity-70 mb-3">
-          Games in your allow list are forced to be detected. Games in your block list are prevented from being recorded.
+          Games in your allow list are forced to be detected. Games in your block list are prevented
+          from being recorded.
         </p>
-        
+
         {allGames.length === 0 && pendingGames.length === 0 ? (
           <div className="text-center text-gray-500 py-8">No games in allow or block list</div>
         ) : (
@@ -201,7 +201,7 @@ export default function GameDetectionSection() {
                 onRemove={handleRemovePending}
               />
             ))}
-            
+
             {/* Combined Allow & Block List (sorted by name) */}
             {allGames.map((game, index) => (
               <GameCard
@@ -210,7 +210,9 @@ export default function GameDetectionSection() {
                 type={game.type}
                 onAllow={handleMoveToWhitelist}
                 onBlock={handleMoveToBlacklist}
-                onRemove={game.type === 'allowed' ? handleRemoveFromWhitelist : handleRemoveFromBlacklist}
+                onRemove={
+                  game.type === 'allowed' ? handleRemoveFromWhitelist : handleRemoveFromBlacklist
+                }
               />
             ))}
           </div>
@@ -236,7 +238,8 @@ export default function GameDetectionSection() {
               Automatically detect and bookmark your goals in Rocket League.
             </p>
             <p className="text-xs text-warning mb-3">
-              We have tested this without any issues, but use at your own risk. We take no responsibility for any game bans.
+              We have tested this without any issues, but use at your own risk. We take no
+              responsibility for any game bans.
             </p>
             <label className="flex items-center gap-3 cursor-pointer">
               <input

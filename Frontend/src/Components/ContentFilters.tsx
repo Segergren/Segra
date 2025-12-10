@@ -78,18 +78,26 @@ export default function ContentFilters({
     <div className="flex items-center space-x-2">
       {/* Filter dropdown */}
       <div className="dropdown dropdown-end">
-        <button disabled={uniqueGames.length === 0} className={`btn btn-sm no-animation btn-secondary border border-base-400 h-8 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300 ${uniqueGames.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+        <button
+          disabled={uniqueGames.length === 0}
+          className={`btn btn-sm no-animation btn-secondary border border-base-400 h-8 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300 ${uniqueGames.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+        >
           <MdFilterList size={16} />
           Filter
           {selectedGames.length > 0 && (
-            <span className="badge badge-sm badge-primary text-base-300">{selectedGames.length}</span>
+            <span className="badge badge-sm badge-primary text-base-300">
+              {selectedGames.length}
+            </span>
           )}
         </button>
         <div
           className="dropdown-content bg-base-300 border border-base-400 rounded-box z-999 w-64 p-3 mt-1 shadow"
           tabIndex={0}
         >
-          <button className={`text-sm ml-2 mb-2 ${selectedGames.length > 0 ? 'text-primary cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`} onClick={clearFilters}>
+          <button
+            className={`text-sm ml-2 mb-2 ${selectedGames.length > 0 ? 'text-primary cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`}
+            onClick={clearFilters}
+          >
             Clear all
           </button>
           <div className="max-h-60 overflow-y-auto">
@@ -116,7 +124,10 @@ export default function ContentFilters({
 
       {/* Sort dropdown */}
       <div className="dropdown dropdown-end">
-        <button disabled={uniqueGames.length === 0} className={`btn btn-sm no-animation btn-secondary border border-base-400 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300 h-8 ${uniqueGames.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+        <button
+          disabled={uniqueGames.length === 0}
+          className={`btn btn-sm no-animation btn-secondary border border-base-400 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300 h-8 ${uniqueGames.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+        >
           <MdSort size={16} />
           {getSortLabel(sortOption)}
         </button>

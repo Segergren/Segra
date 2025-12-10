@@ -47,9 +47,7 @@ export default function UISettingsSection({
                 onChange={(e) => updateSettings({ enableAi: e.target.checked })}
                 className="checkbox checkbox-primary checkbox-sm"
               />
-              <span className="flex items-center gap-1 cursor-pointer">
-                Enable Highlights
-              </span>
+              <span className="flex items-center gap-1 cursor-pointer">Enable Highlights</span>
             </label>
           </div>
           <div className="flex items-center">
@@ -73,7 +71,9 @@ export default function UISettingsSection({
                 type="checkbox"
                 name="removeOriginalAfterCompression"
                 checked={settings.removeOriginalAfterCompression}
-                onChange={(e) => updateSettings({ removeOriginalAfterCompression: e.target.checked })}
+                onChange={(e) =>
+                  updateSettings({ removeOriginalAfterCompression: e.target.checked })
+                }
                 className="checkbox checkbox-primary checkbox-sm"
               />
               <span className="flex items-center gap-1 cursor-pointer">
@@ -119,8 +119,8 @@ export default function UISettingsSection({
                 className="checkbox checkbox-sm checkbox-primary"
               />
               <span className="flex items-center gap-1 text-base-content">
-                Show<span className="badge badge-primary badge-sm text-base-300 mx-1">NEW</span>Badge on New
-                Sessions and Replay Buffers
+                Show<span className="badge badge-primary badge-sm text-base-300 mx-1">NEW</span>
+                Badge on New Sessions and Replay Buffers
               </span>
             </label>
           </div>
@@ -246,7 +246,8 @@ export default function UISettingsSection({
             <span className="leading-none">View Logs</span>
           </button>
           <div>
-            Segra {__APP_VERSION__ === 'Developer Preview' ? __APP_VERSION__ : 'v' + __APP_VERSION__}
+            Segra{' '}
+            {__APP_VERSION__ === 'Developer Preview' ? __APP_VERSION__ : 'v' + __APP_VERSION__}
           </div>
         </div>
       </div>

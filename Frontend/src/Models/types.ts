@@ -161,7 +161,12 @@ export type NvidiaClipPreset =
 export type Av1NvencPreset = 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | 'p6' | 'p7';
 export type AmdClipPreset = 'quality' | 'transcoding' | 'lowlatency' | 'ultralowlatency';
 export type IntelClipPreset = 'fast' | 'medium' | 'slow';
-export type ClipPreset = CpuClipPreset | NvidiaClipPreset | Av1NvencPreset | AmdClipPreset | IntelClipPreset;
+export type ClipPreset =
+  | CpuClipPreset
+  | NvidiaClipPreset
+  | Av1NvencPreset
+  | AmdClipPreset
+  | IntelClipPreset;
 
 export type VideoQualityPreset = 'low' | 'standard' | 'high' | 'custom';
 export type ClipQualityPreset = 'low' | 'standard' | 'high' | 'custom';

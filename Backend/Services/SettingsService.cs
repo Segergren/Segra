@@ -386,7 +386,7 @@ namespace Segra.Backend.Services
             if (settings.ContentFolder != updatedSettings.ContentFolder)
             {
                 Log.Information($"ContentFolder changed from '{settings.ContentFolder}' to '{updatedSettings.ContentFolder}'");
-                
+
                 // Check if the new folder would exceed storage limit
                 bool shouldProceed = await StorageWarningService.CheckContentFolderChange(updatedSettings.ContentFolder);
                 if (shouldProceed)
@@ -580,7 +580,7 @@ namespace Segra.Backend.Services
                 Log.Information($"EnableDisplayRecording changed from '{settings.EnableDisplayRecording}' to '{updatedSettings.EnableDisplayRecording}'");
                 settings.EnableDisplayRecording = updatedSettings.EnableDisplayRecording;
 
-                if(updatedSettings.EnableDisplayRecording == true && updatedSettings.RecordWindowedApplications == true)
+                if (updatedSettings.EnableDisplayRecording == true && updatedSettings.RecordWindowedApplications == true)
                 {
                     settings.RecordWindowedApplications = false;
                     Log.Warning("RecordWindowedApplications disabled because EnableDisplayRecording is enabled");

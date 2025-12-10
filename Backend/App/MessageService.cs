@@ -854,7 +854,8 @@ namespace Segra.Backend.App
                 Log.Error($"Error moving game: {ex.Message}");
                 await ShowModal("Error", $"Failed to move game: {ex.Message}", "error");
             }
-            finally {
+            finally
+            {
                 Settings.Instance._isBulkUpdating = false;
                 _ = SendSettingsToFrontend("Moved game");
             }

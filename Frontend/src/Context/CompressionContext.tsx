@@ -15,7 +15,9 @@ interface CompressionContextType {
 const CompressionContext = createContext<CompressionContextType | undefined>(undefined);
 
 export function CompressionProvider({ children }: { children: ReactNode }) {
-  const [compressionProgress, setCompressionProgress] = useState<Record<string, CompressionProgress>>({});
+  const [compressionProgress, setCompressionProgress] = useState<
+    Record<string, CompressionProgress>
+  >({});
 
   useEffect(() => {
     const handleWebSocketMessage = (event: CustomEvent<{ method: string; content: any }>) => {
@@ -23,8 +25,12 @@ export function CompressionProvider({ children }: { children: ReactNode }) {
 
       if (method === 'CompressionProgress') {
         const progress = content as CompressionProgress;
-        
-        if (progress.status === 'done' || progress.status === 'error' || progress.status === 'skipped') {
+
+        if (
+          progress.status === 'done' ||
+          progress.status === 'error' ||
+          progress.status === 'skipped'
+        ) {
           setTimeout(() => {
             setCompressionProgress((prev) => {
               const { [progress.filePath]: _, ...rest } = prev;
@@ -32,7 +38,7 @@ export function CompressionProvider({ children }: { children: ReactNode }) {
             });
           }, 2000);
         }
-        
+
         setCompressionProgress((prev) => ({
           ...prev,
           [progress.filePath]: progress,

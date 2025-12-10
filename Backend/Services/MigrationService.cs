@@ -290,7 +290,7 @@ internal static class MigrationService
 
             // Migrate if user has old GPU-based quality presets (low, standard, or high)
             // Old presets used GPU encoder with vendor-specific presets
-            
+
             string qualityPreset = settings.ClipQualityPreset.ToLower();
             bool isOldQualityPreset = qualityPreset == "low" || qualityPreset == "standard" || qualityPreset == "high";
             bool isUsingGpuEncoder = settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase);
@@ -298,11 +298,11 @@ internal static class MigrationService
             if (isOldQualityPreset && isUsingGpuEncoder)
             {
                 Log.Information("Migrating clip quality preset '{Preset}' from GPU to CPU encoder", settings.ClipQualityPreset);
-                
+
                 // Switch to CPU encoder - keep the same quality preset (low/standard/high)
                 // The preset will now apply CPU-specific settings instead of GPU settings
                 settings.ClipEncoder = "cpu";
-                
+
                 // Apply appropriate CPU settings based on the quality preset
                 switch (qualityPreset)
                 {
@@ -325,9 +325,9 @@ internal static class MigrationService
                         settings.ClipFps = 60;
                         break;
                 }
-                
+
                 needsSave = true;
-                Log.Information("Clip settings migrated to CPU: qualityPreset={Preset}, encoder=cpu, qualityCpu={Quality}, audioQuality={Audio}, preset={Preset}, fps={Fps}", 
+                Log.Information("Clip settings migrated to CPU: qualityPreset={Preset}, encoder=cpu, qualityCpu={Quality}, audioQuality={Audio}, preset={Preset}, fps={Fps}",
                     settings.ClipQualityPreset, settings.ClipQualityCpu, settings.ClipAudioQuality, settings.ClipPreset, settings.ClipFps);
             }
             else

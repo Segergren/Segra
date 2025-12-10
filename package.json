@@ -2,21 +2,13 @@
   "name": "segra-repo-tools",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "prepare": "husky install",
+    "prepare": "husky",
     "precommit:lint-staged": "lint-staged"
   },
   "devDependencies": {
     "husky": "^9.0.11",
     "lint-staged": "^15.2.10"
-  },
-  "lint-staged": {
-    "Frontend/**/*.{ts,tsx,js,jsx,css,md,json,html}": [
-      "cd Frontend && bunx prettier --write",
-      "cd Frontend && bunx eslint --fix"
-    ],
-    "**/*.cs": [
-      "dotnet format Segra.sln --exclude libobs-sharp --include"
-    ]
   }
 }

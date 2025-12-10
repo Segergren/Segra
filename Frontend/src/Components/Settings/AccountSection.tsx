@@ -149,7 +149,11 @@ export default function AccountSection() {
             {/* Profile Info */}
             <div className="min-w-0 flex-1">
               <h3 className="font-bold truncate">
-                {profile?.username ? profile.username : <div className="skeleton h-[24px] w-24"></div>}
+                {profile?.username ? (
+                  profile.username
+                ) : (
+                  <div className="skeleton h-[24px] w-24"></div>
+                )}
               </h3>
               <p className="text-sm opacity-70 truncate">
                 {session?.user?.email || 'Authenticated User'}
