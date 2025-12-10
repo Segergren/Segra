@@ -47,7 +47,7 @@ const SelectionCard: React.FC<SelectionCardProps> = ({
   return (
     <div
       ref={dragDropRef}
-      className={`mb-2 cursor-move w-full relative rounded-xl transition-all duration-200 outline outline-1 ${isHovered ? 'outline-primary' : 'outline-base-400'}`}
+      className={`mb-2 cursor-move w-full relative rounded-xl transition-all duration-200 !outline !outline-1 ${isHovered ? '!outline-primary' : '!outline-base-400'}`}
       style={{ opacity: isDragging ? 0.3 : 1 }}
       onMouseEnter={() => setHoveredSelectionId(selection.id)}
       onMouseLeave={() => setHoveredSelectionId(null)}
