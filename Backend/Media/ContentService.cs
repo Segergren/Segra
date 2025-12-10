@@ -2,6 +2,7 @@ using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Games;
 using Segra.Backend.Services;
+using Segra.Backend.Shared;
 using Serilog;
 using System.Globalization;
 using System.Text.Json;
@@ -318,15 +319,28 @@ namespace Segra.Backend.Media
                     {
                         try
                         {
-                            File.Delete(normalizedFilePath);
-                            Log.Information($"Video file deleted: {normalizedFilePath}");
+                            // Send to recycle bin
+                            RecycleBinUtils.SendToRecycleBin(normalizedFilePath);
+                            Log.Information($"Video file sent to recycle bin: {normalizedFilePath}");
                             break;
                         }
-                        catch (IOException)
+                        catch (FileNotFoundException ex)
+                        {
+                            // File doesn't exist, no need to retry
+                            Log.Warning($"File not found for recycle bin: {ex.Message}");
+                            break;
+                        }
+                        catch (IOException ex)
                         {
                             if (i == maxRetries - 1) throw; // Re-throw on last attempt
-                            Log.Warning($"File is locked, retrying deletion in 500ms... (Attempt {i + 1}/{maxRetries})");
+                            Log.Warning($"File is locked or recycle bin operation failed, retrying in 500ms... (Attempt {i + 1}/{maxRetries}): {ex.Message}");
                             await Task.Delay(500);
+                        }
+                        catch (ArgumentException ex)
+                        {
+                            // Don't retry on invalid arguments
+                            Log.Error($"Invalid file path for recycle bin: {ex.Message}");
+                            throw;
                         }
                     }
                 }
@@ -394,6 +408,112 @@ namespace Segra.Backend.Media
             catch (Exception ex)
             {
                 Log.Error($"Unexpected error while deleting clip: {ex.Message}");
+            }
+            finally
+            {
+                await SettingsService.LoadContentFromFolderIntoState(sendToFrontend);
+            }
+        }
+
+        public static async Task PermanentDeleteContent(string filePath, Content.ContentType type, bool sendToFrontend = true)
+        {
+            try
+            {
+                // Validate the file path
+                if (string.IsNullOrWhiteSpace(filePath))
+                {
+                    Log.Warning("PermanentDeleteContent called with an invalid file path.");
+                    return;
+                }
+
+                // Normalize the file path
+                string normalizedFilePath = Path.GetFullPath(filePath);
+
+                // Ensure the video file exists before attempting deletion
+                if (File.Exists(normalizedFilePath))
+                {
+                    int maxRetries = 3;
+                    for (int i = 0; i < maxRetries; i++)
+                    {
+                        try
+                        {
+                            // Permanently delete (bypass recycle bin)
+                            File.Delete(normalizedFilePath);
+                            Log.Information($"Video file permanently deleted: {normalizedFilePath}");
+                            break;
+                        }
+                        catch (IOException)
+                        {
+                            if (i == maxRetries - 1) throw; // Re-throw on last attempt
+                            Log.Warning($"File is locked, retrying permanent deletion in 500ms... (Attempt {i + 1}/{maxRetries})");
+                            await Task.Delay(500);
+                        }
+                    }
+                }
+                else
+                {
+                    Log.Warning($"Video file not found (already deleted?): {normalizedFilePath}");
+                }
+
+                // Extract the content file name without extension
+                string contentFileName = Path.GetFileNameWithoutExtension(normalizedFilePath);
+
+                // Construct the metadata file path
+                string metadataFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".metadata", type.ToString().ToLower() + "s");
+                string metadataFilePath = Path.Combine(metadataFolderPath, $"{contentFileName}.json");
+
+                // Delete the metadata file if it exists
+                if (File.Exists(metadataFilePath))
+                {
+                    File.Delete(metadataFilePath);
+                    Log.Information($"Metadata file deleted: {metadataFilePath}");
+                }
+                else
+                {
+                    Log.Warning($"Metadata file not found: {metadataFilePath}");
+                }
+
+                // Construct the thumbnail file path
+                string thumbnailsFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".thumbnails", type.ToString().ToLower() + "s");
+                string thumbnailFilePath = Path.Combine(thumbnailsFolderPath, $"{contentFileName}.jpeg");
+
+                // Delete the thumbnail file if it exists
+                if (File.Exists(thumbnailFilePath))
+                {
+                    File.Delete(thumbnailFilePath);
+                    Log.Information($"Thumbnail file deleted: {thumbnailFilePath}");
+                }
+                else
+                {
+                    Log.Warning($"Thumbnail file not found: {thumbnailFilePath}");
+                }
+
+                // Construct the waveform JSON path
+                string waveformFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".waveforms", type.ToString().ToLower() + "s");
+                string waveformFilePath = Path.Combine(waveformFolderPath, $"{contentFileName}.peaks.json");
+
+                // Delete the waveform file if it exists
+                if (File.Exists(waveformFilePath))
+                {
+                    File.Delete(waveformFilePath);
+                    Log.Information($"Waveform file deleted: {waveformFilePath}");
+                }
+                else
+                {
+                    Log.Warning($"Waveform file not found: {waveformFilePath}");
+                }
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Log.Error($"Access denied while permanently deleting files: {ex.Message}");
+            }
+            catch (IOException ex)
+            {
+                Log.Error($"I/O error while permanently deleting files: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Unexpected error while permanently deleting content: {ex.Message}");
             }
             finally
             {

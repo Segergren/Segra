@@ -299,20 +299,20 @@ namespace Segra.Backend.Media
                     {
                         return duration;
                     }
-                    
+
                     Log.Warning($"Could not extract duration from {videoFilePath} (attempt {attempt}/{maxRetries}). FFmpeg output: {metadata.Substring(0, Math.Min(500, metadata.Length))}");
                 }
                 catch (Exception ex)
                 {
                     Log.Warning($"Error getting video duration for {videoFilePath} (attempt {attempt}/{maxRetries}): {ex.Message}");
                 }
-                
+
                 if (attempt < maxRetries)
                 {
                     await Task.Delay(delayMs);
                 }
             }
-            
+
             Log.Error($"Failed to get video duration for {videoFilePath} after {maxRetries} attempts");
             return TimeSpan.Zero;
         }

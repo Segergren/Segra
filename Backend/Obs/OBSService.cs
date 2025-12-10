@@ -26,7 +26,7 @@ namespace Segra.Backend.Obs
     {
         // Constants
         private const uint OBS_SOURCE_FLAG_FORCE_MONO = 1u << 1; // from obs.h
-        
+
         // Executables that OBS internally blacklists from game capture (cannot be hooked)
         // https://github.com/obsproject/obs-studio/blob/e448c0a963eda45f48515b2cb9a631daced9d503/plugins/win-capture/game-capture.c#L956
         private static readonly string[] ObsInternalBlacklist =
@@ -52,72 +52,72 @@ namespace Segra.Backend.Obs
             "lockapp.exe",
             "windowsinternal.composableshell.experiences.textinput.inputapp.exe"
         ];
-        
+
         // Regex patterns for buffer parsing
         [GeneratedRegex(@"BufferDesc\.Width:\s*(\d+)")]
         private static partial Regex BufferDescWidthRegex();
-        
+
         [GeneratedRegex(@"BufferDesc\.Height:\s*(\d+)")]
         private static partial Regex BufferDescHeightRegex();
-        
+
         // Public properties
         public static bool IsInitialized { get; private set; }
         public static GpuVendor DetectedGpuVendor { get; private set; } = DetectGpuVendor();
         public static uint? CapturedWindowWidth { get; private set; } = null;
         public static uint? CapturedWindowHeight { get; private set; } = null;
-        
+
         // OBS output resources
         private static IntPtr _output = IntPtr.Zero;
         private static IntPtr _bufferOutput = IntPtr.Zero;
-        
+
         // OBS source resources
         private static IntPtr _gameCaptureSource = IntPtr.Zero;
         private static IntPtr _displaySource = IntPtr.Zero;
         private static readonly List<IntPtr> _micSources = new List<IntPtr>();
         private static readonly List<IntPtr> _desktopSources = new List<IntPtr>();
-        
+
         // OBS encoder resources
         private static IntPtr _videoEncoder = IntPtr.Zero;
         private static readonly List<IntPtr> _audioEncoders = new List<IntPtr>();
-        
+
         // Game capture state
         private static string? _hookedExecutableFileName;
         private static System.Threading.Timer? _gameCaptureHookTimeoutTimer = null;
         private static bool _isGameCaptureHooked = false;
         private static bool _isStillHookedAfterUnhook = false;
-        
+
         // Recording/output state
         private static bool _signalOutputStop = false;
         private static bool _isStoppingOrStopped = false;
-        
+
         // Replay buffer state
         private static bool _replaySaved = false;
         private static string? _lastReplayBufferPath;
-        
+
         // Callbacks
         private static readonly signal_callback_t _outputStopCallback = (data, cd) =>
         {
             _signalOutputStop = true;
         };
-        
+
         private static readonly signal_callback_t _replaySavedCallback = (data, cd) =>
         {
             _replaySaved = true;
             Log.Information("Replay buffer saved callback received");
         };
-        
+
         private static signal_callback_t? _hookedCallback;
         private static signal_callback_t? _unhookedCallback;
-        
+
         // Threading primitives
         private static readonly SemaphoreSlim _stopRecordingSemaphore = new SemaphoreSlim(1, 1);
-        
+
         // Log processing queue - prevents OBS thread from blocking on log operations
-        private static readonly Channel<(int level, string message)> _logChannel = 
-            Channel.CreateUnbounded<(int, string)>(new UnboundedChannelOptions 
-            { 
-                SingleReader = true, 
-                SingleWriter = false 
+        private static readonly Channel<(int level, string message)> _logChannel =
+            Channel.CreateUnbounded<(int, string)>(new UnboundedChannelOptions
+            {
+                SingleReader = true,
+                SingleWriter = false
             });
 
         public static async Task<bool> SaveReplayBuffer()
@@ -231,7 +231,7 @@ namespace Segra.Backend.Obs
                         Log.Information("Capture window no longer exists, waiting a second to make sure it's not a false positive.");
                         await Task.Delay(1000);
                         Log.Information("Checking if hook is still active: {_isStillHookedAfterUnhook}", _isStillHookedAfterUnhook);
-                        
+
                         // Check if any output is still active
                         if ((_output != IntPtr.Zero || _bufferOutput != IntPtr.Zero) && !_isStillHookedAfterUnhook)
                         {
@@ -251,7 +251,7 @@ namespace Segra.Backend.Obs
                     {
                         // Don't update status if the process is in OBS's internal blacklist
                         bool isBlacklisted = ObsInternalBlacklist.Any(exe => formattedMessage.Contains(exe));
-                        
+
                         if (Settings.Instance.State.PreRecording != null && !isBlacklisted)
                         {
                             Settings.Instance.State.PreRecording.Status = "Waiting for game hook";
@@ -409,10 +409,10 @@ namespace Segra.Backend.Obs
             try
             {
                 Log.Information("Shutting down OBS...");
-                
+
                 // Call obs_shutdown to properly clean up OBS resources
                 obs_shutdown();
-                
+
                 IsInitialized = false;
                 Log.Information("OBS shutdown completed successfully");
             }
@@ -468,12 +468,12 @@ namespace Segra.Backend.Obs
                 double scale = (double)maxHeight / outputHeight;
                 outputWidth = (uint)(outputWidth * scale);
                 outputHeight = maxHeight;
-                
+
                 // Round to nearest multiple of 4 (required by video encoders)
                 // Example: 1279 → 1280 instead of OBS rounding down to 1276
                 outputWidth = (uint)(Math.Round(outputWidth / 4.0) * 4);
                 outputHeight = (uint)(Math.Round(outputHeight / 4.0) * 4);
-                
+
                 Log.Information($"Downscaling from {baseWidth}x{baseHeight} to {outputWidth}x{outputHeight} (max height: {maxHeight})");
             }
 
@@ -509,7 +509,7 @@ namespace Segra.Backend.Obs
                 return false;
             }
 
-            if(!IsInitialized)
+            if (!IsInitialized)
             {
                 Log.Information("OBS is not initialized. Skipping recording.");
                 return false;
@@ -546,7 +546,7 @@ namespace Segra.Backend.Obs
             _isGameCaptureHooked = false;
 
             IntPtr videoSourceSettings = obs_data_create();
-            
+
             // Use window capture mode if RecordWindowedApplications is enabled, otherwise use fullscreen mode
             if (Settings.Instance.RecordWindowedApplications)
             {
@@ -560,7 +560,7 @@ namespace Segra.Backend.Obs
                 obs_data_set_string(videoSourceSettings, "capture_mode", "any_fullscreen");
                 Log.Information("Game capture configured for fullscreen applications only");
             }
-            
+
             _gameCaptureSource = obs_source_create("game_capture", "gameplay", videoSourceSettings, IntPtr.Zero);
             obs_data_release(videoSourceSettings);
 
@@ -613,7 +613,7 @@ namespace Segra.Backend.Obs
 
             // Reset video settings to set correct output width for games with custom resolution
             Task.Delay(500).Wait();
-            
+
             // If recording windowed applications, try to get the window dimensions
             if (Settings.Instance.RecordWindowedApplications)
             {
@@ -635,7 +635,7 @@ namespace Segra.Backend.Obs
             {
                 ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
             }
-            
+
             Task.Delay(1000).Wait();
 
             // If display recording is disabled, wait for game capture to hook
@@ -820,12 +820,12 @@ namespace Segra.Backend.Obs
             {
                 IntPtr audioEncoderSettings = obs_data_create();
                 obs_data_set_int(audioEncoderSettings, "bitrate", 128);
-                
+
                 // Track 0 is the full mix, tracks 1+ are individual devices
-                string encoderName = t == 0 
-                    ? "Full Mix" 
+                string encoderName = t == 0
+                    ? "Full Mix"
                     : (t - 1 < audioDeviceNames.Count ? audioDeviceNames[t - 1] : $"Audio Track {t + 1}");
-                
+
                 IntPtr enc = obs_audio_encoder_create("ffmpeg_aac", encoderName, audioEncoderSettings, (UIntPtr)(uint)t, IntPtr.Zero);
                 obs_data_release(audioEncoderSettings);
                 obs_encoder_set_audio(enc, obs_get_audio());
@@ -1078,8 +1078,8 @@ namespace Segra.Backend.Obs
                         // Ensure file is fully written to disk/network before thumbnail generation
                         await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
 
-                        int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath) 
-                            ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath) 
+                        int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath)
+                            ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath)
                             : null;
                         await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
                         await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
@@ -1157,8 +1157,8 @@ namespace Segra.Backend.Obs
                         // Ensure file is fully written to disk/network before thumbnail generation
                         await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
 
-                        int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath) 
-                            ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath) 
+                        int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath)
+                            ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath)
                             : null;
                         await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
                         await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
@@ -1294,11 +1294,12 @@ namespace Segra.Backend.Obs
             while (Settings.Instance.State.PreRecording?.Status != "Waiting for game hook")
             {
                 Thread.Sleep(step);
-                
-                if(Settings.Instance.State.PreRecording == null && Settings.Instance.State.Recording == null) {
+
+                if (Settings.Instance.State.PreRecording == null && Settings.Instance.State.Recording == null)
+                {
                     return false;
                 }
-                
+
                 elapsed += step;
                 Log.Information("PreRecording Status: {PreRecordingStatus}", Settings.Instance.State.PreRecording?.Status);
                 if (elapsed >= timeoutMs)

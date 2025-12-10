@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 2882,
+    open: false,
   },
   define: {
     __APP_VERSION__: JSON.stringify(version),

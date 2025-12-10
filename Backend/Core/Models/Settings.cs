@@ -1392,7 +1392,7 @@ namespace Segra.Backend.Core.Models
         {
             if (x == null && y == null) return true;
             if (x == null || y == null) return false;
-            
+
             // Games are equal if they have the same name and at least one common path
             if (x.Name != y.Name) return false;
             return x.Paths.Intersect(y.Paths, StringComparer.OrdinalIgnoreCase).Any();
