@@ -1213,6 +1213,138 @@ namespace Segra.Backend.Obs
             }
         }
 
+        public static bool PauseRecording()
+        {
+            if (!IsInitialized)
+            {
+                Log.Information("OBS is not initialized. Cannot pause recording.");
+                return false;
+            }
+
+            if (Settings.Instance.State.Recording == null)
+            {
+                Log.Information("No active recording to pause.");
+                return false;
+            }
+
+            if (Settings.Instance.State.Recording.IsPaused)
+            {
+                Log.Information("Recording is already paused.");
+                return false;
+            }
+
+            bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
+            bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
+
+            try
+            {
+                // Pause the active output(s)
+                if (isReplayBufferMode && _bufferOutput != IntPtr.Zero)
+                {
+                    obs_output_pause(_bufferOutput, true);
+                    Log.Information("Replay buffer paused.");
+                }
+                else if (isHybridMode)
+                {
+                    if (_output != IntPtr.Zero)
+                    {
+                        obs_output_pause(_output, true);
+                    }
+                    if (_bufferOutput != IntPtr.Zero)
+                    {
+                        obs_output_pause(_bufferOutput, true);
+                    }
+                    Log.Information("Hybrid recording and buffer paused.");
+                }
+                else if (_output != IntPtr.Zero)
+                {
+                    obs_output_pause(_output, true);
+                    Log.Information("Recording paused.");
+                }
+                else
+                {
+                    Log.Warning("No active output to pause.");
+                    return false;
+                }
+
+                // Update the recording state
+                Settings.Instance.State.Recording.IsPaused = true;
+                _ = MessageService.SendSettingsToFrontend("Recording paused");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to pause recording: {ex.Message}");
+                return false;
+            }
+        }
+
+        public static bool ResumeRecording()
+        {
+            if (!IsInitialized)
+            {
+                Log.Information("OBS is not initialized. Cannot resume recording.");
+                return false;
+            }
+
+            if (Settings.Instance.State.Recording == null)
+            {
+                Log.Information("No active recording to resume.");
+                return false;
+            }
+
+            if (!Settings.Instance.State.Recording.IsPaused)
+            {
+                Log.Information("Recording is not paused.");
+                return false;
+            }
+
+            bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
+            bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
+
+            try
+            {
+                // Resume the active output(s)
+                if (isReplayBufferMode && _bufferOutput != IntPtr.Zero)
+                {
+                    obs_output_pause(_bufferOutput, false);
+                    Log.Information("Replay buffer resumed.");
+                }
+                else if (isHybridMode)
+                {
+                    if (_output != IntPtr.Zero)
+                    {
+                        obs_output_pause(_output, false);
+                    }
+                    if (_bufferOutput != IntPtr.Zero)
+                    {
+                        obs_output_pause(_bufferOutput, false);
+                    }
+                    Log.Information("Hybrid recording and buffer resumed.");
+                }
+                else if (_output != IntPtr.Zero)
+                {
+                    obs_output_pause(_output, false);
+                    Log.Information("Recording resumed.");
+                }
+                else
+                {
+                    Log.Warning("No active output to resume.");
+                    return false;
+                }
+
+                // Update the recording state
+                Settings.Instance.State.Recording.IsPaused = false;
+                _ = MessageService.SendSettingsToFrontend("Recording resumed");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to resume recording: {ex.Message}");
+                return false;
+            }
+        }
+
         [System.Diagnostics.DebuggerStepThrough]
         private static void OnGameCaptureHooked(IntPtr data, calldata_t cd)
         {

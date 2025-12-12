@@ -238,17 +238,36 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         </div>
       )}
 
-      {/* Start and Stop Buttons */}
+      {/* Start, Pause, Resume, and Stop Buttons */}
       <div className="mb-4 px-4">
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center gap-2">
           {settings.state.recording ? (
-            <button
-              className="btn btn-secondary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12 text-gray-300"
-              disabled={!settings.state.hasLoadedObs || (recording && recording.endTime !== null)}
-              onClick={() => sendMessageToBackend('StopRecording')}
-            >
-              Stop Recording
-            </button>
+            <>
+              {settings.state.recording.isPaused ? (
+                <button
+                  className="btn btn-primary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12"
+                  disabled={!settings.state.hasLoadedObs || (recording && recording.endTime !== null)}
+                  onClick={() => sendMessageToBackend('ResumeRecording')}
+                >
+                  Resume Recording
+                </button>
+              ) : (
+                <button
+                  className="btn btn-warning border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12"
+                  disabled={!settings.state.hasLoadedObs || (recording && recording.endTime !== null)}
+                  onClick={() => sendMessageToBackend('PauseRecording')}
+                >
+                  Pause Recording
+                </button>
+              )}
+              <button
+                className="btn btn-secondary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12 text-gray-300"
+                disabled={!settings.state.hasLoadedObs || (recording && recording.endTime !== null)}
+                onClick={() => sendMessageToBackend('StopRecording')}
+              >
+                Stop Recording
+              </button>
+            </>
           ) : (
             <button
               className="btn btn-secondary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12 text-gray-300"

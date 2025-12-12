@@ -1230,6 +1230,9 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("coverImageId")]
         public string? CoverImageId { get; set; }
 
+        [JsonPropertyName("isPaused")]
+        public bool IsPaused { get; set; } = false;
+
         [JsonPropertyName("duration")]
         public TimeSpan? Duration
         {
