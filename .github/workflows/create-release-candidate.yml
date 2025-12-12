@@ -31,7 +31,7 @@ jobs:
       - name: Get Latest Tag and Git Log
         shell: bash
         run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0)
+          LATEST_TAG=$(git tag --sort=-v:refname | head -n 1)
           echo "Latest Tag: $LATEST_TAG"
           
           GIT_LOG=$(git log "${LATEST_TAG}..HEAD" --no-merges --oneline)
@@ -127,16 +127,13 @@ jobs:
         id: get_version
         shell: pwsh
         run: |
-          $tags = git tag
-          if ($tags -ne $null -and $tags.Count -gt 0) {
-            $latestTag = (git describe --tags --abbrev=0 2>$null) -replace '^v', ''
-            if (-not $latestTag) {
-              $latestTag = "0.0.0"
-            }
-          } else {
+          # Get the highest version tag by semantic versioning (not by commit graph proximity)
+          $latestTag = (git tag --sort=-v:refname | Select-Object -First 1) -replace '^v', ''
+          if (-not $latestTag) {
             $latestTag = "0.0.0"
           }
           $latestTag = [string]$latestTag
+          Write-Host "Latest tag found: $latestTag"
           
           # Check if the latest tag is a release candidate
           $isReleaseCandidate = $latestTag -match '(.+)-rc\.(.+)'
