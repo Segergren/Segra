@@ -88,11 +88,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Listen for auth state changes
   useEffect(() => {
-    console.log('Auth initialization starting, hasInitialized:', hasInitialized);
-
-    // Only initialize once
-    if (hasInitialized) return;
-
     const { data: authListener } = supabase.auth.onAuthStateChange((event, currentSession) => {
       console.log('Auth state changed:', event, !!currentSession);
       setSession(currentSession);
@@ -100,7 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (event === 'SIGNED_IN' && currentSession) {
         console.log('User signed in, sending login to backend');
-        // Send login credentials to backend
         sendMessageToBackend('Login', {
           accessToken: currentSession.access_token,
           refreshToken: currentSession.refresh_token,
@@ -111,13 +105,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Get initial session
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Get initial session once on mount
+  useEffect(() => {
+    if (hasInitialized) return;
+
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       console.log('Initial session retrieved:', !!initialSession);
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
 
-      // If there's an initial session, send the credentials to the backend
       if (initialSession) {
         console.log('Sending initial login credentials to backend');
         sendMessageToBackend('Login', {
@@ -128,10 +129,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setHasInitialized(true);
     });
-
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
   }, [hasInitialized]);
 
   const value = {
