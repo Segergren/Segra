@@ -65,6 +65,7 @@ namespace Segra.Backend.Obs
         public static GpuVendor DetectedGpuVendor { get; private set; } = DetectGpuVendor();
         public static uint? CapturedWindowWidth { get; private set; } = null;
         public static uint? CapturedWindowHeight { get; private set; } = null;
+        public static string? InstalledOBSVersion { get; private set; } = null;
 
         // OBS output resources
         private static IntPtr _output = IntPtr.Zero;
@@ -359,7 +360,8 @@ namespace Segra.Backend.Obs
                 }
             }), IntPtr.Zero);
 
-            Log.Information("libobs version: " + obs_get_version_string());
+            InstalledOBSVersion = obs_get_version_string();
+            Log.Information("libobs version: " + InstalledOBSVersion);
 
             // Step 1: Call obs_startup() as per documentation
             if (!obs_startup("en-US", null!, IntPtr.Zero))
@@ -872,11 +874,18 @@ namespace Segra.Backend.Obs
 
                 IntPtr outputSettings = obs_data_create();
                 obs_data_set_string(outputSettings, "path", videoOutputPath);
-                obs_data_set_string(outputSettings, "format_name", "mp4");
                 uint recordTracksMask = trackCount == 0 ? 0u : (1u << trackCount) - 1u;
                 obs_data_set_int(outputSettings, "tracks", recordTracksMask);
 
-                _output = obs_output_create("ffmpeg_muxer", "simple_output", outputSettings, IntPtr.Zero);
+                bool useHybridMp4 = SupportsHybridMp4();
+                string outputType = useHybridMp4 ? "mp4_output" : "ffmpeg_muxer";
+
+                if (!useHybridMp4)
+                    obs_data_set_string(outputSettings, "format_name", "mp4");
+
+                Log.Information($"Using recording output type: {outputType} (Hybrid MP4: {useHybridMp4})");
+
+                _output = obs_output_create(outputType, "simple_output", outputSettings, IntPtr.Zero);
                 obs_data_release(outputSettings);
 
                 obs_output_set_video_encoder(_output, _videoEncoder);
@@ -1878,6 +1887,20 @@ namespace Segra.Backend.Obs
             }
 
             return selectedCodec;
+        }
+
+        public static bool SupportsHybridMp4()
+        {
+            string? versionToCheck = Settings.Instance.SelectedOBSVersion ?? InstalledOBSVersion;
+
+            if (string.IsNullOrEmpty(versionToCheck))
+                return true;
+
+            string cleanVersion = versionToCheck.Split('-')[0].Trim();
+            if (Version.TryParse(cleanVersion, out Version? version))
+                return version >= new Version(30, 2);
+
+            return true;
         }
     }
 
