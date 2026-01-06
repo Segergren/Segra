@@ -3,6 +3,7 @@ import React, { createContext, useContext, useRef, useState, ReactNode } from 'r
 interface ModalContextType {
   openModal: (content: ReactNode) => void;
   closeModal: () => void;
+  isModalOpen: boolean;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -27,8 +28,10 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
+  const isModalOpen = modalContent !== null;
+
   return (
-    <ModalContext.Provider value={{ openModal, closeModal }}>
+    <ModalContext.Provider value={{ openModal, closeModal, isModalOpen }}>
       {children}
       <dialog
         ref={modalRef}

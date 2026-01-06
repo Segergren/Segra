@@ -254,6 +254,11 @@ namespace Segra.Backend.App
                             _ = Task.Run(() => StorageWarningService.HandleStorageWarningConfirm(storageWarningParameterElement));
                             Log.Information("StorageWarningConfirm command received.");
                             break;
+                        case "RecoveryConfirm":
+                            root.TryGetProperty("Parameters", out JsonElement recoveryParameterElement);
+                            _ = Task.Run(() => RecoveryService.HandleRecoveryConfirm(recoveryParameterElement));
+                            Log.Information("RecoveryConfirm command received.");
+                            break;
                         case "ApplyVideoPreset":
                             if (root.TryGetProperty("Parameters", out var videoPresetParams) &&
                                 videoPresetParams.TryGetProperty("preset", out var videoPresetEl))

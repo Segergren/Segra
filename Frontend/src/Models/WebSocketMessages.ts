@@ -34,6 +34,21 @@ export interface StorageWarningMessage {
   actionData: any;
 }
 
+export interface RecoveryFileData {
+  recoveryId: string;
+  fileName: string;
+  filePath: string;
+  type: string;
+  typeLabel: string;
+  fileSize: string;
+  aiIdentifiedGame?: string;
+}
+
+export interface RecoveryPromptMessage {
+  files: RecoveryFileData[];
+  totalCount: number;
+}
+
 export interface SettingsMessage {
   settings: Settings;
 }
@@ -95,4 +110,8 @@ export function isSelectedGameExecutableMessage(message: WebSocketMessage<any>):
 
 export function isStorageWarningMessage(message: WebSocketMessage<any>): boolean {
   return message.method === 'StorageWarning';
+}
+
+export function isRecoveryPromptMessage(message: WebSocketMessage<any>): boolean {
+  return message.method === 'RecoveryPrompt';
 }

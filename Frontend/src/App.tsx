@@ -23,6 +23,7 @@ import { UpdateProvider } from './Context/UpdateContext';
 import { ReleaseNote } from './Models/WebSocketMessages';
 import { ScrollProvider } from './Context/ScrollContext';
 import { ModalProvider } from './Context/ModalContext';
+import { GeneralMessagesProvider } from './Context/GeneralMessagesContext';
 
 // Create a context for release notes that can be accessed globally
 export const ReleaseNotesContext = createContext<{
@@ -90,23 +91,25 @@ export default function AppWrapper() {
         <SettingsProvider>
           <ReleaseNotesContext.Provider value={{ releaseNotes, setReleaseNotes }}>
             <ModalProvider>
-              <SelectionsProvider>
-                <DndProvider backend={HTML5Backend}>
-                  <UploadProvider>
-                    <ImportProvider>
-                      <ClippingProvider>
-                        <AiHighlightsProvider>
-                          <CompressionProvider>
-                            <UpdateProvider>
-                              <App />
-                            </UpdateProvider>
-                          </CompressionProvider>
-                        </AiHighlightsProvider>
-                      </ClippingProvider>
-                    </ImportProvider>
-                  </UploadProvider>
-                </DndProvider>
-              </SelectionsProvider>
+              <GeneralMessagesProvider>
+                <SelectionsProvider>
+                  <DndProvider backend={HTML5Backend}>
+                    <UploadProvider>
+                      <ImportProvider>
+                        <ClippingProvider>
+                          <AiHighlightsProvider>
+                            <CompressionProvider>
+                              <UpdateProvider>
+                                <App />
+                              </UpdateProvider>
+                            </CompressionProvider>
+                          </AiHighlightsProvider>
+                        </ClippingProvider>
+                      </ImportProvider>
+                    </UploadProvider>
+                  </DndProvider>
+                </SelectionsProvider>
+              </GeneralMessagesProvider>
             </ModalProvider>
           </ReleaseNotesContext.Provider>
         </SettingsProvider>

@@ -4,15 +4,9 @@ import {
   isReleaseNotesMessage,
   ReleaseNote,
   isShowReleaseNotesMessage,
-  isShowModalMessage,
-  isStorageWarningMessage,
-  ModalMessage,
-  StorageWarningMessage,
 } from '../Models/WebSocketMessages';
 import { useModal } from './ModalContext';
 import ReleaseNotesModal from '../Components/ReleaseNotesModal';
-import GenericModal from '../Components/GenericModal';
-import ConfirmationModal from '../Components/ConfirmationModal';
 import { ReleaseNotesContext } from '../App';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 
@@ -27,7 +21,6 @@ interface UpdateContextType {
   updateInfo: UpdateProgress | null;
   releaseNotes: ReleaseNote[];
   openReleaseNotesModal: (filterVersion?: string | null) => void;
-  openModal: (modalData: ModalMessage) => void;
   clearUpdateInfo: () => void;
   checkForUpdates: () => void;
 }
@@ -86,14 +79,6 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       if (isShowReleaseNotesMessage(message)) {
         openReleaseNotesModal(message.content);
       }
-
-      if (isShowModalMessage(message)) {
-        openGenericModal(message.content);
-      }
-
-      if (isStorageWarningMessage(message)) {
-        openStorageWarningModal(message.content);
-      }
     };
 
     // Listen for WebSocket messages
@@ -127,56 +112,12 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     openModal(<ReleaseNotesModal onClose={closeModal} filterVersion={filterVersion} />);
   };
 
-  const openGenericModal = (modalData: ModalMessage) => {
-    openModal(
-      <GenericModal
-        title={modalData.title}
-        subtitle={modalData.subtitle}
-        description={modalData.description}
-        type={modalData.type}
-        onClose={closeModal}
-      />,
-    );
-  };
-
-  const openStorageWarningModal = (warningData: StorageWarningMessage) => {
-    openModal(
-      <ConfirmationModal
-        title={warningData.title}
-        description={warningData.description}
-        confirmText={warningData.confirmText}
-        cancelText={warningData.cancelText}
-        onConfirm={() => {
-          // Send confirmation to backend
-          sendMessageToBackend('StorageWarningConfirm', {
-            warningId: warningData.warningId,
-            confirmed: true,
-            action: warningData.action,
-            actionData: warningData.actionData,
-          });
-          closeModal();
-        }}
-        onCancel={() => {
-          // Send cancellation to backend
-          sendMessageToBackend('StorageWarningConfirm', {
-            warningId: warningData.warningId,
-            confirmed: false,
-            action: warningData.action,
-            actionData: warningData.actionData,
-          });
-          closeModal();
-        }}
-      />,
-    );
-  };
-
   return (
     <UpdateContext.Provider
       value={{
         updateInfo,
         releaseNotes,
         openReleaseNotesModal,
-        openModal: openGenericModal,
         clearUpdateInfo,
         checkForUpdates,
       }}

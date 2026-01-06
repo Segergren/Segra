@@ -397,6 +397,7 @@ namespace Segra.Backend.Obs
             Settings.Instance.State.HasLoadedObs = true;
             Log.Information("OBS initialized successfully!");
 
+            _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
             GameDetectionService.StartAsync();
         }
 
@@ -1902,15 +1903,5 @@ namespace Segra.Backend.Obs
 
             return true;
         }
-    }
-
-    internal class OBSVersion
-    {
-        public required string Version { get; set; }
-        public bool IsBeta { get; set; }
-        public string? AvailableSince { get; set; }
-        public string? SupportsFrom { get; set; }
-        public string? SupportsTo { get; set; }
-        public required string Url { get; set; }
     }
 }

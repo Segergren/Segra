@@ -9,6 +9,7 @@ import { MdUploadFile, MdDeleteOutline } from 'react-icons/md';
 import { AnimatePresence, motion } from 'framer-motion';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import ContentFilters, { SortOption } from './ContentFilters';
+import { useModal } from '../Context/ModalContext';
 
 interface ContentPageProps {
   contentType: ContentType;
@@ -32,6 +33,7 @@ export default function ContentPage({
   const { state } = useSettings();
   const { setSelectedVideo } = useSelectedVideo();
   const { scrollPositions, setScrollPosition } = useScroll();
+  const { isModalOpen } = useModal();
   const containerRef = useRef<HTMLDivElement>(null);
   const isSettingScroll = useRef(false);
 
@@ -147,6 +149,8 @@ export default function ContentPage({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isModalOpen) return;
+
       if (e.key === 'Control') {
         setIsCtrlPressed(true);
       }
@@ -166,6 +170,8 @@ export default function ContentPage({
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (isModalOpen) return;
+
       if (e.key === 'Control') {
         setIsCtrlPressed(false);
       }
@@ -178,7 +184,7 @@ export default function ContentPage({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [filteredItems, selectedItems.size]);
+  }, [selectedItems, filteredItems, isModalOpen]);
 
   useEffect(() => {
     setSelectedItems((prev) => {
