@@ -128,45 +128,46 @@ jobs:
         shell: pwsh
         run: |
           # Get the highest final release version (exclude RCs, sort by semver)
-          $latestTag = (git tag | Where-Object { $_ -notmatch '-rc\.' } | Sort-Object { [version]($_ -replace '^v', '') } | Select-Object -Last 1) -replace '^v', ''
-          if (-not $latestTag) {
-            $latestTag = "0.0.0"
+          $latestFinalTag = (git tag | Where-Object { $_ -notmatch '-rc\.' } | Sort-Object { [version]($_ -replace '^v', '') } | Select-Object -Last 1) -replace '^v', ''
+          if (-not $latestFinalTag) {
+            $latestFinalTag = "0.0.0"
           }
-          $latestTag = [string]$latestTag
-          Write-Host "Latest tag found: $latestTag"
-          
-          # Check if the latest tag is a release candidate
-          $isReleaseCandidate = $latestTag -match '(.+)-rc\.(.+)'
-          $baseVersion = $latestTag
-          $rcNumber = 0
-          
-          if ($isReleaseCandidate) {
-            # Extract base version and RC number
-            $baseVersion = $Matches[1]
-            $rcNumber = [int]$Matches[2]
-          }
-          
-          $versionParts = $baseVersion.Split('.')
+          Write-Host "Latest final release: $latestFinalTag"
+
+          $releaseType = "${{ github.event.inputs.release_type }}"
+
+          # Calculate what the next version would be based on release type
+          $versionParts = $latestFinalTag.Split('.')
           $major = [int]$versionParts[0]
           $minor = [int]$versionParts[1]
           $patch = [int]$versionParts[2]
 
-          $releaseType = "${{ github.event.inputs.release_type }}"
-          
-          # If it's the same base version, increment RC number
-          # Otherwise, increment version according to release type
-          if ($isReleaseCandidate) {
-            $rcNumber++
-            $newVersion = "$baseVersion-rc.$rcNumber"
-          } else {
-            switch ($releaseType) {
-              "major" { $major++; $minor=0; $patch=0 }
-              "minor" { $minor++; $patch=0 }
-              "patch" { $patch++ }
-              default { $patch++ } 
-            }
-            $newVersion = "$major.$minor.$patch-rc.1"
+          switch ($releaseType) {
+            "major" { $major++; $minor=0; $patch=0 }
+            "minor" { $minor++; $patch=0 }
+            "patch" { $patch++ }
           }
+          $nextBaseVersion = "$major.$minor.$patch"
+          Write-Host "Next base version would be: $nextBaseVersion"
+
+          # Check if there are existing RCs for this next version
+          $existingRCs = git tag | Where-Object { $_ -match "^v$([regex]::Escape($nextBaseVersion))-rc\.(\d+)$" }
+          
+          if ($existingRCs) {
+            # Find the highest RC number
+            $highestRC = $existingRCs | ForEach-Object {
+              if ($_ -match '-rc\.(\d+)$') { [int]$Matches[1] }
+            } | Sort-Object | Select-Object -Last 1
+            
+            $rcNumber = $highestRC + 1
+            Write-Host "Found existing RCs, highest is rc.$highestRC, creating rc.$rcNumber"
+          } else {
+            $rcNumber = 1
+            Write-Host "No existing RCs for $nextBaseVersion, starting at rc.1"
+          }
+
+          $newVersion = "$nextBaseVersion-rc.$rcNumber"
+          Write-Host "New version: $newVersion"
 
           echo "new_version=$newVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
           echo "new_version=$newVersion" >> $env:GITHUB_OUTPUT
