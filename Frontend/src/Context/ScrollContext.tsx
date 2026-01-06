@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 type ScrollPositions = {
   sessions: number;
@@ -22,18 +22,19 @@ export function ScrollProvider({ children }: { children: React.ReactNode }) {
     replayBuffer: 0,
   });
 
-  const setScrollPosition = (page: keyof ScrollPositions, position: number) => {
+  const setScrollPosition = useCallback((page: keyof ScrollPositions, position: number) => {
     setScrollPositions((prev) => ({
       ...prev,
       [page]: position,
     }));
-  };
+  }, []);
 
-  return (
-    <ScrollContext.Provider value={{ scrollPositions, setScrollPosition }}>
-      {children}
-    </ScrollContext.Provider>
+  const contextValue = useMemo(
+    () => ({ scrollPositions, setScrollPosition }),
+    [scrollPositions, setScrollPosition],
   );
+
+  return <ScrollContext.Provider value={contextValue}>{children}</ScrollContext.Provider>;
 }
 
 export function useScroll() {

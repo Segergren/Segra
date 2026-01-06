@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useSettings } from '../Context/SettingsContext';
 import { Content, includeInHighlight } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
@@ -133,7 +134,7 @@ export default function ContentCard({
   const formattedDuration = formatDuration(content!.duration);
 
   // Check if content was created within the last hour and hasn't been viewed yet
-  const isRecent = (): boolean => {
+  const isRecent = useMemo((): boolean => {
     if (!content) return false;
 
     // Check if this content has been viewed already
@@ -147,7 +148,7 @@ export default function ContentCard({
     const now = new Date();
     const diffInHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
     return diffInHours <= 1; // Content is considered recent if created within the last hour
-  };
+  }, [content?.fileName, content?.createdAt]);
 
   // Mark content as viewed when clicked
   const markAsViewed = () => {
@@ -248,7 +249,7 @@ export default function ContentCard({
             readOnly
           />
         )}
-        {isRecent() &&
+        {isRecent &&
           (type === 'Session' || type === 'Buffer') &&
           showNewBadgeOnVideos &&
           !isSelectionMode && (

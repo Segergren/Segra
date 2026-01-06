@@ -186,9 +186,25 @@ export default function ContentPage({
     };
   }, [selectedItems, filteredItems, isModalOpen]);
 
+  const prevContentFileNamesRef = useRef<string>('');
+
   useEffect(() => {
+    const currentKey = contentItems.map((item) => item.fileName).join(',');
+
+    if (currentKey === prevContentFileNamesRef.current) return;
+    prevContentFileNamesRef.current = currentKey;
+
+    const validFileNames = new Set(contentItems.map((item) => item.fileName));
+
     setSelectedItems((prev) => {
-      const validFileNames = new Set(contentItems.map((item) => item.fileName));
+      let hasInvalid = false;
+      prev.forEach((fileName) => {
+        if (!validFileNames.has(fileName)) {
+          hasInvalid = true;
+        }
+      });
+      if (!hasInvalid) return prev; // Return same reference if nothing changed
+
       const newSet = new Set<string>();
       prev.forEach((fileName) => {
         if (validFileNames.has(fileName)) {
