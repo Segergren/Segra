@@ -4,6 +4,7 @@ using Segra.Backend.Media;
 using Segra.Backend.Obs;
 using Segra.Backend.Utils;
 using Segra.Backend.Windows.Display;
+using Segra.Backend.Windows.Input;
 using Serilog;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -658,6 +659,7 @@ namespace Segra.Backend.Services
             if (updatedSettings.Keybindings != null)
             {
                 settings.Keybindings = updatedSettings.Keybindings;
+                KeybindCaptureService.RefreshKeybindingsCache();
                 hasChanges = true;
             }
 
