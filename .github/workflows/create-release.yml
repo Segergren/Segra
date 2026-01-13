@@ -217,6 +217,20 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('Frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
       - name: Configure Git User
         run: |
           git config --global user.name "github-actions[bot]"
@@ -303,63 +317,14 @@ jobs:
           name: Segra-Final-Build
 
       - name: Create Final GitHub Release
-        id: create_final_gh_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build_and_release.outputs.final_version_tag }}
-          release_name: "Release ${{ needs.build_and_release.outputs.final_version_tag }}"
-          body: ""
-          draft: false
-          prerelease: false # This is a final release
-
-      - name: Upload Setup File to Final Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_final_gh_release.outputs.upload_url }}
-          asset_path: ./Segra-win-Setup.exe
-          asset_name: Segra-win-Setup.exe
-          asset_content_type: application/octet-stream
-
-      - name: Upload RELEASES File to Final Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_final_gh_release.outputs.upload_url }}
-          asset_path: ./RELEASES
-          asset_name: RELEASES
-          asset_content_type: text/plain
-
-      - name: Upload releases.win.json to Final Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_final_gh_release.outputs.upload_url }}
-          asset_path: ./releases.win.json
-          asset_name: releases.win.json
-          asset_content_type: application/json
-
-      - name: Upload assets.win.json to Final Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_final_gh_release.outputs.upload_url }}
-          asset_path: ./assets.win.json
-          asset_name: assets.win.json
-          asset_content_type: application/json
-
-      - name: Upload nupkg to Final Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_final_gh_release.outputs.upload_url }}
-          asset_path: ./Segra-${{ needs.build_and_release.outputs.final_version_number }}-full.nupkg
-          asset_name: Segra-${{ needs.build_and_release.outputs.final_version_number }}-full.nupkg
-          asset_content_type: application/octet-stream
+          name: "Release ${{ needs.build_and_release.outputs.final_version_tag }}"
+          prerelease: false
+          files: |
+            ./Segra-win-Setup.exe
+            ./RELEASES
+            ./releases.win.json
+            ./assets.win.json
+            ./Segra-${{ needs.build_and_release.outputs.final_version_number }}-full.nupkg

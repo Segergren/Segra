@@ -46,6 +46,20 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('Frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
       - name: Display Git Log
         shell: bash
         run: |
@@ -244,63 +258,14 @@ jobs:
           name: Segra
 
       - name: Create GitHub Release (Pre-Release)
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.build.outputs.new_version }}
-          release_name: "Release v${{ needs.build.outputs.new_version }}"
-          body: ""
-          draft: false
+          name: "Release v${{ needs.build.outputs.new_version }}"
           prerelease: true
-
-      - name: Upload Setup File
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./Segra-win-Setup.exe
-          asset_name: Segra-win-Setup.exe
-          asset_content_type: application/octet-stream
-
-      - name: Upload RELEASES File
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./RELEASES
-          asset_name: RELEASES
-          asset_content_type: text/plain
-
-      - name: Upload releases.win.json
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./releases.win.json
-          asset_name: releases.win.json
-          asset_content_type: application/json
-
-      - name: Upload assets.win.json
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./assets.win.json
-          asset_name: assets.win.json
-          asset_content_type: application/json
-
-      - name: Upload nupkg
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./Segra-${{ needs.build.outputs.new_version }}-full.nupkg
-          asset_name: Segra-${{ needs.build.outputs.new_version }}-full.nupkg
-          asset_content_type: application/json
+          files: |
+            ./Segra-win-Setup.exe
+            ./RELEASES
+            ./releases.win.json
+            ./assets.win.json
+            ./Segra-${{ needs.build.outputs.new_version }}-full.nupkg
