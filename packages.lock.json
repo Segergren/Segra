@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net9.0-windows10.0.17763": {
+    "net9.0-windows10.0.19041": {
       "Microsoft.Extensions.FileProviders.Embedded": {
         "type": "Direct",
         "requested": "[10.0.0, )",
