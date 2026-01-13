@@ -1686,8 +1686,36 @@ namespace Segra.Backend.Obs
                         Log.Information($"Downloading OBS version {versionToDownload.Version}");
 
                         httpClient.DefaultRequestHeaders.Clear();
-                        var zipBytes = await httpClient.GetByteArrayAsync(actualDownloadUrl);
-                        await File.WriteAllBytesAsync(zipPath, zipBytes);
+
+                        // Download with progress reporting
+                        using var downloadResponse = await httpClient.GetAsync(actualDownloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                        downloadResponse.EnsureSuccessStatusCode();
+
+                        var totalBytes = downloadResponse.Content.Headers.ContentLength ?? -1L;
+                        using var contentStream = await downloadResponse.Content.ReadAsStreamAsync();
+                        using var fileStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+
+                        var buffer = new byte[8192];
+                        long totalBytesRead = 0;
+                        int bytesRead;
+                        int lastReportedProgress = -1;
+
+                        while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            await fileStream.WriteAsync(buffer, 0, bytesRead);
+                            totalBytesRead += bytesRead;
+
+                            if (totalBytes > 0)
+                            {
+                                int progress = (int)((totalBytesRead * 100) / totalBytes);
+                                // Only send update if progress changed (avoid flooding)
+                                if (progress != lastReportedProgress)
+                                {
+                                    lastReportedProgress = progress;
+                                    await SendFrontendMessage("ObsDownloadProgress", new { progress, status = "downloading" });
+                                }
+                            }
+                        }
 
                         // Save the hash for future reference
                         await File.WriteAllTextAsync(localHashPath, remoteHash);

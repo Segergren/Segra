@@ -20,6 +20,7 @@ import { ClippingProvider } from './Context/ClippingContext';
 import { AiHighlightsProvider } from './Context/AiHighlightsContext';
 import { CompressionProvider } from './Context/CompressionContext';
 import { UpdateProvider } from './Context/UpdateContext';
+import { ObsDownloadProvider } from './Context/ObsDownloadContext';
 import { ReleaseNote } from './Models/WebSocketMessages';
 import { ScrollProvider } from './Context/ScrollContext';
 import { ModalProvider } from './Context/ModalContext';
@@ -100,7 +101,9 @@ export default function AppWrapper() {
                           <AiHighlightsProvider>
                             <CompressionProvider>
                               <UpdateProvider>
-                                <App />
+                                <ObsDownloadProvider>
+                                  <App />
+                                </ObsDownloadProvider>
                               </UpdateProvider>
                             </CompressionProvider>
                           </AiHighlightsProvider>

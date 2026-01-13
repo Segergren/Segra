@@ -6,6 +6,7 @@ import { useUploads } from './Context/UploadContext';
 import { useImports } from './Context/ImportContext';
 import { useClipping } from './Context/ClippingContext';
 import { useUpdate } from './Context/UpdateContext';
+import { useObsDownload } from './Context/ObsDownloadContext';
 import { useAiHighlights } from './Context/AiHighlightsContext';
 import UploadCard from './Components/UploadCard';
 import ImportCard from './Components/ImportCard';
@@ -33,6 +34,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { hasLoadedObs, recording, preRecording } = settings.state;
   const { updateInfo } = useUpdate();
   const { aiProgress } = useAiHighlights();
+  const { obsDownloadProgress } = useObsDownload();
 
   // Create refs for each menu button
   const sessionsRef = useRef<HTMLButtonElement>(null);
@@ -226,15 +228,30 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
 
       {/* OBS Loading Section */}
       {!hasLoadedObs && (
-        <div className="mb-4 flex flex-col items-center">
-          <div
-            style={{
-              width: '3.5rem',
-              height: '2rem',
-            }}
-            className="loading loading-infinity"
-          ></div>
-          <p className="text-center mt-2 disabled">Starting OBS</p>
+        <div className="mb-4 flex flex-col items-center px-4">
+          {obsDownloadProgress !== null && obsDownloadProgress < 100 ? (
+            <>
+              <p className="text-center text-sm text-gray-300 mb-2">Downloading OBS</p>
+              <div className="w-full bg-base-200 rounded-full h-1.5">
+                <div
+                  className="h-1.5 rounded-full bg-primary transition-all duration-300"
+                  style={{ width: `${obsDownloadProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-gray-500 text-xs mt-1">{obsDownloadProgress}%</p>
+            </>
+          ) : (
+            <>
+              <div
+                style={{
+                  width: '3.5rem',
+                  height: '2rem',
+                }}
+                className="loading loading-infinity"
+              ></div>
+              <p className="text-center mt-2 disabled">Starting OBS</p>
+            </>
+          )}
         </div>
       )}
 
