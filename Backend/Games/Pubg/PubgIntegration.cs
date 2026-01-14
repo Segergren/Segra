@@ -28,6 +28,20 @@ namespace Segra.Backend.Games.Pubg
             public string? Data { get; set; }
         }
 
+        public class PubgEventData
+        {
+            [JsonPropertyName("instigatorName")]
+            public string? InstigatorName { get; set; }
+            [JsonPropertyName("victimName")]
+            public string? VictimName { get; set; }
+            [JsonPropertyName("damageCauseClassName")]
+            public string? DamageCauseClassName { get; set; }
+            [JsonPropertyName("damageTypeCategory")]
+            public string? DamageTypeCategory { get; set; }
+            [JsonPropertyName("bDBNO")]
+            public bool IsDBNO { get; set; }
+        }
+
         public PubgIntegration()
         {
             checkTimer = new System.Timers.Timer
@@ -74,7 +88,7 @@ namespace Segra.Backend.Games.Pubg
                     Thread.Sleep(500);
 
                     var infoPath = Path.Combine(directory, "PUBG.replayinfo");
-                    var matchJson = ReadJson(infoPath);
+                    var matchJson = ReadJsonFromFile(infoPath);
                     var matchInfo = JsonSerializer.Deserialize<PubgMatchInfo>(matchJson);
 
                     if (matchInfo is null)
@@ -85,6 +99,7 @@ namespace Segra.Backend.Games.Pubg
 
                     ProcessDownedPlayers(directory, matchInfo, processedVictims);
                     ProcessKills(directory, matchInfo, processedVictims);
+                    ProcessPlayerDowned(directory, matchInfo);
                     ProcessPlayerDeath(directory, matchInfo);
                 }
             }
@@ -96,36 +111,24 @@ namespace Segra.Backend.Games.Pubg
 
         private void ProcessDownedPlayers(string folder, PubgMatchInfo matchInfo, HashSet<string> trackedVictims)
         {
-            var downFiles = Directory.GetFiles(Path.Combine(folder, "events"), "groggy*");
+            var downFiles = Directory.GetFiles(Path.Combine(folder, "events"), "DBNO*");
             foreach (var filePath in downFiles)
             {
-                var eventJson = ReadJson(filePath);
-                var details = JsonSerializer.Deserialize<PubgEventDetails>(eventJson);
+                var result = ParseEventData(filePath);
+                if (result is null) continue;
+                var (eventData, eventTime) = result.Value;
 
-                if (details is null || details.Data is null)
+                if (eventData.InstigatorName != null && matchInfo.RecordUserNickName != null && eventData.VictimName != null)
                 {
-                    Log.Warning("Failed to parse event details from {FilePath}", filePath);
-                    continue;
-                }
-
-                var rawData = DecodeBase64(details.Data);
-                var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(rawData);
-                var dataList = dataDict?.Values?.ToList();
-
-                var instigator = dataList?[1]?.ToString();
-                var victim = dataList?[3]?.ToString();
-
-                if (instigator != null && matchInfo.RecordUserNickName != null && victim != null)
-                {
-                    string cleanInstigator = RemoveClanTag(instigator);
-                    string cleanVictim = RemoveClanTag(victim);
+                    string cleanInstigator = RemoveClanTag(eventData.InstigatorName);
+                    string cleanVictim = RemoveClanTag(eventData.VictimName);
                     string cleanRecordName = RemoveClanTag(matchInfo.RecordUserNickName);
 
                     if (string.Equals(cleanInstigator, cleanRecordName, StringComparison.OrdinalIgnoreCase) &&
                         !string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
-                        var downTime = MatchTimestampToLocal(matchInfo.Timestamp, details.Time);
-                        trackedVictims.Add(victim);
+                        var downTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
+                        trackedVictims.Add(eventData.VictimName);
 
                         var bookmark = new Bookmark
                         {
@@ -143,42 +146,28 @@ namespace Segra.Backend.Games.Pubg
             var killFiles = Directory.GetFiles(Path.Combine(folder, "events"), "kill*");
             foreach (var filePath in killFiles)
             {
-                var eventJson = ReadJson(filePath);
-                var details = JsonSerializer.Deserialize<PubgEventDetails>(eventJson);
+                var result = ParseEventData(filePath);
+                if (result is null) continue;
+                var (eventData, eventTime) = result.Value;
 
-                if (details is null || details.Data is null)
+                if (eventData.InstigatorName != null && matchInfo.RecordUserNickName != null && eventData.VictimName != null)
                 {
-                    Log.Warning("Failed to parse event details from {FilePath}", filePath);
-                    continue;
-                }
-
-                var rawData = DecodeBase64(details.Data);
-                var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(rawData);
-
-                if (dataDict is null)
-                {
-                    Log.Warning("Failed to parse event data from {FilePath}", filePath);
-                    continue;
-                }
-
-                var dataList = dataDict.Values.ToList();
-
-                var killer = dataList[1]?.ToString();
-                var victim = dataList[3]?.ToString();
-
-                if (killer != null && matchInfo.RecordUserNickName != null && victim != null)
-                {
-                    string cleanKiller = RemoveClanTag(killer);
-                    string cleanVictim = RemoveClanTag(victim);
+                    string cleanKiller = RemoveClanTag(eventData.InstigatorName);
+                    string cleanVictim = RemoveClanTag(eventData.VictimName);
                     string cleanRecordName = RemoveClanTag(matchInfo.RecordUserNickName);
 
                     if (string.Equals(cleanKiller, cleanRecordName, StringComparison.OrdinalIgnoreCase) &&
                         !string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
-                        var killTime = MatchTimestampToLocal(matchInfo.Timestamp, details.Time);
-                        bool wasInstantKill = trackedVictims.Add(victim);
-                        if (wasInstantKill)
+                        // Check if we already got credit for downing this victim
+                        bool iDownedThem = !trackedVictims.Add(eventData.VictimName);
+
+                        // Create bookmark if:
+                        // - IsDBNO=false (instant kill or post-revive kill), OR
+                        // - IsDBNO=true AND I didn't down them (finishing someone else's down)
+                        if (!eventData.IsDBNO || !iDownedThem)
                         {
+                            var killTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
                             var bookmark = new Bookmark
                             {
                                 Type = BookmarkType.Kill,
@@ -191,45 +180,27 @@ namespace Segra.Backend.Games.Pubg
             }
         }
 
-        private void ProcessPlayerDeath(string folder, PubgMatchInfo matchInfo)
+        private void ProcessPlayerDowned(string folder, PubgMatchInfo matchInfo)
         {
-            var killFiles = Directory.GetFiles(Path.Combine(folder, "events"), "kill*");
-            foreach (var filePath in killFiles)
+            var downFiles = Directory.GetFiles(Path.Combine(folder, "events"), "DBNO*");
+            foreach (var filePath in downFiles)
             {
-                var eventJson = ReadJson(filePath);
-                var details = JsonSerializer.Deserialize<PubgEventDetails>(eventJson);
+                var result = ParseEventData(filePath);
+                if (result is null) continue;
+                var (eventData, eventTime) = result.Value;
 
-                if (details is null || details.Data is null)
+                if (eventData.VictimName != null && matchInfo.RecordUserNickName != null)
                 {
-                    Log.Warning("Failed to parse event details from {FilePath}", filePath);
-                    continue;
-                }
-
-                var rawData = DecodeBase64(details.Data);
-                var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(rawData);
-
-                if (dataDict is null)
-                {
-                    Log.Warning("Failed to parse event data from {FilePath}", filePath);
-                    continue;
-                }
-
-                var dataList = dataDict.Values.ToList();
-                var victim = dataList[3]?.ToString();
-
-                // Handle clan tags by removing text within brackets before comparing
-                if (victim != null && matchInfo.RecordUserNickName != null)
-                {
-                    string cleanVictim = RemoveClanTag(victim);
+                    string cleanVictim = RemoveClanTag(eventData.VictimName);
                     string cleanRecordName = RemoveClanTag(matchInfo.RecordUserNickName);
 
                     if (string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
-                        var deathTime = MatchTimestampToLocal(matchInfo.Timestamp, details.Time);
+                        var downTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
                         var bookmark = new Bookmark
                         {
                             Type = BookmarkType.Death,
-                            Time = deathTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero
+                            Time = downTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero
                         };
                         Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
                     }
@@ -237,7 +208,40 @@ namespace Segra.Backend.Games.Pubg
             }
         }
 
-        private static string ReadJson(string path)
+        private void ProcessPlayerDeath(string folder, PubgMatchInfo matchInfo)
+        {
+            var killFiles = Directory.GetFiles(Path.Combine(folder, "events"), "kill*");
+            foreach (var filePath in killFiles)
+            {
+                var result = ParseEventData(filePath);
+                if (result is null) continue;
+                var (eventData, eventTime) = result.Value;
+
+                if (eventData.VictimName != null && matchInfo.RecordUserNickName != null)
+                {
+                    string cleanVictim = RemoveClanTag(eventData.VictimName);
+                    string cleanRecordName = RemoveClanTag(matchInfo.RecordUserNickName);
+
+                    if (string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // IsDBNO=false means instant kill (no down state before death)
+                        // Only add death bookmark for instant kills since downs are handled separately
+                        if (!eventData.IsDBNO)
+                        {
+                            var deathTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
+                            var bookmark = new Bookmark
+                            {
+                                Type = BookmarkType.Death,
+                                Time = deathTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero
+                            };
+                            Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static string ReadJsonFromFile(string path)
         {
             var content = File.ReadAllText(path);
             var start = content.IndexOf('{');
@@ -245,7 +249,30 @@ namespace Segra.Backend.Games.Pubg
             return content.Substring(start, end - start);
         }
 
-        private static string DecodeBase64(string base64) => Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+        private static (PubgEventData Data, int Time)? ParseEventData(string filePath)
+        {
+            try
+            {
+                var content = File.ReadAllText(filePath);
+                var start = content.IndexOf('{');
+                var end = content.LastIndexOf('}') + 1;
+                var eventJson = content.Substring(start, end - start);
+
+                var details = JsonSerializer.Deserialize<PubgEventDetails>(eventJson);
+                if (details?.Data is null) return null;
+
+                var rawData = Encoding.UTF8.GetString(Convert.FromBase64String(details.Data));
+                var data = JsonSerializer.Deserialize<PubgEventData>(rawData);
+                if (data is null) return null;
+
+                return (data, details.Time);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("Failed to parse event data from {FilePath}: {Message}", filePath, ex.Message);
+                return null;
+            }
+        }
 
         private static string RemoveClanTag(string playerName)
         {
