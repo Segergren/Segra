@@ -1,7 +1,9 @@
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
+using Segra.Backend.Shared;
 using Segra.Backend.Utils;
+using Segra.Backend.Windows.Storage;
 using Serilog;
 using System.Text.Json;
 
@@ -131,10 +133,9 @@ namespace Segra.Backend.Media
         {
             int importId = Guid.NewGuid().GetHashCode();
 
-            // Create target directory
+            // Base content folder
             string contentFolder = Settings.Instance.ContentFolder;
-            string targetFolder = Path.Combine(contentFolder, contentType.ToString().ToLower() + "s").Replace("\\", "/");
-            Directory.CreateDirectory(targetFolder);
+            string baseTypeFolder = Path.Combine(contentFolder, FolderNames.GetVideoFolderName(contentType));
 
             int importedCount = 0;
             int failedCount = 0;
@@ -155,6 +156,10 @@ namespace Segra.Backend.Media
 
                 try
                 {
+                    // Create target directory with game subfolder
+                    string targetFolder = Path.Combine(baseTypeFolder, "Unknown");
+                    Directory.CreateDirectory(targetFolder);
+
                     // Send initial progress for current file
                     double progressPercent = (double)i / selectedFiles.Length * 100;
                     try
@@ -193,6 +198,9 @@ namespace Segra.Backend.Media
                     // Copy the video file to target location
                     File.Copy(sourceFile, targetFilePath);
 
+                    // Extract recording date from file
+                    DateTime recordingDate = File.GetCreationTime(sourceFile);
+
                     // Send progress after file copy
                     try
                     {
@@ -211,18 +219,8 @@ namespace Segra.Backend.Media
                         Log.Warning($"Failed to send import progress message: {msgEx.Message}");
                     }
 
-                    // Parse game name and date from filename
-                    var (detectedGame, detectedDate) = ContentService.ParseFileNameInfo(originalFileName);
-
-                    // Log detected information
-                    Log.Information($"Detected game: '{detectedGame}' from filename: '{originalFileName}'");
-                    if (detectedDate.HasValue)
-                    {
-                        Log.Information($"Detected date: {detectedDate.Value:yyyy-MM-dd} from filename: '{originalFileName}'");
-                    }
-
                     // Create metadata file with detected game name and date
-                    await ContentService.CreateMetadataFile(targetFilePath, contentType, detectedGame, null, null, detectedDate);
+                    await ContentService.CreateMetadataFile(targetFilePath, contentType, "Unknown", null, originalFileName.Replace("_", " "), recordingDate != DateTime.MinValue ? recordingDate : null, isImported: true);
 
                     // Ensure file is fully written to disk/network before thumbnail generation
                     await GeneralUtils.EnsureFileReady(targetFilePath);

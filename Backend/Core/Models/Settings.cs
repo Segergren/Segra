@@ -1,6 +1,7 @@
 using Segra.Backend.App;
 using Segra.Backend.Windows.Watchers;
 using Segra.Backend.Services;
+using Segra.Backend.Shared;
 using Segra.Backend.Utils;
 using Segra.Backend.Windows.Audio;
 using Segra.Backend.Windows.Display;
@@ -1074,6 +1075,10 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        // AppData folder path for metadata, thumbnails, waveforms (read-only, exposed to frontend)
+        [JsonPropertyName("appDataFolder")]
+        public string AppDataFolder => FolderNames.AppDataFolder.Replace("\\", "/");
+
         private void OnAudioDevicesChanged()
         {
             _audioDeviceDebounceTimer?.Dispose();
@@ -1289,6 +1294,8 @@ namespace Segra.Backend.Core.Models
         // Subsequent tracks correspond to each configured audio source
         // in the same order they are added (inputs, then outputs), up to 6 total tracks in OBS.
         public List<string>? AudioTrackNames { get; set; }
+
+        public bool IsImported { get; set; } = false;
     }
 
     public class AiAnalysis

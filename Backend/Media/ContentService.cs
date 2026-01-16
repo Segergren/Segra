@@ -2,6 +2,7 @@ using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Games;
 using Segra.Backend.Services;
+using Segra.Backend.Shared;
 using Serilog;
 using System.Globalization;
 using System.Text.Json;
@@ -16,7 +17,7 @@ namespace Segra.Backend.Media
             WriteIndented = true
         };
 
-        public static async Task CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null, int? igdbId = null)
+        public static async Task CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null, int? igdbId = null, bool isImported = false)
         {
             bookmarks ??= [];
 
@@ -32,12 +33,11 @@ namespace Segra.Backend.Media
                 // Get the directory and file name
                 string contentFileName = Path.GetFileNameWithoutExtension(filePath);
 
-                // Ensure the .metadata folder exists
-                string metadataFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".metadata", type.ToString().ToLower() + "s");
+                // Ensure the metadata folder exists
+                string metadataFolderPath = FolderNames.GetMetadataFolderPath(type);
                 if (!Directory.Exists(metadataFolderPath))
                 {
-                    DirectoryInfo dir = Directory.CreateDirectory(metadataFolderPath);
-                    dir.Attributes |= FileAttributes.Hidden;
+                    Directory.CreateDirectory(metadataFolderPath);
                 }
 
                 // Create the metadata file
@@ -85,7 +85,8 @@ namespace Segra.Backend.Media
                     CreatedAt = createdAt ?? DateTime.Now,
                     Duration = duration,
                     AudioTrackNames = trackNames,
-                    IgdbId = igdbId
+                    IgdbId = igdbId,
+                    IsImported = isImported
                 };
 
                 string metadataJson = JsonSerializer.Serialize(metadataContent, _jsonOptions);
@@ -143,12 +144,11 @@ namespace Segra.Backend.Media
                 // Get the directory and file name
                 string contentFileName = Path.GetFileNameWithoutExtension(filePath);
 
-                // Ensure the .thumbnails folder exists
-                string thumbnailsFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".thumbnails", type.ToString().ToLower() + "s");
+                // Ensure the thumbnails folder exists
+                string thumbnailsFolderPath = FolderNames.GetThumbnailsFolderPath(type);
                 if (!Directory.Exists(thumbnailsFolderPath))
                 {
-                    DirectoryInfo dir = Directory.CreateDirectory(thumbnailsFolderPath);
-                    dir.Attributes |= FileAttributes.Hidden;
+                    Directory.CreateDirectory(thumbnailsFolderPath);
                 }
 
                 // Define the output thumbnail file path
@@ -186,12 +186,11 @@ namespace Segra.Backend.Media
 
                 string contentFileName = Path.GetFileNameWithoutExtension(videoFilePath);
 
-                // Ensure the .waveforms folder exists and is hidden
-                string waveformFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".waveforms", type.ToString().ToLower() + "s");
+                // Ensure the waveforms folder exists
+                string waveformFolderPath = FolderNames.GetWaveformsFolderPath(type);
                 if (!Directory.Exists(waveformFolderPath))
                 {
-                    DirectoryInfo dir = Directory.CreateDirectory(waveformFolderPath);
-                    dir.Attributes |= FileAttributes.Hidden;
+                    Directory.CreateDirectory(waveformFolderPath);
                 }
 
                 string tempPcmPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.pcm");
@@ -311,6 +310,7 @@ namespace Segra.Backend.Media
                 string normalizedFilePath = Path.GetFullPath(filePath);
 
                 // Ensure the video file exists before attempting deletion
+                string? videoDirectory = Path.GetDirectoryName(normalizedFilePath);
                 if (File.Exists(normalizedFilePath))
                 {
                     int maxRetries = 3;
@@ -329,6 +329,30 @@ namespace Segra.Backend.Media
                             await Task.Delay(500);
                         }
                     }
+
+                    // Clean up empty game folder if it exists
+                    if (!string.IsNullOrEmpty(videoDirectory) && Directory.Exists(videoDirectory))
+                    {
+                        try
+                        {
+                            // Only delete if the folder is empty and is a game subfolder (not the root video type folder)
+                            string contentRoot = Settings.Instance.ContentFolder;
+                            string[] rootFolders = { FolderNames.Sessions, FolderNames.Buffers, FolderNames.Clips, FolderNames.Highlights };
+                            bool isGameSubfolder = rootFolders.Any(rf =>
+                                videoDirectory.StartsWith(Path.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase) &&
+                                !videoDirectory.Equals(Path.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase));
+
+                            if (isGameSubfolder && !Directory.EnumerateFileSystemEntries(videoDirectory).Any())
+                            {
+                                Directory.Delete(videoDirectory);
+                                Log.Information($"Deleted empty game folder: {videoDirectory}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning($"Failed to clean up empty game folder: {ex.Message}");
+                        }
+                    }
                 }
                 else
                 {
@@ -339,7 +363,7 @@ namespace Segra.Backend.Media
                 string contentFileName = Path.GetFileNameWithoutExtension(normalizedFilePath);
 
                 // Construct the metadata file path
-                string metadataFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".metadata", type.ToString().ToLower() + "s");
+                string metadataFolderPath = FolderNames.GetMetadataFolderPath(type);
                 string metadataFilePath = Path.Combine(metadataFolderPath, $"{contentFileName}.json");
 
                 // Delete the metadata file if it exists
@@ -354,7 +378,7 @@ namespace Segra.Backend.Media
                 }
 
                 // Construct the thumbnail file path
-                string thumbnailsFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".thumbnails", type.ToString().ToLower() + "s");
+                string thumbnailsFolderPath = FolderNames.GetThumbnailsFolderPath(type);
                 string thumbnailFilePath = Path.Combine(thumbnailsFolderPath, $"{contentFileName}.jpeg");
 
                 // Delete the thumbnail file if it exists
@@ -369,7 +393,7 @@ namespace Segra.Backend.Media
                 }
 
                 // Construct the waveform JSON path
-                string waveformFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".waveforms", type.ToString().ToLower() + "s");
+                string waveformFolderPath = FolderNames.GetWaveformsFolderPath(type);
                 string waveformFilePath = Path.Combine(waveformFolderPath, $"{contentFileName}.peaks.json");
 
                 // Delete the waveform file if it exists
@@ -426,110 +450,6 @@ namespace Segra.Backend.Media
             }
         }
 
-        public static (string gameName, DateTime? extractedDate) ParseFileNameInfo(string fileName)
-        {
-            string gameName = fileName; // Fallback to original filename
-            DateTime? extractedDate = null;
-
-            // Remove common prefixes and suffixes
-            string cleanName = fileName
-                .Replace("Highlight_", "")
-                .Replace("Clip_", "")
-                .Replace("Replay_", "")
-                .Replace("Desktop_", "")
-                .Replace("DesktopRecording", "Desktop")
-                .Replace("Recording_", "");
-
-            // Date patterns to try
-            var datePatterns = new[]
-            {
-                @"(\d{4}-\d{2}-\d{2})",           // YYYY-MM-DD
-                @"(\d{2}-\d{2}-\d{4})",           // MM-DD-YYYY or DD-MM-YYYY
-                @"(\d{4}\.\d{2}\.\d{2})",         // YYYY.MM.DD
-                @"(\d{2}\.\d{2}\.\d{4})",         // MM.DD.YYYY or DD.MM.YYYY
-                @"(\d{4}_\d{2}_\d{2})",           // YYYY_MM_DD
-                @"(\d{2}_\d{2}_\d{4})"            // MM_DD_YYYY or DD_MM_YYYY
-            };
-
-            // Try to extract date
-            foreach (string pattern in datePatterns)
-            {
-                var match = Regex.Match(cleanName, pattern);
-                if (match.Success)
-                {
-                    string dateStr = match.Groups[1].Value;
-
-                    // Try different date formats
-                    string[] formats = {
-                        "yyyy-MM-dd", "MM-dd-yyyy", "dd-MM-yyyy",
-                        "yyyy.MM.dd", "MM.dd.yyyy", "dd.MM.yyyy",
-                        "yyyy_MM_dd", "MM_dd_yyyy", "dd_MM_yyyy"
-                    };
-
-                    foreach (string format in formats)
-                    {
-                        if (DateTime.TryParseExact(dateStr, format, null, DateTimeStyles.None, out DateTime parsedDate))
-                        {
-                            extractedDate = parsedDate;
-                            break;
-                        }
-                    }
-
-                    if (extractedDate.HasValue)
-                    {
-                        // Remove the date part from the name for game detection
-                        cleanName = cleanName.Replace(dateStr, "").Trim('_', '-', '.', ' ');
-                        break;
-                    }
-                }
-            }
-
-            // Remove time patterns
-            var timePatterns = new[]
-            {
-                @"_\d{2}-\d{2}-\d{2}",    // _HH-MM-SS
-                @"_\d{2}\.\d{2}\.\d{2}",  // _HH.MM.SS
-                @"_\d{2}:\d{2}:\d{2}",    // _HH:MM:SS
-                @"\s\d{2}-\d{2}-\d{2}",   // HH-MM-SS
-                @"\s\d{2}\.\d{2}\.\d{2}", // HH.MM.SS
-                @"\s\d{2}:\d{2}:\d{2}"    // HH:MM:SS
-            };
-
-            foreach (string pattern in timePatterns)
-            {
-                cleanName = Regex.Replace(cleanName, pattern, "");
-            }
-
-            // Clean up any remaining separators and common words
-            cleanName = cleanName
-                .Replace("_", " ")
-                .Replace("-", " ")
-                .Replace(".", " ")
-                .Trim();
-
-            // Remove common action words at the end
-            var actionWords = new[] { "Ace", "Win", "Victory", "Goal", "Clutch", "Kill", "DoubleKill", "TripleKill",
-                                    "BossFight", "Mission", "Match", "Explore", "Sabotage", "FullMatch", "Highlight",
-                                    "Clip", "Replay", "Play", "Heist", "Recording", "Build", "SoloWin" };
-
-            foreach (string action in actionWords)
-            {
-                if (cleanName.EndsWith(" " + action, StringComparison.OrdinalIgnoreCase))
-                {
-                    cleanName = cleanName.Substring(0, cleanName.Length - action.Length - 1).Trim();
-                    break;
-                }
-            }
-
-            // Smart game name parsing - use cleanName if meaningful, otherwise fallback to original fileName
-            string nameToFormat = (!string.IsNullOrWhiteSpace(cleanName) &&
-                                  !Regex.IsMatch(cleanName, @"^[\d\s_\-\.]+$"))
-                                  ? cleanName : fileName;
-            gameName = GameNameUtils.SmartFormatGameName(nameToFormat);
-
-            return (gameName, extractedDate);
-        }
-
         public static async Task HandleAddBookmark(JsonElement message)
         {
             try
@@ -569,7 +489,7 @@ namespace Segra.Backend.Media
 
                     // Get metadata file path
                     string contentFileName = Path.GetFileNameWithoutExtension(filePath);
-                    string metadataFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".metadata", contentType.ToString().ToLower() + "s");
+                    string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
                     string metadataFilePath = Path.Combine(metadataFolderPath, $"{contentFileName}.json");
 
                     // Create a new bookmark
@@ -650,7 +570,7 @@ namespace Segra.Backend.Media
 
                     // Get metadata file path
                     string contentFileName = Path.GetFileNameWithoutExtension(filePath);
-                    string metadataFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".metadata", contentType.ToString().ToLower() + "s");
+                    string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
                     string metadataFilePath = Path.Combine(metadataFolderPath, $"{contentFileName}.json");
 
                     // Update the metadata file
@@ -714,7 +634,7 @@ namespace Segra.Backend.Media
                     }
 
                     // Construct metadata file path
-                    string metadataFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".metadata", contentType.ToString().ToLower() + "s");
+                    string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
                     string metadataFilePath = Path.Combine(metadataFolderPath, $"{fileName}.json");
 
                     // Update the metadata file

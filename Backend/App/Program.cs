@@ -27,6 +27,7 @@ namespace Segra.Backend.App
         static extern bool SetProcessDPIAware();
 
         const int SW_HIDE = 0;
+        public static bool IsFirstRun { get; private set; } = false;
         private static readonly AutoResetEvent ShowWindowEvent = new AutoResetEvent(false);
         public static bool hasLoadedInitialSettings = false;
         public static PhotinoWindow? Window { get; private set; }
@@ -192,11 +193,11 @@ namespace Segra.Backend.App
                     ContentServer.StartServer(prefix);
                 });
 
-                bool firstRun = !SettingsService.LoadSettings();
+                IsFirstRun = !SettingsService.LoadSettings();
                 hasLoadedInitialSettings = true;
                 Settings.Instance.State.Initialize();
                 SettingsService.SaveSettings();
-                if (firstRun)
+                if (IsFirstRun)
                 {
                     _ = SettingsService.LoadContentFromFolderIntoState(true);
                     StartupService.SetStartupStatus(true);

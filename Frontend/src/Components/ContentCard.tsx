@@ -40,7 +40,8 @@ export default function ContentCard({
   isSelected = false,
   isSelectionMode = false,
 }: VideoCardProps) {
-  const { contentFolder, enableAi, showNewBadgeOnVideos } = useSettings();
+  const { enableAi, showNewBadgeOnVideos, state } = useSettings();
+  const { appDataFolder } = state;
   const { session } = useAuth();
   const { openModal, closeModal } = useModal();
   const { aiProgress } = useAiHighlights();
@@ -111,8 +112,17 @@ export default function ContentCard({
   }
 
   const getThumbnailPath = (): string => {
-    const contentFileName = `${contentFolder}/.thumbnails/${type}s/${content?.fileName}.jpeg`;
-    return `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(contentFileName)}`;
+    // Map type to folder name for thumbnails in AppData
+    const folderName =
+      type === 'Session'
+        ? 'Full Sessions'
+        : type === 'Buffer'
+          ? 'Replay Buffers'
+          : type === 'Clip'
+            ? 'Clips'
+            : 'Highlights';
+    const thumbnailPath = `${appDataFolder}/thumbnails/${folderName}/${content?.fileName}.jpeg`;
+    return `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(thumbnailPath)}`;
   };
 
   const formatDuration = (duration: string): string => {
@@ -166,14 +176,14 @@ export default function ContentCard({
         key={`${Math.random()}`}
         video={content!}
         onClose={closeModal}
-        onUpload={(title, visibility) => {
+        onUpload={(title, description, visibility) => {
           const parameters: any = {
             FilePath: content!.filePath,
             JWT: session?.access_token,
             Game: content?.game,
             Title: title,
-            Description: '', // TODO: implement description
-            Visibility: visibility, // TODO: implement description
+            Description: description,
+            Visibility: visibility,
             IgdbId: content?.igdbId?.toString(),
           };
 

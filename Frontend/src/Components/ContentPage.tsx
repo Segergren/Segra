@@ -61,14 +61,24 @@ export default function ContentPage({
 
   const uniqueGames = useMemo(() => {
     const games = contentItems.map((item) => item.game);
-    return [...new Set(games)].sort();
+    const uniqueGameList = [...new Set(games)].sort();
+    // Add "Imported" to the list if any items are imported
+    if (contentItems.some((item) => item.isImported)) {
+      return ['Imported', ...uniqueGameList];
+    }
+    return uniqueGameList;
   }, [contentItems]);
 
   const filteredItems = useMemo(() => {
     let filtered = [...contentItems];
 
     if (selectedGames.length > 0) {
-      filtered = filtered.filter((item) => selectedGames.includes(item.game));
+      filtered = filtered.filter((item) => {
+        if (selectedGames.includes('Imported') && item.isImported) {
+          return true;
+        }
+        return selectedGames.filter((g) => g !== 'Imported').includes(item.game);
+      });
     }
 
     filtered.sort((a, b) => {

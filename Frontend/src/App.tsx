@@ -25,6 +25,7 @@ import { ReleaseNote } from './Models/WebSocketMessages';
 import { ScrollProvider } from './Context/ScrollContext';
 import { ModalProvider } from './Context/ModalContext';
 import { GeneralMessagesProvider } from './Context/GeneralMessagesContext';
+import MigrationOverlay from './Components/MigrationOverlay';
 
 // Create a context for release notes that can be accessed globally
 export const ReleaseNotesContext = createContext<{
@@ -88,6 +89,7 @@ export default function AppWrapper() {
 
   return (
     <WebSocketProvider>
+      <MigrationOverlay />
       <ScrollProvider>
         <SettingsProvider>
           <ReleaseNotesContext.Provider value={{ releaseNotes, setReleaseNotes }}>

@@ -379,13 +379,17 @@ namespace Segra.Backend.App
 
                 if (Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
                 {
-                    // Construct the full file path based on the file name and content type
-                    string videoFolder = Settings.Instance.ContentFolder;
-                    string contentTypeFolder = Path.Combine(videoFolder, contentType.ToString().ToLower() + "s");
-                    string filePath = Path.Combine(contentTypeFolder, $"{fileName}.mp4"); // Assuming .mp4 extension
+                    Content? content = Settings.Instance.State.Content.FirstOrDefault(c =>
+                        c.FileName == fileName && c.Type == contentType);
 
-                    // Invoke the deletion asynchronously
-                    await ContentService.DeleteContent(filePath, contentType);
+                    if (content != null && !string.IsNullOrEmpty(content.FilePath))
+                    {
+                        await ContentService.DeleteContent(content.FilePath, contentType);
+                    }
+                    else
+                    {
+                        Log.Warning($"Content not found in state for deletion: {fileName} ({contentTypeStr})");
+                    }
                 }
                 else
                 {
@@ -422,13 +426,18 @@ namespace Segra.Backend.App
 
                         if (Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
                         {
-                            string videoFolder = Settings.Instance.ContentFolder;
-                            string contentTypeFolder = Path.Combine(videoFolder, contentType.ToString().ToLower() + "s");
-                            string filePath = Path.Combine(contentTypeFolder, $"{fileName}.mp4");
+                            Content? content = Settings.Instance.State.Content.FirstOrDefault(c =>
+                                c.FileName == fileName && c.Type == contentType);
 
-                            // Delete without sending to frontend (sendToFrontend = false)
-                            await ContentService.DeleteContent(filePath, contentType, sendToFrontend: false);
-                            Log.Information($"Deleted content: {fileName}");
+                            if (content != null && !string.IsNullOrEmpty(content.FilePath))
+                            {
+                                await ContentService.DeleteContent(content.FilePath, contentType, sendToFrontend: false);
+                                Log.Information($"Deleted content: {fileName}");
+                            }
+                            else
+                            {
+                                Log.Warning($"Content not found in state for deletion: {fileName} ({contentTypeStr})");
+                            }
                         }
                         else
                         {

@@ -78,22 +78,23 @@ function TopInfoBar({ video }: { video: Content }) {
       >
         <MdArrowBack className="w-4 h-4" />
       </button>
-      <div className="flex flex-wrap items-center gap-2">
-        <span>
+      <div className="flex items-center gap-2 overflow-hidden">
+        <span className="whitespace-nowrap">
           Created: {createdDateStr}
           {createdTimeStr ? ` ${createdTimeStr}` : ''}
         </span>
         <span>•</span>
-        <span>Size: {video.fileSize}</span>
+        <span className="whitespace-nowrap">Size: {video.fileSize}</span>
         <span>•</span>
-        <span>
-          Location:{' '}
-          <button
-            className="text-gray-300 cursor-pointer hover:underline hover:text-gray-200"
+        <span className="flex items-center gap-1 min-w-0">
+          <span className="whitespace-nowrap">Location:</span>
+          <a
+            className="text-gray-300 cursor-pointer hover:underline hover:text-gray-200 truncate"
             onClick={() => openFileLocation(video.filePath)}
+            title={video.filePath}
           >
-            {video.filePath}
-          </button>
+            {video.filePath.replace(/\\/g, '/')}
+          </a>
         </span>
       </div>
     </div>
@@ -117,7 +118,6 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Context hooks
   const settings = useSettings();
   const updateSettings = useSettingsUpdater();
-  const { contentFolder } = settings;
   const { session } = useAuth();
   const { uploads } = useUploads();
   const { openModal, closeModal } = useModal();
@@ -368,8 +368,8 @@ export default function VideoComponent({ video }: { video: Content }) {
 
     try {
       const latest = selectionsRef.current.find((s) => s.id === id) ?? current ?? selection;
-      const contentFileName = `${contentFolder}/${video.type.toLowerCase()}s/${video.fileName}.mp4`;
-      const thumbnailUrl = await fetchThumbnailAtTime(contentFileName, latest.startTime);
+      // Use the video's filePath from metadata instead of constructing it
+      const thumbnailUrl = await fetchThumbnailAtTime(video.filePath, latest.startTime);
 
       // Only apply if this is the latest request for this selection
       if (thumbnailReqTokenRef.current.get(id) === nextToken) {
@@ -1182,16 +1182,24 @@ export default function VideoComponent({ video }: { video: Content }) {
     updateSelectionsArray(newSelections);
   };
 
-  // Get video source URL
+  // Get video source URL - use the filePath from metadata
   const getVideoPath = (): string => {
-    const contentFileName = `${contentFolder}/${video.type.toLowerCase()}s/${video.fileName}.mp4`;
-    return `http://localhost:2222/api/content?input=${encodeURIComponent(contentFileName)}&type=${video.type.toLowerCase()}`;
+    return `http://localhost:2222/api/content?input=${encodeURIComponent(video.filePath)}&type=${video.type.toLowerCase()}`;
   };
 
-  // Get audio source URL
+  // Get audio waveform URL - waveforms are stored in AppData
   const getWaveformPath = (): string => {
-    const contentFileName = `${contentFolder}/.waveforms/${video.type.toLowerCase()}s/${video.fileName}.peaks.json`;
-    return `http://localhost:2222/api/content?input=${encodeURIComponent(contentFileName)}&type=${video.type.toLowerCase()}`;
+    // Map type to folder name for waveforms in AppData
+    const folderName =
+      video.type === 'Session'
+        ? 'Full Sessions'
+        : video.type === 'Buffer'
+          ? 'Replay Buffers'
+          : video.type === 'Clip'
+            ? 'Clips'
+            : 'Highlights';
+    const waveformPath = `${settings.state.appDataFolder}/waveforms/${folderName}/${video.fileName}.peaks.json`;
+    return `http://localhost:2222/api/content?input=${encodeURIComponent(waveformPath)}&type=${video.type.toLowerCase()}`;
   };
 
   // Handle video upload operation
@@ -1206,14 +1214,14 @@ export default function VideoComponent({ video }: { video: Content }) {
         key={`${Math.random()}`}
         video={video}
         onClose={closeModal}
-        onUpload={(title, visibility) => {
+        onUpload={(title, description, visibility) => {
           const parameters = {
             FilePath: video.filePath,
             JWT: session?.access_token,
             Game: video.game,
             Title: title,
-            Description: '', // TODO: implement description
-            Visibility: visibility, // TODO: implement description
+            Description: description,
+            Visibility: visibility,
             IgdbId: video.igdbId?.toString(),
           };
 

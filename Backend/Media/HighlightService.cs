@@ -1,7 +1,8 @@
 using System.Globalization;
-using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
+using Segra.Backend.Shared;
+using Segra.Backend.Windows.Storage;
 using Serilog;
 
 namespace Segra.Backend.Media
@@ -57,7 +58,10 @@ namespace Segra.Backend.Media
 
                 // Create the highlight
                 string videoFolder = Settings.Instance.ContentFolder;
-                string inputFilePath = Path.Combine(videoFolder, content.Type.ToString().ToLower() + "s", $"{content.FileName}.mp4");
+                // Input files are organized by game
+                string inputGameFolder = StorageService.SanitizeGameNameForFolder(content.Game ?? "Unknown");
+                string inputFolderName = FolderNames.GetVideoFolderName(content.Type);
+                string inputFilePath = Path.Combine(videoFolder, inputFolderName, inputGameFolder, $"{content.FileName}.mp4");
 
                 if (!File.Exists(inputFilePath))
                 {
@@ -66,7 +70,9 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                string outputFolder = Path.Combine(videoFolder, "highlights");
+                // Output highlights are organized by game
+                string outputGameFolder = StorageService.SanitizeGameNameForFolder(content.Game ?? "Unknown");
+                string outputFolder = Path.Combine(videoFolder, FolderNames.Highlights, outputGameFolder);
                 Directory.CreateDirectory(outputFolder);
 
                 string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";

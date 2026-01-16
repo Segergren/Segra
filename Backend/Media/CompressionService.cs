@@ -1,6 +1,7 @@
 using Serilog;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
+using Segra.Backend.Shared;
 using Segra.Backend.App;
 
 namespace Segra.Backend.Media
@@ -56,12 +57,16 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                Content.ContentType contentType = directory.EndsWith("clips", StringComparison.OrdinalIgnoreCase)
-                    ? Content.ContentType.Clip
-                    : Content.ContentType.Highlight;
-
                 Content? originalContent = Settings.Instance.State.Content.FirstOrDefault(c => c.FilePath == filePath);
-                string? game = originalContent?.Game;
+                if (originalContent == null)
+                {
+                    Log.Error($"Content not found in metadata for file: {filePath}");
+                    await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = -1, status = "error", message = "Content not found in metadata" });
+                    return;
+                }
+
+                Content.ContentType contentType = originalContent.Type;
+                string? game = originalContent.Game;
 
                 string finalPath;
                 if (Settings.Instance.RemoveOriginalAfterCompression)

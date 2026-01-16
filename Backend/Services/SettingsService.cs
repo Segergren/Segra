@@ -2,6 +2,7 @@ using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
 using Segra.Backend.Obs;
+using Segra.Backend.Shared;
 using Segra.Backend.Utils;
 using Segra.Backend.Windows.Display;
 using Segra.Backend.Windows.Input;
@@ -679,18 +680,14 @@ namespace Segra.Backend.Services
 
         public static async Task LoadContentFromFolderIntoState(bool sendToFrontend = true)
         {
-            string baseMetadataPath = Settings.Instance.ContentFolder + "/.metadata";
-            string[] subfolders = Enum.GetValues(typeof(Content.ContentType))
-                                    .Cast<Content.ContentType>()
-                                    .Select(ct => ct.ToString().ToLower() + "s")
-                                    .ToArray();
+            var contentTypes = Enum.GetValues(typeof(Content.ContentType)).Cast<Content.ContentType>().ToArray();
             var content = new List<Content>();
 
             try
             {
-                foreach (var subfolder in subfolders)
+                foreach (var contentType in contentTypes)
                 {
-                    string metadataPath = Path.Combine(baseMetadataPath, subfolder).Replace("\\", "/");
+                    string metadataPath = FolderNames.GetMetadataFolderPath(contentType);
 
                     if (!Directory.Exists(metadataPath))
                     {
@@ -712,7 +709,7 @@ namespace Segra.Backend.Services
 
                             if (metadata == null || !File.Exists(metadata.FilePath))
                             {
-                                Log.Information($"Invalid or missing metadata for file: {serializedMetadataFilePath}");
+                                Log.Warning($"Invalid or missing metadata for file: {serializedMetadataFilePath}");
                                 continue;
                             }
 
@@ -745,7 +742,8 @@ namespace Segra.Backend.Services
                                 CreatedAt = metadata.CreatedAt,
                                 UploadId = metadata.UploadId,
                                 IgdbId = metadata.IgdbId,
-                                AudioTrackNames = metadata.AudioTrackNames
+                                AudioTrackNames = metadata.AudioTrackNames,
+                                IsImported = metadata.IsImported
                             });
                         }
                         catch (Exception ex)

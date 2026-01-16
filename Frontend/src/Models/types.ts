@@ -15,6 +15,7 @@ export interface Content {
   createdAt: string;
   uploadId?: string;
   igdbId?: number;
+  isImported: boolean;
 }
 
 export interface OBSVersion {
@@ -41,6 +42,7 @@ export interface State {
   gameList: GameListEntry[];
   maxDisplayHeight: number;
   currentFolderSizeGb: number;
+  appDataFolder: string;
 }
 
 export enum GpuVendor {
@@ -249,6 +251,7 @@ export const initialState: State = {
   gameList: [],
   maxDisplayHeight: 1080,
   currentFolderSizeGb: 0,
+  appDataFolder: '',
 };
 
 export const initialSettings: Settings = {
@@ -335,6 +338,11 @@ export interface AiProgress {
   status: 'processing' | 'done';
   message: string;
   content: Content;
+}
+
+export interface MigrationStatus {
+  isRunning: boolean;
+  currentMigration: string | null;
 }
 
 export interface GameResponse {

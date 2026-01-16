@@ -6,15 +6,16 @@ import { MdOutlineFileUpload } from 'react-icons/md';
 
 interface UploadModalProps {
   video: Content;
-  onUpload: (title: string, visibility: 'Public' | 'Unlisted') => void;
+  onUpload: (title: string, description: string, visibility: 'Public' | 'Unlisted') => void;
   onClose: () => void;
 }
 
 export default function UploadModal({ video, onUpload, onClose }: UploadModalProps) {
-  const { contentFolder, clipShowInBrowserAfterUpload } = useSettings();
+  const { clipShowInBrowserAfterUpload } = useSettings();
   const updateSettings = useSettingsUpdater();
   const { session } = useAuth();
   const [title, setTitle] = useState(video.title || '');
+  const [description, setDescription] = useState('');
   const [visibility] = useState<'Public' | 'Unlisted'>('Public');
   const [titleError, setTitleError] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -37,7 +38,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
       return;
     }
     setTitleError(false);
-    onUpload(title, visibility);
+    onUpload(title, description, visibility);
     onClose();
   };
 
@@ -46,11 +47,6 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
       e.preventDefault();
       handleUpload();
     }
-  };
-
-  const getVideoPath = (): string => {
-    const contentFileName = `${contentFolder}/${video.type.toLowerCase()}s/${video.fileName}.mp4`;
-    return `http://localhost:2222/api/content?input=${encodeURIComponent(contentFileName)}&type=${video.type.toLowerCase()}s`;
   };
 
   return (
@@ -65,16 +61,6 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
           </button>
         </div>
         <div className="modal-body pt-8">
-          <div className="w-full aspect-video mb-4">
-            <video
-              src={getVideoPath()}
-              autoPlay
-              muted
-              loop
-              className="w-full h-full object-contain bg-base-300 rounded-lg"
-            />
-          </div>
-
           <div className="form-control w-full">
             <label className="label">
               <span className="label-text text-base-content">Title</span>
@@ -82,6 +68,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
             <input
               ref={titleInputRef}
               type="text"
+              placeholder="Enter a title"
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
@@ -95,6 +82,19 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
                 <span className="label-text-alt text-error">Title is required</span>
               </label>
             )}
+          </div>
+
+          <div className="form-control w-full mt-4">
+            <label className="label">
+              <span className="label-text text-base-content">Description</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              className="textarea textarea-bordered bg-base-300 w-full focus:outline-none resize-none"
+              placeholder="Add a description (optional)"
+            />
           </div>
 
           <div className="form-control mt-4">

@@ -1,6 +1,7 @@
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
+using Segra.Backend.Shared;
 using Serilog;
 using System.Diagnostics;
 using System.Net;
@@ -117,8 +118,7 @@ namespace Segra.Backend.Media
                                     contentToUpdate.UploadId = uploadId;
 
                                     // Also update the metadata file
-                                    string contentTypeStr = contentToUpdate.Type.ToString().ToLower() + "s";
-                                    string metadataFolderPath = Path.Combine(Settings.Instance.ContentFolder, ".metadata", contentTypeStr);
+                                    string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentToUpdate.Type);
                                     string metadataFilePath = Path.Combine(metadataFolderPath, $"{fileNameWithoutExtension}.json");
 
                                     var updatedContent = await ContentService.UpdateMetadataFile(metadataFilePath, content =>

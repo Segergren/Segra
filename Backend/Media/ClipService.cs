@@ -3,6 +3,8 @@ using System.Globalization;
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
+using Segra.Backend.Shared;
+using Segra.Backend.Windows.Storage;
 using Serilog;
 using static Segra.Backend.Utils.GeneralUtils;
 
@@ -42,7 +44,10 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                string outputFolder = Path.Combine(videoFolder, "clips");
+                // Use game from first selection for the output folder
+                var firstSelection = selections.FirstOrDefault();
+                string outputGameFolder = StorageService.SanitizeGameNameForFolder(firstSelection?.Game ?? "Unknown");
+                string outputFolder = Path.Combine(videoFolder, FolderNames.Clips, outputGameFolder);
                 Directory.CreateDirectory(outputFolder);
 
                 if (!FFmpegService.FFmpegExists())
@@ -55,7 +60,11 @@ namespace Segra.Backend.Media
                 double processedDuration = 0;
                 foreach (var selection in selections)
                 {
-                    string inputFilePath = Path.Combine(videoFolder, selection.Type.ToLower() + "s", $"{selection.FileName}.mp4");
+                    // Input files are organized by game
+                    string inputGameFolder = StorageService.SanitizeGameNameForFolder(selection.Game);
+                    var selectionType = Enum.Parse<Content.ContentType>(selection.Type);
+                    string inputFolderName = FolderNames.GetVideoFolderName(selectionType);
+                    string inputFilePath = Path.Combine(videoFolder, inputFolderName, inputGameFolder, $"{selection.FileName}.mp4");
                     if (!File.Exists(inputFilePath))
                     {
                         Log.Information($"Input video file not found: {inputFilePath}");
@@ -145,7 +154,6 @@ namespace Segra.Backend.Media
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, selections });
 
-                var firstSelection = selections.FirstOrDefault();
                 await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId);
                 await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Clip);
                 await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Clip);

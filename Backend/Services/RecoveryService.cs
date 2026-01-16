@@ -2,6 +2,7 @@ using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Games;
 using Segra.Backend.Media;
+using Segra.Backend.Shared;
 using Serilog;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -145,6 +146,8 @@ namespace Segra.Backend.Services
         {
             try
             {
+                // Wait for migrations to complete before checking for orphaned files
+                await MigrationService.WaitForMigrationsAsync();
                 var orphanedFiles = FindOrphanedVideoFiles();
 
                 if (orphanedFiles.Count == 0)
@@ -268,25 +271,25 @@ namespace Segra.Backend.Services
         {
             var orphanedFiles = new List<OrphanedFile>();
             string contentFolder = Settings.Instance.ContentFolder;
-            string metadataBaseFolder = Path.Combine(contentFolder, ".metadata");
 
             var contentTypes = new[]
             {
-                (Content.ContentType.Session, "sessions"),
-                (Content.ContentType.Clip, "clips"),
-                (Content.ContentType.Highlight, "highlights"),
-                (Content.ContentType.Buffer, "buffers")
+                Content.ContentType.Session,
+                Content.ContentType.Clip,
+                Content.ContentType.Highlight,
+                Content.ContentType.Buffer
             };
 
-            foreach (var (type, folderName) in contentTypes)
+            foreach (var type in contentTypes)
             {
-                string videoFolder = Path.Combine(contentFolder, folderName);
-                string metadataFolder = Path.Combine(metadataBaseFolder, folderName);
+                string videoFolder = Path.Combine(contentFolder, FolderNames.GetVideoFolderName(type));
+                string metadataFolder = FolderNames.GetMetadataFolderPath(type);
 
                 if (!Directory.Exists(videoFolder))
                     continue;
 
-                var videoFiles = Directory.GetFiles(videoFolder, "*.mp4");
+                // Search recursively to find files in game subfolders
+                var videoFiles = Directory.GetFiles(videoFolder, "*.mp4", SearchOption.AllDirectories);
 
                 foreach (var videoFile in videoFiles)
                 {
@@ -322,8 +325,7 @@ namespace Segra.Backend.Services
                 }
                 else
                 {
-                    var (detectedGame, detectedDate) = ContentService.ParseFileNameInfo(orphanedFile.FileName);
-                    gameName = GameNameUtils.SmartFormatGameName(detectedGame);
+                    gameName = "Unknown";
                 }
 
                 DateTime createdAt = File.GetCreationTime(orphanedFile.FilePath);
@@ -334,7 +336,7 @@ namespace Segra.Backend.Services
                     gameName,
                     null,
                     null,
-                    createdAt,
+                    createdAt != DateTime.MinValue ? createdAt : null,
                     igdbId: null
                 );
 

@@ -101,20 +101,39 @@ export default function ContentFilters({
             Clear all
           </button>
           <div className="max-h-60 overflow-y-auto">
-            {uniqueGames.length > 0 ? (
-              uniqueGames.map((game) => (
-                <div key={game} className="form-control">
+            {/* Special "Imported" filter at top - only show if there are imported items */}
+            {uniqueGames.includes('Imported') && (
+              <>
+                <div className="form-control">
                   <label className="cursor-pointer flex w-full items-center justify-start gap-2 px-3 py-2.5 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-4 outline-none">
                     <input
                       type="checkbox"
                       className="checkbox checkbox-sm checkbox-primary"
-                      checked={selectedGames.includes(game)}
-                      onChange={() => toggleGameSelection(game)}
+                      checked={selectedGames.includes('Imported')}
+                      onChange={() => toggleGameSelection('Imported')}
                     />
-                    <span className="label-text text-sm">{game}</span>
+                    <span className="label-text text-sm">Imported</span>
                   </label>
                 </div>
-              ))
+                <div className=" h-[1px] bg-base-400/60 my-1 mx-2.5 rounded"></div>
+              </>
+            )}
+            {uniqueGames.length > 0 ? (
+              uniqueGames
+                .filter((game) => game !== 'Imported')
+                .map((game) => (
+                  <div key={game} className="form-control">
+                    <label className="cursor-pointer flex w-full items-center justify-start gap-2 px-3 py-2.5 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-4 outline-none">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={selectedGames.includes(game)}
+                        onChange={() => toggleGameSelection(game)}
+                      />
+                      <span className="label-text text-sm">{game}</span>
+                    </label>
+                  </div>
+                ))
             ) : (
               <p className="text-sm text-base-content/70">No games available</p>
             )}

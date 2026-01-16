@@ -1,5 +1,6 @@
 using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
+using Segra.Backend.Shared;
 using Serilog;
 
 namespace Segra.Backend.Windows.Storage
@@ -7,6 +8,24 @@ namespace Segra.Backend.Windows.Storage
     internal class StorageService
     {
         public const long BYTES_PER_GB = 1073741824; // 1024 * 1024 * 1024
+
+        public static string SanitizeGameNameForFolder(string gameName)
+        {
+            if (string.IsNullOrWhiteSpace(gameName))
+                return "Unknown";
+
+            char[] invalidChars = Path.GetInvalidFileNameChars();
+            string sanitized = new string(gameName
+                .Select(c => invalidChars.Contains(c) ? '_' : c)
+                .ToArray());
+
+            sanitized = sanitized.Trim().Trim('.');
+
+            while (sanitized.Contains("__"))
+                sanitized = sanitized.Replace("__", "_");
+
+            return string.IsNullOrWhiteSpace(sanitized) ? "Unknown" : sanitized;
+        }
 
         public static double GetCurrentFolderSizeGb()
         {
@@ -80,12 +99,13 @@ namespace Segra.Backend.Windows.Storage
             DateTime oneHourAgo = DateTime.Now.AddHours(-1);
             List<FileInfo> deletionCandidates = new List<FileInfo>();
 
-            string sessionsFolder = Path.Combine(contentFolder, "sessions");
-            string buffersFolder = Path.Combine(contentFolder, "buffers");
+            string sessionsFolder = Path.Combine(contentFolder, FolderNames.Sessions);
+            string buffersFolder = Path.Combine(contentFolder, FolderNames.Buffers);
 
             if (Directory.Exists(sessionsFolder))
             {
-                var sessionFiles = Directory.GetFiles(sessionsFolder, "*", SearchOption.TopDirectoryOnly)
+                // Search recursively to find files in game subfolders
+                var sessionFiles = Directory.GetFiles(sessionsFolder, "*", SearchOption.AllDirectories)
                     .Select(f => new FileInfo(f))
                     .Where(f => f.LastWriteTime < oneHourAgo);
 
@@ -95,7 +115,8 @@ namespace Segra.Backend.Windows.Storage
 
             if (Directory.Exists(buffersFolder))
             {
-                var bufferFiles = Directory.GetFiles(buffersFolder, "*", SearchOption.TopDirectoryOnly)
+                // Search recursively to find files in game subfolders
+                var bufferFiles = Directory.GetFiles(buffersFolder, "*", SearchOption.AllDirectories)
                     .Select(f => new FileInfo(f))
                     .Where(f => f.LastWriteTime < oneHourAgo);
 
@@ -119,16 +140,14 @@ namespace Segra.Backend.Windows.Storage
 
                 try
                 {
-                    // Determine content type based on parent folder
-
-                    if (file.Directory == null)
+                    // Determine content type based on path (handles game subfolders)
+                    Content.ContentType? detectedType = FolderNames.GetContentTypeFromPath(file.FullName);
+                    if (detectedType == null)
                     {
-                        Log.Error("File directory is null");
+                        Log.Warning($"Could not determine content type for file: {file.FullName}");
                         continue;
                     }
-                    string parentFolder = file.Directory.Name.ToLower();
-                    Content.ContentType contentType = parentFolder == "sessions" ?
-                        Content.ContentType.Session : Content.ContentType.Buffer;
+                    Content.ContentType contentType = detectedType.Value;
 
                     Log.Information($"Deleting {contentType} file: {file.FullName} ({fileSizeMB:F2} MB)");
                     await ContentService.DeleteContent(file.FullName, contentType);

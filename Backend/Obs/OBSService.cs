@@ -3,6 +3,7 @@ using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
+using Segra.Backend.Shared;
 using Serilog;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
@@ -835,9 +836,10 @@ namespace Segra.Backend.Obs
                 _audioEncoders.Add(enc);
             }
 
-            // Paths for session recordings and buffer
-            string sessionDir = Settings.Instance.ContentFolder + "/sessions";
-            string bufferDir = Settings.Instance.ContentFolder + "/buffers";
+            // Paths for session recordings and buffer, organized by game
+            string sanitizedGameName = StorageService.SanitizeGameNameForFolder(name);
+            string sessionDir = Path.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions, sanitizedGameName);
+            string bufferDir = Path.Combine(Settings.Instance.ContentFolder, FolderNames.Buffers, sanitizedGameName);
             if (!Directory.Exists(sessionDir)) Directory.CreateDirectory(sessionDir);
             if (!Directory.Exists(bufferDir)) Directory.CreateDirectory(bufferDir);
 
