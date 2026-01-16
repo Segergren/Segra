@@ -223,7 +223,7 @@ namespace Segra.Backend.Services
             var whitelist = Settings.Instance.Whitelist;
             foreach (var game in whitelist)
             {
-                if (game.Paths.Any(path => string.Equals(path.Replace("\\", "/"), normalizedExePath, StringComparison.OrdinalIgnoreCase)))
+                if (game.Paths.Any(path => normalizedExePath.EndsWith(path.Replace("\\", "/"), StringComparison.OrdinalIgnoreCase)))
                 {
                     Log.Information($"Game {game.Name} found in whitelist, will record");
                     return true;
@@ -234,7 +234,7 @@ namespace Segra.Backend.Services
             var blacklist = Settings.Instance.Blacklist;
             foreach (var game in blacklist)
             {
-                if (game.Paths.Any(path => string.Equals(path.Replace("\\", "/"), normalizedExePath, StringComparison.OrdinalIgnoreCase)))
+                if (game.Paths.Any(path => normalizedExePath.EndsWith(path.Replace("\\", "/"), StringComparison.OrdinalIgnoreCase)))
                 {
                     Log.Information($"Game {game.Name} found in blacklist, will not record");
                     return false;
