@@ -19,6 +19,7 @@ namespace Segra.Backend.Core.Models
         public bool _isBulkUpdating = false;
 
         private string _contentFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Segra").Replace("\\", "/");
+        private string _cacheFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra").Replace("\\", "/");
         private string _theme = "segra";
         private string _resolution = "1440p";
         private int _frameRate = 60;
@@ -155,6 +156,16 @@ namespace Segra.Backend.Core.Models
                         }
                     });
                 }
+            }
+        }
+
+        [JsonPropertyName("cacheFolder")]
+        public string CacheFolder
+        {
+            get => _cacheFolder;
+            set
+            {
+                _cacheFolder = value.Replace("\\", "/");
             }
         }
 
@@ -1075,9 +1086,9 @@ namespace Segra.Backend.Core.Models
             }
         }
 
-        // AppData folder path for metadata, thumbnails, waveforms (read-only, exposed to frontend)
-        [JsonPropertyName("appDataFolder")]
-        public string AppDataFolder => FolderNames.AppDataFolder.Replace("\\", "/");
+        // Cache folder path for metadata, thumbnails, waveforms (read-only, exposed to frontend)
+        [JsonPropertyName("cacheFolder")]
+        public string CacheFolder => FolderNames.CacheFolder.Replace("\\", "/");
 
         private void OnAudioDevicesChanged()
         {

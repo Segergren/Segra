@@ -571,7 +571,7 @@ internal static class MigrationService
             var metadataLocations = new List<(string root, bool useLegacySubfolders)>
             {
                 (Path.Combine(contentRoot, FolderNames.LegacyMetadata), true),  // Old location with legacy subfolder names
-                (Path.Combine(FolderNames.AppDataFolder, FolderNames.Metadata), false)  // New location with new subfolder names
+                (Path.Combine(FolderNames.CacheFolder, FolderNames.Metadata), false)  // New location with new subfolder names
             };
 
             foreach (var (metadataRoot, useLegacySubfolders) in metadataLocations)
@@ -660,7 +660,7 @@ internal static class MigrationService
         try
         {
             string contentRoot = Settings.Instance.ContentFolder;
-            string appDataRoot = FolderNames.AppDataFolder;
+            string cacheRoot = FolderNames.CacheFolder;
 
             if (!Directory.Exists(contentRoot))
             {
@@ -669,10 +669,10 @@ internal static class MigrationService
             }
 
             // Ensure AppData folder exists
-            if (!Directory.Exists(appDataRoot))
+            if (!Directory.Exists(cacheRoot))
             {
-                Directory.CreateDirectory(appDataRoot);
-                Log.Information("Created AppData folder: {Path}", appDataRoot);
+                Directory.CreateDirectory(cacheRoot);
+                Log.Information("Created cache folder: {Path}", cacheRoot);
             }
 
             int movedCount = 0;
@@ -704,7 +704,7 @@ internal static class MigrationService
             foreach (var move in folderMoves)
             {
                 string sourcePath = Path.Combine(contentRoot, move.Key);
-                string destPath = Path.Combine(appDataRoot, move.Value);
+                string destPath = Path.Combine(cacheRoot, move.Value);
 
                 if (!Directory.Exists(sourcePath))
                 {
@@ -834,9 +834,9 @@ internal static class MigrationService
             {
                 var foldersToUnhide = new[]
                 {
-                    Path.Combine(appDataRoot, FolderNames.Metadata),
-                    Path.Combine(appDataRoot, FolderNames.Thumbnails),
-                    Path.Combine(appDataRoot, FolderNames.Waveforms)
+                    Path.Combine(cacheRoot, FolderNames.Metadata),
+                    Path.Combine(cacheRoot, FolderNames.Thumbnails),
+                    Path.Combine(cacheRoot, FolderNames.Waveforms)
                 };
 
                 foreach (var folder in foldersToUnhide)

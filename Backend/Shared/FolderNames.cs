@@ -31,11 +31,10 @@ namespace Segra.Backend.Shared
         public const string LegacyWaveforms = ".waveforms";
 
         /// <summary>
-        /// Gets the AppData folder path for Segra (e.g., C:\Users\{user}\AppData\Roaming\Segra)
+        /// Gets the cache folder path for Segra (metadata, thumbnails, waveforms).
+        /// This is configurable via Settings, with default at C:\Users\{user}\AppData\Roaming\Segra
         /// </summary>
-        public static string AppDataFolder => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Segra");
+        public static string CacheFolder => Settings.Instance.CacheFolder.Replace("/", "\\");
 
         /// <summary>
         /// Gets the video folder name for a content type.
@@ -98,7 +97,7 @@ namespace Segra.Backend.Shared
         /// </summary>
         public static string GetMetadataFolderPath(Content.ContentType type)
         {
-            return Path.Combine(AppDataFolder, Metadata, GetMetadataSubfolderName(type));
+            return Path.Combine(CacheFolder, Metadata, GetMetadataSubfolderName(type));
         }
 
         /// <summary>
@@ -107,7 +106,7 @@ namespace Segra.Backend.Shared
         /// </summary>
         public static string GetThumbnailsFolderPath(Content.ContentType type)
         {
-            return Path.Combine(AppDataFolder, Thumbnails, GetMetadataSubfolderName(type));
+            return Path.Combine(CacheFolder, Thumbnails, GetMetadataSubfolderName(type));
         }
 
         /// <summary>
@@ -116,7 +115,7 @@ namespace Segra.Backend.Shared
         /// </summary>
         public static string GetWaveformsFolderPath(Content.ContentType type)
         {
-            return Path.Combine(AppDataFolder, Waveforms, GetMetadataSubfolderName(type));
+            return Path.Combine(CacheFolder, Waveforms, GetMetadataSubfolderName(type));
         }
 
         /// <summary>

@@ -24,6 +24,10 @@ export default function StorageSettingsSection({
     sendMessageToBackend('SetVideoLocation');
   };
 
+  const handleCacheBrowseClick = () => {
+    sendMessageToBackend('SetCacheLocation');
+  };
+
   const handleStorageLimitBlur = () => {
     const currentFolderSizeGb = settings.state.currentFolderSizeGb;
     const numericLimit = Number(localStorageLimit) || 1; // Default to 1 if empty/invalid
@@ -78,6 +82,31 @@ export default function StorageSettingsSection({
               />
               <button
                 onClick={handleBrowseClick}
+                className="btn btn-secondary bg-base-200 hover:bg-base-300 border-base-400 hover:border-base-400 font-semibold join-item"
+              >
+                Browse
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Cache Folder Path */}
+        <div className="form-control">
+          <label className="label pb-1">
+            <span className="label-text text-base-content">Cache Path</span>
+          </label>
+          <div className="flex space-x-2">
+            <div className="join w-full">
+              <input
+                type="text"
+                name="cacheFolder"
+                value={settings.cacheFolder}
+                onChange={(e) => updateSettings({ cacheFolder: e.target.value })}
+                placeholder="Enter or select folder for metadata"
+                className="input input-bordered flex-1 bg-base-200 join-item"
+              />
+              <button
+                onClick={handleCacheBrowseClick}
                 className="btn btn-secondary bg-base-200 hover:bg-base-300 border-base-400 hover:border-base-400 font-semibold join-item"
               >
                 Browse

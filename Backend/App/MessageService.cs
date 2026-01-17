@@ -224,6 +224,10 @@ namespace Segra.Backend.App
                             await SetVideoLocationAsync();
                             Log.Information("SetVideoLocation command received.");
                             break;
+                        case "SetCacheLocation":
+                            await SetCacheLocationAsync();
+                            Log.Information("SetCacheLocation command received.");
+                            break;
                         case "UpdateSettings":
                             root.TryGetProperty("Parameters", out JsonElement settingsParameterElement);
                             Log.Information("UpdateSettings command received.");
@@ -483,6 +487,34 @@ namespace Segra.Backend.App
                 else
                 {
                     Log.Information("Folder selection was canceled.");
+                }
+            }
+        }
+
+        private static async Task SetCacheLocationAsync()
+        {
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Select a folder for metadata, thumbnails, and waveforms.";
+                fbd.RootFolder = Environment.SpecialFolder.Desktop;
+
+                if (fbd.ShowDialog() == DialogResult.OK)
+                {
+                    string selectedPath = fbd.SelectedPath;
+                    string oldCacheFolder = Settings.Instance.CacheFolder;
+                    Log.Information($"Selected Cache Folder: {selectedPath}");
+
+                    Settings.Instance.CacheFolder = selectedPath;
+                    SettingsService.SaveSettings();
+
+                    // Migrate cache contents to new folder
+                    await SettingsService.MigrateCacheFolder(oldCacheFolder, selectedPath);
+
+                    await SendSettingsToFrontend("Cache folder changed");
+                }
+                else
+                {
+                    Log.Information("Cache folder selection was canceled.");
                 }
             }
         }

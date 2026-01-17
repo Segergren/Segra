@@ -41,7 +41,7 @@ export default function ContentCard({
   isSelectionMode = false,
 }: VideoCardProps) {
   const { enableAi, showNewBadgeOnVideos, state } = useSettings();
-  const { appDataFolder } = state;
+  const { cacheFolder } = state;
   const { session } = useAuth();
   const { openModal, closeModal } = useModal();
   const { aiProgress } = useAiHighlights();
@@ -121,7 +121,7 @@ export default function ContentCard({
           : type === 'Clip'
             ? 'Clips'
             : 'Highlights';
-    const thumbnailPath = `${appDataFolder}/thumbnails/${folderName}/${content?.fileName}.jpeg`;
+    const thumbnailPath = `${cacheFolder}/thumbnails/${folderName}/${content?.fileName}.jpeg`;
     return `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(thumbnailPath)}`;
   };
 

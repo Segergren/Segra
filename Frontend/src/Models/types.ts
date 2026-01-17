@@ -42,7 +42,7 @@ export interface State {
   gameList: GameListEntry[];
   maxDisplayHeight: number;
   currentFolderSizeGb: number;
-  appDataFolder: string;
+  cacheFolder: string;
 }
 
 export enum GpuVendor {
@@ -199,6 +199,7 @@ export interface Settings {
   codec: Codec | null;
   storageLimit: number;
   contentFolder: string;
+  cacheFolder: string;
   inputDevices: DeviceSetting[];
   outputDevices: DeviceSetting[];
   forceMonoInputSources: boolean;
@@ -251,7 +252,7 @@ export const initialState: State = {
   gameList: [],
   maxDisplayHeight: 1080,
   currentFolderSizeGb: 0,
-  appDataFolder: '',
+  cacheFolder: '',
 };
 
 export const initialSettings: Settings = {
@@ -268,6 +269,7 @@ export const initialSettings: Settings = {
   codec: null,
   storageLimit: 100,
   contentFolder: '',
+  cacheFolder: '',
   inputDevices: [],
   outputDevices: [],
   forceMonoInputSources: false,

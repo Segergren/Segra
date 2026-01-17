@@ -399,6 +399,16 @@ namespace Segra.Backend.Services
                 // If not proceeding, a warning modal was sent to the frontend
             }
 
+            // Update CacheFolder
+            string? oldCacheFolder = null;
+            if (settings.CacheFolder != updatedSettings.CacheFolder)
+            {
+                Log.Information($"CacheFolder changed from '{settings.CacheFolder}' to '{updatedSettings.CacheFolder}'");
+                oldCacheFolder = settings.CacheFolder;
+                settings.CacheFolder = updatedSettings.CacheFolder;
+                hasChanges = true;
+            }
+
             // Update RecordingMode
             if (settings.RecordingMode != updatedSettings.RecordingMode)
             {
@@ -945,6 +955,73 @@ namespace Segra.Backend.Services
                 Settings.Instance.EndBulkUpdateAndSaveSettings();
                 Log.Information($"Auto-selected default output device: {defaultOutputDevice.Name}");
             }
+        }
+
+        /// <summary>
+        /// Migrates cache contents (metadata, thumbnails, waveforms) from the old folder to the new folder.
+        /// </summary>
+        public static async Task MigrateCacheFolder(string oldCacheFolder, string newCacheFolder)
+        {
+            if (string.IsNullOrEmpty(oldCacheFolder) || string.IsNullOrEmpty(newCacheFolder))
+            {
+                Log.Warning("Cannot migrate cache: old or new folder path is empty");
+                return;
+            }
+
+            if (string.Equals(oldCacheFolder.Replace("/", "\\"), newCacheFolder.Replace("/", "\\"), StringComparison.OrdinalIgnoreCase))
+            {
+                Log.Information("Cache folder unchanged, no migration needed");
+                return;
+            }
+
+            var foldersToMigrate = new[] { FolderNames.Metadata, FolderNames.Thumbnails, FolderNames.Waveforms };
+
+            foreach (var folderName in foldersToMigrate)
+            {
+                string sourcePath = Path.Combine(oldCacheFolder.Replace("/", "\\"), folderName);
+                string destPath = Path.Combine(newCacheFolder.Replace("/", "\\"), folderName);
+
+                if (!Directory.Exists(sourcePath))
+                {
+                    Log.Information($"Source folder does not exist, skipping: {sourcePath}");
+                    continue;
+                }
+
+                try
+                {
+                    // Create destination directory if it doesn't exist
+                    Directory.CreateDirectory(destPath);
+
+                    // Move all files and subdirectories
+                    foreach (var dir in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
+                    {
+                        string targetDir = dir.Replace(sourcePath, destPath);
+                        Directory.CreateDirectory(targetDir);
+                    }
+
+                    foreach (var file in Directory.GetFiles(sourcePath, "*", SearchOption.AllDirectories))
+                    {
+                        string targetFile = file.Replace(sourcePath, destPath);
+                        if (File.Exists(targetFile))
+                        {
+                            File.Delete(targetFile);
+                        }
+                        File.Move(file, targetFile);
+                    }
+
+                    // Remove old directory after successful migration
+                    Directory.Delete(sourcePath, true);
+                    Log.Information($"Successfully migrated {folderName} from {sourcePath} to {destPath}");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Error migrating {folderName}: {ex.Message}");
+                }
+            }
+
+            // Reload content to update paths
+            await LoadContentFromFolderIntoState();
+            Log.Information("Cache migration completed");
         }
     }
 }
