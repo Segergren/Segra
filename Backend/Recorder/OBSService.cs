@@ -1139,9 +1139,9 @@ namespace Segra.Backend.Recorder
 
             try
             {
-                string? title = Calldata.GetString(calldata, "title");
-                string? windowClass = Calldata.GetString(calldata, "class");
-                string? executable = Calldata.GetString(calldata, "executable");
+                string? title = Calldata.GetString(calldata, "title")?.Trim();
+                string? windowClass = Calldata.GetString(calldata, "class")?.Trim();
+                string? executable = Calldata.GetString(calldata, "executable")?.Trim();
 
                 _isGameCaptureHooked = true;
                 StopGameCaptureHookTimeoutTimer();
