@@ -99,7 +99,6 @@ namespace Segra.Backend.Recorder
 
         // Replay buffer state
         private static bool _replaySaved = false;
-        private static string? _lastReplayBufferPath;
 
         // Signal connections - dispose to disconnect
         private static SignalConnection? _outputStopConnection;
@@ -129,7 +128,6 @@ namespace Segra.Backend.Recorder
 
             Log.Information("Attempting to save replay buffer...");
             _replaySaved = false;
-            _lastReplayBufferPath = null;
 
             try
             {
@@ -146,7 +144,7 @@ namespace Segra.Backend.Recorder
             int attempts = 0;
             while (!_replaySaved && attempts < 50)
             {
-                Thread.Sleep(100);
+                await Task.Delay(100);
                 attempts++;
             }
 
@@ -156,11 +154,14 @@ namespace Segra.Backend.Recorder
                 return false;
             }
 
-            string? savedPath = _lastReplayBufferPath;
-            if (string.IsNullOrEmpty(savedPath))
+            string? savedPath = _bufferOutput.GetLastReplayPath();
+
+            // Retry a few times if path is not immediately available
+            for (int i = 0; i < 10 && string.IsNullOrEmpty(savedPath); i++)
             {
-                Thread.Sleep(1000);
-                savedPath = _lastReplayBufferPath;
+                savedPath = _bufferOutput.GetLastReplayPath();
+                if (string.IsNullOrEmpty(savedPath))
+                    await Task.Delay(100);
             }
 
             if (string.IsNullOrEmpty(savedPath))
@@ -265,22 +266,6 @@ namespace Segra.Backend.Recorder
                         }
                     }
 
-                    // Check if this is a replay buffer save message
-                    if (formattedMessage.Contains("Wrote replay buffer to"))
-                    {
-                        // Extract the path from the message
-                        // Example: "[ffmpeg muxer: 'replay_buffer_output'] Wrote replay buffer to 'E:/Segra/buffers/2025-04-13_11-15-32.mp4'"
-                        int lastQuoteIndex = formattedMessage.LastIndexOf("'");
-                        int secondLastQuoteIndex = formattedMessage.LastIndexOf("'", lastQuoteIndex - 1);
-                        int startIndex = secondLastQuoteIndex + 1;
-                        int endIndex = lastQuoteIndex;
-
-                        if (startIndex > 0 && endIndex > startIndex)
-                        {
-                            _lastReplayBufferPath = formattedMessage.Substring(startIndex, endIndex - startIndex);
-                            Log.Information($"Extracted replay buffer path from log: {_lastReplayBufferPath}");
-                        }
-                    }
                 }
                 catch (Exception e)
                 {
