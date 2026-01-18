@@ -50,14 +50,8 @@
     <EmbeddedResource Include="Resources\**" />
   </ItemGroup>
 
-  <!-- Exclude libobs-sharp sources and include as a project instead -->
   <ItemGroup>
-    <Compile Remove="libobs-sharp\**\*.cs" />
-    <None Include="libobs-sharp\**\*.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="libobs-sharp\libobs-sharp\libobs-sharp.csproj" />
+    <PackageReference Include="ObsKit.NET" Version="0.0.4" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,4 @@
-using Segra.Backend.Obs;
+using Segra.Backend.Recorder;
 using Segra.Backend.Services;
 using Serilog;
 using System.Runtime.InteropServices;

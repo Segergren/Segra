@@ -352,6 +352,4 @@ MigrationBackup/
 
 .vscode
 .DS_Store
-/obs-studio-build
-/build-libobs.cmd
 /Resources/FFmpeg/ffmpeg.exe

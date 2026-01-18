@@ -1,7 +1,7 @@
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
-using Segra.Backend.Obs;
+using Segra.Backend.Recorder;
 using Segra.Backend.Shared;
 using Segra.Backend.Utils;
 using Segra.Backend.Windows.Display;

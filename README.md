@@ -83,7 +83,7 @@ See our [Privacy Policy](https://segra.tv/privacy).
  </picture>
 </a>
 
-## Acknowledgments  
-- **[OBS Studio](https://obsproject.com)**: The backbone of Segra’s recording engine.  
-- [**Lulzsun**](https://github.com/lulzsun): Creator of **[libobs-sharp](https://github.com/lulzsun/libobs-sharp)**, the critical C#/OBS bridge that powers Segra’s core functionality. 
+## Acknowledgments
+- **[OBS Studio](https://obsproject.com)**: The backbone of Segra's recording engine.
+- **[ObsKit.NET](https://github.com/Segergren/ObsKit.NET)**: The modern C#/OBS bridge that powers Segra's recording functionality.
 - **[FFmpeg](https://github.com/FFmpeg/FFmpeg)**: for video and image encoding.  
