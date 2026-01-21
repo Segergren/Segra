@@ -27,9 +27,9 @@
       },
       "ObsKit.NET": {
         "type": "Direct",
-        "requested": "[0.0.7, )",
-        "resolved": "0.0.7",
-        "contentHash": "oqOB/jiuD1rs425R8KBsCVWBNzUZnMd86VHE2V4fEG91uoOb+nTLK5iO2uxYOTTjHRjAGkObccLGMnPO84loyA=="
+        "requested": "[0.0.8, )",
+        "resolved": "0.0.8",
+        "contentHash": "pkrcGo4j6x0tg3YHtPYkzycmkqbmaTgi0LONcLEWL1gONWiyn5lZgKyLgW2ncCUREg2Jh6YdY0mChqL3h6MzIw=="
       },
       "Photino.NET": {
         "type": "Direct",

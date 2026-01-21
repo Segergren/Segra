@@ -312,28 +312,31 @@ namespace Segra.Backend.Recorder
             try
             {
                 // Initialize OBS using ObsKit.NET fluent API
-                _obsContext = Obs.Initialize(config => config
-                    .WithLocale("en-US")
-                    .WithDataPath("./data/libobs/")
-                    .WithModulePath("./obs-plugins/64bit/", "./data/obs-plugins/%module%/")
-                    .WithVideo(v => v
-                        .Resolution(1920, 1080)
-                        .Fps(60))
-                    .WithAudio(a => a
-                        .WithSampleRate(44100)
-                        .WithSpeakers(SpeakerLayout.Stereo))
-                    .WithLogging((level, message) =>
-                    {
-                        try
+                _obsContext = Obs.Initialize(config =>
+                {
+                    config
+                        .WithLocale("en-US")
+                        .WithDataPath("./data/libobs/")
+                        .WithModulePath("./obs-plugins/64bit/", "./data/obs-plugins/%module%/")
+                        .WithVideo(v => v
+                            .Resolution(1920, 1080)
+                            .Fps(60))
+                        .WithAudio(a => a
+                            .WithSampleRate(44100)
+                            .WithSpeakers(SpeakerLayout.Stereo))
+                        .WithLogging((level, message) =>
                         {
-                            // Queue the message for async processing - this is non-blocking
-                            _logChannel.Writer.TryWrite(((int)level, message));
-                        }
-                        catch
-                        {
-                            // Silently ignore marshaling errors to never block OBS
-                        }
-                    }));
+                            try
+                            {
+                                // Queue the message for async processing - this is non-blocking
+                                _logChannel.Writer.TryWrite(((int)level, message));
+                            }
+                            catch
+                            {
+                                // Silently ignore marshaling errors to never block OBS
+                            }
+                        });
+                });
 
                 InstalledOBSVersion = Obs.Version;
                 Log.Information("OBS version: " + InstalledOBSVersion);
@@ -893,6 +896,7 @@ namespace Segra.Backend.Recorder
 
             _displaySource = MonitorCapture.FromMonitor(monitorIndex, "display");
             Obs.SetOutputSource(1, _displaySource);
+            Log.Information($"Display capture added for monitor {monitorIndex}");
         }
 
         public static async Task StopRecording()
