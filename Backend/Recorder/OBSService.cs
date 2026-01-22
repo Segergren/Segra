@@ -476,9 +476,6 @@ namespace Segra.Backend.Recorder
             _isStoppingOrStopped = false;
             _signalOutputStop = false;
 
-            // Note: According to docs, audio settings cannot be reconfigured after initialization
-            // but video can be reset as long as no outputs are active
-
             // Configure video settings specifically for this recording/buffer
             ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
 
@@ -921,27 +918,21 @@ namespace Segra.Backend.Recorder
                 if (isReplayBufferMode && _bufferOutput != null)
                 {
                     // Stop replay buffer
-                    _signalOutputStop = false;
-                    _bufferOutput.Stop(waitForCompletion: false);
+                    Log.Information("Stopping replay buffer...");
+                    _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
 
-                    int attempts = 0;
-                    while (!_signalOutputStop && attempts < 300)
+                    if (_bufferOutput.IsActive)
                     {
-                        Thread.Sleep(100);
-                        attempts++;
-                    }
-
-                    if (!_signalOutputStop)
-                    {
-                        Log.Warning("Failed to stop replay buffer. Forcing stop.");
+                        Log.Warning("Replay buffer did not stop within timeout. Forcing stop.");
                         _bufferOutput.ForceStop();
+                        Thread.Sleep(500); // Brief wait after force stop
                     }
                     else
                     {
                         Log.Information("Replay buffer stopped.");
+                        // Small delay just to be sure
+                        Thread.Sleep(200);
                     }
-
-                    Thread.Sleep(200);
 
                     DisposeOutput();
                     DisposeSources();
@@ -961,33 +952,27 @@ namespace Segra.Backend.Recorder
                     if (Settings.Instance.State.Recording != null)
                         Settings.Instance.State.UpdateRecordingEndTime(DateTime.Now);
 
-                    _signalOutputStop = false;
-                    _output.Stop(waitForCompletion: false);
+                    Log.Information("Stopping recording...");
+                    _output.Stop(waitForCompletion: true, timeoutMs: 30000);
 
-                    int attempts = 0;
-                    while (!_signalOutputStop && attempts < 300)
+                    if (_output.IsActive)
                     {
-                        Thread.Sleep(100);
-                        attempts++;
-                    }
-
-                    if (!_signalOutputStop)
-                    {
-                        Log.Warning("Failed to stop recording. Forcing stop.");
+                        Log.Warning("Recording did not stop within timeout. Forcing stop.");
                         _output.ForceStop();
+                        Thread.Sleep(500); // Brief wait after force stop
                     }
                     else
                     {
-                        Log.Information("Output stopped.");
+                        Log.Information("Recording stopped.");
+                        // Small delay just to be sure
+                        Thread.Sleep(200);
                     }
-
-                    Thread.Sleep(200);
 
                     DisposeOutput();
                     DisposeSources();
                     DisposeEncoders();
 
-                    Log.Information("Recording stopped.");
+                    Log.Information("Recording stopped and disposed.");
 
                     _ = GameIntegrationService.Shutdown();
                     KeybindCaptureService.Stop();
@@ -1022,52 +1007,48 @@ namespace Segra.Backend.Recorder
                     // Stop replay buffer first if running
                     if (_bufferOutput != null)
                     {
-                        _signalOutputStop = false;
-                        _bufferOutput.Stop(waitForCompletion: false);
-                        int attempts = 0;
-                        while (!_signalOutputStop && attempts < 300)
+                        Log.Information("Hybrid: Stopping replay buffer...");
+                        _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
+
+                        if (_bufferOutput.IsActive)
                         {
-                            Thread.Sleep(100);
-                            attempts++;
-                        }
-                        if (!_signalOutputStop)
-                        {
-                            Log.Warning("Hybrid: Failed to stop replay buffer. Forcing stop.");
+                            Log.Warning("Hybrid: Replay buffer did not stop within timeout. Forcing stop.");
                             _bufferOutput.ForceStop();
+                            Thread.Sleep(500);
                         }
                         else
                         {
                             Log.Information("Hybrid: Replay buffer stopped.");
+                            // Small delay just to be sure
+                            Thread.Sleep(200);
                         }
                     }
 
                     // Stop session recording
                     if (_output != null)
                     {
-                        _signalOutputStop = false;
-                        _output.Stop(waitForCompletion: false);
-                        int attempts2 = 0;
-                        while (!_signalOutputStop && attempts2 < 300)
+                        Log.Information("Hybrid: Stopping recording...");
+                        _output.Stop(waitForCompletion: true, timeoutMs: 30000);
+
+                        if (_output.IsActive)
                         {
-                            Thread.Sleep(100);
-                            attempts2++;
-                        }
-                        if (!_signalOutputStop)
-                        {
-                            Log.Warning("Hybrid: Failed to stop recording. Forcing stop.");
+                            Log.Warning("Hybrid: Recording did not stop within timeout. Forcing stop.");
                             _output.ForceStop();
+                            Thread.Sleep(500);
                         }
                         else
                         {
                             Log.Information("Hybrid: Recording stopped.");
+                            // Small delay just to be sure
+                            Thread.Sleep(200);
                         }
                     }
-
-                    Thread.Sleep(200);
 
                     DisposeOutput();
                     DisposeSources();
                     DisposeEncoders();
+
+                    Log.Information("Hybrid: All outputs stopped and disposed.");
 
                     _ = GameIntegrationService.Shutdown();
                     KeybindCaptureService.Stop();
