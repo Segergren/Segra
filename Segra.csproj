@@ -27,6 +27,7 @@
     <AssemblyName>Segra</AssemblyName>
     <RootNamespace>Segra</RootNamespace>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
@@ -44,7 +45,7 @@
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
     <PackageReference Include="Vortice.DirectX" Version="3.6.2" />
-    <PackageReference Include="ObsKit.NET" Version="0.0.8" />
+    <PackageReference Include="ObsKit.NET" Version="0.0.10" />
   </ItemGroup>
 
   <ItemGroup>

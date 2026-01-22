@@ -2,6 +2,8 @@ export type ContentType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
 
 export type RecordingMode = 'Session' | 'Buffer' | 'Hybrid';
 
+export type DisplayCaptureMethod = 'Auto' | 'DXGI' | 'WGC';
+
 export interface Content {
   type: ContentType;
   title: string;
@@ -205,6 +207,7 @@ export interface Settings {
   forceMonoInputSources: boolean;
   enableDisplayRecording: boolean;
   selectedDisplay: Display | null;
+  displayCaptureMethod: DisplayCaptureMethod;
   recordWindowedApplications: boolean;
   selectedOBSVersion: string | null; // null means automatic (latest non-beta)
   enableAi: boolean;
@@ -275,6 +278,7 @@ export const initialSettings: Settings = {
   forceMonoInputSources: false,
   enableDisplayRecording: true,
   selectedDisplay: null, // Default to null (auto-select)
+  displayCaptureMethod: 'Auto',
   recordWindowedApplications: false,
   selectedOBSVersion: null, // null means automatic (latest non-beta)
   enableAi: true,

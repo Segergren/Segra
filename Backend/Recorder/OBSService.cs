@@ -891,9 +891,17 @@ namespace Segra.Backend.Recorder
                 }
             }
 
-            _displaySource = MonitorCapture.FromMonitor(monitorIndex, "display");
+            var captureMethod = Settings.Instance.DisplayCaptureMethod switch
+            {
+                DisplayCaptureMethod.DXGI => MonitorCaptureMethod.DesktopDuplication,
+                DisplayCaptureMethod.WGC => MonitorCaptureMethod.WindowsGraphicsCapture,
+                _ => MonitorCaptureMethod.Auto
+            };
+
+            _displaySource = MonitorCapture.FromMonitor(monitorIndex, "display")
+                .SetCaptureMethod(captureMethod);
             Obs.SetOutputSource(1, _displaySource);
-            Log.Information($"Display capture added for monitor {monitorIndex}");
+            Log.Information($"Display capture added for monitor {monitorIndex} using {Settings.Instance.DisplayCaptureMethod} method");
         }
 
         public static async Task StopRecording()
