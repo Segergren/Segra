@@ -102,6 +102,7 @@ namespace Segra.Backend.Recorder
 
         // Signal connections - dispose to disconnect
         private static SignalConnection? _outputStopConnection;
+        private static SignalConnection? _bufferStopConnection;
         private static SignalConnection? _replaySavedConnection;
         private static SignalConnection? _hookedConnection;
         private static SignalConnection? _unhookedConnection;
@@ -771,7 +772,7 @@ namespace Segra.Backend.Recorder
                 }
 
                 // Connect signal handlers
-                _outputStopConnection = _bufferOutput!.ConnectSignal(OutputSignal.Stop, OnOutputStop);
+                _bufferStopConnection = _bufferOutput!.ConnectSignal(OutputSignal.Stop, OnOutputStop);
                 _replaySavedConnection = _bufferOutput.ConnectSignal(OutputSignal.Saved, OnReplaySaved);
             }
 
@@ -1425,9 +1426,10 @@ namespace Segra.Backend.Recorder
             {
                 try
                 {
+                    _bufferStopConnection?.Dispose();
+                    _bufferStopConnection = null;
                     _replaySavedConnection?.Dispose();
                     _replaySavedConnection = null;
-                    // Note: _outputStopConnection is already handled above or is shared
                     _bufferOutput.Dispose();
                 }
                 catch (Exception ex)
