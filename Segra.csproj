@@ -45,7 +45,7 @@
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
     <PackageReference Include="Vortice.DirectX" Version="3.6.2" />
-    <PackageReference Include="ObsKit.NET" Version="0.0.10" />
+    <PackageReference Include="ObsKit.NET" Version="0.0.11" />
   </ItemGroup>
 
   <ItemGroup>

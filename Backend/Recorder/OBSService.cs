@@ -94,14 +94,12 @@ namespace Segra.Backend.Recorder
         private static bool _isStillHookedAfterUnhook = false;
 
         // Recording/output state
-        private static bool _signalOutputStop = false;
         private static bool _isStoppingOrStopped = false;
 
         // Replay buffer state
         private static bool _replaySaved = false;
 
         // Signal connections - dispose to disconnect
-        private static SignalConnection? _outputStopConnection;
         private static SignalConnection? _replaySavedConnection;
         private static SignalConnection? _hookedConnection;
         private static SignalConnection? _unhookedConnection;
@@ -474,7 +472,6 @@ namespace Segra.Backend.Recorder
 
             // Reset the stopping flag when starting a new recording
             _isStoppingOrStopped = false;
-            _signalOutputStop = false;
 
             // Configure video settings specifically for this recording/buffer
             ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
@@ -770,9 +767,8 @@ namespace Segra.Backend.Recorder
                     _bufferOutput.WithAudioEncoder(_audioEncoders[t], track: t);
                 }
 
-                // Connect signal handlers
-                _outputStopConnection = _bufferOutput!.ConnectSignal(OutputSignal.Stop, OnOutputStop);
-                _replaySavedConnection = _bufferOutput.ConnectSignal(OutputSignal.Saved, OnReplaySaved);
+                // Connect signal handler for replay saved
+                _replaySavedConnection = _bufferOutput!.ConnectSignal(OutputSignal.Saved, OnReplaySaved);
             }
 
             if (isSessionMode || isHybridMode)
@@ -801,9 +797,6 @@ namespace Segra.Backend.Recorder
                 {
                     _output.WithAudioEncoder(_audioEncoders[t], track: t);
                 }
-
-                // Connect signal handler
-                _outputStopConnection = _output!.ConnectSignal(OutputSignal.Stop, OnOutputStop);
             }
 
             // Overwrite the file name with the hooked executable name if using game hook
@@ -927,19 +920,19 @@ namespace Segra.Backend.Recorder
                 {
                     // Stop replay buffer
                     Log.Information("Stopping replay buffer...");
-                    _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
+                    bool successfullyStopped = _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
 
-                    if (_bufferOutput.IsActive)
-                    {
-                        Log.Warning("Replay buffer did not stop within timeout. Forcing stop.");
-                        _bufferOutput.ForceStop();
-                        Thread.Sleep(500); // Brief wait after force stop
-                    }
-                    else
+                    if (successfullyStopped)
                     {
                         Log.Information("Replay buffer stopped.");
                         // Small delay just to be sure
                         Thread.Sleep(200);
+                    }
+                    else
+                    {
+                        Log.Warning("Replay buffer did not stop within timeout. Forcing stop.");
+                        _bufferOutput.ForceStop();
+                        Thread.Sleep(500); // Brief wait after force stop
                     }
 
                     DisposeOutput();
@@ -961,19 +954,19 @@ namespace Segra.Backend.Recorder
                         Settings.Instance.State.UpdateRecordingEndTime(DateTime.Now);
 
                     Log.Information("Stopping recording...");
-                    _output.Stop(waitForCompletion: true, timeoutMs: 30000);
+                    bool successfullyStopped = _output.Stop(waitForCompletion: true, timeoutMs: 30000);
 
-                    if (_output.IsActive)
-                    {
-                        Log.Warning("Recording did not stop within timeout. Forcing stop.");
-                        _output.ForceStop();
-                        Thread.Sleep(500); // Brief wait after force stop
-                    }
-                    else
+                    if (successfullyStopped)
                     {
                         Log.Information("Recording stopped.");
                         // Small delay just to be sure
                         Thread.Sleep(200);
+                    }
+                    else
+                    {
+                        Log.Warning("Recording did not stop within timeout. Forcing stop.");
+                        _output.ForceStop();
+                        Thread.Sleep(500); // Brief wait after force stop
                     }
 
                     DisposeOutput();
@@ -1016,19 +1009,19 @@ namespace Segra.Backend.Recorder
                     if (_bufferOutput != null)
                     {
                         Log.Information("Hybrid: Stopping replay buffer...");
-                        _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
+                        bool successfullyStopped = _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
 
-                        if (_bufferOutput.IsActive)
-                        {
-                            Log.Warning("Hybrid: Replay buffer did not stop within timeout. Forcing stop.");
-                            _bufferOutput.ForceStop();
-                            Thread.Sleep(500);
-                        }
-                        else
+                        if (successfullyStopped)
                         {
                             Log.Information("Hybrid: Replay buffer stopped.");
                             // Small delay just to be sure
                             Thread.Sleep(200);
+                        }
+                        else
+                        {
+                            Log.Warning("Hybrid: Replay buffer did not stop within timeout. Forcing stop.");
+                            _bufferOutput.ForceStop();
+                            Thread.Sleep(500);
                         }
                     }
 
@@ -1036,19 +1029,19 @@ namespace Segra.Backend.Recorder
                     if (_output != null)
                     {
                         Log.Information("Hybrid: Stopping recording...");
-                        _output.Stop(waitForCompletion: true, timeoutMs: 30000);
+                        bool successfullyStopped = _output.Stop(waitForCompletion: true, timeoutMs: 30000);
 
-                        if (_output.IsActive)
-                        {
-                            Log.Warning("Hybrid: Recording did not stop within timeout. Forcing stop.");
-                            _output.ForceStop();
-                            Thread.Sleep(500);
-                        }
-                        else
+                        if (successfullyStopped)
                         {
                             Log.Information("Hybrid: Recording stopped.");
                             // Small delay just to be sure
                             Thread.Sleep(200);
+                        }
+                        else
+                        {
+                            Log.Warning("Hybrid: Recording did not stop within timeout. Forcing stop.");
+                            _output.ForceStop();
+                            Thread.Sleep(500);
                         }
                     }
 
@@ -1163,11 +1156,6 @@ namespace Segra.Backend.Recorder
         {
             _isGameCaptureHooked = false;
             Log.Information("Game unhooked.");
-        }
-
-        private static void OnOutputStop(nint calldata)
-        {
-            _signalOutputStop = true;
         }
 
         private static void OnReplaySaved(nint calldata)
@@ -1410,8 +1398,6 @@ namespace Segra.Backend.Recorder
             {
                 try
                 {
-                    _outputStopConnection?.Dispose();
-                    _outputStopConnection = null;
                     _output.Dispose();
                 }
                 catch (Exception ex)
@@ -1427,7 +1413,6 @@ namespace Segra.Backend.Recorder
                 {
                     _replaySavedConnection?.Dispose();
                     _replaySavedConnection = null;
-                    // Note: _outputStopConnection is already handled above or is shared
                     _bufferOutput.Dispose();
                 }
                 catch (Exception ex)
