@@ -2,7 +2,6 @@ import React, { useState, useCallback } from 'react';
 import { useSettings } from '../Context/SettingsContext';
 import DashPlayer from '../Components/DashPlayer';
 import { useWebSocketContext } from '../Context/WebSocketContext';
-import { Settings } from '../Models/types';
 
 const LivePreview: React.FC = () => {
     const settings = useSettings();

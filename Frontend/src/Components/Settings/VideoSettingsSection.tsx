@@ -93,7 +93,7 @@ export default function VideoSettingsSection({
 
       {/* Replay Buffer Settings - Only show when Replay Buffer mode is selected */}
       <AnimatePresence>
-        {(settings.recordingMode === 'Buffer' || settings.recordingMode === 'Hybrid') && (
+        {settings.recordingMode === 'Background' && (
           <motion.div
             className="bg-base-300"
             initial={{ opacity: 0, height: 0 }}
