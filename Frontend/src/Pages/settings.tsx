@@ -1,7 +1,7 @@
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useUpdate } from '../Context/UpdateContext';
 import AccountSection from '../Components/Settings/AccountSection';
-import CaptureModeSection from '../Components/Settings/CaptureModeSection';
+import SteamRecordingModeSection from '../Components/Settings/SteamRecordingModeSection';
 import VideoSettingsSection from '../Components/Settings/VideoSettingsSection';
 import StorageSettingsSection from '../Components/Settings/StorageSettingsSection';
 import ClipSettingsSection from '../Components/Settings/ClipSettingsSection';
@@ -21,7 +21,7 @@ export default function Settings() {
 
       <AccountSection />
 
-      <CaptureModeSection settings={settings} updateSettings={updateSettings} />
+      <SteamRecordingModeSection settings={settings} updateSettings={updateSettings} />
 
       <VideoSettingsSection settings={settings} updateSettings={updateSettings} />
 

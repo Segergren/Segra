@@ -9,6 +9,8 @@ interface DashPlayerProps {
     height?: string | number;
     controls?: boolean;
     muted?: boolean;
+    onTimeUpdate?: (currentTime: number) => void;
+    onDurationChange?: (duration: number) => void;
 }
 
 const DashPlayer: React.FC<DashPlayerProps> = ({
@@ -18,7 +20,9 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
     width = '100%',
     height = '100%',
     controls = true,
-    muted = false
+    muted = false,
+    onTimeUpdate,
+    onDurationChange
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const playerRef = useRef<dashjs.MediaPlayerClass | null>(null);
@@ -59,14 +63,33 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
 
         playerRef.current = player;
 
+        const handleTimeUpdate = () => {
+            if (videoRef.current && onTimeUpdate) {
+                onTimeUpdate(videoRef.current.currentTime);
+            }
+        };
+
+        const handleDurationChange = () => {
+             if (videoRef.current && onDurationChange) {
+                onDurationChange(videoRef.current.duration);
+            }
+        };
+
+        const videoElement = videoRef.current;
+        videoElement.addEventListener('timeupdate', handleTimeUpdate);
+        videoElement.addEventListener('durationchange', handleDurationChange);
+
         // Cleanup
         return () => {
+            videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+            videoElement.removeEventListener('durationchange', handleDurationChange);
+
             if (player) {
                 player.destroy();
                 playerRef.current = null;
             }
         };
-    }, [url, autoplay]);
+    }, [url, autoplay, onTimeUpdate, onDurationChange]);
 
     return (
         <div className={className} style={{ width, height }}>

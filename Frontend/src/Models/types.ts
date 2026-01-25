@@ -1,6 +1,6 @@
 export type ContentType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
 
-export type RecordingMode = 'Session' | 'Buffer' | 'Hybrid';
+export type RecordingMode = 'Off' | 'Background' | 'Manual';
 
 export interface Content {
   type: ContentType;
@@ -284,7 +284,7 @@ export const initialSettings: Settings = {
   autoGenerateHighlights: true,
   runOnStartup: false,
   receiveBetaUpdates: false,
-  recordingMode: 'Hybrid',
+  recordingMode: 'Background',
   replayBufferDuration: 30,
   replayBufferMaxSize: 1000,
   clipClearSelectionsAfterCreatingClip: false,

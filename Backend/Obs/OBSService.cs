@@ -520,9 +520,16 @@ namespace Segra.Backend.Obs
             }
 
             Settings.Instance.State.PreRecording = new PreRecording { Game = name, Status = "Waiting to start", CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath), Pid = pid };
-            bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
-            bool isSessionMode = Settings.Instance.RecordingMode == RecordingMode.Session;
-            bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
+
+            if (Settings.Instance.RecordingMode == RecordingMode.Off)
+            {
+                Log.Information("Recording mode is Off. Skipping.");
+                Settings.Instance.State.PreRecording = null;
+                return false;
+            }
+
+            bool isBackgroundMode = Settings.Instance.RecordingMode == RecordingMode.Background;
+            bool isManualMode = Settings.Instance.RecordingMode == RecordingMode.Manual;
 
             string fileName = Path.GetFileName(exePath);
 
@@ -839,25 +846,36 @@ namespace Segra.Backend.Obs
             // Paths for session recordings and buffer, organized by game
             string sanitizedGameName = StorageService.SanitizeGameNameForFolder(name);
             string sessionDir = Path.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions, sanitizedGameName);
-            string bufferDir = Path.Combine(Settings.Instance.ContentFolder, FolderNames.Buffers, sanitizedGameName);
             if (!Directory.Exists(sessionDir)) Directory.CreateDirectory(sessionDir);
-            if (!Directory.Exists(bufferDir)) Directory.CreateDirectory(bufferDir);
-
-            // In DASH mode, we always output to session.mpd in the Session directory.
-            // This replaces both standard session recording and replay buffer.
-            string videoOutputPath = Path.Combine(sessionDir, DashRecordingService.GetOutputFileName()).Replace("\\", "/");
 
             IntPtr outputSettings = obs_data_create();
-            obs_data_set_string(outputSettings, "path", videoOutputPath);
             uint recordTracksMask = trackCount == 0 ? 0u : (1u << trackCount) - 1u;
             obs_data_set_int(outputSettings, "tracks", recordTracksMask);
 
-            // Use ffmpeg_muxer for DASH
             string outputType = "ffmpeg_muxer";
-            obs_data_set_string(outputSettings, "format_name", DashRecordingService.GetDashFormatName());
-            obs_data_set_string(outputSettings, "muxer_settings", DashRecordingService.GetDashMuxerSettings());
+            string videoOutputPath;
 
-            Log.Information($"Using DASH recording output: {videoOutputPath}");
+            if (isBackgroundMode)
+            {
+                // In DASH mode, we always output to session.mpd in the Session directory.
+                videoOutputPath = Path.Combine(sessionDir, DashRecordingService.GetOutputFileName()).Replace("\\", "/");
+
+                obs_data_set_string(outputSettings, "format_name", DashRecordingService.GetDashFormatName());
+                obs_data_set_string(outputSettings, "muxer_settings", DashRecordingService.GetDashMuxerSettings());
+                Log.Information($"Using DASH recording output: {videoOutputPath}");
+            }
+            else
+            {
+                // Manual/Session mode - use standard MP4
+                string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+                videoOutputPath = Path.Combine(sessionDir, $"{timestamp}.mp4").Replace("\\", "/");
+
+                obs_data_set_string(outputSettings, "format_name", "mp4");
+                obs_data_set_string(outputSettings, "muxer_settings", "movflags=faststart");
+                Log.Information($"Using MP4 recording output: {videoOutputPath}");
+            }
+
+            obs_data_set_string(outputSettings, "path", videoOutputPath);
 
             _output = obs_output_create(outputType, "dash_output", outputSettings, IntPtr.Zero);
             obs_data_release(outputSettings);
@@ -934,7 +952,7 @@ namespace Segra.Backend.Obs
             _ = MessageService.SendSettingsToFrontend("OBS Start recording");
 
             Log.Information("Recording started: " + videoOutputPath);
-            if (!isReplayBufferMode)
+            if (!isBackgroundMode)
             {
                 _ = GameIntegrationService.Start(name);
             }
@@ -984,7 +1002,7 @@ namespace Segra.Backend.Obs
                 // Mark as stopping to prevent concurrent stop attempts
                 _isStoppingOrStopped = true;
 
-                bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
+                bool isBackgroundMode = Settings.Instance.RecordingMode == RecordingMode.Background;
 
                 // Unified stop logic for DASH recording
                 if (_output != IntPtr.Zero)
@@ -1064,7 +1082,7 @@ namespace Segra.Backend.Obs
                 CapturedWindowHeight = null;
 
                 // If the recording ends before it started, don't do anything
-                if (Settings.Instance.State.Recording == null || (!isReplayBufferMode && Settings.Instance.State.Recording.FilePath == null))
+                if (Settings.Instance.State.Recording == null || (!isBackgroundMode && Settings.Instance.State.Recording.FilePath == null))
                 {
                     Settings.Instance.State.PreRecording = null;
                     return;
@@ -1081,7 +1099,7 @@ namespace Segra.Backend.Obs
                 Settings.Instance.State.PreRecording = null;
 
                 // If the recording is not a replay buffer recording, AI is enabled, user is authenticated, and auto generate highlights is enabled -> analyze the video!
-                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && !isReplayBufferMode && bookmarks.Any(b => b.Type.IncludeInHighlight()))
+                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && !isBackgroundMode && bookmarks.Any(b => b.Type.IncludeInHighlight()))
                 {
                     string fileName = Path.GetFileNameWithoutExtension(recordingFilePath);
                     _ = AiService.CreateHighlight(fileName);

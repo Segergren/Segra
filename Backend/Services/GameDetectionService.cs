@@ -216,6 +216,22 @@ namespace Segra.Backend.Services
         {
             if (string.IsNullOrEmpty(exePath) || Settings.Instance.State.Recording != null || Settings.Instance.State.PreRecording != null) return false;
 
+            // Check Recording Mode - only auto-record if in Background mode (formerly Buffer)
+            // Off: No recording
+            // Manual: Only manual start
+            if (Settings.Instance.RecordingMode == RecordingMode.Off || Settings.Instance.RecordingMode == RecordingMode.Manual)
+            {
+                // Only log this once per process to avoid spam, or just return false
+                // But since we don't track "seen" processes here easily, we rely on caller logic or just log.
+                // Actually, logging here might spam if periodic check calls it.
+                // But periodic check calls ShouldRecordGame(exePath, true).
+                if (!isPeriodicCheck)
+                {
+                     Log.Information($"[ShouldRecordGame] Skipping auto-record for {exePath} due to RecordingMode: {Settings.Instance.RecordingMode}");
+                }
+                return false;
+            }
+
             // Normalize path for consistent comparison
             string normalizedExePath = exePath.Replace("\\", "/");
 

@@ -5,6 +5,7 @@ import { useAuth } from '../Hooks/useAuth.tsx';
 
 interface WebSocketContextType {
   sendMessage: (message: string) => void;
+  send: (method: string, parameters?: any) => void;
   isConnected: boolean;
   connectionState: ReadyState;
 }
@@ -30,7 +31,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   // Configure WebSocket with reconnection and heartbeat
-  const { readyState } = useWebSocket('ws://localhost:5000/', {
+  const { readyState, sendJsonMessage } = useWebSocket('ws://localhost:5000/', {
     onOpen: () => {
       // Check if this is a reconnection
       if (hasConnectedBefore.current) {
@@ -104,8 +105,37 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
   const contextValue = {
     sendMessage: useCallback((message: string) => {
-      sendMessageToBackend(message);
-    }, []),
+      // Try using window.external first (production/webview)
+      if ((window as any).external && typeof (window as any).external.sendMessage === 'function') {
+        sendMessageToBackend(message);
+      } else {
+        // Fallback to WebSocket (browser/dev)
+        try {
+           // We assume message is a JSON string because sendMessageToBackend expects method/params but here we get a string.
+           // However, existing usages of context.sendMessage might be passing a string that is just the method name?
+           // Looking at usage in components would verify.
+           // But assuming it's a JSON string or we should parse it?
+           // Actually sendMessageToBackend takes (method, params).
+           // This context.sendMessage takes (message: string).
+           // If 'message' is a JSON string, we can parse it.
+           // If it's just a method name, we wrap it.
+           // But let's look at how sendJsonMessage works.
+           const parsed = JSON.parse(message);
+           sendJsonMessage(parsed);
+        } catch (e) {
+            // If not JSON, maybe it's just a method name?
+            sendJsonMessage({ Method: message });
+        }
+      }
+    }, [sendJsonMessage]),
+    send: useCallback((method: string, parameters?: any) => {
+        // Preferred way to send structured messages
+         if ((window as any).external && typeof (window as any).external.sendMessage === 'function') {
+            sendMessageToBackend(method, parameters);
+        } else {
+            sendJsonMessage({ Method: method, Parameters: parameters });
+        }
+    }, [sendJsonMessage]),
     isConnected: readyState === ReadyState.OPEN,
     connectionState: readyState,
   };

@@ -44,7 +44,7 @@ namespace Segra.Backend.Core.Models
         private bool _autoGenerateHighlights = true;
         private bool _runOnStartup = false;
         private bool _receiveBetaUpdates = false;
-        private RecordingMode _recordingMode = RecordingMode.Hybrid;
+        private RecordingMode _recordingMode = RecordingMode.Background;
         private int _replayBufferDuration = 30;
         private int _replayBufferMaxSize = 1000;
         private List<Keybind> _keybindings;
@@ -1387,9 +1387,9 @@ namespace Segra.Backend.Core.Models
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum RecordingMode
     {
-        Session,
-        Buffer,
-        Hybrid
+        Off,
+        Background,
+        Manual
     }
 
     public class Game
