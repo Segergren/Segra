@@ -59,7 +59,7 @@ function App() {
     }
 
     switch (selectedMenu) {
-      case 'Full Sessions':
+      case 'Session':
         return <Sessions />;
       case 'Replay Buffer':
         return <ReplayBuffer />;

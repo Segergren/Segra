@@ -117,11 +117,11 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         />
         <button
           ref={sessionsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Full Sessions' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
-          onMouseDown={() => onSelectMenu('Full Sessions')}
+          className={`btn btn-secondary ${selectedMenu === 'Session' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          onMouseDown={() => onSelectMenu('Session')}
         >
           <MdOutlinePlayCircleOutline className="w-6 h-6" />
-          Full Sessions
+          Session
         </button>
         <button
           ref={replayRef}
