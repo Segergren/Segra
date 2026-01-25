@@ -35,11 +35,14 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
         const settings = {
             streaming: {
                 delay: {
-                    liveDelay: 4, // Increased to 4s to be safer
+                    liveDelay: 4,
                 },
                 buffer: {
                     lowLatencyStallThreshold: 0.5,
                 },
+                liveCatchup: {
+                    enabled: false
+                }
             },
             debug: {
                 logLevel: dashjs.Debug.LOG_LEVEL_INFO
