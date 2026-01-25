@@ -19,7 +19,6 @@ import {
   MdOutlinePlayCircleOutline,
   MdOutlineSettings,
   MdReplay30,
-  MdLiveTv,
 } from 'react-icons/md';
 import { HiOutlineSparkles } from 'react-icons/hi';
 import { AnimatePresence, motion } from 'framer-motion';

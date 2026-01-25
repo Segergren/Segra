@@ -1065,6 +1065,8 @@ namespace Segra.Backend.Obs
                 // Mark as stopping to prevent concurrent stop attempts
                 _isStoppingOrStopped = true;
 
+                bool isBackgroundMode = Settings.Instance.RecordingMode == RecordingMode.Background;
+
                 // Unified stop logic for DASH recording
                 if (_output != IntPtr.Zero)
                 {
