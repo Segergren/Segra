@@ -8,7 +8,7 @@ namespace Segra.Backend.Media
         // flags -window_size 900, -remove_at_exit 1, and -use_template 1.
 
         public const string FormatName = "dash";
-        public const string MuxerSettings = "window_size=900 remove_at_exit=1 use_template=1 seg_duration=2 streaming=1 ldash=1 write_prft=1";
+        public const string MuxerSettings = "window_size=900 remove_at_exit=1 use_template=1 seg_duration=2";
 
         public static string GetDashFormatName()
         {
