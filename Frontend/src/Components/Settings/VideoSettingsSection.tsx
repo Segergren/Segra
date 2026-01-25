@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DropdownSelect from '../DropdownSelect';
-import { Settings as SettingsType, VideoQualityPreset } from '../../Models/types';
+import {
+  Settings as SettingsType,
+  VideoQualityPreset,
+  DisplayCaptureMethod,
+} from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 
 interface VideoSettingsSectionProps {
@@ -464,26 +468,42 @@ export default function VideoSettingsSection({
             style={{ overflow: 'visible' }}
             key="display-selection"
           >
-            <div className="flex flex-col mt-2">
-              <span className="font-medium">Monitor Selection</span>
-              <DropdownSelect
-                items={[
-                  { value: 'Automatic', label: 'Automatic' },
-                  ...settings.state.displays.map((d) => ({
-                    value: d.deviceName,
-                    label: `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`,
-                  })),
-                ]}
-                value={settings.selectedDisplay?.deviceName || 'Automatic'}
-                onChange={(val) =>
-                  updateSettings({
-                    selectedDisplay:
-                      val === 'Automatic'
-                        ? undefined
-                        : settings.state.displays.find((d) => d.deviceName === val),
-                  })
-                }
-              />
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <div className="flex flex-col">
+                <span className="font-medium">Monitor Selection</span>
+                <DropdownSelect
+                  items={[
+                    { value: 'Automatic', label: 'Automatic' },
+                    ...settings.state.displays.map((d) => ({
+                      value: d.deviceName,
+                      label: `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`,
+                    })),
+                  ]}
+                  value={settings.selectedDisplay?.deviceName || 'Automatic'}
+                  onChange={(val) =>
+                    updateSettings({
+                      selectedDisplay:
+                        val === 'Automatic'
+                          ? undefined
+                          : settings.state.displays.find((d) => d.deviceName === val),
+                    })
+                  }
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-medium">Capture Method</span>
+                <DropdownSelect
+                  items={[
+                    { value: 'Auto', label: 'Auto' },
+                    { value: 'DXGI', label: 'DXGI (Desktop Duplication)' },
+                    { value: 'WGC', label: 'WGC (Windows Graphics Capture)' },
+                  ]}
+                  value={settings.displayCaptureMethod}
+                  onChange={(val) =>
+                    updateSettings({ displayCaptureMethod: val as DisplayCaptureMethod })
+                  }
+                />
+              </div>
             </div>
           </motion.div>
         )}

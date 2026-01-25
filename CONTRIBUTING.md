@@ -15,7 +15,6 @@ A quick, practical guide to get you developing on both the backend (C#/.NET) and
 - `Segra.sln` — solution root
 - `Backend/` — app services, models, utils
 - `Frontend/` — React + Vite app (TypeScript, Tailwind, DaisyUI)
-- `libobs-sharp/` — vendored OBS interop
 
 ## First-Time Setup
 1. Clone the repo
@@ -56,7 +55,6 @@ There are two parts running during development: the backend (Photino.NET desktop
 - C# formatting (via `dotnet format`):
   - Pre-commit: formats staged `*.cs` files
   - Pre-push: verifies no formatting drift in the solution
-  - `libobs-sharp/` is excluded from formatting
 - Frontend (in `Frontend/`):
   - Prettier + ESLint with Bun
   - Scripts:
@@ -67,9 +65,9 @@ There are two parts running during development: the backend (Photino.NET desktop
 - Installed at repo root via Bun.
 - Pre-commit:
   - Prettier + ESLint on staged files in `Frontend/`
-  - `dotnet format` on staged `*.cs` (excludes `libobs-sharp`)
+  - `dotnet format` on staged `*.cs`
 - Pre-push:
-  - `dotnet format --verify-no-changes` on the solution (excludes `libobs-sharp`)
+  - `dotnet format --verify-no-changes` on the solution
 
 If hooks don't run:
 - Ensure Bun is on PATH for your Git shell
@@ -78,6 +76,5 @@ If hooks don't run:
 ## Pull Requests
 - Keep PRs focused and small
 - Run format and lint before pushing
-- Avoid changing files under `libobs-sharp/`
 
 Thanks for contributing ❤️

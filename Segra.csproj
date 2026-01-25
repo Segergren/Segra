@@ -27,7 +27,9 @@
     <AssemblyName>Segra</AssemblyName>
     <RootNamespace>Segra</RootNamespace>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -44,20 +46,11 @@
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
     <PackageReference Include="Vortice.DirectX" Version="3.6.2" />
+    <PackageReference Include="ObsKit.NET" Version="0.0.11" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\**" />
-  </ItemGroup>
-
-  <!-- Exclude libobs-sharp sources and include as a project instead -->
-  <ItemGroup>
-    <Compile Remove="libobs-sharp\**\*.cs" />
-    <None Include="libobs-sharp\**\*.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="libobs-sharp\libobs-sharp\libobs-sharp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

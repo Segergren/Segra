@@ -84,7 +84,6 @@ namespace Segra.Backend.Games.Pubg
                 foreach (var directory in newDirs)
                 {
                     Log.Information($"New PUBG replay: {directory}");
-                    var processedVictims = new HashSet<string>();
                     Thread.Sleep(500);
 
                     var infoPath = Path.Combine(directory, "PUBG.replayinfo");
@@ -97,8 +96,8 @@ namespace Segra.Backend.Games.Pubg
                         continue;
                     }
 
-                    ProcessDownedPlayers(directory, matchInfo, processedVictims);
-                    ProcessKills(directory, matchInfo, processedVictims);
+                    ProcessDownedPlayers(directory, matchInfo);
+                    ProcessKills(directory, matchInfo);
                     ProcessPlayerDowned(directory, matchInfo);
                     ProcessPlayerDeath(directory, matchInfo);
                 }
@@ -109,7 +108,7 @@ namespace Segra.Backend.Games.Pubg
             }
         }
 
-        private void ProcessDownedPlayers(string folder, PubgMatchInfo matchInfo, HashSet<string> trackedVictims)
+        private void ProcessDownedPlayers(string folder, PubgMatchInfo matchInfo)
         {
             var downFiles = Directory.GetFiles(Path.Combine(folder, "events"), "DBNO*");
             foreach (var filePath in downFiles)
@@ -128,12 +127,16 @@ namespace Segra.Backend.Games.Pubg
                         !string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
                         var downTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                        trackedVictims.Add(eventData.VictimName);
+                        var bookmarkTime = downTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero;
+
+                        // Skip events that occurred before recording started
+                        if (bookmarkTime < TimeSpan.Zero)
+                            continue;
 
                         var bookmark = new Bookmark
                         {
                             Type = BookmarkType.Kill,
-                            Time = downTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero
+                            Time = bookmarkTime
                         };
                         Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
                     }
@@ -141,7 +144,7 @@ namespace Segra.Backend.Games.Pubg
             }
         }
 
-        private void ProcessKills(string folder, PubgMatchInfo matchInfo, HashSet<string> trackedVictims)
+        private void ProcessKills(string folder, PubgMatchInfo matchInfo)
         {
             var killFiles = Directory.GetFiles(Path.Combine(folder, "events"), "kill*");
             foreach (var filePath in killFiles)
@@ -159,19 +162,21 @@ namespace Segra.Backend.Games.Pubg
                     if (string.Equals(cleanKiller, cleanRecordName, StringComparison.OrdinalIgnoreCase) &&
                         !string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
-                        // Check if we already got credit for downing this victim
-                        bool iDownedThem = !trackedVictims.Add(eventData.VictimName);
-
-                        // Create bookmark if:
-                        // - IsDBNO=false (instant kill or post-revive kill), OR
-                        // - IsDBNO=true AND I didn't down them (finishing someone else's down)
-                        if (!eventData.IsDBNO || !iDownedThem)
+                        // Only bookmark instant kills (IsDBNO=false)
+                        // Downs are already bookmarked in ProcessDownedPlayers
+                        if (!eventData.IsDBNO)
                         {
                             var killTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
+                            var bookmarkTime = killTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero;
+
+                            // Skip events that occurred before recording started
+                            if (bookmarkTime < TimeSpan.Zero)
+                                continue;
+
                             var bookmark = new Bookmark
                             {
                                 Type = BookmarkType.Kill,
-                                Time = killTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero
+                                Time = bookmarkTime
                             };
                             Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
                         }
@@ -197,10 +202,16 @@ namespace Segra.Backend.Games.Pubg
                     if (string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
                         var downTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
+                        var bookmarkTime = downTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero;
+
+                        // Skip events that occurred before recording started
+                        if (bookmarkTime < TimeSpan.Zero)
+                            continue;
+
                         var bookmark = new Bookmark
                         {
                             Type = BookmarkType.Death,
-                            Time = downTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero
+                            Time = bookmarkTime
                         };
                         Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
                     }
@@ -229,10 +240,16 @@ namespace Segra.Backend.Games.Pubg
                         if (!eventData.IsDBNO)
                         {
                             var deathTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
+                            var bookmarkTime = deathTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero;
+
+                            // Skip events that occurred before recording started
+                            if (bookmarkTime < TimeSpan.Zero)
+                                continue;
+
                             var bookmark = new Bookmark
                             {
                                 Type = BookmarkType.Death,
-                                Time = deathTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero
+                                Time = bookmarkTime
                             };
                             Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
                         }

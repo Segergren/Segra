@@ -1,7 +1,7 @@
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
-using Segra.Backend.Obs;
+using Segra.Backend.Recorder;
 using Segra.Backend.Shared;
 using Segra.Backend.Utils;
 using Segra.Backend.Windows.Display;
@@ -615,6 +615,14 @@ namespace Segra.Backend.Services
                     OBSService.DisposeDisplaySource();
                     OBSService.AddMonitorCapture();
                 }
+                hasChanges = true;
+            }
+
+            // Update DisplayCaptureMethod
+            if (settings.DisplayCaptureMethod != updatedSettings.DisplayCaptureMethod)
+            {
+                Log.Information($"DisplayCaptureMethod changed from '{settings.DisplayCaptureMethod}' to '{updatedSettings.DisplayCaptureMethod}'");
+                settings.DisplayCaptureMethod = updatedSettings.DisplayCaptureMethod;
                 hasChanges = true;
             }
 

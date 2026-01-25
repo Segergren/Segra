@@ -25,6 +25,12 @@
           "NAudio.WinMM": "2.2.1"
         }
       },
+      "ObsKit.NET": {
+        "type": "Direct",
+        "requested": "[0.0.11, )",
+        "resolved": "0.0.11",
+        "contentHash": "ZF+MitMS/H8VeQL43CtSZ++zWnWXKjHNxnUcMXFWYiJXP+Of8dIKFNSb1ROLmYFYySLVFFgJhS56IdI9iBC1yA=="
+      },
       "Photino.NET": {
         "type": "Direct",
         "requested": "[4.0.16, )",
@@ -383,12 +389,6 @@
           "Microsoft.IO.RecyclableMemoryStream": "3.0.0",
           "System.Reactive": "6.0.0",
           "System.Threading.Channels": "8.0.0"
-        }
-      },
-      "libobs-sharp": {
-        "type": "Project",
-        "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "[7.0.1, )"
         }
       }
     }

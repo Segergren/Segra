@@ -8,7 +8,7 @@ using Segra.Backend.Services;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
 using Segra.Backend.Utils;
-using Segra.Backend.Obs;
+using Segra.Backend.Recorder;
 using Segra.Backend.Games;
 
 namespace Segra.Backend.App

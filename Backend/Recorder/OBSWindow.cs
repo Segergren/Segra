@@ -1,4 +1,4 @@
-namespace Segra.Backend.Obs
+namespace Segra.Backend.Recorder
 {
     internal class OBSWindow : Form
     {
