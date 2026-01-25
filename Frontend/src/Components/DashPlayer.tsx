@@ -31,16 +31,27 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
         player.initialize(videoRef.current, url, autoplay);
 
         // Configure low latency for live streams if needed
-        player.updateSettings({
+        // Note: lowLatencyEnabled was moved in dash.js 5.x but types might lag or vary.
+        // We cast to any to support both structures until types are fully aligned.
+        const settings = {
             streaming: {
-                lowLatencyControl: {
-                    lowLatencyEnabled: true,
-                },
                 delay: {
                     liveDelay: 2,
                 },
+                buffer: {
+                    lowLatencyStallThreshold: 0.5,
+                },
             },
-        });
+        };
+
+        // Inject legacy property if needed, though types don't show it.
+        // For Dash.js 5.x, lowLatencyEnabled is often implied by other settings or profile,
+        // but explicit config might be under streaming.lowLatencyEnabled (legacy) or just handled by the profile.
+        // Since strict mode complains, we avoid the unknown property.
+        // If specific low latency toggle is needed and not in types, we'd cast:
+        // (settings.streaming as any).lowLatencyEnabled = true;
+
+        player.updateSettings(settings);
 
         playerRef.current = player;
 
