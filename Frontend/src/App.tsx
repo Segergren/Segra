@@ -5,6 +5,7 @@ import Sessions from './Pages/sessions';
 import Clips from './Pages/clips';
 import ReplayBuffer from './Pages/replay-buffer';
 import Highlights from './Pages/highlights';
+import LivePreview from './Pages/LivePreview';
 import { SettingsProvider } from './Context/SettingsContext';
 import Video from './Pages/video';
 import { useSelectedVideo } from './Context/SelectedVideoContext';
@@ -69,6 +70,8 @@ function App() {
         return <Highlights />;
       case 'Settings':
         return <Settings />;
+      case 'Live Preview':
+        return <LivePreview />;
       default:
         return <Sessions />;
     }

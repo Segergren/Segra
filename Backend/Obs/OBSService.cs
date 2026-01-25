@@ -843,62 +843,41 @@ namespace Segra.Backend.Obs
             if (!Directory.Exists(sessionDir)) Directory.CreateDirectory(sessionDir);
             if (!Directory.Exists(bufferDir)) Directory.CreateDirectory(bufferDir);
 
-            string? videoOutputPath = null; // only set for session/hybrid session output
+            // In DASH mode, we always output to session.mpd in the Session directory.
+            // This replaces both standard session recording and replay buffer.
+            string videoOutputPath = Path.Combine(sessionDir, DashRecordingService.GetOutputFileName()).Replace("\\", "/");
 
-            // Configure outputs depending on mode
-            if (isReplayBufferMode || isHybridMode)
+            IntPtr outputSettings = obs_data_create();
+            obs_data_set_string(outputSettings, "path", videoOutputPath);
+            uint recordTracksMask = trackCount == 0 ? 0u : (1u << trackCount) - 1u;
+            obs_data_set_int(outputSettings, "tracks", recordTracksMask);
+
+            // Use ffmpeg_muxer for DASH
+            string outputType = "ffmpeg_muxer";
+            obs_data_set_string(outputSettings, "format_name", DashRecordingService.GetDashFormatName());
+            obs_data_set_string(outputSettings, "muxer_settings", DashRecordingService.GetDashMuxerSettings());
+
+            Log.Information($"Using DASH recording output: {videoOutputPath}");
+
+            _output = obs_output_create(outputType, "dash_output", outputSettings, IntPtr.Zero);
+            obs_data_release(outputSettings);
+
+            obs_output_set_video_encoder(_output, _videoEncoder);
+            for (int t = 0; t < _audioEncoders.Count; t++)
             {
-                IntPtr bufferOutputSettings = obs_data_create();
-                obs_data_set_string(bufferOutputSettings, "directory", bufferDir);
-                obs_data_set_string(bufferOutputSettings, "format", "%CCYY-%MM-%DD_%hh-%mm-%ss");
-                obs_data_set_string(bufferOutputSettings, "extension", "mp4");
-                obs_data_set_int(bufferOutputSettings, "max_time_sec", (uint)Settings.Instance.ReplayBufferDuration);
-                obs_data_set_int(bufferOutputSettings, "max_size_mb", (uint)Settings.Instance.ReplayBufferMaxSize);
-                uint bufferTracksMask = trackCount == 0 ? 0u : (1u << trackCount) - 1u;
-                obs_data_set_int(bufferOutputSettings, "tracks", bufferTracksMask);
-
-                _bufferOutput = obs_output_create("replay_buffer", "replay_buffer_output", bufferOutputSettings, IntPtr.Zero);
-                obs_data_release(bufferOutputSettings);
-
-                obs_output_set_video_encoder(_bufferOutput, _videoEncoder);
-                for (int t = 0; t < _audioEncoders.Count; t++)
-                {
-                    obs_output_set_audio_encoder(_bufferOutput, _audioEncoders[t], (uint)t);
-                }
-
-                IntPtr bufferOutputHandler = obs_output_get_signal_handler(_bufferOutput);
-                signal_handler_connect(bufferOutputHandler, "stop", _outputStopCallback, IntPtr.Zero);
-                signal_handler_connect(bufferOutputHandler, "saved", _replaySavedCallback, IntPtr.Zero);
+                obs_output_set_audio_encoder(_output, _audioEncoders[t], (uint)t);
             }
 
-            if (isSessionMode || isHybridMode)
-            {
-                videoOutputPath = $"{sessionDir}/{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
+            signal_handler_connect(obs_output_get_signal_handler(_output), "stop", _outputStopCallback, IntPtr.Zero);
 
-                IntPtr outputSettings = obs_data_create();
-                obs_data_set_string(outputSettings, "path", videoOutputPath);
-                uint recordTracksMask = trackCount == 0 ? 0u : (1u << trackCount) - 1u;
-                obs_data_set_int(outputSettings, "tracks", recordTracksMask);
-
-                bool useHybridMp4 = SupportsHybridMp4();
-                string outputType = useHybridMp4 ? "mp4_output" : "ffmpeg_muxer";
-
-                if (!useHybridMp4)
-                    obs_data_set_string(outputSettings, "format_name", "mp4");
-
-                Log.Information($"Using recording output type: {outputType} (Hybrid MP4: {useHybridMp4})");
-
-                _output = obs_output_create(outputType, "simple_output", outputSettings, IntPtr.Zero);
-                obs_data_release(outputSettings);
-
-                obs_output_set_video_encoder(_output, _videoEncoder);
-                for (int t = 0; t < _audioEncoders.Count; t++)
-                {
-                    obs_output_set_audio_encoder(_output, _audioEncoders[t], (uint)t);
-                }
-
-                signal_handler_connect(obs_output_get_signal_handler(_output), "stop", _outputStopCallback, IntPtr.Zero);
-            }
+            // Create metadata for the live session immediately
+            // We do this in a task to avoid blocking
+            _ = Task.Run(async () => {
+                await Task.Delay(1000); // Give it a moment to create the file
+                int? igdbId = !string.IsNullOrEmpty(exePath) ? GameUtils.GetIgdbIdFromExePath(exePath) : null;
+                await ContentService.CreateMetadataFile(videoOutputPath, Content.ContentType.Session, name, null, null, igdbId: igdbId);
+                await SettingsService.LoadContentFromFolderIntoState(true);
+            });
 
             // Overwrite the file name with the hooked executable name if using game hook
             fileName = _hookedExecutableFileName ?? fileName;
@@ -1005,49 +984,9 @@ namespace Segra.Backend.Obs
                 // Mark as stopping to prevent concurrent stop attempts
                 _isStoppingOrStopped = true;
 
-                bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
-                bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
-
-                if (isReplayBufferMode && _bufferOutput != IntPtr.Zero)
+                // Unified stop logic for DASH recording
+                if (_output != IntPtr.Zero)
                 {
-                    // Stop replay buffer
-                    _signalOutputStop = false;
-                    obs_output_stop(_bufferOutput);
-
-                    int attempts = 0;
-                    while (!_signalOutputStop && attempts < 300)
-                    {
-                        Thread.Sleep(100);
-                        attempts++;
-                    }
-
-                    if (!_signalOutputStop)
-                    {
-                        Log.Warning("Failed to stop replay buffer. Forcing stop.");
-                        obs_output_force_stop(_bufferOutput);
-                    }
-                    else
-                    {
-                        Log.Information("Replay buffer stopped.");
-                    }
-
-                    Thread.Sleep(200);
-
-                    DisposeOutput();
-                    DisposeSources();
-                    DisposeEncoders();
-
-                    Log.Information("Replay buffer stopped and disposed.");
-
-                    _ = GameIntegrationService.Shutdown();
-                    KeybindCaptureService.Stop();
-
-                    // Reload content list
-                    await SettingsService.LoadContentFromFolderIntoState(false);
-                }
-                else if (!isReplayBufferMode && !isHybridMode && _output != IntPtr.Zero)
-                {
-                    // Stop standard recording
                     if (Settings.Instance.State.Recording != null)
                         Settings.Instance.State.UpdateRecordingEndTime(DateTime.Now);
 
@@ -1084,103 +1023,29 @@ namespace Segra.Backend.Obs
                     _ = GameIntegrationService.Shutdown();
                     KeybindCaptureService.Stop();
 
-                    // Might be null or empty if the recording failed to start
+                    // Handle cleanup of DASH session
                     if (Settings.Instance.State.Recording != null && Settings.Instance.State.Recording.FilePath != null)
                     {
-                        // Ensure file is fully written to disk/network before thumbnail generation
-                        await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
-
-                        int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath)
-                            ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath)
-                            : null;
-                        await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
-                        await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
-                        await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
-
-                        Log.Information($"Recording details:");
-                        Log.Information($"Start Time: {Settings.Instance.State.Recording.StartTime}");
-                        Log.Information($"End Time: {Settings.Instance.State.Recording.EndTime}");
-                        Log.Information($"Duration: {Settings.Instance.State.Recording.Duration}");
-                        Log.Information($"File Path: {Settings.Instance.State.Recording.FilePath}");
-                    }
-
-                    await SettingsService.LoadContentFromFolderIntoState(false);
-                }
-                else if (isHybridMode)
-                {
-                    if (Settings.Instance.State.Recording != null)
-                        Settings.Instance.State.UpdateRecordingEndTime(DateTime.Now);
-
-                    // Stop replay buffer first if running
-                    if (_bufferOutput != IntPtr.Zero)
-                    {
-                        _signalOutputStop = false;
-                        obs_output_stop(_bufferOutput);
-                        int attempts = 0;
-                        while (!_signalOutputStop && attempts < 300)
+                        // Because remove_at_exit=1 is used, the file might be gone.
+                        // We check if it exists. If not, we remove the metadata to clean up.
+                        if (!File.Exists(Settings.Instance.State.Recording.FilePath))
                         {
-                            Thread.Sleep(100);
-                            attempts++;
-                        }
-                        if (!_signalOutputStop)
-                        {
-                            Log.Warning("Hybrid: Failed to stop replay buffer. Forcing stop.");
-                            obs_output_force_stop(_bufferOutput);
+                            Log.Information("Recording file not found (likely removed due to remove_at_exit=1). Cleaning up metadata.");
+                            await ContentService.DeleteContent(Settings.Instance.State.Recording.FilePath, Content.ContentType.Session, false);
                         }
                         else
                         {
-                            Log.Information("Hybrid: Replay buffer stopped.");
+                            // If file somehow still exists (maybe remove_at_exit failed or wasn't used), we treat it as valid.
+                            // But for DASH, we don't generate thumbnails/waveforms here usually.
+                            Log.Information($"Recording file still exists: {Settings.Instance.State.Recording.FilePath}");
                         }
-                    }
-
-                    // Stop session recording
-                    if (_output != IntPtr.Zero)
-                    {
-                        _signalOutputStop = false;
-                        obs_output_stop(_output);
-                        int attempts2 = 0;
-                        while (!_signalOutputStop && attempts2 < 300)
-                        {
-                            Thread.Sleep(100);
-                            attempts2++;
-                        }
-                        if (!_signalOutputStop)
-                        {
-                            Log.Warning("Hybrid: Failed to stop recording. Forcing stop.");
-                            obs_output_force_stop(_output);
-                        }
-                        else
-                        {
-                            Log.Information("Hybrid: Recording stopped.");
-                        }
-                    }
-
-                    Thread.Sleep(200);
-
-                    DisposeOutput();
-                    DisposeSources();
-                    DisposeEncoders();
-
-                    _ = GameIntegrationService.Shutdown();
-                    KeybindCaptureService.Stop();
-
-                    if (Settings.Instance.State.Recording != null && Settings.Instance.State.Recording.FilePath != null)
-                    {
-                        // Ensure file is fully written to disk/network before thumbnail generation
-                        await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
-
-                        int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath)
-                            ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath)
-                            : null;
-                        await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
-                        await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
-                        await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
                     }
 
                     await SettingsService.LoadContentFromFolderIntoState(false);
                 }
                 else
                 {
+                    // Fallback cleanup
                     DisposeOutput();
                     DisposeSources();
                     DisposeEncoders();

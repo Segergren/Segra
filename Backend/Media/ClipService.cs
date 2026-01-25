@@ -65,10 +65,22 @@ namespace Segra.Backend.Media
                     var selectionType = Enum.Parse<Content.ContentType>(selection.Type);
                     string inputFolderName = FolderNames.GetVideoFolderName(selectionType);
                     string inputFilePath = Path.Combine(videoFolder, inputFolderName, inputGameFolder, $"{selection.FileName}.mp4");
+                    bool isDash = false;
+
                     if (!File.Exists(inputFilePath))
                     {
-                        Log.Information($"Input video file not found: {inputFilePath}");
-                        continue;
+                        // Check for DASH manifest
+                        string dashFilePath = Path.Combine(videoFolder, inputFolderName, inputGameFolder, $"{selection.FileName}.mpd");
+                        if (File.Exists(dashFilePath))
+                        {
+                            inputFilePath = dashFilePath;
+                            isDash = true;
+                        }
+                        else
+                        {
+                            Log.Information($"Input video file not found: {inputFilePath}");
+                            continue;
+                        }
                     }
 
                     string tempFileName = Path.Combine(Path.GetTempPath(), $"clip{Guid.NewGuid()}.mp4");
@@ -79,7 +91,7 @@ namespace Segra.Backend.Media
                         double clampedProgress = Math.Min(progress, 1.0);
                         double currentProgress = (processedDuration + (clampedProgress * clipDuration)) / totalDuration * 95;
                         _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, selections });
-                    });
+                    }, isDash);
 
                     // Verify the temp file was created successfully
                     if (!File.Exists(tempFileName))
@@ -189,93 +201,104 @@ namespace Segra.Backend.Media
         }
 
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
-                            Action<double> progressCallback)
+                            Action<double> progressCallback, bool isDash)
         {
             double duration = endTime - startTime;
-            var settings = Settings.Instance;
+            string arguments;
 
-            string videoCodec;
-            string qualityArgs;
-            string presetArgs;
-            if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
+            if (isDash)
             {
-                // GPU encoder uses hardware-accelerated codecs based on GPU vendor
-                GpuVendor gpuVendor = DetectGpuVendor();
-
-                switch (gpuVendor)
-                {
-                    case GpuVendor.Nvidia:
-                        if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "hevc_nvenc";
-                        else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "av1_nvenc";
-                        else
-                            videoCodec = "h264_nvenc";
-
-                        // NVENC uses -cq for quality control and specific presets
-                        qualityArgs = $"-cq {settings.ClipQualityGpu}";
-                        presetArgs = $"-preset {settings.ClipPreset}";
-                        break;
-
-                    case GpuVendor.AMD:
-                        if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "hevc_amf";
-                        else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "av1_amf";
-                        else
-                            videoCodec = "h264_amf";
-
-                        // AMF uses -rc cqp (Constant QP) rate control with -qp_i, -qp_p for quality control
-                        qualityArgs = $"-rc cqp -qp_i {settings.ClipQualityGpu} -qp_p {settings.ClipQualityGpu}";
-                        // Frontend sends AMD AMF usage modes directly: quality, transcoding, lowlatency, ultralowlatency
-                        presetArgs = $"-usage {settings.ClipPreset}";
-                        break;
-
-                    case GpuVendor.Intel:
-                        if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "hevc_qsv";
-                        else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "av1_qsv";
-                        else
-                            videoCodec = "h264_qsv";
-
-                        // QSV uses -global_quality for ICQ mode
-                        qualityArgs = $"-global_quality {settings.ClipQualityGpu}";
-                        presetArgs = $"-preset {settings.ClipPreset}";
-                        break;
-
-                    default:
-                        // Fall back to CPU encoding if GPU vendor is unknown
-                        Log.Warning("Unknown GPU vendor detected, falling back to CPU encoding");
-                        if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "libx265";
-                        else
-                            videoCodec = "libx264";
-
-                        // CPU codecs use -crf and standard presets
-                        qualityArgs = $"-crf {settings.ClipQualityCpu}";
-                        presetArgs = $"-preset {settings.ClipPreset}";
-                        break;
-                }
+                // Use stream copy for DASH input
+                arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
+                            $"-i \"{inputFilePath}\" -c copy -movflags +faststart \"{outputFilePath}\"";
             }
             else
             {
-                // CPU encoder uses software codecs
-                if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                    videoCodec = "libx265";
+                var settings = Settings.Instance;
+
+                string videoCodec;
+                string qualityArgs;
+                string presetArgs;
+                if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
+                {
+                    // GPU encoder uses hardware-accelerated codecs based on GPU vendor
+                    GpuVendor gpuVendor = DetectGpuVendor();
+
+                    switch (gpuVendor)
+                    {
+                        case GpuVendor.Nvidia:
+                            if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                                videoCodec = "hevc_nvenc";
+                            else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
+                                videoCodec = "av1_nvenc";
+                            else
+                                videoCodec = "h264_nvenc";
+
+                            // NVENC uses -cq for quality control and specific presets
+                            qualityArgs = $"-cq {settings.ClipQualityGpu}";
+                            presetArgs = $"-preset {settings.ClipPreset}";
+                            break;
+
+                        case GpuVendor.AMD:
+                            if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                                videoCodec = "hevc_amf";
+                            else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
+                                videoCodec = "av1_amf";
+                            else
+                                videoCodec = "h264_amf";
+
+                            // AMF uses -rc cqp (Constant QP) rate control with -qp_i, -qp_p for quality control
+                            qualityArgs = $"-rc cqp -qp_i {settings.ClipQualityGpu} -qp_p {settings.ClipQualityGpu}";
+                            // Frontend sends AMD AMF usage modes directly: quality, transcoding, lowlatency, ultralowlatency
+                            presetArgs = $"-usage {settings.ClipPreset}";
+                            break;
+
+                        case GpuVendor.Intel:
+                            if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                                videoCodec = "hevc_qsv";
+                            else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
+                                videoCodec = "av1_qsv";
+                            else
+                                videoCodec = "h264_qsv";
+
+                            // QSV uses -global_quality for ICQ mode
+                            qualityArgs = $"-global_quality {settings.ClipQualityGpu}";
+                            presetArgs = $"-preset {settings.ClipPreset}";
+                            break;
+
+                        default:
+                            // Fall back to CPU encoding if GPU vendor is unknown
+                            Log.Warning("Unknown GPU vendor detected, falling back to CPU encoding");
+                            if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                                videoCodec = "libx265";
+                            else
+                                videoCodec = "libx264";
+
+                            // CPU codecs use -crf and standard presets
+                            qualityArgs = $"-crf {settings.ClipQualityCpu}";
+                            presetArgs = $"-preset {settings.ClipPreset}";
+                            break;
+                    }
+                }
                 else
-                    videoCodec = "libx264";
+                {
+                    // CPU encoder uses software codecs
+                    if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                        videoCodec = "libx265";
+                    else
+                        videoCodec = "libx264";
 
-                // CPU codecs use -crf and standard presets
-                qualityArgs = $"-crf {settings.ClipQualityCpu}";
-                presetArgs = $"-preset {settings.ClipPreset}";
+                    // CPU codecs use -crf and standard presets
+                    qualityArgs = $"-crf {settings.ClipQualityCpu}";
+                    presetArgs = $"-preset {settings.ClipPreset}";
+                }
+
+                string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
+
+                arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
+                                 $"-i \"{inputFilePath}\" -c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                                 $"-c:a aac -b:a {settings.ClipAudioQuality} -movflags +faststart \"{outputFilePath}\"";
             }
-
-            string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
-
-            string arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" -c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
-                             $"-c:a aac -b:a {settings.ClipAudioQuality} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");
 

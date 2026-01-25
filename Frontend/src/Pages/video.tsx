@@ -38,6 +38,7 @@ import WaveSurfer from 'wavesurfer.js';
 import { TbZoomIn, TbZoomOut } from 'react-icons/tb';
 import { IoIosFootball } from 'react-icons/io';
 import { AnimatePresence, motion } from 'framer-motion';
+import DashPlayer from '../Components/DashPlayer';
 
 // Converts time string in format "HH:MM:SS.mmm" to seconds
 const timeStringToSeconds = (timeStr: string): number => {
@@ -1373,33 +1374,43 @@ export default function VideoComponent({ video }: { video: Content }) {
             }}
           >
             <div className={videoWrapperClassName}>
-              <video
-                autoPlay
-                className="w-full h-full"
-                src={getVideoPath()}
-                ref={videoRef}
-                onClick={onVideoClick}
-                onDoubleClick={toggleFullscreen}
-                onPointerDown={onVideoPointerDown}
-                onPointerMove={onVideoPointerMove}
-                onPointerUp={onVideoPointerUp}
-                onWheel={onVideoWheel}
-                style={{
-                  backgroundColor: 'black',
-                  objectFit: isFullscreen ? ('contain' as const) : undefined,
-                  transform: `translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`,
-                  transformOrigin: '0 0',
-                  touchAction: videoScale > 1 ? 'none' : undefined,
-                  cursor: videoScale > 1 && isPanning ? 'grabbing' : undefined,
-                }}
-              />
+              {video.isLive ? (
+                <DashPlayer
+                  url={getVideoPath()}
+                  className="w-full h-full"
+                  autoplay
+                  controls
+                />
+              ) : (
+                <video
+                  autoPlay
+                  className="w-full h-full"
+                  src={getVideoPath()}
+                  ref={videoRef}
+                  onClick={onVideoClick}
+                  onDoubleClick={toggleFullscreen}
+                  onPointerDown={onVideoPointerDown}
+                  onPointerMove={onVideoPointerMove}
+                  onPointerUp={onVideoPointerUp}
+                  onWheel={onVideoWheel}
+                  style={{
+                    backgroundColor: 'black',
+                    objectFit: isFullscreen ? ('contain' as const) : undefined,
+                    transform: `translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`,
+                    transformOrigin: '0 0',
+                    touchAction: videoScale > 1 ? 'none' : undefined,
+                    cursor: videoScale > 1 && isPanning ? 'grabbing' : undefined,
+                  }}
+                />
+              )}
             </div>
 
-            <div
-              className={`absolute left-4 right-4 bottom-4 bg-black/70 rounded-lg px-3 py-2 flex items-center gap-3 transition-opacity duration-300 select-none ${controlsVisible ? 'opacity-100' : 'opacity-0'}`}
-              onMouseEnter={handleControlsMouseEnter}
-              onMouseLeave={handleControlsMouseLeave}
-            >
+            {!video.isLive && (
+              <div
+                className={`absolute left-4 right-4 bottom-4 bg-black/70 rounded-lg px-3 py-2 flex items-center gap-3 transition-opacity duration-300 select-none ${controlsVisible ? 'opacity-100' : 'opacity-0'}`}
+                onMouseEnter={handleControlsMouseEnter}
+                onMouseLeave={handleControlsMouseLeave}
+              >
               <button
                 onClick={togglePlayPause}
                 className="text-white transition-colors cursor-pointer hover:text-accent"
@@ -1548,7 +1559,9 @@ export default function VideoComponent({ video }: { video: Content }) {
                 )}
               </button>
             </div>
+            )}
           </div>
+          {!video.isLive && (
           <div
             className="relative w-full mt-2 overflow-x-scroll overflow-y-hidden select-none timeline-wrapper"
             ref={scrollContainerRef}
@@ -1699,6 +1712,8 @@ export default function VideoComponent({ video }: { video: Content }) {
               )}
             </div>
           </div>
+          )}
+          {!video.isLive && (
           <div className="flex items-center justify-between gap-4 py-1">
             <div className="flex items-center gap-3">
               <div className="flex items-center border rounded-lg join bg-base-300 border-custom">
@@ -1815,8 +1830,9 @@ export default function VideoComponent({ video }: { video: Content }) {
               </div>
             </div>
           </div>
+          )}
         </div>
-        {(video.type === 'Session' || video.type === 'Buffer') && (
+        {!video.isLive && (video.type === 'Session' || video.type === 'Buffer') && (
           <div className="flex flex-col h-full pt-4 pl-4 pr-1 border-l bg-base-300 text-neutral-content w-52 2xl:w-72 border-custom">
             <div className="flex-1 p-1 mt-1 overflow-y-scroll">
               {selections.map((sel, index) => (

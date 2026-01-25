@@ -1,0 +1,7 @@
+$ vite
+
+  VITE v7.3.1  ready in 1251 ms
+
+  ➜  Local:   http://localhost:2882/
+  ➜  Network: use --host to expose
+/*! 🌼 daisyUI 5.5.14 */

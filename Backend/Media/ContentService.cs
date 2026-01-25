@@ -72,6 +72,8 @@ namespace Segra.Backend.Media
                 }
 
                 var duration = await GetVideoDurationAsync(filePath);
+                bool isLive = Path.GetExtension(filePath).Equals(".mpd", StringComparison.OrdinalIgnoreCase);
+
                 var metadataContent = new Content
                 {
                     Type = type,
@@ -86,7 +88,8 @@ namespace Segra.Backend.Media
                     Duration = duration,
                     AudioTrackNames = trackNames,
                     IgdbId = igdbId,
-                    IsImported = isImported
+                    IsImported = isImported,
+                    IsLive = isLive
                 };
 
                 string metadataJson = JsonSerializer.Serialize(metadataContent, _jsonOptions);
@@ -139,6 +142,12 @@ namespace Segra.Backend.Media
 
         public static async Task CreateThumbnail(string filePath, Content.ContentType type)
         {
+            if (Path.GetExtension(filePath).Equals(".mpd", StringComparison.OrdinalIgnoreCase))
+            {
+                Log.Information($"Skipping thumbnail generation for DASH manifest: {filePath}");
+                return;
+            }
+
             try
             {
                 // Get the directory and file name
@@ -171,6 +180,12 @@ namespace Segra.Backend.Media
 
         public static async Task CreateWaveformFile(string videoFilePath, Content.ContentType type)
         {
+            if (Path.GetExtension(videoFilePath).Equals(".mpd", StringComparison.OrdinalIgnoreCase))
+            {
+                Log.Information($"Skipping waveform generation for DASH manifest: {videoFilePath}");
+                return;
+            }
+
             try
             {
                 if (!FFmpegService.FFmpegExists())

@@ -1307,6 +1307,8 @@ namespace Segra.Backend.Core.Models
         public List<string>? AudioTrackNames { get; set; }
 
         public bool IsImported { get; set; } = false;
+
+        public bool IsLive { get; set; } = false;
     }
 
     public class AiAnalysis
