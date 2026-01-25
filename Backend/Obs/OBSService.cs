@@ -984,6 +984,8 @@ namespace Segra.Backend.Obs
                 // Mark as stopping to prevent concurrent stop attempts
                 _isStoppingOrStopped = true;
 
+                bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
+
                 // Unified stop logic for DASH recording
                 if (_output != IntPtr.Zero)
                 {
@@ -1026,18 +1028,19 @@ namespace Segra.Backend.Obs
                     // Handle cleanup of DASH session
                     if (Settings.Instance.State.Recording != null && Settings.Instance.State.Recording.FilePath != null)
                     {
+                        string filePath = Settings.Instance.State.Recording.FilePath;
                         // Because remove_at_exit=1 is used, the file might be gone.
                         // We check if it exists. If not, we remove the metadata to clean up.
-                        if (!File.Exists(Settings.Instance.State.Recording.FilePath))
+                        if (!File.Exists(filePath))
                         {
                             Log.Information("Recording file not found (likely removed due to remove_at_exit=1). Cleaning up metadata.");
-                            await ContentService.DeleteContent(Settings.Instance.State.Recording.FilePath, Content.ContentType.Session, false);
+                            await ContentService.DeleteContent(filePath, Content.ContentType.Session, false);
                         }
                         else
                         {
                             // If file somehow still exists (maybe remove_at_exit failed or wasn't used), we treat it as valid.
                             // But for DASH, we don't generate thumbnails/waveforms here usually.
-                            Log.Information($"Recording file still exists: {Settings.Instance.State.Recording.FilePath}");
+                            Log.Information($"Recording file still exists: {filePath}");
                         }
                     }
 
@@ -1068,7 +1071,7 @@ namespace Segra.Backend.Obs
                 }
 
                 // Get the file path before nullifying the recording (FilePath is not null at this point because of the previous check)
-                string filePath = Settings.Instance.State.Recording.FilePath!;
+                string recordingFilePath = Settings.Instance.State.Recording.FilePath!;
 
                 // Get the bookmarks before nullifying the recording
                 List<Bookmark> bookmarks = Settings.Instance.State.Recording.Bookmarks;
@@ -1080,7 +1083,7 @@ namespace Segra.Backend.Obs
                 // If the recording is not a replay buffer recording, AI is enabled, user is authenticated, and auto generate highlights is enabled -> analyze the video!
                 if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && !isReplayBufferMode && bookmarks.Any(b => b.Type.IncludeInHighlight()))
                 {
-                    string fileName = Path.GetFileNameWithoutExtension(filePath);
+                    string fileName = Path.GetFileNameWithoutExtension(recordingFilePath);
                     _ = AiService.CreateHighlight(fileName);
                 }
             }
