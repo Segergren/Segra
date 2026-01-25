@@ -259,7 +259,13 @@ export default function ContentCard({
             readOnly
           />
         )}
-        {isRecent &&
+        {content?.isLive && !isSelectionMode && (
+          <span className="absolute top-2 left-2 badge badge-error badge-sm text-white animate-pulse z-10">
+            LIVE
+          </span>
+        )}
+        {!content?.isLive &&
+          isRecent &&
           (type === 'Session' || type === 'Buffer') &&
           showNewBadgeOnVideos &&
           !isSelectionMode && (

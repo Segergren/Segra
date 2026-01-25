@@ -1055,15 +1055,6 @@ namespace Segra.Backend.Obs
             await _stopRecordingSemaphore.WaitAsync();
             try
             {
-                bool isBackgroundMode = Settings.Instance.RecordingMode == RecordingMode.Background;
-
-                if (isBackgroundMode && keepAlive)
-                {
-                    Log.Information("Background recording stop requested with keepAlive=true. Saving session snapshot.");
-                    await SaveDashSession();
-                    return;
-                }
-
                 // Check if already stopping or stopped
                 if (_isStoppingOrStopped)
                 {

@@ -38,7 +38,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { obsDownloadProgress } = useObsDownload();
 
   // Create refs for each menu button
-  const livePreviewRef = useRef<HTMLButtonElement>(null);
   const sessionsRef = useRef<HTMLButtonElement>(null);
   const replayRef = useRef<HTMLButtonElement>(null);
   const clipsRef = useRef<HTMLButtonElement>(null);
@@ -52,8 +51,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   useEffect(() => {
     const getRefForMenu = () => {
       switch (selectedMenu) {
-        case 'Live Preview':
-          return livePreviewRef;
         case 'Full Sessions':
           return sessionsRef;
         case 'Replay Buffer':
@@ -119,14 +116,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
             height: '40px',
           }}
         />
-        <button
-          ref={livePreviewRef}
-          className={`btn btn-secondary ${selectedMenu === 'Live Preview' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
-          onMouseDown={() => onSelectMenu('Live Preview')}
-        >
-          <MdLiveTv className="w-6 h-6" />
-          Live Preview
-        </button>
         <button
           ref={sessionsRef}
           className={`btn btn-secondary ${selectedMenu === 'Full Sessions' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
