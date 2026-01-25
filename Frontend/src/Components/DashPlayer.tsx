@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import * as dashjs from 'dashjs';
+import { MediaPlayer, Debug, MediaPlayerClass } from 'dashjs';
 
 interface DashPlayerProps {
     url: string;
@@ -25,13 +25,13 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
     onDurationChange
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
-    const playerRef = useRef<dashjs.MediaPlayerClass | null>(null);
+    const playerRef = useRef<MediaPlayerClass | null>(null);
 
     useEffect(() => {
         if (!videoRef.current || !url) return;
 
         // Initialize player
-        const player = dashjs.MediaPlayer().create();
+        const player = MediaPlayer().create();
 
         // Configure low latency for live streams if needed
         // Note: lowLatencyEnabled was moved in dash.js 5.x but types might lag or vary.
@@ -49,13 +49,13 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
                 }
             },
             debug: {
-                logLevel: dashjs.Debug.LOG_LEVEL_INFO
+                logLevel: Debug.LOG_LEVEL_INFO
             }
         };
 
         player.updateSettings(settings);
 
-        player.on(dashjs.MediaPlayer.events.ERROR, (e: any) => {
+        player.on(MediaPlayer.events.ERROR, (e: any) => {
             console.error('DashPlayer Error:', e);
         });
 
