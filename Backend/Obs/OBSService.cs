@@ -124,6 +124,11 @@ namespace Segra.Backend.Obs
 
         public static async Task<bool> SaveReplayBuffer()
         {
+            if (Settings.Instance.RecordingMode == RecordingMode.Background)
+            {
+                return await SaveDashReplayBuffer();
+            }
+
             // Check if replay buffer is active before trying to save
             if (_bufferOutput == IntPtr.Zero || !obs_output_active(_bufferOutput))
             {
@@ -312,6 +317,43 @@ namespace Segra.Backend.Obs
                         Log.Error(e.StackTrace);
                     }
                 }
+            }
+        }
+
+        private static async Task<bool> SaveDashReplayBuffer()
+        {
+            var recording = Settings.Instance.State.Recording;
+            if (recording == null) return false;
+
+            try
+            {
+                Log.Information("Saving DASH replay buffer...");
+
+                double bufferSeconds = Settings.Instance.ReplayBufferDuration;
+                double currentDuration = (DateTime.Now - recording.StartTime).TotalSeconds;
+
+                double endTime = currentDuration;
+                double startTime = Math.Max(0, currentDuration - bufferSeconds);
+
+                var selection = new Selection
+                {
+                    Id = Guid.NewGuid().GetHashCode(),
+                    Type = Content.ContentType.Session.ToString(),
+                    StartTime = startTime,
+                    EndTime = endTime,
+                    FileName = "session",
+                    Game = recording.Game,
+                    Title = $"Replay Buffer {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
+                    IgdbId = 0
+                };
+
+                await ClipService.CreateClips(new List<Selection> { selection });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to save DASH replay buffer: {ex.Message}");
+                return false;
             }
         }
 
