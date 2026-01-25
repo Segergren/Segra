@@ -109,7 +109,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   };
 
   return (
-    <div className={`bg-base-300 ${isCollapsed ? 'w-20' : 'w-56'} h-screen flex flex-col border-r border-custom transition-all duration-300 ease-in-out`}>
+    <div className={`bg-base-300 ${isCollapsed ? 'w-16' : 'w-56'} h-screen flex flex-col border-r border-custom transition-all duration-300 ease-in-out z-20`}>
 
       {/* Collapse Toggle */}
       <div className={`flex ${isCollapsed ? 'justify-center' : 'justify-end'} px-2 pt-2`}>
@@ -161,7 +161,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         </button>
         <button
           ref={highlightsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Highlights' ? 'text-primary' : ''} w-full border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300 ${isCollapsed ? 'justify-center px-0' : 'justify-between'}`}
+          className={`btn btn-secondary relative ${selectedMenu === 'Highlights' ? 'text-primary' : ''} w-full border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300 ${isCollapsed ? 'justify-center px-0' : 'justify-between'}`}
           onMouseDown={() => onSelectMenu('Highlights')}
           title={isCollapsed ? "Highlights" : ""}
         >

@@ -22,7 +22,7 @@ namespace Segra.Backend.Media
             int segmentDuration = DefaultSegmentDuration;
             int windowSize = Math.Max(10, bufferDurationSeconds / segmentDuration);
 
-            return $"window_size={windowSize} remove_at_exit=1 use_template=1 seg_duration={segmentDuration} streaming=1 ldash=1 write_prft=1";
+            return $"window_size={windowSize} remove_at_exit=0 use_template=1 seg_duration={segmentDuration} streaming=1 ldash=1 write_prft=1";
         }
 
         public static string GetOutputFileName()
