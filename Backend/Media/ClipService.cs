@@ -205,107 +205,116 @@ namespace Segra.Backend.Media
         {
             double duration = endTime - startTime;
             string arguments;
-
-            if (isDash)
-            {
-                // Use stream copy for DASH input
-                // Note: For DASH manifests with rolling windows, input seeking (-ss before -i) can be ambiguous or relative to the window start.
-                // We use output seeking (-ss after -i) to ensure we target the correct absolute timestamp in the stream.
-                arguments = $"-y -i \"{inputFilePath}\" -ss {startTime.ToString(CultureInfo.InvariantCulture)} " +
-                            $"-t {duration.ToString(CultureInfo.InvariantCulture)} -c copy -movflags +faststart \"{outputFilePath}\"";
-            }
-            else
-            {
-                var settings = Settings.Instance;
-
-                string videoCodec;
-                string qualityArgs;
-                string presetArgs;
-                if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
-                {
-                    // GPU encoder uses hardware-accelerated codecs based on GPU vendor
-                    GpuVendor gpuVendor = DetectGpuVendor();
-
-                    switch (gpuVendor)
-                    {
-                        case GpuVendor.Nvidia:
-                            if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                                videoCodec = "hevc_nvenc";
-                            else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                                videoCodec = "av1_nvenc";
-                            else
-                                videoCodec = "h264_nvenc";
-
-                            // NVENC uses -cq for quality control and specific presets
-                            qualityArgs = $"-cq {settings.ClipQualityGpu}";
-                            presetArgs = $"-preset {settings.ClipPreset}";
-                            break;
-
-                        case GpuVendor.AMD:
-                            if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                                videoCodec = "hevc_amf";
-                            else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                                videoCodec = "av1_amf";
-                            else
-                                videoCodec = "h264_amf";
-
-                            // AMF uses -rc cqp (Constant QP) rate control with -qp_i, -qp_p for quality control
-                            qualityArgs = $"-rc cqp -qp_i {settings.ClipQualityGpu} -qp_p {settings.ClipQualityGpu}";
-                            // Frontend sends AMD AMF usage modes directly: quality, transcoding, lowlatency, ultralowlatency
-                            presetArgs = $"-usage {settings.ClipPreset}";
-                            break;
-
-                        case GpuVendor.Intel:
-                            if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                                videoCodec = "hevc_qsv";
-                            else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                                videoCodec = "av1_qsv";
-                            else
-                                videoCodec = "h264_qsv";
-
-                            // QSV uses -global_quality for ICQ mode
-                            qualityArgs = $"-global_quality {settings.ClipQualityGpu}";
-                            presetArgs = $"-preset {settings.ClipPreset}";
-                            break;
-
-                        default:
-                            // Fall back to CPU encoding if GPU vendor is unknown
-                            Log.Warning("Unknown GPU vendor detected, falling back to CPU encoding");
-                            if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                                videoCodec = "libx265";
-                            else
-                                videoCodec = "libx264";
-
-                            // CPU codecs use -crf and standard presets
-                            qualityArgs = $"-crf {settings.ClipQualityCpu}";
-                            presetArgs = $"-preset {settings.ClipPreset}";
-                            break;
-                    }
-                }
-                else
-                {
-                    // CPU encoder uses software codecs
-                    if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                        videoCodec = "libx265";
-                    else
-                        videoCodec = "libx264";
-
-                    // CPU codecs use -crf and standard presets
-                    qualityArgs = $"-crf {settings.ClipQualityCpu}";
-                    presetArgs = $"-preset {settings.ClipPreset}";
-                }
-
-                string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
-
-                arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                                 $"-i \"{inputFilePath}\" -c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
-                                 $"-c:a aac -b:a {settings.ClipAudioQuality} -movflags +faststart \"{outputFilePath}\"";
-            }
-            Log.Information("Extracting clip");
-            Log.Information($"FFmpeg arguments: {arguments}");
+            string tempManifestPath = "";
 
             try
             {
+                if (isDash)
+                {
+                    // Copy the manifest to a temp file to avoid race conditions with OBS writing to it
+                    // The .m4s segments are relative, so the temp manifest must be in the same folder
+                    string folder = Path.GetDirectoryName(inputFilePath)!;
+                    tempManifestPath = Path.Combine(folder, $"temp_{Guid.NewGuid()}.mpd");
+                    File.Copy(inputFilePath, tempManifestPath, true);
+                    inputFilePath = tempManifestPath;
+
+                    // Use stream copy for DASH input
+                    // We use output seeking (-ss after -i) because input seeking on a rolling-window live DASH manifest
+                    // often fails or seeks to the wrong relative time. Output seeking decodes/discards packets until the timestamp.
+                    arguments = $"-y -i \"{inputFilePath}\" -ss {startTime.ToString(CultureInfo.InvariantCulture)} " +
+                                $"-t {duration.ToString(CultureInfo.InvariantCulture)} -c copy -movflags +faststart \"{outputFilePath}\"";
+                }
+                else
+                {
+                    var settings = Settings.Instance;
+
+                    string videoCodec;
+                    string qualityArgs;
+                    string presetArgs;
+                    if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // GPU encoder uses hardware-accelerated codecs based on GPU vendor
+                        GpuVendor gpuVendor = DetectGpuVendor();
+
+                        switch (gpuVendor)
+                        {
+                            case GpuVendor.Nvidia:
+                                if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                                    videoCodec = "hevc_nvenc";
+                                else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
+                                    videoCodec = "av1_nvenc";
+                                else
+                                    videoCodec = "h264_nvenc";
+
+                                // NVENC uses -cq for quality control and specific presets
+                                qualityArgs = $"-cq {settings.ClipQualityGpu}";
+                                presetArgs = $"-preset {settings.ClipPreset}";
+                                break;
+
+                            case GpuVendor.AMD:
+                                if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                                    videoCodec = "hevc_amf";
+                                else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
+                                    videoCodec = "av1_amf";
+                                else
+                                    videoCodec = "h264_amf";
+
+                                // AMF uses -rc cqp (Constant QP) rate control with -qp_i, -qp_p for quality control
+                                qualityArgs = $"-rc cqp -qp_i {settings.ClipQualityGpu} -qp_p {settings.ClipQualityGpu}";
+                                // Frontend sends AMD AMF usage modes directly: quality, transcoding, lowlatency, ultralowlatency
+                                presetArgs = $"-usage {settings.ClipPreset}";
+                                break;
+
+                            case GpuVendor.Intel:
+                                if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                                    videoCodec = "hevc_qsv";
+                                else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
+                                    videoCodec = "av1_qsv";
+                                else
+                                    videoCodec = "h264_qsv";
+
+                                // QSV uses -global_quality for ICQ mode
+                                qualityArgs = $"-global_quality {settings.ClipQualityGpu}";
+                                presetArgs = $"-preset {settings.ClipPreset}";
+                                break;
+
+                            default:
+                                // Fall back to CPU encoding if GPU vendor is unknown
+                                Log.Warning("Unknown GPU vendor detected, falling back to CPU encoding");
+                                if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                                    videoCodec = "libx265";
+                                else
+                                    videoCodec = "libx264";
+
+                                // CPU codecs use -crf and standard presets
+                                qualityArgs = $"-crf {settings.ClipQualityCpu}";
+                                presetArgs = $"-preset {settings.ClipPreset}";
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        // CPU encoder uses software codecs
+                        if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                            videoCodec = "libx265";
+                        else
+                            videoCodec = "libx264";
+
+                        // CPU codecs use -crf and standard presets
+                        qualityArgs = $"-crf {settings.ClipQualityCpu}";
+                        presetArgs = $"-preset {settings.ClipPreset}";
+                    }
+
+                    string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
+
+                    arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
+                                     $"-i \"{inputFilePath}\" -c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                                     $"-c:a aac -b:a {settings.ClipAudioQuality} -movflags +faststart \"{outputFilePath}\"";
+                }
+
+                Log.Information("Extracting clip");
+                Log.Information($"FFmpeg arguments: {arguments}");
+
                 await FFmpegService.RunWithProgress(clipId, arguments, duration, progressCallback, process =>
                 {
                     // Track the process so it can be cancelled
@@ -327,6 +336,12 @@ namespace Segra.Backend.Media
                 {
                     ActiveFFmpegProcesses.Remove(clipId);
                     Log.Information($"[Clip {clipId}] Removed from active processes");
+                }
+
+                // Cleanup temp manifest if used
+                if (!string.IsNullOrEmpty(tempManifestPath))
+                {
+                    SafeDelete(tempManifestPath);
                 }
             }
         }
