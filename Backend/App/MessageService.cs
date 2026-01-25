@@ -197,7 +197,8 @@ namespace Segra.Backend.App
                             _ = Task.Run(() => OBSService.StartRecording(startManually: true));
                             break;
                         case "StopRecording":
-                            _ = Task.Run(OBSService.StopRecording);
+                            bool isBackgroundMode = Settings.Instance.RecordingMode == RecordingMode.Background;
+                            _ = Task.Run(() => OBSService.StopRecording(keepAlive: isBackgroundMode));
                             break;
                         case "NewConnection":
                             Log.Information("NewConnection command received.");

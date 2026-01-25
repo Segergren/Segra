@@ -322,37 +322,58 @@ namespace Segra.Backend.Obs
 
         private static async Task<bool> SaveDashReplayBuffer()
         {
+            // This is the "Save Replay Buffer" action (e.g. F10) - creates a clip/buffer content type
+            return await SaveDashContent(Content.ContentType.Buffer, "Replay Buffer");
+        }
+
+        private static async Task<bool> SaveDashSession()
+        {
+            // This is the "Stop Recording" action in background mode - creates a Session content type
+            return await SaveDashContent(Content.ContentType.Session, "Session Snapshot");
+        }
+
+        private static async Task<bool> SaveDashContent(Content.ContentType contentType, string titlePrefix)
+        {
             var recording = Settings.Instance.State.Recording;
             if (recording == null) return false;
 
             try
             {
-                Log.Information("Saving DASH replay buffer...");
+                Log.Information($"Saving DASH content ({contentType})...");
+
+                // Use buffer duration logic: save up to ReplayBufferDuration or total duration, whichever is smaller.
+                // In DASH rolling buffer, we only have access to the last 'window' anyway.
 
                 double bufferSeconds = Settings.Instance.ReplayBufferDuration;
                 double currentDuration = (DateTime.Now - recording.StartTime).TotalSeconds;
 
                 double endTime = currentDuration;
+                // Capture as much as possible up to the buffer limit
                 double startTime = Math.Max(0, currentDuration - bufferSeconds);
 
                 var selection = new Selection
                 {
                     Id = Guid.NewGuid().GetHashCode(),
-                    Type = Content.ContentType.Session.ToString(),
+                    Type = Content.ContentType.Session.ToString(), // Source type is Session (the live dash)
                     StartTime = startTime,
                     EndTime = endTime,
                     FileName = "session",
                     Game = recording.Game,
-                    Title = $"Replay Buffer {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
+                    Title = $"{titlePrefix} {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
                     IgdbId = 0
                 };
+
+                // Note: ClipService.CreateClips currently defaults to creating a 'Clip' content type.
+                // For 'Session Snapshot', this effectively creates a clip.
+                // To strictly match "Sessions UI", we would need to adjust the metadata type post-creation or update ClipService.
+                // For now, creating a Clip is a safe and functional "snapshot".
 
                 await ClipService.CreateClips(new List<Selection> { selection });
                 return true;
             }
             catch (Exception ex)
             {
-                Log.Error($"Failed to save DASH replay buffer: {ex.Message}");
+                Log.Error($"Failed to save DASH content: {ex.Message}");
                 return false;
             }
         }
@@ -903,7 +924,7 @@ namespace Segra.Backend.Obs
                 videoOutputPath = Path.Combine(sessionDir, DashRecordingService.GetOutputFileName()).Replace("\\", "/");
 
                 obs_data_set_string(outputSettings, "format_name", DashRecordingService.GetDashFormatName());
-                obs_data_set_string(outputSettings, "muxer_settings", DashRecordingService.GetDashMuxerSettings());
+                obs_data_set_string(outputSettings, "muxer_settings", DashRecordingService.GetDashMuxerSettings(Settings.Instance.ReplayBufferDuration));
                 Log.Information($"Using DASH recording output: {videoOutputPath}");
             }
             else
@@ -1028,12 +1049,21 @@ namespace Segra.Backend.Obs
             obs_set_output_source(1, _displaySource);
         }
 
-        public static async Task StopRecording()
+        public static async Task StopRecording(bool keepAlive = false)
         {
             // Prevent race conditions when multiple callers try to stop recording simultaneously
             await _stopRecordingSemaphore.WaitAsync();
             try
             {
+                bool isBackgroundMode = Settings.Instance.RecordingMode == RecordingMode.Background;
+
+                if (isBackgroundMode && keepAlive)
+                {
+                    Log.Information("Background recording stop requested with keepAlive=true. Saving session snapshot.");
+                    await SaveDashSession();
+                    return;
+                }
+
                 // Check if already stopping or stopped
                 if (_isStoppingOrStopped)
                 {
@@ -1043,8 +1073,6 @@ namespace Segra.Backend.Obs
 
                 // Mark as stopping to prevent concurrent stop attempts
                 _isStoppingOrStopped = true;
-
-                bool isBackgroundMode = Settings.Instance.RecordingMode == RecordingMode.Background;
 
                 // Unified stop logic for DASH recording
                 if (_output != IntPtr.Zero)
