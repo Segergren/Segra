@@ -7,3 +7,5 @@ $ vite
 /*! 🌼 daisyUI 5.5.14 */
 2:28:30 AM [vite] (client) hmr update /src/Pages/LivePreview.tsx, /src/globals.css
 2:28:30 AM [vite] (client) hmr update /src/globals.css
+2:53:50 AM [vite] (client) hmr update /src/Components/DashPlayer.tsx, /src/globals.css
+2:53:50 AM [vite] (client) hmr update /src/globals.css

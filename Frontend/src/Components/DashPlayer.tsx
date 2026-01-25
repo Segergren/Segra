@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import dashjs from 'dashjs';
+import * as dashjs from 'dashjs';
 
 interface DashPlayerProps {
     url: string;
@@ -33,11 +33,13 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
         // Configure low latency for live streams if needed
         player.updateSettings({
             streaming: {
-                lowLatencyEnabled: true,
+                lowLatencyControl: {
+                    lowLatencyEnabled: true,
+                },
                 delay: {
-                    liveDelay: 2
-                }
-            }
+                    liveDelay: 2,
+                },
+            },
         });
 
         playerRef.current = player;
