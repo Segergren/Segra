@@ -176,6 +176,10 @@ export type ClipPreset =
 export type VideoQualityPreset = 'low' | 'standard' | 'high' | 'custom';
 export type ClipQualityPreset = 'low' | 'standard' | 'high' | 'custom';
 
+export interface GameConfig {
+  bufferDuration?: number;
+}
+
 export interface Settings {
   theme:
     | 'segra'
@@ -238,6 +242,7 @@ export interface Settings {
   videoQualityPreset: VideoQualityPreset;
   clipQualityPreset: ClipQualityPreset;
   removeOriginalAfterCompression: boolean;
+  gameSpecificConfig: Record<string, GameConfig>;
   state: State;
 }
 
@@ -311,6 +316,7 @@ export const initialSettings: Settings = {
   whitelist: [],
   blacklist: [],
   enableRocketLeagueIntegration: false,
+  gameSpecificConfig: {},
   state: initialState,
 };
 

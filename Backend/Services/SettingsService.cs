@@ -674,6 +674,17 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update GameSpecificConfig
+            // Since GameConfig is a class and we're deserializing new objects, SequenceEqual will likely always be false unless empty.
+            // This is acceptable as it ensures updates are captured.
+            if (updatedSettings.GameSpecificConfig != null &&
+                !settings.GameSpecificConfig.SequenceEqual(updatedSettings.GameSpecificConfig))
+            {
+                Log.Information("GameSpecificConfig changed");
+                settings.GameSpecificConfig = updatedSettings.GameSpecificConfig;
+                hasChanges = true;
+            }
+
             // Only save settings and send to frontend if changes were actually made
             if (hasChanges)
             {

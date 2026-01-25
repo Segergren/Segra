@@ -70,6 +70,7 @@ namespace Segra.Backend.Core.Models
         private string _clipQualityPreset = "standard";
         private bool _removeOriginalAfterCompression = false;
         private bool _enableRocketLeagueIntegration = false;
+        private Dictionary<string, GameConfig> _gameSpecificConfig = new Dictionary<string, GameConfig>();
 
         // Returns the default keybindings
         private static List<Keybind> GetDefaultKeybindings()
@@ -456,6 +457,33 @@ namespace Segra.Backend.Core.Models
                     SendToFrontend("Blacklist changed");
                 }
             }
+        }
+
+        [JsonPropertyName("gameSpecificConfig")]
+        public Dictionary<string, GameConfig> GameSpecificConfig
+        {
+            get => _gameSpecificConfig;
+            set
+            {
+                bool hasChanged = !_gameSpecificConfig.SequenceEqual(value);
+                _gameSpecificConfig = value;
+                if (hasChanged && !_isBulkUpdating)
+                {
+                    SettingsService.SaveSettings();
+                    SendToFrontend("GameSpecificConfig changed");
+                }
+            }
+        }
+
+        public int GetGameBufferDuration(string gameName)
+        {
+            if (string.IsNullOrEmpty(gameName)) return ReplayBufferDuration;
+
+            if (_gameSpecificConfig.TryGetValue(gameName, out var config) && config.BufferDuration.HasValue)
+            {
+                return config.BufferDuration.Value;
+            }
+            return ReplayBufferDuration;
         }
 
         [JsonPropertyName("replayBufferDuration")]
@@ -1424,5 +1452,11 @@ namespace Segra.Backend.Core.Models
             // Use name for hash code since paths can vary
             return obj.Name.GetHashCode();
         }
+    }
+
+    public class GameConfig
+    {
+        [JsonPropertyName("bufferDuration")]
+        public int? BufferDuration { get; set; }
     }
 }

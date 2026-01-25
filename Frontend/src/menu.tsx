@@ -19,6 +19,10 @@ import {
   MdOutlinePlayCircleOutline,
   MdOutlineSettings,
   MdReplay30,
+  MdChevronLeft,
+  MdChevronRight,
+  MdFiberManualRecord,
+  MdStop
 } from 'react-icons/md';
 import { HiOutlineSparkles } from 'react-icons/hi';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -45,12 +49,14 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
 
   // State to store the indicator position
   const [indicatorPosition, setIndicatorPosition] = useState({ top: 12 });
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Update indicator position when selected menu changes
   useEffect(() => {
     const getRefForMenu = () => {
       switch (selectedMenu) {
-        case 'Full Sessions':
+        case 'Full Sessions': // Assuming 'Session' maps to this or handled elsewhere
+        case 'Session':
           return sessionsRef;
         case 'Replay Buffer':
           return replayRef;
@@ -81,7 +87,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         });
       }
     }
-  }, [selectedMenu]);
+  }, [selectedMenu, isCollapsed]); // Re-calc on collapse change too
 
   // Check if there are any active AI highlight generations and calculate average progress
   const aiProgressValues = Object.values(aiProgress);
@@ -103,7 +109,18 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   };
 
   return (
-    <div className="bg-base-300 w-56 h-screen flex flex-col border-r border-custom">
+    <div className={`bg-base-300 ${isCollapsed ? 'w-20' : 'w-56'} h-screen flex flex-col border-r border-custom transition-all duration-300 ease-in-out`}>
+
+      {/* Collapse Toggle */}
+      <div className={`flex ${isCollapsed ? 'justify-center' : 'justify-end'} px-2 pt-2`}>
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="btn btn-ghost btn-sm btn-circle text-gray-400 hover:text-white"
+        >
+          {isCollapsed ? <MdChevronRight className="w-5 h-5" /> : <MdChevronLeft className="w-5 h-5" />}
+        </button>
+      </div>
+
       {/* Menu Items */}
       <div className="flex flex-col space-y-2 px-4 text-left py-2 relative mt-2">
         {/* Selection indicator rectangle */}
@@ -117,37 +134,41 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         />
         <button
           ref={sessionsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Session' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          className={`btn btn-secondary ${selectedMenu === 'Session' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300 ${isCollapsed ? 'px-0 justify-center' : ''}`}
           onMouseDown={() => onSelectMenu('Session')}
+          title={isCollapsed ? "Session" : ""}
         >
-          <MdOutlinePlayCircleOutline className="w-6 h-6" />
-          Session
+          <MdOutlinePlayCircleOutline className="w-6 h-6 shrink-0" />
+          {!isCollapsed && <span className="ml-2 truncate">Session</span>}
         </button>
         <button
           ref={replayRef}
-          className={`btn btn-secondary ${selectedMenu === 'Replay Buffer' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          className={`btn btn-secondary ${selectedMenu === 'Replay Buffer' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300 ${isCollapsed ? 'px-0 justify-center' : ''}`}
           onMouseDown={() => onSelectMenu('Replay Buffer')}
+          title={isCollapsed ? "Replay Buffer" : ""}
         >
-          <MdReplay30 className="w-6 h-6" />
-          Replay Buffer
+          <MdReplay30 className="w-6 h-6 shrink-0" />
+          {!isCollapsed && <span className="ml-2 truncate">Replay Buffer</span>}
         </button>
         <button
           ref={clipsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Clips' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          className={`btn btn-secondary ${selectedMenu === 'Clips' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300 ${isCollapsed ? 'px-0 justify-center' : ''}`}
           onMouseDown={() => onSelectMenu('Clips')}
+          title={isCollapsed ? "Clips" : ""}
         >
-          <MdOutlineContentCut className="w-6 h-6" />
-          Clips
+          <MdOutlineContentCut className="w-6 h-6 shrink-0" />
+          {!isCollapsed && <span className="ml-2 truncate">Clips</span>}
         </button>
         <button
           ref={highlightsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Highlights' ? 'text-primary' : ''} w-full justify-between border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          className={`btn btn-secondary ${selectedMenu === 'Highlights' ? 'text-primary' : ''} w-full border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300 ${isCollapsed ? 'justify-center px-0' : 'justify-between'}`}
           onMouseDown={() => onSelectMenu('Highlights')}
+          title={isCollapsed ? "Highlights" : ""}
         >
-          <span className="flex items-center gap-2">
-            <HiOutlineSparkles className="w-6 h-6" />
-            Highlights
-          </span>
+          <div className="flex items-center">
+            <HiOutlineSparkles className="w-6 h-6 shrink-0" />
+            {!isCollapsed && <span className="ml-2 truncate">Highlights</span>}
+          </div>
           <AnimatePresence>
             {hasActiveAiHighlights && selectedMenu !== 'Highlights' && (
               <motion.div
@@ -155,80 +176,87 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
+                className={isCollapsed ? "absolute top-0 right-0" : ""}
               >
-                <CircularProgress progress={averageAiProgress} size={24} strokeWidth={2} />
+                <CircularProgress progress={averageAiProgress} size={isCollapsed ? 12 : 24} strokeWidth={2} />
               </motion.div>
             )}
           </AnimatePresence>
         </button>
         <button
           ref={settingsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Settings' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          className={`btn btn-secondary ${selectedMenu === 'Settings' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300 ${isCollapsed ? 'px-0 justify-center' : ''}`}
           onMouseDown={() => onSelectMenu('Settings')}
+          title={isCollapsed ? "Settings" : ""}
         >
-          <MdOutlineSettings className="w-6 h-6" />
-          Settings
+          <MdOutlineSettings className="w-6 h-6 shrink-0" />
+          {!isCollapsed && <span className="ml-2 truncate">Settings</span>}
         </button>
       </div>
 
       {/* Spacer to push content to the bottom */}
       <div className="grow"></div>
 
-      {/* Status Cards */}
-      <div className="mt-auto p-2 space-y-2">
-        <AnimatePresence>
-          {updateInfo && (
-            <AnimatedCard key="update-card">
-              <UpdateCard />
-            </AnimatedCard>
-          )}
-        </AnimatePresence>
+      {/* Status Cards - Hide detailed cards when collapsed? Or just render icons/minimized versions?
+          For now, we'll just hide them or let them look squished if not hidden.
+          Given they are cards, squishing is bad. I will hide them if collapsed, or show a summary dot.
+      */}
+      {!isCollapsed && (
+        <div className="mt-auto p-2 space-y-2">
+            <AnimatePresence>
+            {updateInfo && (
+                <AnimatedCard key="update-card">
+                <UpdateCard />
+                </AnimatedCard>
+            )}
+            </AnimatePresence>
 
-        <AnimatePresence>
-          {Object.values(useUploads().uploads).map((file) => (
-            <AnimatedCard key={file.fileName}>
-              <UploadCard upload={file} />
-            </AnimatedCard>
-          ))}
-        </AnimatePresence>
+            <AnimatePresence>
+            {Object.values(useUploads().uploads).map((file) => (
+                <AnimatedCard key={file.fileName}>
+                <UploadCard upload={file} />
+                </AnimatedCard>
+            ))}
+            </AnimatePresence>
 
-        <AnimatePresence>
-          {Object.values(useImports().imports).map((importItem) => (
-            <AnimatedCard key={importItem.id}>
-              <ImportCard importItem={importItem} />
-            </AnimatedCard>
-          ))}
-        </AnimatePresence>
+            <AnimatePresence>
+            {Object.values(useImports().imports).map((importItem) => (
+                <AnimatedCard key={importItem.id}>
+                <ImportCard importItem={importItem} />
+                </AnimatedCard>
+            ))}
+            </AnimatePresence>
 
-        {/* Show warning if there are unavailable audio devices */}
-        <AnimatePresence>
-          {hasUnavailableDevices() && (
-            <AnimatedCard key="unavailable-device-card">
-              <UnavailableDeviceCard />
-            </AnimatedCard>
-          )}
-        </AnimatePresence>
+            {/* Show warning if there are unavailable audio devices */}
+            <AnimatePresence>
+            {hasUnavailableDevices() && (
+                <AnimatedCard key="unavailable-device-card">
+                <UnavailableDeviceCard />
+                </AnimatedCard>
+            )}
+            </AnimatePresence>
 
-        <AnimatePresence>
-          {(preRecording || (recording && recording.endTime == null)) && (
-            <AnimatedCard key="recording-card">
-              <RecordingCard recording={recording} preRecording={preRecording} />
-            </AnimatedCard>
-          )}
-        </AnimatePresence>
+            <AnimatePresence>
+            {(preRecording || (recording && recording.endTime == null)) && (
+                <AnimatedCard key="recording-card">
+                <RecordingCard recording={recording} preRecording={preRecording} />
+                </AnimatedCard>
+            )}
+            </AnimatePresence>
 
-        <AnimatePresence>
-          {Object.values(useClipping().clippingProgress).map((clipping) => (
-            <AnimatedCard key={clipping.id}>
-              <ClippingCard clipping={clipping} />
-            </AnimatedCard>
-          ))}
-        </AnimatePresence>
-      </div>
+            <AnimatePresence>
+            {Object.values(useClipping().clippingProgress).map((clipping) => (
+                <AnimatedCard key={clipping.id}>
+                <ClippingCard clipping={clipping} />
+                </AnimatedCard>
+            ))}
+            </AnimatePresence>
+        </div>
+      )}
 
       {/* OBS Loading Section */}
       {!hasLoadedObs && (
-        <div className="mb-4 flex flex-col items-center px-4">
+        <div className={`mb-4 flex flex-col items-center px-4 ${isCollapsed ? 'hidden' : ''}`}>
           {obsDownloadProgress !== null && obsDownloadProgress < 100 ? (
             <>
               <p className="text-center text-sm text-gray-300 mb-2">Downloading OBS</p>
@@ -256,23 +284,27 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
       )}
 
       {/* Start and Stop Buttons */}
-      <div className="mb-4 px-4">
+      <div className={`mb-4 px-4 ${isCollapsed ? 'px-2' : ''}`}>
         <div className="flex flex-col items-center">
           {settings.state.recording ? (
             <button
-              className="btn btn-secondary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12 text-gray-300"
+              className={`btn btn-secondary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12 text-gray-300 ${isCollapsed ? 'px-0 justify-center' : ''}`}
               disabled={!settings.state.hasLoadedObs || (recording && recording.endTime !== null)}
               onClick={() => sendMessageToBackend('StopRecording')}
+              title="Stop Recording"
             >
-              Stop Recording
+              <MdStop className="w-6 h-6 shrink-0" />
+              {!isCollapsed && <span className="ml-2">Stop Recording</span>}
             </button>
           ) : (
             <button
-              className="btn btn-secondary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12 text-gray-300"
+              className={`btn btn-secondary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12 text-gray-300 ${isCollapsed ? 'px-0 justify-center' : ''}`}
               disabled={!settings.state.hasLoadedObs || settings.state.preRecording != null}
               onClick={() => sendMessageToBackend('StartRecording')}
+              title="Start Manually"
             >
-              Start Manually
+              <MdFiberManualRecord className="w-6 h-6 shrink-0" />
+              {!isCollapsed && <span className="ml-2">Start Manually</span>}
             </button>
           )}
         </div>

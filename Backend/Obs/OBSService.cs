@@ -344,7 +344,7 @@ namespace Segra.Backend.Obs
                 // Use buffer duration logic: save up to ReplayBufferDuration or total duration, whichever is smaller.
                 // In DASH rolling buffer, we only have access to the last 'window' anyway.
 
-                double bufferSeconds = Settings.Instance.ReplayBufferDuration;
+                double bufferSeconds = Settings.Instance.GetGameBufferDuration(recording.Game);
                 double currentDuration = (DateTime.Now - recording.StartTime).TotalSeconds;
 
                 double endTime = currentDuration;
@@ -923,9 +923,10 @@ namespace Segra.Backend.Obs
                 // In DASH mode, we always output to session.mpd in the Session directory.
                 videoOutputPath = Path.Combine(sessionDir, DashRecordingService.GetOutputFileName()).Replace("\\", "/");
 
+                int bufferDuration = Settings.Instance.GetGameBufferDuration(name);
                 obs_data_set_string(outputSettings, "format_name", DashRecordingService.GetDashFormatName());
-                obs_data_set_string(outputSettings, "muxer_settings", DashRecordingService.GetDashMuxerSettings(Settings.Instance.ReplayBufferDuration));
-                Log.Information($"Using DASH recording output: {videoOutputPath}");
+                obs_data_set_string(outputSettings, "muxer_settings", DashRecordingService.GetDashMuxerSettings(bufferDuration));
+                Log.Information($"Using DASH recording output: {videoOutputPath} with buffer {bufferDuration}s");
             }
             else
             {
