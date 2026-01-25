@@ -209,8 +209,10 @@ namespace Segra.Backend.Media
             if (isDash)
             {
                 // Use stream copy for DASH input
-                arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                            $"-i \"{inputFilePath}\" -c copy -movflags +faststart \"{outputFilePath}\"";
+                // Note: For DASH manifests with rolling windows, input seeking (-ss before -i) can be ambiguous or relative to the window start.
+                // We use output seeking (-ss after -i) to ensure we target the correct absolute timestamp in the stream.
+                arguments = $"-y -i \"{inputFilePath}\" -ss {startTime.ToString(CultureInfo.InvariantCulture)} " +
+                            $"-t {duration.ToString(CultureInfo.InvariantCulture)} -c copy -movflags +faststart \"{outputFilePath}\"";
             }
             else
             {
