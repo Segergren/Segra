@@ -243,7 +243,7 @@ namespace Segra.Backend.Obs
                         if ((_output != IntPtr.Zero || _bufferOutput != IntPtr.Zero) && !_isStillHookedAfterUnhook)
                         {
                             Log.Information("Capture stopped. Stopping recording.");
-                            _ = Task.Run(StopRecording);
+                            _ = Task.Run(() => StopRecording());
                         }
                         _isStillHookedAfterUnhook = false;
                     }
@@ -680,7 +680,7 @@ namespace Segra.Backend.Obs
                     Settings.Instance.State.Recording = null;
                     Settings.Instance.State.PreRecording = null;
                     _ = MessageService.SendSettingsToFrontend("Game did not start within the timeout period");
-                    _ = Task.Run(StopRecording);
+                    _ = Task.Run(() => StopRecording());
                     return false;
                 }
             }
@@ -721,7 +721,7 @@ namespace Segra.Backend.Obs
                     Settings.Instance.State.Recording = null;
                     Settings.Instance.State.PreRecording = null;
                     _ = MessageService.SendSettingsToFrontend("Game did not hook within the timeout period");
-                    _ = Task.Run(StopRecording);
+                    _ = Task.Run(() => StopRecording());
                     return false;
                 }
             }
@@ -974,7 +974,7 @@ namespace Segra.Backend.Obs
                     Task.Run(() => ShowModal("Recording failed", "Failed to start recording. Check the log for more details.", "error"));
                     Task.Run(() => PlaySound("error", 500));
                     Settings.Instance.State.PreRecording = null;
-                    _ = Task.Run(StopRecording);
+                    _ = Task.Run(() => StopRecording());
                     return false;
                 }
 
@@ -990,7 +990,7 @@ namespace Segra.Backend.Obs
                     Task.Run(() => ShowModal("Replay buffer failed", "Failed to start replay buffer. Check the log for more details.", "error"));
                     Task.Run(() => PlaySound("error", 500));
                     Settings.Instance.State.PreRecording = null;
-                    _ = Task.Run(StopRecording);
+                    _ = Task.Run(() => StopRecording());
                     return false;
                 }
 
