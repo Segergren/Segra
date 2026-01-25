@@ -5,3 +5,5 @@ $ vite
   ➜  Local:   http://localhost:2882/
   ➜  Network: use --host to expose
 /*! 🌼 daisyUI 5.5.14 */
+2:28:30 AM [vite] (client) hmr update /src/Pages/LivePreview.tsx, /src/globals.css
+2:28:30 AM [vite] (client) hmr update /src/globals.css

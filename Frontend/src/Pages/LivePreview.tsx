@@ -14,7 +14,12 @@ const LivePreview: React.FC = () => {
         );
     }
 
-    const videoUrl = `http://localhost:2222/api/content?input=${encodeURIComponent(recording.filePath)}&type=session`;
+    // recording.filePath is an absolute path, e.g., "C:/Users/.../Segra/Sessions/GameName/session.mpd"
+    // We need to extract the GameName and FileName parts to construct the /api/live URL.
+    const parts = recording.filePath.replace(/\\/g, '/').split('/');
+    const fileName = parts.pop();
+    const gameFolder = parts.pop();
+    const videoUrl = `http://localhost:2222/api/live/${encodeURIComponent(gameFolder || '')}/${encodeURIComponent(fileName || '')}`;
 
     return (
         <div className="flex flex-col w-full h-full p-4">

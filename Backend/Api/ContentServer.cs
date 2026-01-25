@@ -2,6 +2,8 @@ using Serilog;
 using System.Net;
 using System.Web;
 using Segra.Backend.Media;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Shared;
 
 namespace Segra.Backend.Api
 {
@@ -12,12 +14,19 @@ namespace Segra.Backend.Api
 
         public static void StartServer(string prefix)
         {
-            _httpListener.Prefixes.Add(prefix);
-            _httpListener.Start();
-            Log.Information("Server started at {Prefix}", prefix);
+            try
+            {
+                _httpListener.Prefixes.Add(prefix);
+                _httpListener.Start();
+                Log.Information("Server started at {Prefix}", prefix);
 
-            _cancellationTokenSource = new CancellationTokenSource();
-            _ = Task.Run(() => AcceptRequestsAsync(_cancellationTokenSource.Token));
+                _cancellationTokenSource = new CancellationTokenSource();
+                _ = Task.Run(() => AcceptRequestsAsync(_cancellationTokenSource.Token));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to start ContentServer");
+            }
         }
 
         private static async Task AcceptRequestsAsync(CancellationToken cancellationToken)
@@ -66,6 +75,10 @@ namespace Segra.Backend.Api
                 else if (rawUrl.StartsWith("/api/content"))
                 {
                     await HandleContentRequest(context);
+                }
+                else if (rawUrl.StartsWith("/api/live"))
+                {
+                    await HandleLiveRequest(context);
                 }
                 else
                 {
@@ -198,6 +211,51 @@ namespace Segra.Backend.Api
             }
         }
 
+        private static async Task HandleLiveRequest(HttpListenerContext context)
+        {
+            var response = context.Response;
+            response.AddHeader("Access-Control-Allow-Origin", "*");
+
+            try
+            {
+                // URL structure: /api/live/{GameFolder}/{FileName}
+                // Example: /api/live/Overwatch%202/session.mpd
+                var segments = context.Request.Url?.Segments;
+                if (segments == null || segments.Length < 4) // /, api/, live/, Game/, File
+                {
+                    response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    return;
+                }
+
+                // Segments include slashes, e.g. "api/", "live/", "Game/", "file.mpd"
+                string gameFolder = HttpUtility.UrlDecode(segments[3].TrimEnd('/'));
+                string fileName = HttpUtility.UrlDecode(string.Join("", segments.Skip(4)));
+
+                // Sanitize path to prevent traversal
+                if (gameFolder.Contains("..") || fileName.Contains(".."))
+                {
+                    response.StatusCode = (int)HttpStatusCode.Forbidden;
+                    return;
+                }
+
+                string filePath = Path.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions, gameFolder, fileName);
+
+                if (!File.Exists(filePath))
+                {
+                    Log.Warning($"Live file not found: {filePath}");
+                    response.StatusCode = (int)HttpStatusCode.NotFound;
+                    return;
+                }
+
+                await StreamContentFile(filePath, context);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error handling live request");
+                response.StatusCode = (int)HttpStatusCode.InternalServerError;
+            }
+        }
+
         private static async Task HandleContentRequest(HttpListenerContext context)
         {
             var query = HttpUtility.ParseQueryString(context.Request?.Url?.Query ?? "");
@@ -217,91 +275,113 @@ namespace Segra.Backend.Api
                 return;
             }
 
+            await StreamContentFile(fileName, context);
+        }
+
+        private static async Task StreamContentFile(string fileName, HttpListenerContext context)
+        {
+            var response = context.Response;
+
             if (fileName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
             {
-                await StreamVideoFile(fileName, context);
+                response.ContentType = "video/mp4";
             }
             else if (fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
             {
+                response.ContentType = "application/json";
                 await StreamJsonFile(fileName, response);
+                return;
+            }
+            else if (fileName.EndsWith(".mpd", StringComparison.OrdinalIgnoreCase))
+            {
+                response.ContentType = "application/dash+xml";
+                // Disable caching for manifest so updates are picked up
+                response.AddHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            }
+            else if (fileName.EndsWith(".m4s", StringComparison.OrdinalIgnoreCase))
+            {
+                response.ContentType = "video/iso.segment";
+            }
+            else if (fileName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) && fileName.Contains("init"))
+            {
+                // Init segments often have .mp4 extension in ffmpeg dash
+                response.ContentType = "video/mp4";
             }
             else
             {
-                response.StatusCode = (int)HttpStatusCode.BadRequest;
-                response.ContentType = "text/plain";
-                using (var writer = new StreamWriter(response.OutputStream))
-                {
-                    await writer.WriteAsync("Unsupported file type.");
-                }
+                // Default fallback
+                response.ContentType = "application/octet-stream";
             }
-        }
-
-        private static async Task StreamVideoFile(string fileName, HttpListenerContext context)
-        {
-            var response = context.Response;
 
             string rangeHeader = context.Request.Headers["Range"] ?? "";
             long start = 0;
             long end;
 
-            using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 262144,
-                FileOptions.Asynchronous | FileOptions.SequentialScan))
+            try
             {
-                long fileLength = fs.Length;
-                end = fileLength - 1;
-
-                if (!string.IsNullOrEmpty(rangeHeader) && rangeHeader.StartsWith("bytes="))
+                using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 262144,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan))
                 {
-                    string[] rangeParts = rangeHeader.Substring(6).Split('-');
-                    if (rangeParts.Length > 0 && !string.IsNullOrEmpty(rangeParts[0]))
+                    long fileLength = fs.Length;
+                    end = fileLength - 1;
+
+                    if (!string.IsNullOrEmpty(rangeHeader) && rangeHeader.StartsWith("bytes="))
                     {
-                        long.TryParse(rangeParts[0], out start);
+                        string[] rangeParts = rangeHeader.Substring(6).Split('-');
+                        if (rangeParts.Length > 0 && !string.IsNullOrEmpty(rangeParts[0]))
+                        {
+                            long.TryParse(rangeParts[0], out start);
+                        }
+                        if (rangeParts.Length > 1 && !string.IsNullOrEmpty(rangeParts[1]))
+                        {
+                            long.TryParse(rangeParts[1], out end);
+                        }
                     }
-                    if (rangeParts.Length > 1 && !string.IsNullOrEmpty(rangeParts[1]))
+
+                    if (start > end || start < 0 || end >= fileLength)
                     {
-                        long.TryParse(rangeParts[1], out end);
+                        response.StatusCode = (int)HttpStatusCode.RequestedRangeNotSatisfiable;
+                        response.AddHeader("Content-Range", $"bytes */{fileLength}");
+                        return;
+                    }
+
+                    long contentLength = end - start + 1;
+
+                    response.StatusCode = string.IsNullOrEmpty(rangeHeader) ? (int)HttpStatusCode.OK : (int)HttpStatusCode.PartialContent;
+                    response.AddHeader("Accept-Ranges", "bytes");
+
+                    if (!string.IsNullOrEmpty(rangeHeader))
+                    {
+                        response.AddHeader("Content-Range", $"bytes {start}-{end}/{fileLength}");
+                    }
+
+                    response.ContentLength64 = contentLength;
+
+                    if (start > 0)
+                    {
+                        fs.Seek(start, SeekOrigin.Begin);
+                    }
+
+                    byte[] buffer = new byte[262144];
+                    long bytesRemaining = contentLength;
+
+                    while (bytesRemaining > 0)
+                    {
+                        int bytesToRead = (int)Math.Min(buffer.Length, bytesRemaining);
+                        int bytesRead = await fs.ReadAsync(buffer, 0, bytesToRead);
+
+                        if (bytesRead == 0)
+                            break;
+
+                        await response.OutputStream.WriteAsync(buffer, 0, bytesRead);
+                        bytesRemaining -= bytesRead;
                     }
                 }
-
-                if (start > end || start < 0 || end >= fileLength)
-                {
-                    response.StatusCode = (int)HttpStatusCode.RequestedRangeNotSatisfiable;
-                    response.AddHeader("Content-Range", $"bytes */{fileLength}");
-                    return;
-                }
-
-                long contentLength = end - start + 1;
-
-                response.StatusCode = string.IsNullOrEmpty(rangeHeader) ? (int)HttpStatusCode.OK : (int)HttpStatusCode.PartialContent;
-                response.ContentType = "video/mp4";
-                response.AddHeader("Accept-Ranges", "bytes");
-
-                if (!string.IsNullOrEmpty(rangeHeader))
-                {
-                    response.AddHeader("Content-Range", $"bytes {start}-{end}/{fileLength}");
-                }
-
-                response.ContentLength64 = contentLength;
-
-                if (start > 0)
-                {
-                    fs.Seek(start, SeekOrigin.Begin);
-                }
-
-                byte[] buffer = new byte[262144];
-                long bytesRemaining = contentLength;
-
-                while (bytesRemaining > 0)
-                {
-                    int bytesToRead = (int)Math.Min(buffer.Length, bytesRemaining);
-                    int bytesRead = await fs.ReadAsync(buffer, 0, bytesToRead);
-
-                    if (bytesRead == 0)
-                        break;
-
-                    await response.OutputStream.WriteAsync(buffer, 0, bytesRead);
-                    bytesRemaining -= bytesRead;
-                }
+            }
+            catch (IOException ex)
+            {
+                // Client likely disconnected or file is locked (though FileShare.ReadWrite should help)
+                Log.Warning($"Stream error for {fileName}: {ex.Message}");
             }
         }
 
