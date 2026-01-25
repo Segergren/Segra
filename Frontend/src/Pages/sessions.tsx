@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSettings } from '../Context/SettingsContext';
 import { Content } from '../Models/types';
 import DashPlayer from '../Components/DashPlayer';
