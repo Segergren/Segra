@@ -28,7 +28,6 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
 
         // Initialize player
         const player = dashjs.MediaPlayer().create();
-        player.initialize(videoRef.current, url, autoplay);
 
         // Configure low latency for live streams if needed
         // Note: lowLatencyEnabled was moved in dash.js 5.x but types might lag or vary.
@@ -36,12 +35,15 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
         const settings = {
             streaming: {
                 delay: {
-                    liveDelay: 2,
+                    liveDelay: 4, // Increased to 4s to be safer
                 },
                 buffer: {
                     lowLatencyStallThreshold: 0.5,
                 },
             },
+            debug: {
+                logLevel: dashjs.Debug.LOG_LEVEL_INFO
+            }
         };
 
         player.updateSettings(settings);
@@ -49,6 +51,8 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
         player.on(dashjs.MediaPlayer.events.ERROR, (e: any) => {
             console.error('DashPlayer Error:', e);
         });
+
+        player.initialize(videoRef.current, url, autoplay);
 
         playerRef.current = player;
 
