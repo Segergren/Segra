@@ -44,14 +44,11 @@ const DashPlayer: React.FC<DashPlayerProps> = ({
             },
         };
 
-        // Inject legacy property if needed, though types don't show it.
-        // For Dash.js 5.x, lowLatencyEnabled is often implied by other settings or profile,
-        // but explicit config might be under streaming.lowLatencyEnabled (legacy) or just handled by the profile.
-        // Since strict mode complains, we avoid the unknown property.
-        // If specific low latency toggle is needed and not in types, we'd cast:
-        // (settings.streaming as any).lowLatencyEnabled = true;
-
         player.updateSettings(settings);
+
+        player.on(dashjs.MediaPlayer.events.ERROR, (e: any) => {
+            console.error('DashPlayer Error:', e);
+        });
 
         playerRef.current = player;
 

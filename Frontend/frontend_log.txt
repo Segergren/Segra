@@ -11,3 +11,5 @@ $ vite
 2:53:50 AM [vite] (client) hmr update /src/globals.css
 3:04:37 AM [vite] (client) hmr update /src/Components/DashPlayer.tsx, /src/globals.css
 3:04:37 AM [vite] (client) hmr update /src/globals.css
+3:18:41 AM [vite] (client) hmr update /src/Components/DashPlayer.tsx, /src/globals.css
+3:18:41 AM [vite] (client) hmr update /src/globals.css

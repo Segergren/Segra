@@ -223,6 +223,7 @@ namespace Segra.Backend.Api
                 var segments = context.Request.Url?.Segments;
                 if (segments == null || segments.Length < 4) // /, api/, live/, Game/, File
                 {
+                    Log.Warning("Live request bad format: {Url}", context.Request.Url?.ToString());
                     response.StatusCode = (int)HttpStatusCode.BadRequest;
                     return;
                 }
@@ -230,6 +231,9 @@ namespace Segra.Backend.Api
                 // Segments include slashes, e.g. "api/", "live/", "Game/", "file.mpd"
                 string gameFolder = HttpUtility.UrlDecode(segments[3].TrimEnd('/'));
                 string fileName = HttpUtility.UrlDecode(string.Join("", segments.Skip(4)));
+
+                // Log the request for debugging
+                Log.Information("Live Request: Game={Game}, File={File}", gameFolder, fileName);
 
                 // Sanitize path to prevent traversal
                 if (gameFolder.Contains("..") || fileName.Contains(".."))
