@@ -72,26 +72,18 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const baseStyles = variantStyles[variant];
     const sizeStyle = isMenuVariant ? '' : sizeStyles[size];
     const iconStyle = icon && !isMenuVariant ? 'btn-circle' : '';
-    const loadingStyle = loading ? 'btn-loading' : '';
     const disabledStyle = disabled ? 'opacity-50 cursor-not-allowed' : '';
 
     // For menu variants, override padding based on size
     const menuSize = isMenuVariant && size !== 'md' ? menuSizeStyles[size] : '';
 
-    const combinedClassName = [
-      baseStyles,
-      sizeStyle,
-      iconStyle,
-      loadingStyle,
-      disabledStyle,
-      menuSize,
-      className,
-    ]
+    const combinedClassName = [baseStyles, sizeStyle, iconStyle, disabledStyle, menuSize, className]
       .filter(Boolean)
       .join(' ');
 
     return (
       <button ref={ref} className={combinedClassName} disabled={disabled || loading} {...props}>
+        {loading && <span className="loading loading-spinner loading-sm w-4 h-4" />}
         {children}
       </button>
     );
