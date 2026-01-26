@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../Context/SettingsContext';
 import { Content, includeInHighlight } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
@@ -51,6 +51,34 @@ export default function ContentCard({
   const currentCompressionProgress = content?.filePath
     ? compressionProgress[content.filePath]
     : undefined;
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const updateDropdownPosition = useCallback(() => {
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      // If less than 245px below, open upward
+      if (spaceBelow < 245) {
+        dropdownRef.current.classList.add('dropdown-top');
+      } else {
+        dropdownRef.current.classList.remove('dropdown-top');
+      }
+    }
+  }, []);
+
+  // Update position on scroll/resize while dropdown is open
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const handler = () => updateDropdownPosition();
+    window.addEventListener('resize', handler);
+    window.addEventListener('scroll', handler, true); // Capture phase for parent scrolling
+    return () => {
+      window.removeEventListener('resize', handler);
+      window.removeEventListener('scroll', handler, true);
+    };
+  }, [isDropdownOpen, updateDropdownPosition]);
 
   if (isLoading) {
     // Render a skeleton card
@@ -248,7 +276,7 @@ export default function ContentCard({
           width={1600}
           height={900}
         />
-        <span className="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+        <span className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
           {formattedDuration}
         </span>
         {isSelectionMode && (
@@ -299,8 +327,19 @@ export default function ContentCard({
             {content!.title || content!.game || 'Untitled'}
           </h2>
           <div
+            ref={dropdownRef}
             className={`dropdown dropdown-end ${isBeingCompressed ? 'pointer-events-none opacity-50' : ''}`}
             onClick={(e) => e.stopPropagation()}
+            onFocus={() => {
+              updateDropdownPosition();
+              setIsDropdownOpen(true);
+            }}
+            onBlur={(e) => {
+              // Only close if focus moved outside the dropdown
+              if (!e.currentTarget.contains(e.relatedTarget)) {
+                setIsDropdownOpen(false);
+              }
+            }}
           >
             <label
               tabIndex={isBeingCompressed ? -1 : 0}

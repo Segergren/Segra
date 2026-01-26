@@ -64,12 +64,10 @@ export default function RenameModal({ content, onRename, onClose }: RenameModalP
         </div>
         <div className="modal-body">
           <div className="flex items-center gap-3 mb-6 mt-4">
-            <MdDriveFileRenameOutline className="w-8 h-8 text-primary" />
+            <MdDriveFileRenameOutline className="w-8 h-8 text-gray-300" />
             <div>
               <h3 className="text-lg font-semibold text-base-content">Rename</h3>
-              <p className="text-sm text-gray-400">
-                Enter a new title for this {content.type.toLowerCase()}
-              </p>
+              <p className="text-sm text-gray-400">Enter a new title</p>
             </div>
           </div>
 
@@ -96,17 +94,13 @@ export default function RenameModal({ content, onRename, onClose }: RenameModalP
           </div>
         </div>
         <div className="modal-action mt-6 gap-2">
-          <button
-            className="btn btn-ghost bg-base-300 h-10 text-gray-400 border-base-400 hover:text-base-content hover:border-base-400 hover:bg-base-200"
-            onClick={onClose}
-          >
+          <button className="btn btn-ghost btn-sm text-gray-300" onClick={onClose}>
             Cancel
           </button>
           <button
-            className="btn btn-primary h-10 text-base-300 flex items-center gap-2"
+            className="btn btn-secondary btn-sm border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 text-gray-300"
             onClick={handleRename}
           >
-            <MdDriveFileRenameOutline className="w-5 h-5" />
             Rename
           </button>
         </div>

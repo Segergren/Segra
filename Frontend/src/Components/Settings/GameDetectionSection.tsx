@@ -153,7 +153,7 @@ export default function GameDetectionSection() {
             />
           </div>
           <button
-            className="btn btn-secondary bg-base-200 hover:bg-base-300 border-base-400 hover:border-base-400 font-semibold join-item"
+            className="btn btn-secondary bg-base-200 hover:bg-base-300 border-base-400 hover:border-base-400 border-l-0 font-semibold join-item"
             onClick={handleAddCustomGame}
           >
             Add Custom

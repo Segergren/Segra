@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useRef, useState, ReactNode } from 'react';
 
+interface ModalOptions {
+  wide?: boolean;
+}
+
 interface ModalContextType {
-  openModal: (content: ReactNode) => void;
+  openModal: (content: ReactNode, options?: ModalOptions) => void;
   closeModal: () => void;
   isModalOpen: boolean;
 }
@@ -11,21 +15,27 @@ const ModalContext = createContext<ModalContextType | undefined>(undefined);
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const modalRef = useRef<HTMLDialogElement>(null);
   const [modalContent, setModalContent] = useState<ReactNode>(null);
+  const [isWide, setIsWide] = useState(false);
   // Track if the initial mousedown started on the backdrop
   const backdropMouseDownRef = useRef<boolean>(false);
 
-  const openModal = (content: ReactNode) => {
+  const openModal = (content: ReactNode, options?: ModalOptions) => {
     setModalContent(content);
+    setIsWide(options?.wide ?? false);
     if (modalRef.current) {
       modalRef.current.showModal();
     }
   };
 
   const closeModal = () => {
-    setModalContent(null);
     if (modalRef.current) {
       modalRef.current.close();
     }
+    // Clear content after the close animation finishes
+    setTimeout(() => {
+      setModalContent(null);
+      setIsWide(false);
+    }, 150);
   };
 
   const isModalOpen = modalContent !== null;
@@ -51,7 +61,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }}
       >
         <div
-          className="modal-box max-h-[90vh] bg-base-300 max-w-3xl w-full"
+          className={`modal-box max-h-[90vh] bg-base-300 ${isWide ? 'max-w-3xl w-full' : ''}`}
           onClick={(e) => e.stopPropagation()}
         >
           {modalContent}
