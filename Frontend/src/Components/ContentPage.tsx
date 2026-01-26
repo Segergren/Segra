@@ -10,6 +10,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import ContentFilters, { SortOption } from './ContentFilters';
 import { useModal } from '../Context/ModalContext';
+import Button from './Button';
 
 interface ContentPageProps {
   contentType: ContentType;
@@ -291,13 +292,15 @@ export default function ContentPage({
         </div>
         <div className="flex items-center gap-2">
           {(sectionId === 'sessions' || sectionId === 'replayBuffer') && (
-            <button
-              className="btn btn-sm no-animation btn-secondary border border-base-400 h-8 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300"
+            <Button
+              variant="primary"
+              size="sm"
+              className="no-animation h-8 gap-1"
               onClick={() => sendMessageToBackend('ImportFile', { sectionId })}
             >
               <MdUploadFile size={16} />
               Import
-            </button>
+            </Button>
           )}
           <ContentFilters
             uniqueGames={uniqueGames}
@@ -342,19 +345,18 @@ export default function ContentPage({
             className="fixed bottom-3 left-1/2 -translate-x-1/2 bg-base-300 border border-base-400 rounded-xl px-4 py-2 flex items-center gap-3 shadow-lg z-50"
           >
             <span className="text-sm text-gray-300">{selectedItems.size} Selected</span>
-            <button
-              className="btn btn-sm btn-ghost bg-error/20 hover:bg-error/10 text-error border-error h-8"
-              onClick={handleDeleteSelected}
-            >
+            <Button variant="danger" size="sm" className="h-8" onClick={handleDeleteSelected}>
               <MdDeleteOutline size={16} />
               Delete
-            </button>
-            <button
-              className="btn btn-sm btn-secondary border-base-400 hover:border-base-400 text-gray-400 hover:text-gray-300 h-8"
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="h-8"
               onClick={() => setSelectedItems(new Set())}
             >
               Cancel
-            </button>
+            </Button>
           </motion.div>
         )}
       </AnimatePresence>

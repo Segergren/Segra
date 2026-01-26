@@ -2,6 +2,7 @@ import React from 'react';
 import { Game } from '../Models/types';
 import { useSettings } from '../Context/SettingsContext';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
+import Button from './Button';
 
 interface GameListManagerProps {
   listType: 'whitelist' | 'blacklist';
@@ -70,12 +71,9 @@ export const GameListManager: React.FC<GameListManagerProps> = ({ listType }) =>
                       )}
                     </td>
                     <td>
-                      <button
-                        className="btn btn-sm btn-secondary border-base-400 hover:border-base-400"
-                        onClick={() => handleRemoveGame(game)}
-                      >
+                      <Button variant="primary" size="sm" onClick={() => handleRemoveGame(game)}>
                         Remove
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))

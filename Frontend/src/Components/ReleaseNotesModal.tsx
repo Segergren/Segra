@@ -13,8 +13,8 @@ interface ReleaseNotesModalProps {
 // Custom CSS for markdown content
 const markdownStyles = `
   .markdown-content ul {
-    list-style-type: circle;
-    padding-top: 0.75rem;
+    list-style-type: disc;
+    margin-top: 0.25rem;
     margin-bottom: 1.5rem;
   }
   
@@ -188,12 +188,12 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
                 {/* Left column - sticky date and version */}
                 <div className="w-28 flex-shrink-0">
                   <div className="sticky top-0 pt-1">
-                    <div className="text-gray-400 text-sm mb-2">{formatDate(note.releaseDate)}</div>
-                    <div className="inline-flex items-center gap-2">
+                    <div className="inline-flex items-center gap-2 mb-2">
                       <span className="bg-base-200 text-primary px-2.5 py-1 rounded text-sm font-medium border border-custom">
                         {note.version}
                       </span>
                     </div>
+                    <div className="text-gray-400 text-sm">{formatDate(note.releaseDate)}</div>
                   </div>
                 </div>
 

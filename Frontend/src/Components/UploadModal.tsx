@@ -3,6 +3,7 @@ import { Content } from '../Models/types';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAuth } from '../Hooks/useAuth.tsx';
 import { MdOutlineFileUpload } from 'react-icons/md';
+import Button from './Button';
 
 interface UploadModalProps {
   video: Content;
@@ -53,12 +54,15 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
     <>
       <div className="bg-base-300">
         <div className="modal-header">
-          <button
-            className="btn btn-circle btn-ghost absolute right-4 top-1 z-10 text-lg hover:bg-white/10"
+          <Button
+            variant="ghost"
+            size="sm"
+            icon
+            className="absolute right-4 top-1 z-10"
             onClick={onClose}
           >
             ✕
-          </button>
+          </Button>
         </div>
         <div className="modal-body pt-8">
           <div className="form-control w-full">
@@ -110,14 +114,15 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
           </div>
         </div>
         <div className="modal-action mt-6">
-          <button
-            className="btn btn-secondary bg-base-300 h-10 text-gray-400 border-base-400 hover:text-primary hover:border-base-400 hover:bg-base-300 flex items-center gap-1 w-full"
+          <Button
+            variant="primary"
+            className="w-full"
             onClick={handleUpload}
             disabled={session === null}
           >
             <MdOutlineFileUpload className="w-5 h-5" />
             {session === null ? 'Login to upload' : 'Upload'}
-          </button>
+          </Button>
         </div>
       </div>
     </>

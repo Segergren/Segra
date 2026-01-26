@@ -913,6 +913,8 @@ namespace Segra.Backend.Recorder
                 // Mark as stopping to prevent concurrent stop attempts
                 _isStoppingOrStopped = true;
 
+                StopGameCaptureHookTimeoutTimer();
+
                 bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
                 bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
 

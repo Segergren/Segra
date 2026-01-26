@@ -1,5 +1,6 @@
 import { Game } from '../Models/types';
 import { MdClose } from 'react-icons/md';
+import Button from './Button';
 
 interface GameCardProps {
   game: Game;
@@ -23,12 +24,15 @@ export default function GameCard({
 
   return (
     <div className="bg-base-300/20 bg-opacity-20 border border-base-400 border-opacity-75 rounded-lg px-3 py-3 relative">
-      <button
-        className="absolute top-2 right-2 btn btn-ghost btn-xs btn-circle"
+      <Button
+        variant="ghost"
+        size="xs"
+        icon
+        className="absolute top-2 right-2"
         onClick={() => onRemove(game)}
       >
         <MdClose size={14} />
-      </button>
+      </Button>
       <div>
         <div
           className={`text-xs font-semibold mb-1 ${isAllowed ? 'text-green-600' : 'text-red-600'}`}
@@ -49,20 +53,24 @@ export default function GameCard({
           return <div className="text-xs text-gray-400 truncate mt-1 mb-2">{displayPaths}</div>;
         })()}
         <div className="flex gap-2 pt-2">
-          <button
-            className={`btn btn-sm btn-secondary bg-base-300 flex-1 text-gray-400 border-base-400 hover:text-primary hover:border-base-400 hover:bg-green-600/5 ${isAllowed ? 'opacity-50 cursor-default' : ''}`}
+          <Button
+            variant="primary"
+            size="sm"
+            className={`flex-1 bg-base-300 ${isAllowed ? 'opacity-50 cursor-default' : ''}`}
             disabled={isAllowed}
             onClick={() => onAllow(game)}
           >
             Allow
-          </button>
-          <button
-            className={`btn btn-sm btn-secondary bg-base-300 flex-1 text-gray-400 border-base-400 hover:text-primary hover:border-base-400 hover:bg-red-600/5 ${isBlocked ? 'opacity-50 cursor-default' : ''}`}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            className={`flex-1 bg-base-300 ${isBlocked ? 'opacity-50 cursor-default' : ''}`}
             disabled={isBlocked}
             onClick={() => onBlock(game)}
           >
             Block
-          </button>
+          </Button>
         </div>
       </div>
     </div>

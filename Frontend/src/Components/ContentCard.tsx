@@ -20,6 +20,7 @@ import { HiOutlineSparkles } from 'react-icons/hi';
 import { useAiHighlights } from '../Context/AiHighlightsContext';
 import { useCompression } from '../Context/CompressionContext';
 import { FiExternalLink } from 'react-icons/fi';
+import Button from './Button';
 
 type VideoType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
 
@@ -353,17 +354,16 @@ export default function ContentCard({
             >
               {(type === 'Clip' || type === 'Highlight') && (
                 <li>
-                  <a
-                    className="flex w-full items-center gap-2 px-4 py-3 text-primary hover:bg-primary/10 active:bg-primary/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
+                  <Button
+                    variant="menuPrimary"
                     onClick={() => {
-                      // Blur the active element before handling upload
                       (document.activeElement as HTMLElement).blur();
                       handleUpload();
                     }}
                   >
                     <MdOutlineFileUpload size="20" />
                     <span>Upload</span>
-                  </a>
+                  </Button>
                 </li>
               )}
               {type === 'Session' && enableAi && (
@@ -380,12 +380,9 @@ export default function ContentCard({
                     const isDisabled = !hasHighlightBookmarks || isProcessing;
 
                     return (
-                      <a
-                        className={`flex w-full items-center gap-2 px-4 py-3 ${
-                          isDisabled
-                            ? 'text-gray-400 cursor-not-allowed'
-                            : 'text-purple-400 hover:bg-purple-500/10 active:bg-purple-500/20'
-                        } rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
+                      <Button
+                        variant="menuPurple"
+                        disabled={isDisabled}
                         onClick={() => {
                           if (hasHighlightBookmarks && !isProcessing) {
                             (document.activeElement as HTMLElement).blur();
@@ -401,7 +398,7 @@ export default function ContentCard({
                               ? 'Create Highlight'
                               : 'No Highlights'}
                         </span>
-                      </a>
+                      </Button>
                     );
                   })()}
                 </li>
@@ -409,8 +406,8 @@ export default function ContentCard({
               {(type === 'Clip' || type === 'Highlight') &&
                 !content?.fileName?.endsWith('_compressed') && (
                   <li>
-                    <a
-                      className="flex w-full items-center gap-2 px-4 py-3 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
+                    <Button
+                      variant="menu"
                       onClick={() => {
                         (document.activeElement as HTMLElement).blur();
                         sendMessageToBackend('CompressVideo', { FilePath: content!.filePath });
@@ -418,12 +415,12 @@ export default function ContentCard({
                     >
                       <MdOutlineCompress size="20" />
                       <span>Compress</span>
-                    </a>
+                    </Button>
                   </li>
                 )}
               <li>
-                <a
-                  className="flex w-full items-center gap-2 px-4 py-3 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
+                <Button
+                  variant="menu"
                   onClick={() => {
                     (document.activeElement as HTMLElement).blur();
                     handleRename();
@@ -431,11 +428,11 @@ export default function ContentCard({
                 >
                   <MdDriveFileRenameOutline size="20" />
                   <span>Rename</span>
-                </a>
+                </Button>
               </li>
               <li>
-                <a
-                  className="flex w-full items-center gap-2 px-4 py-3 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
+                <Button
+                  variant="menu"
                   onClick={() => {
                     (document.activeElement as HTMLElement).blur();
                     handleOpenFileLocation();
@@ -443,21 +440,19 @@ export default function ContentCard({
                 >
                   <MdOutlineInsertDriveFile size="20" />
                   <span>Open File Location</span>
-                </a>
+                </Button>
               </li>
               <li>
-                <a
-                  className="flex w-full items-center gap-2 px-4 py-3 text-error hover:bg-error/10 active:bg-error/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
+                <Button
+                  variant="menuDanger"
                   onClick={() => {
-                    // I don't know why it doesn't hide by itself?
                     (document.activeElement as HTMLElement).blur();
-
                     handleDelete();
                   }}
                 >
                   <MdDeleteOutline size="20" />
                   <span>Delete</span>
-                </a>
+                </Button>
               </li>
             </ul>
           </div>

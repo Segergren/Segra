@@ -38,6 +38,7 @@ import WaveSurfer from 'wavesurfer.js';
 import { TbZoomIn, TbZoomOut } from 'react-icons/tb';
 import { IoIosFootball } from 'react-icons/io';
 import { AnimatePresence, motion } from 'framer-motion';
+import Button from '../Components/Button';
 
 // Converts time string in format "HH:MM:SS.mmm" to seconds
 const timeStringToSeconds = (timeStr: string): number => {
@@ -71,13 +72,15 @@ function TopInfoBar({ video }: { video: Content }) {
 
   return (
     <div className="flex items-center gap-2 px-2 py-1 mb-2 text-xs leading-tight text-gray-300 border rounded-lg bg-base-300 border-custom">
-      <button
-        className="h-6 min-h-0 px-1 text-gray-300 btn btn-ghost btn-xs hover:text-gray-200"
+      <Button
+        variant="ghost"
+        size="xs"
+        className="h-6 min-h-0 px-1"
         onClick={() => setSelectedVideo(null)}
         aria-label="Back"
       >
         <MdArrowBack className="w-4 h-4" />
-      </button>
+      </Button>
       <div className="flex items-center gap-2 overflow-hidden">
         <span className="whitespace-nowrap">
           Created: {createdDateStr}
@@ -1728,8 +1731,10 @@ export default function VideoComponent({ video }: { video: Content }) {
                 </button>
               </div>
               {(video.type === 'Clip' || video.type === 'Highlight') && (
-                <button
-                  className="flex items-center h-10 text-gray-400 btn btn-sm btn-secondary border-custom hover:border-custom hover:text-accent"
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="h-10 hover:text-accent"
                   onClick={handleUpload}
                   disabled={
                     uploads[video.fileName + '.mp4']?.status === 'uploading' ||
@@ -1738,20 +1743,24 @@ export default function VideoComponent({ video }: { video: Content }) {
                 >
                   <MdOutlineFileUpload className="w-6 h-6" />
                   <span>Upload</span>
-                </button>
+                </Button>
               )}
               {(video.type === 'Session' || video.type === 'Buffer') && (
                 <>
-                  <button
-                    className={`btn btn-sm btn-secondary border-custom hover:border-custom h-10 text-gray-400 hover:text-accent flex items-center gap-1`}
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="h-10 gap-1 hover:text-accent"
                     onClick={handleCreateClip}
                   >
                     <MdMovieCreation className="w-6 h-6" />
                     <span>Create Clip</span>
-                  </button>
+                  </Button>
                   <div className="indicator">
-                    <button
-                      className={`btn btn-sm btn-secondary border-custom hover:border-custom h-10 text-gray-400 hover:text-accent flex items-center gap-1`}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="h-10 gap-1 hover:text-accent"
                       onClick={handleAddSelection}
                     >
                       {showNoSegmentsIndicator && (
@@ -1759,7 +1768,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       )}
                       <MdAddBox className="w-6 h-6" />
                       <span>Add Segment</span>
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}
@@ -1784,12 +1793,14 @@ export default function VideoComponent({ video }: { video: Content }) {
                     </div>
                   )}
                   <div className="flex items-center gap-2 rounded-lg bg-base-300">
-                    <button
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="h-10 hover:text-accent"
                       onClick={handleAddBookmark}
-                      className="h-10 text-gray-400 btn btn-sm btn-secondary border-custom hover:border-custom hover:text-accent"
                     >
                       <MdBookmarkAdd className="w-6 h-6" />
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}
@@ -1847,14 +1858,16 @@ export default function VideoComponent({ video }: { video: Content }) {
               </label>
             </div>
             <div className="flex items-center h-10 gap-0 px-0 mb-2 mr-3 rounded-lg bg-base-300 tooltip">
-              <button
-                className="w-full h-10 py-0 text-gray-400 border btn btn-sm btn-secondary border-custom disabled:border-custom hover:border-custom hover:text-accent"
+              <Button
+                variant="primary"
+                size="sm"
+                className="w-full h-10 py-0 hover:text-accent"
                 onClick={clearAllSelections}
                 disabled={selections.length === 0}
               >
                 <FaTrashCan className="w-4 h-4" />
                 <span>Clear</span>
-              </button>
+              </Button>
             </div>
           </div>
         )}

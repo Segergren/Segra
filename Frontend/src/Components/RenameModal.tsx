@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Content } from '../Models/types';
 import { MdDriveFileRenameOutline } from 'react-icons/md';
+import Button from './Button';
 
 interface RenameModalProps {
   content: Content;
@@ -55,12 +56,15 @@ export default function RenameModal({ content, onRename, onClose }: RenameModalP
     <>
       <div className="bg-base-300">
         <div className="modal-header">
-          <button
-            className="btn btn-sm btn-circle btn-ghost absolute right-4 top-2"
+          <Button
+            variant="ghost"
+            size="sm"
+            icon
+            className="absolute right-4 top-2"
             onClick={onClose}
           >
             ✕
-          </button>
+          </Button>
         </div>
         <div className="modal-body">
           <div className="flex items-center gap-3 mb-6 mt-4">
@@ -94,15 +98,12 @@ export default function RenameModal({ content, onRename, onClose }: RenameModalP
           </div>
         </div>
         <div className="modal-action mt-6 gap-2">
-          <button className="btn btn-ghost btn-sm text-gray-300" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="btn btn-secondary btn-sm border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 text-gray-300"
-            onClick={handleRename}
-          >
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleRename}>
             Rename
-          </button>
+          </Button>
         </div>
       </div>
     </>

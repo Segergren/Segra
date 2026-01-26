@@ -18,11 +18,14 @@ import {
   MdOutlineContentCut,
   MdOutlinePlayCircleOutline,
   MdOutlineSettings,
+  MdOutlineStopCircle,
   MdReplay30,
 } from 'react-icons/md';
 import { HiOutlineSparkles } from 'react-icons/hi';
+import { BsDisplay } from 'react-icons/bs';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useEffect, useState } from 'react';
+import Button from './Components/Button';
 
 interface MenuProps {
   selectedMenu: string;
@@ -35,6 +38,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { updateInfo } = useUpdate();
   const { aiProgress } = useAiHighlights();
   const { obsDownloadProgress } = useObsDownload();
+  const [buttonCooldown, setButtonCooldown] = useState(false);
 
   // Create refs for each menu button
   const sessionsRef = useRef<HTMLButtonElement>(null);
@@ -103,7 +107,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   };
 
   return (
-    <div className="bg-base-300 w-56 h-screen flex flex-col border-r border-custom">
+    <div className="bg-base-300 w-56 h-screen flex flex-col border-r border-base-400">
       {/* Menu Items */}
       <div className="flex flex-col space-y-2 px-4 text-left py-2 relative mt-2">
         {/* Selection indicator rectangle */}
@@ -115,60 +119,68 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
             height: '40px',
           }}
         />
-        <button
+        <Button
           ref={sessionsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Full Sessions' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          variant="nav"
+          className={selectedMenu === 'Full Sessions' ? 'text-primary' : ''}
           onMouseDown={() => onSelectMenu('Full Sessions')}
         >
           <MdOutlinePlayCircleOutline className="w-6 h-6" />
           Full Sessions
-        </button>
-        <button
+        </Button>
+        <Button
           ref={replayRef}
-          className={`btn btn-secondary ${selectedMenu === 'Replay Buffer' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          variant="nav"
+          className={selectedMenu === 'Replay Buffer' ? 'text-primary' : ''}
           onMouseDown={() => onSelectMenu('Replay Buffer')}
         >
           <MdReplay30 className="w-6 h-6" />
           Replay Buffer
-        </button>
-        <button
+        </Button>
+        <Button
           ref={clipsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Clips' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          variant="nav"
+          className={selectedMenu === 'Clips' ? 'text-primary' : ''}
           onMouseDown={() => onSelectMenu('Clips')}
         >
           <MdOutlineContentCut className="w-6 h-6" />
           Clips
-        </button>
-        <button
+        </Button>
+        <Button
           ref={highlightsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Highlights' ? 'text-primary' : ''} w-full justify-between border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          variant="nav"
+          className={`justify-between ${selectedMenu === 'Highlights' ? 'text-primary' : ''}`}
           onMouseDown={() => onSelectMenu('Highlights')}
         >
           <span className="flex items-center gap-2">
             <HiOutlineSparkles className="w-6 h-6" />
             Highlights
           </span>
-          <AnimatePresence>
-            {hasActiveAiHighlights && selectedMenu !== 'Highlights' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <CircularProgress progress={averageAiProgress} size={24} strokeWidth={2} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </button>
-        <button
+          <div className="ml-auto flex items-center">
+            <AnimatePresence>
+              {hasActiveAiHighlights && selectedMenu !== 'Highlights' && (
+                <motion.div
+                  className="flex items-center justify-center"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <CircularProgress progress={averageAiProgress} size={24} strokeWidth={2} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </Button>
+        <Button
           ref={settingsRef}
-          className={`btn btn-secondary ${selectedMenu === 'Settings' ? 'text-primary' : ''} w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300`}
+          variant="nav"
+          className={selectedMenu === 'Settings' ? 'text-primary' : ''}
           onMouseDown={() => onSelectMenu('Settings')}
         >
           <MdOutlineSettings className="w-6 h-6" />
           Settings
-        </button>
+        </Button>
       </div>
 
       {/* Spacer to push content to the bottom */}
@@ -257,24 +269,37 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
 
       {/* Start and Stop Buttons */}
       <div className="mb-4 px-4">
-        <div className="flex flex-col items-center">
-          {settings.state.recording ? (
-            <button
-              className="btn btn-secondary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12 text-gray-300"
-              disabled={!settings.state.hasLoadedObs || (recording && recording.endTime !== null)}
-              onClick={() => sendMessageToBackend('StopRecording')}
-            >
-              Stop Recording
-            </button>
-          ) : (
-            <button
-              className="btn btn-secondary border-base-400 hover:border-base-400 disabled:border-base-400 disabled:bg-base-300 hover:text-accent hover:border-opacity-75 w-full h-12 text-gray-300"
-              disabled={!settings.state.hasLoadedObs || settings.state.preRecording != null}
-              onClick={() => sendMessageToBackend('StartRecording')}
-            >
-              Start Manually
-            </button>
-          )}
+        <div className="flex flex-col items-center z-50">
+          <Button
+            variant="primary"
+            className="w-full h-12"
+            disabled={
+              buttonCooldown ||
+              !settings.state.hasLoadedObs ||
+              (settings.state.recording && recording && recording.endTime !== null)
+            }
+            onClick={() => {
+              setButtonCooldown(true);
+              setTimeout(() => setButtonCooldown(false), 1000);
+              sendMessageToBackend(
+                settings.state.recording || settings.state.preRecording
+                  ? 'StopRecording'
+                  : 'StartRecording',
+              );
+            }}
+          >
+            {settings.state.recording || settings.state.preRecording ? (
+              <>
+                <MdOutlineStopCircle className="w-4.5 h-4.5" />
+                Stop
+              </>
+            ) : (
+              <>
+                <BsDisplay className="w-4 h-4 mr-0.5" />
+                Start Manually
+              </>
+            )}
+          </Button>
         </div>
       </div>
     </div>

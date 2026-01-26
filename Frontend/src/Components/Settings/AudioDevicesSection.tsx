@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MdWarning, MdClose, MdError } from 'react-icons/md';
+import Button from '../Button';
 import { Settings as SettingsType, AudioDevice } from '../../Models/types';
 
 interface AudioDevicesSectionProps {
@@ -325,16 +326,18 @@ export default function AudioDevicesSection({
                   separate audio tracks. Any additional sources will be recorded in the Full Mix
                   only.
                 </motion.span>
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   aria-label="Dismiss track limit warning"
-                  className="btn btn-ghost btn-xs text-amber-300 hover:text-amber-100"
+                  className="text-amber-300 hover:text-amber-100"
                   onClick={() => {
                     setTrackLimitWarnDismissed(true);
                     localStorage.setItem('segra.trackLimitWarnDismissedSig', selectionSig);
                   }}
                 >
                   <MdClose className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
             </motion.div>
           )}

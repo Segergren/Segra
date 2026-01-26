@@ -2,6 +2,7 @@ import { useUpdate } from '../Context/UpdateContext';
 import { FaDownload, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { SiGithub } from 'react-icons/si';
+import Button from './Button';
 
 export default function UpdateCard() {
   const { updateInfo, openReleaseNotesModal, clearUpdateInfo } = useUpdate();
@@ -49,21 +50,25 @@ export default function UpdateCard() {
 
         {/* Action Buttons */}
         <div className="flex flex-col gap-2">
-          <button
+          <Button
+            variant="primary"
+            size="sm"
+            className="no-animation"
             disabled={updateInfo.progress !== 100}
-            className="btn btn-sm btn-secondary no-animation border-custom border-opacity-75 hover:border-custom hover:border-opacity-75 hover:bg-base-200"
             onClick={handleInstallClick}
           >
             <FaDownload />
             Install Now
-          </button>
-          <button
-            className="btn btn-sm btn-secondary no-animation border-custom border-opacity-75 hover:border-custom hover:border-opacity-75 hover:bg-base-200"
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            className="no-animation"
             onClick={() => openReleaseNotesModal(__APP_VERSION__)}
           >
             <SiGithub />
             Release Notes
-          </button>
+          </Button>
         </div>
       </div>
     </div>

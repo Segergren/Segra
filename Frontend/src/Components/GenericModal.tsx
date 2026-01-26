@@ -1,4 +1,5 @@
 import { MdInfo, MdWarning, MdError } from 'react-icons/md';
+import Button from './Button';
 
 export interface ModalProps {
   title: string;
@@ -46,12 +47,9 @@ export default function GenericModal({ title, subtitle, description, type, onClo
           <h2 className={`font-bold text-3xl mb-0 ${titleColor}`}>{title}</h2>
         </div>
         {subtitle && <p className="text-gray-400 text-lg mt-2">{subtitle}</p>}
-        <button
-          className="btn btn-circle btn-ghost absolute right-4 top-4 z-10 text-2xl hover:bg-white/10"
-          onClick={onClose}
-        >
+        <Button variant="ghost" icon className="absolute right-4 top-4 z-10" onClick={onClose}>
           ✕
-        </button>
+        </Button>
       </div>
 
       <div className={`modal-body py-2 mt-4`}>

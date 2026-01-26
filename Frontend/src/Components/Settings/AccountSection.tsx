@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { FaDiscord } from 'react-icons/fa';
-import { MdWarning, MdOutlineLogout, MdOutlineMoreHoriz } from 'react-icons/md';
+import { MdWarning, MdOutlineLogout, MdOutlineMoreHoriz, MdOutlineEmail } from 'react-icons/md';
 import CloudBadge from '../CloudBadge';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../Hooks/useAuth';
 import { useProfile } from '../../Hooks/useUserProfile';
+import Button from '../Button';
 
 export default function AccountSection() {
   const { session, isAuthenticating, clearAuthError, signOut } = useAuth();
@@ -63,14 +64,15 @@ export default function AccountSection() {
         )}
 
         <div className="bg-base-200 p-6 rounded-lg space-y-4 border border-custom">
-          <button
+          <Button
+            variant="primary"
+            className="w-full gap-2 font-semibold text-white border-custom hover:border-custom"
             onClick={handleDiscordLogin}
-            disabled={isAuthenticating}
-            className={`btn btn-secondary w-full gap-2 font-semibold text-white border border-custom hover:border-custom ${isAuthenticating ? 'btn-loading' : ''}`}
+            loading={isAuthenticating}
           >
             <FaDiscord className="w-5 h-5" />
             {isAuthenticating ? 'Connecting...' : 'Continue with Discord'}
-          </button>
+          </Button>
 
           <div className="divider">Or Use Email</div>
 
@@ -101,13 +103,15 @@ export default function AccountSection() {
               />
             </div>
 
-            <button
+            <Button
               type="submit"
-              disabled={isAuthenticating}
-              className={`btn btn-secondary w-full font-semibold text-white border border-custom hover:border-custom ${isAuthenticating ? 'btn-loading' : ''}`}
+              variant="primary"
+              className="w-full font-semibold text-white border-custom hover:border-custom"
+              loading={isAuthenticating}
             >
+              <MdOutlineEmail size={20} />
               Sign In With Email
-            </button>
+            </Button>
           </form>
         </div>
       </div>
@@ -173,8 +177,8 @@ export default function AccountSection() {
                 className="dropdown-content menu bg-base-300 border border-base-400 rounded-box z-999 w-52 p-2"
               >
                 <li>
-                  <a
-                    className="flex w-full items-center gap-2 px-4 py-3 text-error hover:bg-error/10 active:bg-error/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none"
+                  <Button
+                    variant="menuDanger"
                     onClick={() => {
                       (document.activeElement as HTMLElement).blur();
                       handleLogout();
@@ -182,7 +186,7 @@ export default function AccountSection() {
                   >
                     <MdOutlineLogout size="20" />
                     <span>Logout</span>
-                  </a>
+                  </Button>
                 </li>
               </ul>
             </div>

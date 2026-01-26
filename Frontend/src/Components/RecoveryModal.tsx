@@ -4,6 +4,7 @@ import { HiOutlineSparkles } from 'react-icons/hi';
 import { RecoveryFileData } from '../Models/WebSocketMessages';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings } from '../Context/SettingsContext';
+import Button from './Button';
 
 interface RecoveryModalProps {
   files: RecoveryFileData[];
@@ -126,31 +127,31 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
         <div className="flex items-center justify-between w-full pr-8">
           <h2 className="font-bold text-3xl mb-0 text-warning">Recover Video Files?</h2>
           <div className="flex items-center gap-2">
-            <button
-              onClick={goToPrevious}
-              disabled={currentIndex === 0}
-              className="btn btn-sm btn-ghost disabled:opacity-30"
-            >
+            <Button variant="ghost" size="sm" onClick={goToPrevious} disabled={currentIndex === 0}>
               <MdChevronLeft size={20} />
-            </button>
+            </Button>
             <span className="text-gray-400 text-sm">
               {currentIndex + 1} of {totalCount}
             </span>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={goToNext}
               disabled={currentIndex === totalCount - 1}
-              className="btn btn-sm btn-ghost disabled:opacity-30"
             >
               <MdChevronRight size={20} />
-            </button>
+            </Button>
           </div>
         </div>
-        <button
-          className="btn btn-circle btn-ghost absolute right-4 top-4 z-10 text-2xl hover:bg-white/10"
+        <Button
+          variant="ghost"
+          size="sm"
+          icon
+          className="absolute right-4 top-4 z-10"
           onClick={onClose}
         >
           ✕
-        </button>
+        </Button>
       </div>
 
       <div className="modal-body py-2 mt-4">
@@ -221,24 +222,15 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
       </div>
 
       <div className="modal-action mt-6 flex justify-end gap-3">
-        <button
-          className="btn btn-ghost text-primary bg-primary/20 hover:bg-primary/10 active:bg-primary/20 border-primary transition-all duration-200"
-          onClick={() => handleAction('recover')}
-        >
+        <Button variant="success" onClick={() => handleAction('recover')}>
           Recover
-        </button>
-        <button
-          className="btn btn-ghost bg-error/20 hover:bg-error/10 text-error border-error transition-all duration-200"
-          onClick={() => handleAction('delete')}
-        >
+        </Button>
+        <Button variant="danger" onClick={() => handleAction('delete')}>
           Delete
-        </button>
-        <button
-          className="btn btn-secondary bg-base-300 border-base-400 hover:border-base-400 hover:bg-base-200 transition-all duration-200"
-          onClick={() => handleAction('skip')}
-        >
+        </Button>
+        <Button variant="primary" onClick={() => handleAction('skip')}>
           Skip
-        </button>
+        </Button>
       </div>
     </>
   );

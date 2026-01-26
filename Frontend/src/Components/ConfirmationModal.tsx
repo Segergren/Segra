@@ -1,4 +1,5 @@
 import { MdWarning } from 'react-icons/md';
+import Button from './Button';
 
 export interface ConfirmationModalProps {
   title: string;
@@ -27,12 +28,15 @@ export default function ConfirmationModal({
           </span>
           <h2 className="font-bold text-3xl mb-0 text-warning">{title}</h2>
         </div>
-        <button
-          className="btn btn-circle btn-ghost absolute right-4 top-4 z-10 text-2xl hover:bg-white/10"
+        <Button
+          variant="ghost"
+          size="sm"
+          icon
+          className="absolute right-4 top-4 z-10"
           onClick={onCancel}
         >
           ✕
-        </button>
+        </Button>
       </div>
 
       <div className="modal-body py-2 mt-4">
@@ -41,18 +45,12 @@ export default function ConfirmationModal({
 
       {/* Footer with buttons */}
       <div className="modal-action mt-6 flex justify-end gap-3">
-        <button
-          className="btn btn-secondary bg-base-300 border-base-400 hover:border-base-400 hover:bg-base-200"
-          onClick={onCancel}
-        >
+        <Button variant="primary" onClick={onCancel}>
           {cancelText}
-        </button>
-        <button
-          className="btn btn-ghost bg-error/20 hover:bg-error/10 text-error border-error"
-          onClick={onConfirm}
-        >
+        </Button>
+        <Button variant="danger" onClick={onConfirm}>
           {confirmText}
-        </button>
+        </Button>
       </div>
     </>
   );

@@ -6,6 +6,7 @@ import CloudBadge from '../CloudBadge';
 import DropdownSelect from '../DropdownSelect';
 import { Settings as SettingsType } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
+import Button from '../Button';
 
 interface UISettingsSectionProps {
   settings: SettingsType;
@@ -180,29 +181,31 @@ export default function UISettingsSection({
                       onChange={(val) => updateSettings({ receiveBetaUpdates: val === 'beta' })}
                     />
                   </div>
-                  <button
-                    className="btn btn-sm btn-secondary border-base-400 hover:border-base-400 text-gray-400 hover:text-gray-300 flex items-center justify-center gap-2"
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="gap-2"
                     onClick={() => checkForUpdates()}
-                    disabled={settings.state.isCheckingForUpdates}
+                    loading={settings.state.isCheckingForUpdates}
                   >
-                    {settings.state.isCheckingForUpdates ? (
-                      <span className="loading loading-spinner loading-sm w-[16px] h-[16px]"></span>
-                    ) : (
+                    {!settings.state.isCheckingForUpdates && (
                       <GrUpdate size={16} className="shrink-0" />
                     )}
                     <span className="inline-block">Check for Updates</span>
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
             <div className="flex items-center">
-              <button
+              <Button
+                variant="primary"
+                size="sm"
+                className="w-40"
                 onClick={() => openReleaseNotesModal(null)}
-                className="btn btn-sm btn-secondary border-base-400 hover:border-base-400 text-gray-400 hover:text-gray-300 flex items-center justify-center w-40"
               >
                 <SiGithub size={16} aria-hidden="true" />
                 <span className="inline-block">View Release Notes</span>
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -238,13 +241,14 @@ export default function UISettingsSection({
       {/* Version */}
       <div className="text-center mt-4 text-sm text-gray-500">
         <div className="flex flex-col items-center gap-2">
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => sendMessageToBackend('OpenLogsLocation')}
-            className="btn btn-sm btn-secondary border-custom hover:border-custom text-gray-400 hover:text-gray-300 flex items-center justify-center"
           >
             <MdOutlineDescription className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span className="leading-none">View Logs</span>
-          </button>
+          </Button>
           <div>
             Segra{' '}
             {__APP_VERSION__ === 'Developer Preview' ? __APP_VERSION__ : 'v' + __APP_VERSION__}
