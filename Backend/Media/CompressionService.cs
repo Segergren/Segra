@@ -76,7 +76,7 @@ namespace Segra.Backend.Media
                     File.Move(tempOutputPath, finalPath);
 
                     Log.Information($"Replaced original with compressed file: {finalPath}");
-                    await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent?.Bookmarks, originalContent?.Title, originalContent?.CreatedAt);
+                    await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent?.Bookmarks, originalContent?.Title, originalContent?.CreatedAt, originalContent?.IgdbId);
                     await ContentService.CreateThumbnail(finalPath, contentType);
                     await ContentService.CreateWaveformFile(finalPath, contentType);
 
