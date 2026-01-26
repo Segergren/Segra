@@ -50,7 +50,10 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           }
         }}
       >
-        <div className="modal-box max-h-[90vh] bg-base-300" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-box max-h-[90vh] bg-base-300 max-w-3xl w-full"
+          onClick={(e) => e.stopPropagation()}
+        >
           {modalContent}
         </div>
         <form
