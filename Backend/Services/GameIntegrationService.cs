@@ -27,10 +27,10 @@ namespace Segra.Backend.Services
 
             _gameIntegration = gameName switch
             {
-                PUBG => new PubgIntegration(),
-                LOL => new LeagueOfLegendsIntegration(),
-                CS2 => new CounterStrike2Integration(),
-                ROCKET_LEAGUE => Settings.Instance.EnableRocketLeagueIntegration ? new RocketLeagueIntegration() : null,
+                PUBG => Settings.Instance.GameIntegrations.Pubg.Enabled ? new PubgIntegration() : null,
+                LOL => Settings.Instance.GameIntegrations.LeagueOfLegends.Enabled ? new LeagueOfLegendsIntegration() : null,
+                CS2 => Settings.Instance.GameIntegrations.CounterStrike2.Enabled ? new CounterStrike2Integration() : null,
+                ROCKET_LEAGUE => Settings.Instance.GameIntegrations.RocketLeague.Enabled ? new RocketLeagueIntegration() : null,
                 _ => null,
             };
 

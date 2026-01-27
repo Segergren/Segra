@@ -136,6 +136,17 @@ export interface GameListEntry {
   executables: string[];
 }
 
+export interface GameIntegrationSettings {
+  enabled: boolean;
+}
+
+export interface GameIntegrations {
+  counterStrike2: GameIntegrationSettings;
+  leagueOfLegends: GameIntegrationSettings;
+  pubg: GameIntegrationSettings;
+  rocketLeague: GameIntegrationSettings;
+}
+
 export type ClipEncoder = 'gpu' | 'cpu';
 export type ClipCodec = 'h264' | 'h265' | 'av1';
 export type ClipFPS = 0 | 24 | 30 | 60 | 120 | 144;
@@ -229,7 +240,7 @@ export interface Settings {
   keybindings: Keybind[];
   whitelist: Game[];
   blacklist: Game[];
-  enableRocketLeagueIntegration: boolean;
+  gameIntegrations: GameIntegrations;
   soundEffectsVolume: number; // Volume for UI sound effects (0.0 to 1.0)
   showNewBadgeOnVideos: boolean;
   showGameBackground: boolean; // Show game background while recording
@@ -311,7 +322,12 @@ export const initialSettings: Settings = {
   ],
   whitelist: [],
   blacklist: [],
-  enableRocketLeagueIntegration: false,
+  gameIntegrations: {
+    counterStrike2: { enabled: true },
+    leagueOfLegends: { enabled: true },
+    pubg: { enabled: true },
+    rocketLeague: { enabled: false },
+  },
   state: initialState,
 };
 

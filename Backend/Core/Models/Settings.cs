@@ -70,7 +70,7 @@ namespace Segra.Backend.Core.Models
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "standard";
         private bool _removeOriginalAfterCompression = false;
-        private bool _enableRocketLeagueIntegration = false;
+        private GameIntegrations _gameIntegrations = new GameIntegrations();
 
         // Returns the default keybindings
         private static List<Keybind> GetDefaultKeybindings()
@@ -387,16 +387,13 @@ namespace Segra.Backend.Core.Models
             }
         }
 
-        [JsonPropertyName("enableRocketLeagueIntegration")]
-        public bool EnableRocketLeagueIntegration
+        [JsonPropertyName("gameIntegrations")]
+        public GameIntegrations GameIntegrations
         {
-            get => _enableRocketLeagueIntegration;
+            get => _gameIntegrations;
             set
             {
-                if (_enableRocketLeagueIntegration != value)
-                {
-                    _enableRocketLeagueIntegration = value;
-                }
+                _gameIntegrations = value ?? new GameIntegrations();
             }
         }
 
@@ -1444,5 +1441,34 @@ namespace Segra.Backend.Core.Models
             // Use name for hash code since paths can vary
             return obj.Name.GetHashCode();
         }
+    }
+
+    // Game integration settings - each game has its own settings object
+    public class GameIntegrationSettings
+    {
+        [JsonPropertyName("enabled")]
+        public bool Enabled { get; set; }
+
+        public GameIntegrationSettings(bool enabled = true)
+        {
+            Enabled = enabled;
+        }
+
+        public GameIntegrationSettings() : this(true) { }
+    }
+
+    public class GameIntegrations
+    {
+        [JsonPropertyName("counterStrike2")]
+        public GameIntegrationSettings CounterStrike2 { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("leagueOfLegends")]
+        public GameIntegrationSettings LeagueOfLegends { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("pubg")]
+        public GameIntegrationSettings Pubg { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("rocketLeague")]
+        public GameIntegrationSettings RocketLeague { get; set; } = new GameIntegrationSettings(false);
     }
 }

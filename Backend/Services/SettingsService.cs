@@ -368,12 +368,36 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update EnableRocketLeagueIntegration
-            if (settings.EnableRocketLeagueIntegration != updatedSettings.EnableRocketLeagueIntegration)
+            // Update GameIntegrations
+            if (updatedSettings.GameIntegrations != null)
             {
-                Log.Information($"EnableRocketLeagueIntegration changed from '{settings.EnableRocketLeagueIntegration}' to '{updatedSettings.EnableRocketLeagueIntegration}'");
-                settings.EnableRocketLeagueIntegration = updatedSettings.EnableRocketLeagueIntegration;
-                hasChanges = true;
+                var current = settings.GameIntegrations;
+                var updated = updatedSettings.GameIntegrations;
+
+                if (current.CounterStrike2.Enabled != updated.CounterStrike2.Enabled)
+                {
+                    Log.Information($"GameIntegrations.CounterStrike2.Enabled changed from '{current.CounterStrike2.Enabled}' to '{updated.CounterStrike2.Enabled}'");
+                    current.CounterStrike2.Enabled = updated.CounterStrike2.Enabled;
+                    hasChanges = true;
+                }
+                if (current.LeagueOfLegends.Enabled != updated.LeagueOfLegends.Enabled)
+                {
+                    Log.Information($"GameIntegrations.LeagueOfLegends.Enabled changed from '{current.LeagueOfLegends.Enabled}' to '{updated.LeagueOfLegends.Enabled}'");
+                    current.LeagueOfLegends.Enabled = updated.LeagueOfLegends.Enabled;
+                    hasChanges = true;
+                }
+                if (current.Pubg.Enabled != updated.Pubg.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Pubg.Enabled changed from '{current.Pubg.Enabled}' to '{updated.Pubg.Enabled}'");
+                    current.Pubg.Enabled = updated.Pubg.Enabled;
+                    hasChanges = true;
+                }
+                if (current.RocketLeague.Enabled != updated.RocketLeague.Enabled)
+                {
+                    Log.Information($"GameIntegrations.RocketLeague.Enabled changed from '{current.RocketLeague.Enabled}' to '{updated.RocketLeague.Enabled}'");
+                    current.RocketLeague.Enabled = updated.RocketLeague.Enabled;
+                    hasChanges = true;
+                }
             }
 
             // Update Theme

@@ -8,6 +8,7 @@ import ClipSettingsSection from '../Components/Settings/ClipSettingsSection';
 import AudioDevicesSection from '../Components/Settings/AudioDevicesSection';
 import KeybindingsSection from '../Components/Settings/KeybindingsSection';
 import GameDetectionSection from '../Components/Settings/GameDetectionSection';
+import GameIntegrationsSection from '../Components/Settings/GameIntegrationsSection';
 import UISettingsSection from '../Components/Settings/UISettingsSection';
 
 export default function Settings() {
@@ -34,6 +35,8 @@ export default function Settings() {
       <KeybindingsSection settings={settings} updateSettings={updateSettings} />
 
       <GameDetectionSection />
+
+      <GameIntegrationsSection />
 
       <UISettingsSection
         settings={settings}
