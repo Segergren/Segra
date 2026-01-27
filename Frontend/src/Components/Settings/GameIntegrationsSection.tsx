@@ -26,7 +26,7 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     name: 'League of Legends',
     settingsKey: 'leagueOfLegends',
     bookmarks: ['Kills', 'Assists', 'Deaths'],
-    backgroundImage: 'https://segra.tv/api/games/cover/coaiyq',
+    backgroundImage: 'https://segra.tv/api/games/cover/coabh7',
   },
   {
     id: 'pubg',
@@ -80,7 +80,7 @@ function GameIntegrationCard({
       {/* Background image */}
       {showBackground && (
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-12 pointer-events-none blur-[4px]"
+          className="absolute inset-0 bg-cover bg-center opacity-20 pointer-events-none blur-[0px]"
           style={{ backgroundImage: `url(${integration.backgroundImage})` }}
         />
       )}
