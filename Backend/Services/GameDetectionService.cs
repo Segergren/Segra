@@ -121,8 +121,8 @@ namespace Segra.Backend.Services
                 int pid = Convert.ToInt32(processObj["Handle"]);
                 string exePath = ResolveProcessPath(pid);
 
-                // We can't resolve the path, so it's most likely not a game
-                if (string.IsNullOrEmpty(exePath)) return;
+                // We can't resolve the path or it's irrelevant, so it's most likely not a game
+                if (string.IsNullOrEmpty(exePath) || exePath.StartsWith("C:\\Windows\\System32\\") || exePath.StartsWith("C:\\Windows\\SysWOW64\\") || exePath.StartsWith("C:\\Program Files\\Git\\")) return;
 
                 Log.Information($"[OnProcessStarted] Application started: PID {pid}, Path: {exePath}");
                 if (ShouldRecordGame(exePath))
@@ -149,11 +149,10 @@ namespace Segra.Backend.Services
                 string exePath = ResolveProcessPath(pid);
                 string fileNameWithExtension = Path.GetFileName(exePath);
 
-                // Only relevant to log if we can resolve the path
-                if (!string.IsNullOrEmpty(exePath))
-                {
-                    Log.Information($"[OnProcessStopped] Application stopped: PID {pid}, Path: {exePath}");
-                }
+                // We can't resolve the path or it's irrelevant, so it's most likely not a game
+                if (string.IsNullOrEmpty(exePath) || exePath.StartsWith("C:\\Windows\\System32\\") || exePath.StartsWith("C:\\Windows\\SysWOW64\\") || exePath.StartsWith("C:\\Program Files\\Git\\")) return;
+
+                Log.Information($"[OnProcessStopped] Application stopped: PID {pid}, Path: {exePath}");
 
                 var recordingPid = Settings.Instance.State.Recording?.Pid;
                 var preRecordingPid = Settings.Instance.State.PreRecording?.Pid;
@@ -296,7 +295,7 @@ namespace Segra.Backend.Services
 
         private static bool ContainsBlacklistedTextInFilePath(string exePath)
         {
-            string[] blacklistedPathTexts = ["wallpaper_engine", "launcher", "overlay", "CrashHandler", "bootstrapper"];
+            string[] blacklistedPathTexts = ["anticheat", "anti-cheat", "wallpaper_engine", "launcher", "overlay", "crashhandler", "crashreporter", "errorreporter", "bugreport", "bootstrapper", "install", "msedgewebview2", "cefsharp", "webhelper", "_eac"];
 
             foreach (var text in blacklistedPathTexts)
             {
@@ -319,12 +318,18 @@ namespace Segra.Backend.Services
                 string windowClass = string.Empty;
 
                 // Array of blacklisted words in file descriptions
-                string[] blacklistedWords = ["anticheat", "loader", "launcher", "overlay"];
+                string[] blacklistedWords = ["anticheat", "anti-cheat", "redistributable", "loader", "launcher", "overlay", "error", "setup", "uninstall", "browser"];
 
                 if (File.Exists(exePath))
                 {
                     FileVersionInfo fileInfo = FileVersionInfo.GetVersionInfo(exePath);
                     fileDescription = fileInfo.FileDescription ?? string.Empty;
+
+                    // Fallback: if FileVersionInfo returned empty, try Shell32 API
+                    if (string.IsNullOrEmpty(fileDescription))
+                    {
+                        fileDescription = GetFileDescriptionViaShell(exePath);
+                    }
 
                     // Prevent logging file description for periodic checks (to avoid spamming and for security concerns)
                     if (!isPeriodicCheck)
@@ -574,6 +579,94 @@ namespace Segra.Backend.Services
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
+
+        // Shell32 COM interop for file description fallback
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
+        private struct PROPERTYKEY
+        {
+            public Guid fmtid;
+            public uint pid;
+        }
+
+        private static readonly PROPERTYKEY PKEY_FileDescription = new PROPERTYKEY
+        {
+            fmtid = new Guid("0CEF7D53-FA64-11D1-A203-0000F81FEDEE"),
+            pid = 3
+        };
+
+        [ComImport]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        [Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE")]
+        private interface IShellItem
+        {
+            // We only need the interface GUID for QueryInterface; no methods called directly.
+        }
+
+        [ComImport]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        [Guid("7E9FB0D3-919F-4307-AB2E-9B1860310C93")]
+        private interface IShellItem2
+        {
+            // IShellItem methods (slots 0-4) - must be declared to keep vtable layout
+            void BindToHandler(IntPtr pbc, [In] ref Guid bhid, [In] ref Guid riid, out IntPtr ppv);
+            void GetParent(out IShellItem ppsi);
+            void GetDisplayName(uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
+            void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
+            void Compare(IShellItem psi, uint hint, out int piOrder);
+
+            // IShellItem2 methods
+            void GetPropertyStore(int flags, [In] ref Guid riid, out IntPtr ppv);
+            void GetPropertyStoreWithCreateObject(int flags, IntPtr punkCreateObject, [In] ref Guid riid, out IntPtr ppv);
+            void GetPropertyStoreForKeys(IntPtr rgKeys, uint cKeys, int flags, [In] ref Guid riid, out IntPtr ppv);
+            void GetPropertyDescriptionList(ref PROPERTYKEY keyType, [In] ref Guid riid, out IntPtr ppv);
+            void Update(IntPtr pbc);
+            void GetProperty(ref PROPERTYKEY key, IntPtr ppropvar);
+            void GetCLSID(ref PROPERTYKEY key, out Guid pclsid);
+            void GetFileTime(ref PROPERTYKEY key, out long pft);
+            void GetInt32(ref PROPERTYKEY key, out int pi);
+            [PreserveSig]
+            int GetString(ref PROPERTYKEY key, [MarshalAs(UnmanagedType.LPWStr)] out string ppsz);
+            void GetUInt32(ref PROPERTYKEY key, out uint pui);
+            void GetUInt64(ref PROPERTYKEY key, out ulong pull);
+            void GetBool(ref PROPERTYKEY key, [MarshalAs(UnmanagedType.Bool)] out bool pf);
+        }
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+        private static extern void SHCreateItemFromParsingName(
+            [In] string pszPath,
+            IntPtr pbc,
+            [In] ref Guid riid,
+            [MarshalAs(UnmanagedType.Interface)] out IShellItem2 ppv);
+
+        private static string GetFileDescriptionViaShell(string exePath)
+        {
+            IShellItem2? shellItem = null;
+            try
+            {
+                Guid iid = typeof(IShellItem2).GUID;
+                SHCreateItemFromParsingName(exePath, IntPtr.Zero, ref iid, out shellItem);
+
+                var key = PKEY_FileDescription;
+                int hr = shellItem.GetString(ref key, out string description);
+                if (hr == 0 && !string.IsNullOrEmpty(description))
+                {
+                    return description;
+                }
+            }
+            catch
+            {
+                // Shell API not available or failed
+            }
+            finally
+            {
+                if (shellItem != null)
+                {
+                    Marshal.ReleaseComObject(shellItem);
+                }
+            }
+
+            return string.Empty;
+        }
 
         private static string ExtractGameName(string exePath)
         {
