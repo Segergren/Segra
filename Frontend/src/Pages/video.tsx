@@ -71,7 +71,7 @@ function TopInfoBar({ video }: { video: Content }) {
       });
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1 mb-2 text-xs leading-tight text-gray-300 border rounded-lg bg-base-300 border-custom">
+    <div className="flex items-center gap-2 px-2 py-1 mb-2 text-xs leading-tight text-gray-300 border rounded-lg bg-base-300 border-base-400">
       <Button
         variant="ghost"
         size="xs"
@@ -1704,16 +1704,16 @@ export default function VideoComponent({ video }: { video: Content }) {
           </div>
           <div className="flex items-center justify-between gap-4 py-1">
             <div className="flex items-center gap-3">
-              <div className="flex items-center border rounded-lg join bg-base-300 border-custom">
+              <div className="flex items-center border rounded-lg join bg-base-300 border-base-400">
                 <button
                   onClick={() => skipTime(-10)}
-                  className="h-10 text-gray-400 btn btn-sm btn-secondary hover:text-accent join-item"
+                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
                 >
                   <MdReplay10 className="w-6 h-6" />
                 </button>
                 <button
                   onClick={handlePlayPause}
-                  className="h-10 text-gray-400 btn btn-sm btn-secondary hover:text-accent join-item"
+                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
                   data-tip={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? (
@@ -1724,7 +1724,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 </button>
                 <button
                   onClick={() => skipTime(10)}
-                  className="h-10 text-gray-400 btn btn-sm btn-secondary hover:text-accent join-item"
+                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
                   data-tip="Forward 10s"
                 >
                   <MdForward10 className="w-6 h-6" />
@@ -1778,12 +1778,12 @@ export default function VideoComponent({ video }: { video: Content }) {
               {(video.type === 'Session' || video.type === 'Buffer') && (
                 <>
                   {availableBookmarkTypes.length > 0 && (
-                    <div className="flex items-center h-10 gap-0 px-0 border rounded-lg bg-base-300 join border-custom">
+                    <div className="flex items-center h-10 gap-0 px-0 border rounded-lg bg-base-300 join border-base-400">
                       {availableBookmarkTypes.map((type) => (
                         <button
                           key={type}
                           onClick={() => toggleBookmarkType(type)}
-                          className={`btn btn-sm btn-secondary border-none transition-colors join-item ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-400'}`}
+                          className={`btn btn-sm btn-secondary border-none transition-colors join-item ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
                         >
                           {React.createElement(iconMapping[type] || IoSkull, {
                             className: 'w-6 h-6',
@@ -1805,7 +1805,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 </>
               )}
 
-              <div className="flex items-center h-10 gap-1 px-0 border rounded-lg bg-base-300 border-custom">
+              <div className="flex items-center h-10 gap-1 px-0 border rounded-lg bg-base-300 border-base-400">
                 <button
                   onClick={() => handleZoomChange(false)}
                   className="btn btn-sm btn-secondary disabled:opacity-100 disabled:bg-base-300"
@@ -1828,7 +1828,7 @@ export default function VideoComponent({ video }: { video: Content }) {
           </div>
         </div>
         {(video.type === 'Session' || video.type === 'Buffer') && (
-          <div className="flex flex-col h-full pt-4 pl-4 pr-1 border-l bg-base-300 text-neutral-content w-52 2xl:w-72 border-custom">
+          <div className="flex flex-col h-full pt-4 pl-4 pr-1 border-l bg-base-300 text-neutral-content w-52 2xl:w-72 border-base-400">
             <div className="flex-1 p-1 mt-1 overflow-y-scroll">
               {selections.map((sel, index) => (
                 <SelectionCard

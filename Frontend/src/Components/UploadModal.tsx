@@ -54,17 +54,11 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
     <>
       <div className="bg-base-300">
         <div className="modal-header">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon
-            className="absolute right-4 top-1 z-10"
-            onClick={onClose}
-          >
+          <Button variant="ghost" icon className="absolute right-2 top-1 z-10" onClick={onClose}>
             ✕
           </Button>
         </div>
-        <div className="modal-body pt-8">
+        <div className="modal-body pt-3">
           <div className="form-control w-full">
             <label className="label">
               <span className="label-text text-base-content">Title</span>
