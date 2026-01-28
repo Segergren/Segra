@@ -295,7 +295,7 @@ namespace Segra.Backend.Services
 
         private static bool ContainsBlacklistedTextInFilePath(string exePath)
         {
-            string[] blacklistedPathTexts = ["anticheat", "anti-cheat", "wallpaper_engine", "launcher", "overlay", "crashhandler", "crashreporter", "errorreporter", "bugreport", "bootstrapper", "install", "msedgewebview2", "cefsharp", "webhelper", "_eac"];
+            string[] blacklistedPathTexts = GameUtils.GetBlacklistedPathTexts();
 
             foreach (var text in blacklistedPathTexts)
             {
@@ -317,8 +317,8 @@ namespace Segra.Backend.Services
                 string windowTitle = string.Empty;
                 string windowClass = string.Empty;
 
-                // Array of blacklisted words in file descriptions
-                string[] blacklistedWords = ["anticheat", "anti-cheat", "redistributable", "loader", "launcher", "overlay", "error", "setup", "uninstall", "browser"];
+                // Get blacklisted words from loaded blacklist
+                string[] blacklistedWords = GameUtils.GetBlacklistedWords();
 
                 if (File.Exists(exePath))
                 {

@@ -12,6 +12,7 @@ namespace Segra.Backend.Games
         private static Dictionary<string, int> _exeToIgdbId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private static Dictionary<string, string> _exeToCoverImageId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static List<GameEntry> _gamesList = new List<GameEntry>();
+        private static BlacklistEntry _blacklist = new BlacklistEntry();
         private static bool _isInitialized = false;
 
         public static async Task InitializeAsync()
@@ -20,6 +21,8 @@ namespace Segra.Backend.Games
 
             await DownloadGamesJsonIfNeededAsync();
             LoadGamesFromJson();
+            await DownloadBlacklistJsonIfNeededAsync();
+            LoadBlacklistFromJson();
             _isInitialized = true;
         }
 
@@ -146,6 +149,10 @@ namespace Segra.Backend.Games
             return null;
         }
 
+        public static string[] GetBlacklistedPathTexts() => _blacklist.PathTexts;
+
+        public static string[] GetBlacklistedWords() => _blacklist.DescriptionWords;
+
         public static List<GameEntry> GetGameList()
         {
             return _gamesList.Select(game => new GameEntry
@@ -206,6 +213,107 @@ namespace Segra.Backend.Games
             }
 
             _ = MessageService.SendFrontendMessage("GameList", GetGameList());
+        }
+
+        private static async Task DownloadBlacklistJsonIfNeededAsync()
+        {
+            string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
+            Directory.CreateDirectory(appDataDir); // Ensure directory exists
+
+            string jsonPath = Path.Combine(appDataDir, "blacklist.json");
+            string cdnUrl = "https://cdn.segra.tv/games/blacklist.json";
+
+            using (var httpClient = new HttpClient())
+            {
+                httpClient.DefaultRequestHeaders.Add("User-Agent", "Segra");
+
+                try
+                {
+                    // Send HEAD request to check Last-Modified header
+                    var headRequest = new HttpRequestMessage(HttpMethod.Head, cdnUrl);
+                    var headResponse = await httpClient.SendAsync(headRequest);
+
+                    if (!headResponse.IsSuccessStatusCode)
+                    {
+                        Log.Error($"Failed to fetch metadata from {cdnUrl}. Status: {headResponse.StatusCode}");
+                        return;
+                    }
+
+                    DateTimeOffset? remoteLastModified = headResponse.Content.Headers.LastModified;
+
+                    // Check if we need to download
+                    bool shouldDownload = false;
+
+                    if (!File.Exists(jsonPath))
+                    {
+                        Log.Information("Local blacklist.json not found. Downloading...");
+                        shouldDownload = true;
+                    }
+                    else if (remoteLastModified == null)
+                    {
+                        Log.Warning("Last-Modified header not found. Downloading blacklist.json anyway.");
+                        shouldDownload = true;
+                    }
+                    else
+                    {
+                        // Compare remote Last-Modified with local file's last write time
+                        var localLastModified = File.GetLastWriteTimeUtc(jsonPath);
+
+                        if (localLastModified >= remoteLastModified.Value.UtcDateTime)
+                        {
+                            Log.Information("Local blacklist.json is up to date. Skipping download.");
+                            return;
+                        }
+                        else
+                        {
+                            Log.Information("Remote blacklist.json is newer. Downloading new version.");
+                            shouldDownload = true;
+                        }
+                    }
+
+                    if (shouldDownload)
+                    {
+                        var jsonBytes = await httpClient.GetByteArrayAsync(cdnUrl);
+                        await File.WriteAllBytesAsync(jsonPath, jsonBytes);
+
+                        // Set the file's last write time to match the remote Last-Modified timestamp
+                        if (remoteLastModified != null)
+                        {
+                            File.SetLastWriteTimeUtc(jsonPath, remoteLastModified.Value.UtcDateTime);
+                        }
+
+                        Log.Information("Blacklist download complete");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error downloading blacklist.json");
+                }
+            }
+        }
+
+        private static void LoadBlacklistFromJson()
+        {
+            string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
+            string jsonPath = Path.Combine(appDataDir, "blacklist.json");
+
+            if (!File.Exists(jsonPath))
+            {
+                Log.Warning("blacklist.json file not found.");
+                return;
+            }
+
+            try
+            {
+                string jsonContent = File.ReadAllText(jsonPath);
+                _blacklist = JsonSerializer.Deserialize<BlacklistEntry>(jsonContent) ?? new BlacklistEntry();
+
+                Log.Information($"Loaded blacklist with {_blacklist.PathTexts.Length} path texts and {_blacklist.DescriptionWords.Length} description words from blacklist.json");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error loading blacklist.json");
+            }
         }
 
         private static async Task DownloadGamesJsonIfNeededAsync()
@@ -307,6 +415,15 @@ namespace Segra.Backend.Games
 
             [JsonPropertyName("cover_image_id")]
             public string? CoverImageId { get; set; }
+        }
+
+        public class BlacklistEntry
+        {
+            [JsonPropertyName("path_texts")]
+            public string[] PathTexts { get; set; } = [];
+
+            [JsonPropertyName("description_words")]
+            public string[] DescriptionWords { get; set; } = [];
         }
     }
 }
