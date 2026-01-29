@@ -83,6 +83,22 @@ export default function UISettingsSection({
             </label>
           </div>
           <div className="flex items-center">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="discardSessionsWithoutBookmarks"
+                checked={settings.discardSessionsWithoutBookmarks}
+                onChange={(e) =>
+                  updateSettings({ discardSessionsWithoutBookmarks: e.target.checked })
+                }
+                className="checkbox checkbox-primary checkbox-sm"
+              />
+              <span className="flex items-center gap-1 cursor-pointer">
+                Discard Session Recordings Without Manual Bookmarks
+              </span>
+            </label>
+          </div>
+          <div className="flex items-center">
             <label className="label cursor-pointer justify-start gap-2 px-0">
               <input
                 type="checkbox"

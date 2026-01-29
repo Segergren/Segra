@@ -70,6 +70,7 @@ namespace Segra.Backend.Core.Models
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "standard";
         private bool _removeOriginalAfterCompression = false;
+        private bool _discardSessionsWithoutBookmarks = false;
         private GameIntegrations _gameIntegrations = new GameIntegrations();
 
         // Returns the default keybindings
@@ -741,6 +742,19 @@ namespace Segra.Backend.Core.Models
                 if (_removeOriginalAfterCompression != value)
                 {
                     _removeOriginalAfterCompression = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("discardSessionsWithoutBookmarks")]
+        public bool DiscardSessionsWithoutBookmarks
+        {
+            get => _discardSessionsWithoutBookmarks;
+            set
+            {
+                if (_discardSessionsWithoutBookmarks != value)
+                {
+                    _discardSessionsWithoutBookmarks = value;
                 }
             }
         }

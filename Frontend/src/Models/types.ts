@@ -249,6 +249,7 @@ export interface Settings {
   videoQualityPreset: VideoQualityPreset;
   clipQualityPreset: ClipQualityPreset;
   removeOriginalAfterCompression: boolean;
+  discardSessionsWithoutBookmarks: boolean;
   state: State;
 }
 
@@ -316,6 +317,7 @@ export const initialSettings: Settings = {
   videoQualityPreset: 'high',
   clipQualityPreset: 'standard',
   removeOriginalAfterCompression: false,
+  discardSessionsWithoutBookmarks: false,
   keybindings: [
     { keys: [119], action: KeybindAction.CreateBookmark, enabled: true }, // 119 is F8
     { keys: [121], action: KeybindAction.SaveReplayBuffer, enabled: true }, // 121 is F10

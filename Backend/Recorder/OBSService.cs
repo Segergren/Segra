@@ -983,21 +983,42 @@ namespace Segra.Backend.Recorder
                     // Might be null or empty if the recording failed to start
                     if (Settings.Instance.State.Recording != null && Settings.Instance.State.Recording.FilePath != null)
                     {
-                        // Ensure file is fully written to disk/network before thumbnail generation
-                        await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
+                        // Check if we should discard the session due to no manual bookmarks
+                        bool hasManualBookmarks = Settings.Instance.State.Recording.Bookmarks.Any(b => b.Type == BookmarkType.Manual);
+                        if (Settings.Instance.DiscardSessionsWithoutBookmarks && !hasManualBookmarks)
+                        {
+                            Log.Information("Discarding session recording without manual bookmarks");
+                            try
+                            {
+                                if (File.Exists(Settings.Instance.State.Recording.FilePath))
+                                {
+                                    File.Delete(Settings.Instance.State.Recording.FilePath);
+                                    Log.Information($"Deleted video file: {Settings.Instance.State.Recording.FilePath}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Warning($"Failed to delete discarded session file: {ex.Message}");
+                            }
+                        }
+                        else
+                        {
+                            // Ensure file is fully written to disk/network before thumbnail generation
+                            await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
 
-                        int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath)
-                            ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath)
-                            : null;
-                        await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
-                        await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
-                        await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
+                            int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath)
+                                ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath)
+                                : null;
+                            await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
+                            await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
+                            await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
 
-                        Log.Information($"Recording details:");
-                        Log.Information($"Start Time: {Settings.Instance.State.Recording.StartTime}");
-                        Log.Information($"End Time: {Settings.Instance.State.Recording.EndTime}");
-                        Log.Information($"Duration: {Settings.Instance.State.Recording.Duration}");
-                        Log.Information($"File Path: {Settings.Instance.State.Recording.FilePath}");
+                            Log.Information($"Recording details:");
+                            Log.Information($"Start Time: {Settings.Instance.State.Recording.StartTime}");
+                            Log.Information($"End Time: {Settings.Instance.State.Recording.EndTime}");
+                            Log.Information($"Duration: {Settings.Instance.State.Recording.Duration}");
+                            Log.Information($"File Path: {Settings.Instance.State.Recording.FilePath}");
+                        }
                     }
 
                     await SettingsService.LoadContentFromFolderIntoState(false);
@@ -1058,15 +1079,36 @@ namespace Segra.Backend.Recorder
 
                     if (Settings.Instance.State.Recording != null && Settings.Instance.State.Recording.FilePath != null)
                     {
-                        // Ensure file is fully written to disk/network before thumbnail generation
-                        await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
+                        // Check if we should discard the session due to no manual bookmarks
+                        bool hasManualBookmarks = Settings.Instance.State.Recording.Bookmarks.Any(b => b.Type == BookmarkType.Manual);
+                        if (Settings.Instance.DiscardSessionsWithoutBookmarks && !hasManualBookmarks)
+                        {
+                            Log.Information("Hybrid: Discarding session recording without manual bookmarks");
+                            try
+                            {
+                                if (File.Exists(Settings.Instance.State.Recording.FilePath))
+                                {
+                                    File.Delete(Settings.Instance.State.Recording.FilePath);
+                                    Log.Information($"Deleted video file: {Settings.Instance.State.Recording.FilePath}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Warning($"Failed to delete discarded session file: {ex.Message}");
+                            }
+                        }
+                        else
+                        {
+                            // Ensure file is fully written to disk/network before thumbnail generation
+                            await EnsureFileReady(Settings.Instance.State.Recording.FilePath!);
 
-                        int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath)
-                            ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath)
-                            : null;
-                        await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
-                        await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
-                        await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
+                            int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath)
+                                ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath)
+                                : null;
+                            await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
+                            await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
+                            await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
+                        }
                     }
 
                     await SettingsService.LoadContentFromFolderIntoState(false);

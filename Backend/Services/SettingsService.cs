@@ -368,6 +368,14 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update DiscardSessionsWithoutBookmarks
+            if (settings.DiscardSessionsWithoutBookmarks != updatedSettings.DiscardSessionsWithoutBookmarks)
+            {
+                Log.Information($"DiscardSessionsWithoutBookmarks changed from '{settings.DiscardSessionsWithoutBookmarks}' to '{updatedSettings.DiscardSessionsWithoutBookmarks}'");
+                settings.DiscardSessionsWithoutBookmarks = updatedSettings.DiscardSessionsWithoutBookmarks;
+                hasChanges = true;
+            }
+
             // Update GameIntegrations
             if (updatedSettings.GameIntegrations != null)
             {
