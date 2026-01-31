@@ -478,54 +478,64 @@ namespace Segra.Backend.Recorder
 
             _isGameCaptureHooked = false;
 
-            // Create game capture source
-            try
+            // For manual recording, use display capture directly without game hooking
+            if (startManually)
             {
-                if (Settings.Instance.RecordWindowedApplications)
+                Log.Information("Manual recording started - using display capture");
+                AddMonitorCapture();
+                if (_displaySource != null)
                 {
-                    _gameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
-                    _gameCaptureSource.SetWindow($"*:*:{fileName}");
-                    Log.Information($"Game capture configured for windowed applications: {fileName}");
+                    Obs.SetOutputSource(0, _displaySource);
                 }
-                else
-                {
-                    _gameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.AnyFullscreen);
-                    Log.Information("Game capture configured for fullscreen applications only");
-                }
-
-                // Set game capture as output source on channel 0
-                Obs.SetOutputSource(0, _gameCaptureSource);
-
-                // If display capture is enabled, start a timer to check if game capture hooks within 90 seconds
-                if (Settings.Instance.EnableDisplayRecording)
-                {
-                    StartGameCaptureHookTimeoutTimer();
-                }
-
-                // Connect to 'hooked' and 'unhooked' signals for game capture
-                _hookedConnection = _gameCaptureSource!.ConnectSignal(SourceSignal.Hooked, OnGameCaptureHooked);
-                _unhookedConnection = _gameCaptureSource.ConnectSignal(SourceSignal.Unhooked, OnGameCaptureUnhooked);
             }
-            catch (Exception ex)
+            else
             {
-                Log.Warning($"Game Capture source not available: {ex.Message}. Falling back to Display Capture.");
-                _gameCaptureSource = null;
-                if (Settings.Instance.EnableDisplayRecording)
+                // Create game capture source for automatic game detection
+                try
                 {
-                    AddMonitorCapture();
-                    if (_displaySource != null)
+                    if (Settings.Instance.RecordWindowedApplications)
                     {
-                        Obs.SetOutputSource(0, _displaySource);
+                        _gameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
+                        _gameCaptureSource.SetWindow($"*:*:{fileName}");
+                        Log.Information($"Game capture configured for windowed applications: {fileName}");
+                    }
+                    else
+                    {
+                        _gameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.AnyFullscreen);
+                        Log.Information("Game capture configured for fullscreen applications only");
+                    }
+
+                    // Set game capture as output source on channel 0
+                    Obs.SetOutputSource(0, _gameCaptureSource);
+
+                    // If display capture is enabled, start a timer to check if game capture hooks within 90 seconds
+                    if (Settings.Instance.EnableDisplayRecording)
+                    {
+                        StartGameCaptureHookTimeoutTimer();
+                    }
+
+                    // Connect to 'hooked' and 'unhooked' signals for game capture
+                    _hookedConnection = _gameCaptureSource!.ConnectSignal(SourceSignal.Hooked, OnGameCaptureHooked);
+                    _unhookedConnection = _gameCaptureSource.ConnectSignal(SourceSignal.Unhooked, OnGameCaptureUnhooked);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Game Capture source not available: {ex.Message}. Falling back to Display Capture.");
+                    _gameCaptureSource = null;
+                    if (Settings.Instance.EnableDisplayRecording)
+                    {
+                        AddMonitorCapture();
+                        if (_displaySource != null)
+                        {
+                            Obs.SetOutputSource(0, _displaySource);
+                        }
+                    }
+                    else
+                    {
+                        _ = Task.Run(() => ShowModal("Game Capture unavailable", "Game Capture plugin not found. Enable Display Recording in settings to proceed.", "warning"));
                     }
                 }
-                else
-                {
-                    _ = Task.Run(() => ShowModal("Game Capture unavailable", "Game Capture plugin not found. Enable Display Recording in settings to proceed.", "warning"));
-                }
-            }
 
-            if (!startManually)
-            {
                 bool success = WaitForGameToStart();
                 if (!success)
                 {
@@ -535,53 +545,53 @@ namespace Segra.Backend.Recorder
                     _ = Task.Run(StopRecording);
                     return false;
                 }
-            }
 
-            // Reset video settings to set correct output width for games with custom resolution
-            Task.Delay(500).Wait();
+                // Reset video settings to set correct output width for games with custom resolution
+                Task.Delay(500).Wait();
 
-            // If recording windowed applications, try to get the window dimensions
-            if (Settings.Instance.RecordWindowedApplications)
-            {
-                if (WindowUtils.GetWindowDimensionsByExe(fileName, out uint windowWidth, out uint windowHeight))
+                // If recording windowed applications, try to get the window dimensions
+                if (Settings.Instance.RecordWindowedApplications)
                 {
-                    ResetVideoSettings(
-                        customFps: (uint)Settings.Instance.FrameRate,
-                        customOutputWidth: windowWidth,
-                        customOutputHeight: windowHeight
-                    );
+                    if (WindowUtils.GetWindowDimensionsByExe(fileName, out uint windowWidth, out uint windowHeight))
+                    {
+                        ResetVideoSettings(
+                            customFps: (uint)Settings.Instance.FrameRate,
+                            customOutputWidth: windowWidth,
+                            customOutputHeight: windowHeight
+                        );
+                    }
+                    else
+                    {
+                        Log.Warning("Could not determine window size, using default video settings");
+                        ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
+                    }
                 }
                 else
                 {
-                    Log.Warning("Could not determine window size, using default video settings");
                     ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
                 }
-            }
-            else
-            {
-                ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
-            }
 
-            Task.Delay(1000).Wait();
+                Task.Delay(1000).Wait();
 
-            // If display recording is disabled, wait for game capture to hook
-            if (!Settings.Instance.EnableDisplayRecording && _gameCaptureSource != null)
-            {
-                bool hooked = WaitUntilGameCaptureHooks(startManually ? 90000 : 30000);
-                if (!hooked)
+                // If display recording is disabled, wait for game capture to hook
+                if (!Settings.Instance.EnableDisplayRecording && _gameCaptureSource != null)
                 {
-                    Settings.Instance.State.Recording = null;
-                    Settings.Instance.State.PreRecording = null;
-                    _ = MessageService.SendSettingsToFrontend("Game did not hook within the timeout period");
-                    _ = Task.Run(StopRecording);
-                    return false;
+                    bool hooked = WaitUntilGameCaptureHooks(30000);
+                    if (!hooked)
+                    {
+                        Settings.Instance.State.Recording = null;
+                        Settings.Instance.State.PreRecording = null;
+                        _ = MessageService.SendSettingsToFrontend("Game did not hook within the timeout period");
+                        _ = Task.Run(StopRecording);
+                        return false;
+                    }
                 }
-            }
 
-            // Add monitor capture if enabled and game capture has not hooked yet
-            if (Settings.Instance.EnableDisplayRecording && !_isGameCaptureHooked && _gameCaptureSource != null)
-            {
-                AddMonitorCapture();
+                // Add monitor capture if enabled and game capture has not hooked yet
+                if (Settings.Instance.EnableDisplayRecording && !_isGameCaptureHooked && _gameCaptureSource != null)
+                {
+                    AddMonitorCapture();
+                }
             }
 
             // Create video encoder
