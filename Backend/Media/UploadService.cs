@@ -17,40 +17,85 @@ namespace Segra.Backend.Media
             Timeout = TimeSpan.FromMinutes(10)
         };
 
+        private static readonly Dictionary<string, CancellationTokenSource> _activeUploads = new();
+        private static readonly object _uploadLock = new();
+
+        public static void CancelUpload(string fileName)
+        {
+            Log.Information($"[Upload] Cancel requested for: {fileName}");
+
+            lock (_uploadLock)
+            {
+                if (_activeUploads.TryGetValue(fileName, out var cts))
+                {
+                    cts.Cancel();
+                    Log.Information($"[Upload] Cancelled upload for: {fileName}");
+                }
+                else
+                {
+                    Log.Warning($"[Upload] No active upload found for: {fileName}");
+                }
+            }
+        }
+
         public static async Task HandleUploadContent(JsonElement message)
         {
+            string fileName = "";
+            string title = "";
+            CancellationTokenSource? cts = null;
+
             try
             {
                 string filePath = message.GetProperty("FilePath").GetString()!;
-                string fileName = Path.GetFileName(filePath);
+                fileName = Path.GetFileName(filePath);
                 string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
-                string title = message.GetProperty("Title").GetString()!;
+                title = message.GetProperty("Title").GetString()!;
 
-                byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
+                cts = new CancellationTokenSource();
+                lock (_uploadLock)
+                {
+                    _activeUploads[fileName] = cts;
+                }
+
+                byte[] fileBytes = await File.ReadAllBytesAsync(filePath, cts.Token);
                 using var formData = new MultipartFormDataContent();
 
-                int lastSentProgress = 0;
+                int lastSentProgress = -1;
                 void ProgressHandler(long sent, long total)
                 {
                     if (total <= 0) return;
                     int progress = (int)(sent / (double)total * 100);
-                    if (progress >= 100) return;
 
-                    if (progress % 10 == 0 && progress != lastSentProgress)
+                    if (progress != lastSentProgress)
                     {
                         lastSentProgress = progress;
-                        _ = MessageService.SendFrontendMessage("UploadProgress", new
+
+                        if (progress >= 100)
                         {
-                            title,
-                            fileName,
-                            progress,
-                            status = "uploading",
-                            message = $"Uploading... {progress}%"
-                        });
+                            _ = MessageService.SendFrontendMessage("UploadProgress", new
+                            {
+                                title,
+                                fileName,
+                                progress = 100,
+                                status = "processing",
+                                message = "Processing..."
+                            });
+                        }
+                        else
+                        {
+                            _ = MessageService.SendFrontendMessage("UploadProgress", new
+                            {
+                                title,
+                                fileName,
+                                progress,
+                                status = "uploading",
+                                message = $"Uploading... {progress}%"
+                            });
+                        }
                     }
                 }
 
-                var fileContent = new ProgressableStreamContent(fileBytes, "application/octet-stream", ProgressHandler);
+                var fileContent = new ProgressableStreamContent(fileBytes, "application/octet-stream", ProgressHandler, cts.Token);
                 formData.Add(fileContent, "file", fileName);
 
                 AddOptionalContent(formData, message, "Game");
@@ -73,8 +118,13 @@ namespace Segra.Backend.Media
                 };
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await AuthService.GetJwtAsync());
 
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, cts.Token);
                 response.EnsureSuccessStatusCode();
+
+                lock (_uploadLock)
+                {
+                    _activeUploads.Remove(fileName);
+                }
 
                 await MessageService.SendFrontendMessage("UploadProgress", new
                 {
@@ -154,11 +204,33 @@ namespace Segra.Backend.Media
                     }
                 }
             }
+            catch (OperationCanceledException)
+            {
+                Log.Information($"[Upload] Upload cancelled for: {fileName}");
+
+                lock (_uploadLock)
+                {
+                    _activeUploads.Remove(fileName);
+                }
+
+                await MessageService.SendFrontendMessage("UploadProgress", new
+                {
+                    title,
+                    fileName,
+                    progress = 0,
+                    status = "error",
+                    message = "Upload cancelled"
+                });
+            }
             catch (Exception ex)
             {
                 Log.Error($"Upload failed: {ex.Message}");
-                string errorFileName = message.GetProperty("FilePath").GetString()!;
-                string errorTitle = message.GetProperty("Title").GetString()!;
+
+                lock (_uploadLock)
+                {
+                    if (!string.IsNullOrEmpty(fileName))
+                        _activeUploads.Remove(fileName);
+                }
 
                 await MessageService.ShowModal(
                     "Upload Error",
@@ -169,12 +241,16 @@ namespace Segra.Backend.Media
 
                 await MessageService.SendFrontendMessage("UploadProgress", new
                 {
-                    title = errorTitle,
-                    fileName = Path.GetFileName(errorFileName),
+                    title,
+                    fileName,
                     progress = 0,
                     status = "error",
                     message = ex.Message
                 });
+            }
+            finally
+            {
+                cts?.Dispose();
             }
         }
 
@@ -190,11 +266,13 @@ namespace Segra.Backend.Media
         {
             private readonly byte[] _content;
             private readonly Action<long, long> _progressCallback;
+            private readonly CancellationToken _cancellationToken;
 
-            public ProgressableStreamContent(byte[] content, string mediaType, Action<long, long> progressCallback)
+            public ProgressableStreamContent(byte[] content, string mediaType, Action<long, long> progressCallback, CancellationToken cancellationToken = default)
             {
                 _content = content ?? throw new ArgumentNullException(nameof(content));
                 _progressCallback = progressCallback;
+                _cancellationToken = cancellationToken;
                 Headers.ContentType = new MediaTypeHeaderValue(mediaType);
             }
 
@@ -206,8 +284,10 @@ namespace Segra.Backend.Media
 
                 for (int i = 0; i < _content.Length; i += bufferSize)
                 {
+                    _cancellationToken.ThrowIfCancellationRequested();
+
                     int toWrite = Math.Min(bufferSize, _content.Length - i);
-                    await stream.WriteAsync(_content.AsMemory(i, toWrite));
+                    await stream.WriteAsync(_content.AsMemory(i, toWrite), _cancellationToken);
                     totalWritten += toWrite;
                     _progressCallback?.Invoke(totalWritten, totalBytes);
                 }

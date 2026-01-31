@@ -1,4 +1,5 @@
 import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
+import { sendMessageToBackend } from '../Utils/MessageUtils';
 
 export interface UploadProgress {
   title: string;
@@ -11,6 +12,7 @@ export interface UploadProgress {
 interface UploadContextType {
   uploads: Record<string, UploadProgress>;
   removeUpload: (fileName: string) => void;
+  cancelUpload: (fileName: string) => void;
 }
 
 const UploadContext = createContext<UploadContextType | undefined>(undefined);
@@ -54,8 +56,19 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const cancelUpload = (fileName: string) => {
+    sendMessageToBackend('CancelUpload', { fileName });
+    setUploads((prev) => {
+      const newUploads = { ...prev };
+      delete newUploads[fileName];
+      return newUploads;
+    });
+  };
+
   return (
-    <UploadContext.Provider value={{ uploads, removeUpload }}>{children}</UploadContext.Provider>
+    <UploadContext.Provider value={{ uploads, removeUpload, cancelUpload }}>
+      {children}
+    </UploadContext.Provider>
   );
 }
 

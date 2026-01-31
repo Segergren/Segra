@@ -150,6 +150,13 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement uploadContentParameterElement);
                             _ = Task.Run(() => UploadService.HandleUploadContent(uploadContentParameterElement));
                             break;
+                        case "CancelUpload":
+                            if (root.TryGetProperty("Parameters", out var cancelUploadParams) &&
+                                cancelUploadParams.TryGetProperty("fileName", out var uploadFileName))
+                            {
+                                UploadService.CancelUpload(uploadFileName.GetString()!);
+                            }
+                            break;
                         case "OpenFileLocation":
                             root.TryGetProperty("Parameters", out JsonElement openFileLocationParameterElement);
                             openFileLocationParameterElement.TryGetProperty("FilePath", out JsonElement filePathElement);
