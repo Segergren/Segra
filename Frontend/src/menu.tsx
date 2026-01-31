@@ -290,7 +290,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           >
             {settings.state.recording || settings.state.preRecording ? (
               <>
-                <MdOutlineStopCircle className="w-4.5 h-4.5" />
+                <MdOutlineStopCircle className="w-4.5 h-4.5 -mr-1" />
                 Stop
               </>
             ) : (
