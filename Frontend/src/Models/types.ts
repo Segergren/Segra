@@ -216,10 +216,8 @@ export interface Settings {
   inputDevices: DeviceSetting[];
   outputDevices: DeviceSetting[];
   forceMonoInputSources: boolean;
-  enableDisplayRecording: boolean;
   selectedDisplay: Display | null;
   displayCaptureMethod: DisplayCaptureMethod;
-  recordWindowedApplications: boolean;
   selectedOBSVersion: string | null; // null means automatic (latest non-beta)
   enableAi: boolean;
   autoGenerateHighlights: boolean;
@@ -288,10 +286,8 @@ export const initialSettings: Settings = {
   inputDevices: [],
   outputDevices: [],
   forceMonoInputSources: false,
-  enableDisplayRecording: true,
   selectedDisplay: null, // Default to null (auto-select)
   displayCaptureMethod: 'Auto',
-  recordWindowedApplications: false,
   selectedOBSVersion: null, // null means automatic (latest non-beta)
   enableAi: true,
   autoGenerateHighlights: true,

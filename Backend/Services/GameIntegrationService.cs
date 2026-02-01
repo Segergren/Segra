@@ -40,7 +40,7 @@ namespace Segra.Backend.Services
             }
 
             Log.Information($"Starting game integration for: {gameName}");
-            _ = _gameIntegration.Start();
+            //_ = _gameIntegration.Start();
         }
 
         public static async Task Shutdown()

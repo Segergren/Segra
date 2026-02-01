@@ -37,10 +37,8 @@ namespace Segra.Backend.Core.Models
         private List<DeviceSetting> _inputDevices = new List<DeviceSetting>();
         private List<DeviceSetting> _outputDevices = new List<DeviceSetting>();
         private bool _forceMonoInputSources = false;
-        private bool _enableDisplayRecording = true;
         private Display? _selectedDisplay = null;
         private DisplayCaptureMethod _displayCaptureMethod = DisplayCaptureMethod.Auto;
-        private bool _recordWindowedApplications = false;
         private bool _enableAi = true;
         private bool _autoGenerateHighlights = true;
         private bool _runOnStartup = false;
@@ -313,19 +311,6 @@ namespace Segra.Backend.Core.Models
             }
         }
 
-        [JsonPropertyName("enableDisplayRecording")]
-        public bool EnableDisplayRecording
-        {
-            get => _enableDisplayRecording;
-            set
-            {
-                if (_enableDisplayRecording != value)
-                {
-                    _enableDisplayRecording = value;
-                }
-            }
-        }
-
         [JsonPropertyName("selectedDisplay")]
         public Display? SelectedDisplay
         {
@@ -345,19 +330,6 @@ namespace Segra.Backend.Core.Models
                 if (_displayCaptureMethod != value)
                 {
                     _displayCaptureMethod = value;
-                }
-            }
-        }
-
-        [JsonPropertyName("recordWindowedApplications")]
-        public bool RecordWindowedApplications
-        {
-            get => _recordWindowedApplications;
-            set
-            {
-                if (_recordWindowedApplications != value)
-                {
-                    _recordWindowedApplications = value;
                 }
             }
         }
@@ -1176,8 +1148,11 @@ namespace Segra.Backend.Core.Models
 
         private static void UpdateDisplays()
         {
-            DisplayService.LoadAvailableMonitorsIntoState();
-            SendToFrontend("Display change detected");
+            bool hasChanged = DisplayService.LoadAvailableMonitorsIntoState();
+            if (hasChanged)
+            {
+                SendToFrontend("Display change detected");
+            }
         }
 
         public void UpdateRecordingEndTime(DateTime endTime)
@@ -1233,6 +1208,9 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("pid")]
         public int? Pid { get; set; }
+
+        [JsonPropertyName("exe")]
+        public string? Exe { get; set; }
     }
 
     // Recording class

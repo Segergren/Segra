@@ -1,3 +1,4 @@
+using ObsKit.NET.Sources;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Games;
 using Segra.Backend.Recorder;
@@ -125,6 +126,21 @@ namespace Segra.Backend.Services
                 if (string.IsNullOrEmpty(exePath) || exePath.StartsWith("C:\\Windows\\System32\\") || exePath.StartsWith("C:\\Windows\\SysWOW64\\") || exePath.StartsWith("C:\\Program Files\\Git\\")) return;
 
                 Log.Information($"[OnProcessStarted] Application started: PID {pid}, Path: {exePath}");
+
+                if (Settings.Instance.State.PreRecording != null && GameUtils.IsGameExePath(exePath))
+                {
+                    Settings.Instance.State.PreRecording.Exe = exePath;
+                    if (OBSService.GameCaptureSource != null)
+                    {
+                        string fileName = Path.GetFileName(exePath);
+
+                        ObsKit.NET.Core.Settings gameCaptureSettings = OBSService.GameCaptureSource.GetSettings();
+                        gameCaptureSettings.Set("window", $"*:*:{fileName}");
+                        Log.Information($"Updated game capture source to: {fileName}");
+                        OBSService.GameCaptureSource.Update(gameCaptureSettings);
+                    }
+                }
+
                 if (ShouldRecordGame(exePath))
                 {
                     StartGameRecording(pid, exePath);
@@ -183,7 +199,12 @@ namespace Segra.Backend.Services
             }
 
             Log.Information($"[StartGameRecording] Starting recording for game: PID {pid}, Path: {exePath}");
-            OBSService.StartRecording(ExtractGameName(exePath), exePath, pid: pid);
+
+            string gameName = ExtractGameName(exePath);
+            string? coverImageId = GameUtils.GetCoverImageIdFromExePath(exePath);
+
+            Settings.Instance.State.PreRecording = new PreRecording { Game = gameName, Status = "Waiting to start", CoverImageId = coverImageId, Pid = pid, Exe = exePath };
+            OBSService.StartRecording(gameName, exePath, pid: pid);
         }
 
         [DllImport("user32.dll")]

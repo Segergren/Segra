@@ -4,6 +4,7 @@ using ObsKit.NET;
 using ObsKit.NET.Encoders;
 using ObsKit.NET.Native.Types;
 using ObsKit.NET.Outputs;
+using ObsKit.NET.Scenes;
 using ObsKit.NET.Signals;
 using ObsKit.NET.Sources;
 using Segra.Backend.Core.Models;
@@ -73,12 +74,17 @@ namespace Segra.Backend.Recorder
         // OBS context
         private static ObsContext? _obsContext;
 
+        // OBS scene
+        private static Scene? _mainScene;
+        private static SceneItem? _gameCaptureItem;
+        private static SceneItem? _displayItem;
+
         // OBS output resources
         private static RecordingOutput? _output;
         private static ReplayBuffer? _bufferOutput;
 
         // OBS source resources
-        private static GameCapture? _gameCaptureSource;
+        public static GameCapture? GameCaptureSource { get; set; }
         private static MonitorCapture? _displaySource;
         private static readonly List<AudioInputCapture> _micSources = [];
         private static readonly List<AudioOutputCapture> _desktopSources = [];
@@ -90,7 +96,6 @@ namespace Segra.Backend.Recorder
         // Game capture state
         private static string? _hookedExecutableFileName;
         private static System.Threading.Timer? _gameCaptureHookTimeoutTimer = null;
-        private static bool _isGameCaptureHooked = false;
         private static bool _isStillHookedAfterUnhook = false;
 
         // Recording/output state
@@ -99,10 +104,14 @@ namespace Segra.Backend.Recorder
         // Replay buffer state
         private static bool _replaySaved = false;
 
-        // Signal connections - dispose to disconnect
+        // Signal connection for replay buffer saved event
         private static SignalConnection? _replaySavedConnection;
-        private static SignalConnection? _hookedConnection;
-        private static SignalConnection? _unhookedConnection;
+
+        /// <summary>
+        /// Gets whether the game capture is currently hooked.
+        /// Uses the built-in IsHooked property from OBSKit.NET.
+        /// </summary>
+        private static bool IsGameCaptureHooked => GameCaptureSource?.IsHooked ?? false;
 
         // Threading primitives
         private static readonly SemaphoreSlim _stopRecordingSemaphore = new SemaphoreSlim(1, 1);
@@ -226,23 +235,6 @@ namespace Segra.Backend.Recorder
                         _isStillHookedAfterUnhook = true;
                     }
 
-                    if (formattedMessage.Contains("attempting to hook fullscreen process") || formattedMessage.Contains("attempting to hook process"))
-                    {
-                        // Don't update status if the process is in OBS's internal blacklist
-                        bool isBlacklisted = ObsInternalBlacklist.Any(exe => formattedMessage.Contains(exe));
-
-                        if (Settings.Instance.State.PreRecording != null && !isBlacklisted)
-                        {
-                            Settings.Instance.State.PreRecording.Status = "Waiting for game hook";
-
-                            // If display recording is enabled, we don't need to show the "Waiting for game hook" message since it will start immediately.
-                            if (Settings.Instance.EnableDisplayRecording == false)
-                            {
-                                _ = MessageService.SendSettingsToFrontend("Waiting for game hook");
-                            }
-                        }
-                    }
-
                     // Parse window dimensions from OBS game capture logs
                     if (formattedMessage.Contains("BufferDesc.Width:"))
                     {
@@ -335,6 +327,9 @@ namespace Segra.Backend.Recorder
                             }
                         });
                 });
+
+                // Disable auto-dispose for manual resource management
+                Obs.AutoDispose = false;
 
                 InstalledOBSVersion = Obs.Version;
                 Log.Information("OBS version: " + InstalledOBSVersion);
@@ -455,7 +450,6 @@ namespace Segra.Backend.Recorder
                 return false;
             }
 
-            Settings.Instance.State.PreRecording = new PreRecording { Game = name, Status = "Waiting to start", CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath), Pid = pid };
             bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
             bool isSessionMode = Settings.Instance.RecordingMode == RecordingMode.Session;
             bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
@@ -476,123 +470,63 @@ namespace Segra.Backend.Recorder
             // Configure video settings specifically for this recording/buffer
             ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
 
-            _isGameCaptureHooked = false;
+            // Create main scene for this recording
+            _mainScene = new Scene("Recording Scene");
+            Log.Information("Created recording scene");
 
             // For manual recording, use display capture directly without game hooking
             if (startManually)
             {
                 Log.Information("Manual recording started - using display capture");
                 AddMonitorCapture();
-                if (_displaySource != null)
-                {
-                    Obs.SetOutputSource(0, _displaySource);
-                }
             }
             else
             {
+                // Add display capture first (bottom layer - fallback)
+                AddMonitorCapture();
+
                 // Create game capture source for automatic game detection
                 try
                 {
-                    if (Settings.Instance.RecordWindowedApplications)
-                    {
-                        _gameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
-                        _gameCaptureSource.SetWindow($"*:*:{fileName}");
-                        Log.Information($"Game capture configured for windowed applications: {fileName}");
-                    }
-                    else
-                    {
-                        _gameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.AnyFullscreen);
-                        Log.Information("Game capture configured for fullscreen applications only");
-                    }
+                    GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
+                    GameCaptureSource.SetWindow($"*:*:{fileName}");
 
-                    // Set game capture as output source on channel 0
-                    Obs.SetOutputSource(0, _gameCaptureSource);
+                    Log.Information($"Game capture configured for: {fileName}");
 
-                    // If display capture is enabled, start a timer to check if game capture hooks within 90 seconds
-                    if (Settings.Instance.EnableDisplayRecording)
-                    {
-                        StartGameCaptureHookTimeoutTimer();
-                    }
+                    // Add game capture to scene (top layer - visible when hooked)
+                    _gameCaptureItem = _mainScene.AddSource(GameCaptureSource);
 
-                    // Connect to 'hooked' and 'unhooked' signals for game capture
-                    _hookedConnection = _gameCaptureSource!.ConnectSignal(SourceSignal.Hooked, OnGameCaptureHooked);
-                    _unhookedConnection = _gameCaptureSource.ConnectSignal(SourceSignal.Unhooked, OnGameCaptureUnhooked);
+                    // Start a timer to check if game capture hooks within 90 seconds
+                    StartGameCaptureHookTimeoutTimer();
+
+                    // Subscribe to GameCapture's hooked/unhooked events (IsHooked is tracked automatically)
+                    GameCaptureSource!.Hooked += OnGameCaptureHookedEvent;
+                    GameCaptureSource.Unhooked += OnGameCaptureUnhookedEvent;
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning($"Game Capture source not available: {ex.Message}. Falling back to Display Capture.");
-                    _gameCaptureSource = null;
-                    if (Settings.Instance.EnableDisplayRecording)
-                    {
-                        AddMonitorCapture();
-                        if (_displaySource != null)
-                        {
-                            Obs.SetOutputSource(0, _displaySource);
-                        }
-                    }
-                    else
-                    {
-                        _ = Task.Run(() => ShowModal("Game Capture unavailable", "Game Capture plugin not found. Enable Display Recording in settings to proceed.", "warning"));
-                    }
+                    Log.Warning($"Game Capture source not available: {ex.Message}. Using Display Capture only.");
+                    GameCaptureSource = null;
                 }
 
-                bool success = WaitForGameToStart();
-                if (!success)
+                // Try to get the window dimensions for the game
+                if (WindowUtils.GetWindowDimensionsByPreRecordingExeOrPid(out uint windowWidth, out uint windowHeight))
                 {
-                    Settings.Instance.State.Recording = null;
-                    Settings.Instance.State.PreRecording = null;
-                    _ = MessageService.SendSettingsToFrontend("Game did not start within the timeout period");
-                    _ = Task.Run(StopRecording);
-                    return false;
-                }
-
-                // Reset video settings to set correct output width for games with custom resolution
-                Task.Delay(500).Wait();
-
-                // If recording windowed applications, try to get the window dimensions
-                if (Settings.Instance.RecordWindowedApplications)
-                {
-                    if (WindowUtils.GetWindowDimensionsByExe(fileName, out uint windowWidth, out uint windowHeight))
-                    {
-                        ResetVideoSettings(
-                            customFps: (uint)Settings.Instance.FrameRate,
-                            customOutputWidth: windowWidth,
-                            customOutputHeight: windowHeight
-                        );
-                    }
-                    else
-                    {
-                        Log.Warning("Could not determine window size, using default video settings");
-                        ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
-                    }
+                    ResetVideoSettings(
+                        customFps: (uint)Settings.Instance.FrameRate,
+                        customOutputWidth: windowWidth,
+                        customOutputHeight: windowHeight
+                    );
                 }
                 else
                 {
-                    ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
-                }
-
-                Task.Delay(1000).Wait();
-
-                // If display recording is disabled, wait for game capture to hook
-                if (!Settings.Instance.EnableDisplayRecording && _gameCaptureSource != null)
-                {
-                    bool hooked = WaitUntilGameCaptureHooks(30000);
-                    if (!hooked)
-                    {
-                        Settings.Instance.State.Recording = null;
-                        Settings.Instance.State.PreRecording = null;
-                        _ = MessageService.SendSettingsToFrontend("Game did not hook within the timeout period");
-                        _ = Task.Run(StopRecording);
-                        return false;
-                    }
-                }
-
-                // Add monitor capture if enabled and game capture has not hooked yet
-                if (Settings.Instance.EnableDisplayRecording && !_isGameCaptureHooked && _gameCaptureSource != null)
-                {
-                    AddMonitorCapture();
+                    _ = Task.Run(StopRecording);
+                    return false;
                 }
             }
+
+            // Set scene as program output
+            _mainScene.SetAsProgram();
 
             // Create video encoder
             string encoderId = Settings.Instance.Codec!.InternalEncoderId;
@@ -640,11 +574,9 @@ namespace Segra.Backend.Recorder
 
             _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
 
-            // Create audio sources
+            // Create audio sources and add to scene
             if (Settings.Instance.InputDevices != null && Settings.Instance.InputDevices.Count > 0)
             {
-                int audioSourceIndex = 2;
-
                 foreach (var deviceSetting in Settings.Instance.InputDevices)
                 {
                     if (!string.IsNullOrEmpty(deviceSetting.Id))
@@ -657,10 +589,9 @@ namespace Segra.Backend.Recorder
 
                         micSource.Volume = deviceSetting.Volume;
 
-                        Obs.SetOutputSource((uint)audioSourceIndex, micSource);
+                        _mainScene!.AddSource(micSource);
                         _micSources.Add(micSource);
 
-                        audioSourceIndex++;
                         Log.Information($"Added input device: {deviceSetting.Id} as {sourceName} with volume {deviceSetting.Volume}");
                     }
                 }
@@ -668,8 +599,6 @@ namespace Segra.Backend.Recorder
 
             if (Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
             {
-                int desktopSourceIndex = _micSources.Count + 2;
-
                 foreach (var deviceSetting in Settings.Instance.OutputDevices)
                 {
                     if (!string.IsNullOrEmpty(deviceSetting.Id))
@@ -679,10 +608,9 @@ namespace Segra.Backend.Recorder
 
                         desktopSource.Volume = deviceSetting.Volume;
 
-                        Obs.SetOutputSource((uint)desktopSourceIndex, desktopSource);
+                        _mainScene!.AddSource(desktopSource);
                         _desktopSources.Add(desktopSource);
 
-                        desktopSourceIndex++;
                         Log.Information($"Added output device: {deviceSetting.Name} ({deviceSetting.Id}) as {sourceName} with volume {deviceSetting.Volume}");
                     }
                 }
@@ -812,7 +740,8 @@ namespace Segra.Backend.Recorder
             // Overwrite the file name with the hooked executable name if using game hook
             fileName = _hookedExecutableFileName ?? fileName;
 
-            _ = Task.Run(() => PlaySound("start", 50));
+            DateTime? startTime = null;
+            bool hasPlayedStartSound = false;
 
             if (_output != null)
             {
@@ -826,6 +755,11 @@ namespace Segra.Backend.Recorder
                     _ = Task.Run(StopRecording);
                     return false;
                 }
+
+                // Set the exact start time for session recording (Full Session has bookmarks)
+                startTime = DateTime.Now;
+                _ = Task.Run(() => PlaySound("start"));
+                hasPlayedStartSound = true;
 
                 Log.Information("Session recording started successfully");
             }
@@ -843,6 +777,12 @@ namespace Segra.Backend.Recorder
                     return false;
                 }
 
+                if (!hasPlayedStartSound)
+                {
+                    _ = Task.Run(() => PlaySound("start"));
+                    hasPlayedStartSound = true;
+                }
+
                 Log.Information("Replay buffer started successfully");
             }
 
@@ -850,12 +790,12 @@ namespace Segra.Backend.Recorder
 
             Settings.Instance.State.Recording = new Recording()
             {
-                StartTime = DateTime.Now,
+                StartTime = startTime ?? DateTime.Now,
                 Game = name,
                 FilePath = videoOutputPath,
                 FileName = fileName,
                 Pid = pid,
-                IsUsingGameHook = _isGameCaptureHooked,
+                IsUsingGameHook = IsGameCaptureHooked,
                 GameImage = gameImage,
                 ExePath = exePath,
                 CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath)
@@ -874,6 +814,12 @@ namespace Segra.Backend.Recorder
 
         public static void AddMonitorCapture()
         {
+            if (_mainScene == null)
+            {
+                Log.Warning("Cannot add monitor capture: scene not created");
+                return;
+            }
+
             int monitorIndex = 0;
 
             if (Settings.Instance.SelectedDisplay != null)
@@ -903,7 +849,10 @@ namespace Segra.Backend.Recorder
 
             _displaySource = MonitorCapture.FromMonitor(monitorIndex, "display")
                 .SetCaptureMethod(captureMethod);
-            Obs.SetOutputSource(1, _displaySource);
+
+            // Add to scene (display is behind game capture in layer order)
+            _displayItem = _mainScene.AddSource(_displaySource);
+
             Log.Information($"Display capture added for monitor {monitorIndex} using {Settings.Instance.DisplayCaptureMethod} method");
         }
 
@@ -1169,23 +1118,21 @@ namespace Segra.Backend.Recorder
             }
         }
 
-        private static void OnGameCaptureHooked(nint calldata)
+        /// <summary>
+        /// Event handler for GameCapture.Hooked event.
+        /// </summary>
+        private static void OnGameCaptureHookedEvent(GameCapture capture)
         {
-            if (calldata == nint.Zero)
-            {
-                Log.Warning("GameCaptureHooked callback received null calldata pointer.");
-                return;
-            }
-
             try
             {
-                string? title = Calldata.GetString(calldata, "title")?.Trim();
-                string? windowClass = Calldata.GetString(calldata, "class")?.Trim();
-                string? executable = Calldata.GetString(calldata, "executable")?.Trim();
+                // GameCapture now provides hooked info directly via its properties
+                string? title = capture.HookedWindowTitle?.Trim();
+                string? windowClass = capture.HookedWindowClass?.Trim();
+                string? executable = capture.HookedExecutable?.Trim();
 
-                _isGameCaptureHooked = true;
+                // IsHooked is now managed by GameCapture automatically
                 StopGameCaptureHookTimeoutTimer();
-                DisposeDisplaySource();
+
                 Log.Information($"Game hooked: Title='{title}', Class='{windowClass}', Executable='{executable}'");
 
                 // Overwrite the file name with the hooked one because sometimes the current tracked file name is the startup exe instead of the actual game
@@ -1202,13 +1149,17 @@ namespace Segra.Backend.Recorder
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error processing OnGameCaptureHooked signal");
+                Log.Error(ex, "Error processing OnGameCaptureHookedEvent");
             }
         }
 
-        private static void OnGameCaptureUnhooked(nint calldata)
+
+        /// <summary>
+        /// Event handler for GameCapture.Unhooked event.
+        /// </summary>
+        private static void OnGameCaptureUnhookedEvent(GameCapture capture)
         {
-            _isGameCaptureHooked = false;
+            // IsHooked is now managed by GameCapture automatically
             Log.Information("Game unhooked.");
         }
 
@@ -1239,86 +1190,55 @@ namespace Segra.Backend.Recorder
             }
         }
 
-        private static bool WaitForGameToStart(int timeoutMs = 80000)
-        {
-            int elapsed = 0;
-            const int step = 100;
-            Log.Information("Waiting for trying to hook game...");
-            Log.Information("PreRecording Status: {PreRecordingStatus}", Settings.Instance.State.PreRecording?.Status);
-            while (Settings.Instance.State.PreRecording?.Status != "Waiting for game hook")
-            {
-                Thread.Sleep(step);
-
-                if (Settings.Instance.State.PreRecording == null && Settings.Instance.State.Recording == null)
-                {
-                    return false;
-                }
-
-                elapsed += step;
-                Log.Information("PreRecording Status: {PreRecordingStatus}", Settings.Instance.State.PreRecording?.Status);
-                if (elapsed >= timeoutMs)
-                {
-                    Log.Warning("Game Capture did not hook within {Seconds} seconds.", timeoutMs / 1000);
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private static bool WaitUntilGameCaptureHooks(int timeoutMs = 30000)
-        {
-            int elapsed = 0;
-            const int step = 100;
-
-            while (!_isGameCaptureHooked)
-            {
-                Thread.Sleep(step);
-                elapsed += step;
-                if (elapsed >= timeoutMs)
-                {
-                    Log.Warning("Game Capture did not hook within {Seconds} seconds. Preventing retry until foreground window changes", timeoutMs / 1000);
-                    GameDetectionService.PreventRetryRecording = true;
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
         public static void DisposeSources()
         {
-            DisposeDisplaySource();
-            DisposeGameCaptureSource();
-
-            int micSourcesCount = _micSources.Count;
-            for (int i = 0; i < _micSources.Count; i++)
+            // Dispose the scene (automatically clears output channel and disposes scene items)
+            if (_mainScene != null)
             {
                 try
                 {
-                    Obs.ClearOutputSource((uint)(i + 2));
-                    _micSources[i].Remove();
-                    _micSources[i].Dispose();
+                    _mainScene.Dispose();
+                    Log.Information("Scene disposed");
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning($"Failed to dispose mic source {i}: {ex.Message}");
+                    Log.Warning($"Failed to dispose scene: {ex.Message}");
+                }
+                _mainScene = null;
+            }
+
+            // Clear scene item references
+            _gameCaptureItem = null;
+            _displayItem = null;
+
+            // Now dispose sources
+            DisposeDisplaySource();
+            DisposeGameCaptureSource();
+
+            // Dispose mic sources
+            foreach (var micSource in _micSources)
+            {
+                try
+                {
+                    micSource.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to dispose mic source: {ex.Message}");
                 }
             }
             _micSources.Clear();
 
-            for (int i = 0; i < _desktopSources.Count; i++)
+            // Dispose desktop audio sources
+            foreach (var desktopSource in _desktopSources)
             {
                 try
                 {
-                    int desktopIndex = i + micSourcesCount + 2;
-                    Obs.ClearOutputSource((uint)desktopIndex);
-                    _desktopSources[i].Remove();
-                    _desktopSources[i].Dispose();
+                    desktopSource.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning($"Failed to dispose desktop source {i}: {ex.Message}");
+                    Log.Warning($"Failed to dispose desktop source: {ex.Message}");
                 }
             }
             _desktopSources.Clear();
@@ -1326,32 +1246,29 @@ namespace Segra.Backend.Recorder
 
         public static void DisposeGameCaptureSource()
         {
-            if (_gameCaptureSource != null)
+            if (GameCaptureSource != null)
             {
                 try
                 {
-                    // Disconnect signal handlers
-                    _hookedConnection?.Dispose();
-                    _hookedConnection = null;
-                    _unhookedConnection?.Dispose();
-                    _unhookedConnection = null;
+                    // Unsubscribe from events
+                    GameCaptureSource.Hooked -= OnGameCaptureHookedEvent;
+                    GameCaptureSource.Unhooked -= OnGameCaptureUnhookedEvent;
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning($"Failed to disconnect game capture signals: {ex.Message}");
+                    Log.Warning($"Failed to unsubscribe from game capture events: {ex.Message}");
                 }
 
                 try
                 {
-                    Obs.ClearOutputSource(0);
-                    _gameCaptureSource.Remove();
-                    _gameCaptureSource.Dispose();
+                    GameCaptureSource.Dispose();
                 }
                 catch (Exception ex)
                 {
                     Log.Warning($"Failed to dispose game capture source: {ex.Message}");
                 }
-                _gameCaptureSource = null;
+                GameCaptureSource = null;
+                _gameCaptureItem = null;
             }
             // Dispose the timer if it exists
             StopGameCaptureHookTimeoutTimer();
@@ -1386,14 +1303,14 @@ namespace Segra.Backend.Recorder
         private static void CheckGameCaptureHookStatus(object? state)
         {
             // Check if game capture has hooked
-            if (!_isGameCaptureHooked && Settings.Instance.EnableDisplayRecording)
+            if (!IsGameCaptureHooked)
             {
                 Log.Warning("Game capture did not hook within 90 seconds. Removing game capture source.");
                 DisposeGameCaptureSource();
             }
             else
             {
-                Log.Information("Game capture hook check completed. Hook status: {0}", _isGameCaptureHooked ? "Hooked" : "Not hooked");
+                Log.Information("Game capture hook check completed. Hook status: {0}", IsGameCaptureHooked ? "Hooked" : "Not hooked");
                 // Just stop the timer without disposing the game capture source if it's hooked
                 StopGameCaptureHookTimeoutTimer();
             }
@@ -1405,8 +1322,6 @@ namespace Segra.Backend.Recorder
             {
                 try
                 {
-                    Obs.ClearOutputSource(1);
-                    _displaySource.Remove();
                     _displaySource.Dispose();
                 }
                 catch (Exception ex)
@@ -1414,67 +1329,28 @@ namespace Segra.Backend.Recorder
                     Log.Warning($"Failed to dispose display source: {ex.Message}");
                 }
                 _displaySource = null;
+                _displayItem = null;
             }
         }
 
+        /// <summary>
+        /// Clears encoder references. Encoders are auto-disposed by OBSKit.NET when outputs stop.
+        /// </summary>
         public static void DisposeEncoders()
         {
-            if (_videoEncoder != null)
-            {
-                try
-                {
-                    _videoEncoder.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to dispose video encoder: {ex.Message}");
-                }
-                _videoEncoder = null;
-            }
-
-            foreach (var enc in _audioEncoders)
-            {
-                try
-                {
-                    enc.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to dispose audio encoder: {ex.Message}");
-                }
-            }
+            _videoEncoder = null;
             _audioEncoders.Clear();
         }
 
+        /// <summary>
+        /// Clears output references and signal connections. Outputs are auto-disposed by OBSKit.NET when Stop() is called.
+        /// </summary>
         public static void DisposeOutput()
         {
-            if (_output != null)
-            {
-                try
-                {
-                    _output.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to dispose output: {ex.Message}");
-                }
-                _output = null;
-            }
-
-            if (_bufferOutput != null)
-            {
-                try
-                {
-                    _replaySavedConnection?.Dispose();
-                    _replaySavedConnection = null;
-                    _bufferOutput.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to dispose buffer output: {ex.Message}");
-                }
-                _bufferOutput = null;
-            }
+            _replaySavedConnection?.Dispose();
+            _replaySavedConnection = null;
+            _output = null;
+            _bufferOutput = null;
         }
 
         public static async Task AvailableOBSVersionsAsync()
@@ -1773,12 +1649,12 @@ namespace Segra.Backend.Recorder
                 Volume = Settings.Instance.SoundEffectsVolume
             };
 
-            using var waveOut = new WaveOutEvent();
+            using var waveOut = new WaveOutEvent { DesiredLatency = 50 };
             waveOut.Init(volumeProvider);
             waveOut.Play();
 
             while (waveOut.PlaybackState == PlaybackState.Playing)
-                Thread.Sleep(50);
+                Thread.Sleep(10);
         }
 
 

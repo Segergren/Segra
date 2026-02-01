@@ -610,29 +610,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update RecordWindowedApplications
-            if (settings.RecordWindowedApplications != updatedSettings.RecordWindowedApplications)
-            {
-                Log.Information($"RecordWindowedApplications changed from '{settings.RecordWindowedApplications}' to '{updatedSettings.RecordWindowedApplications}'");
-                settings.RecordWindowedApplications = updatedSettings.RecordWindowedApplications;
-                hasChanges = true;
-            }
-
-            // Update EnableDisplayRecording
-            if (settings.EnableDisplayRecording != updatedSettings.EnableDisplayRecording)
-            {
-                Log.Information($"EnableDisplayRecording changed from '{settings.EnableDisplayRecording}' to '{updatedSettings.EnableDisplayRecording}'");
-                settings.EnableDisplayRecording = updatedSettings.EnableDisplayRecording;
-
-                if (updatedSettings.EnableDisplayRecording == true && updatedSettings.RecordWindowedApplications == true)
-                {
-                    settings.RecordWindowedApplications = false;
-                    Log.Warning("RecordWindowedApplications disabled because EnableDisplayRecording is enabled");
-                }
-
-                hasChanges = true;
-            }
-
             // Update SelectedDisplay
             if ((settings.SelectedDisplay == null && updatedSettings.SelectedDisplay != null) ||
                 (settings.SelectedDisplay != null && updatedSettings.SelectedDisplay == null) ||
@@ -642,7 +619,7 @@ namespace Segra.Backend.Services
                 settings.SelectedDisplay = updatedSettings.SelectedDisplay;
 
                 // Update display source if we have a recording and it is not using game hook
-                if (Settings.Instance.State.Recording != null && !Settings.Instance.State.Recording.IsUsingGameHook && Settings.Instance.EnableDisplayRecording)
+                if (Settings.Instance.State.Recording != null && !Settings.Instance.State.Recording.IsUsingGameHook)
                 {
                     OBSService.DisposeDisplaySource();
                     OBSService.AddMonitorCapture();
