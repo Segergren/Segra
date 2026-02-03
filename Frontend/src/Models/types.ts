@@ -202,6 +202,7 @@ export interface Settings {
     | 'sunset';
   resolution: '720p' | '1080p' | '1440p' | '4K';
   frameRate: number;
+  stretch4By3: boolean;
   rateControl: string;
   crfValue: number;
   cqLevel: number;
@@ -272,6 +273,7 @@ export const initialSettings: Settings = {
   theme: 'segra',
   resolution: '720p',
   frameRate: 30,
+  stretch4By3: true,
   rateControl: 'CBR',
   crfValue: 23,
   cqLevel: 20,

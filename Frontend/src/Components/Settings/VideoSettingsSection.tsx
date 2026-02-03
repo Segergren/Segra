@@ -470,6 +470,19 @@ export default function VideoSettingsSection({
           />
         </div>
       </div>
+
+      {/* 4:3 Stretch Option */}
+      <div className="mt-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={settings.stretch4By3}
+            onChange={(e) => updateSettings({ stretch4By3: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <span>Stretch 4:3 content to 16:9</span>
+        </label>
+      </div>
     </div>
   );
 }

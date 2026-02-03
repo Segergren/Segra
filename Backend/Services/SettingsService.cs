@@ -481,6 +481,14 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update Stretch4By3
+            if (settings.Stretch4By3 != updatedSettings.Stretch4By3)
+            {
+                Log.Information($"Stretch4By3 changed from '{settings.Stretch4By3}' to '{updatedSettings.Stretch4By3}'");
+                settings.Stretch4By3 = updatedSettings.Stretch4By3;
+                hasChanges = true;
+            }
+
             // Update Bitrate
             if (settings.Bitrate != updatedSettings.Bitrate)
             {

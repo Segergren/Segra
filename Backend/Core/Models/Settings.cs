@@ -23,6 +23,7 @@ namespace Segra.Backend.Core.Models
         private string _theme = "segra";
         private string _resolution = "1440p";
         private int _frameRate = 60;
+        private bool _stretch4By3 = true;
         private int _bitrate = 70;
         private int _minBitrate = 70;
         private int _maxBitrate = 100;
@@ -196,6 +197,16 @@ namespace Segra.Backend.Core.Models
             set
             {
                 _frameRate = value;
+            }
+        }
+
+        [JsonPropertyName("stretch4By3")]
+        public bool Stretch4By3
+        {
+            get => _stretch4By3;
+            set
+            {
+                _stretch4By3 = value;
             }
         }
 

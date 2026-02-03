@@ -100,6 +100,8 @@ namespace Segra.Backend.Recorder
 
         // Recording/output state
         private static bool _isStoppingOrStopped = false;
+        private static uint _currentBaseWidth;
+        private static uint _currentBaseHeight;
 
         // Replay buffer state
         private static bool _replaySaved = false;
@@ -382,7 +384,11 @@ namespace Segra.Backend.Recorder
             }
         }
 
-        private static void ResetVideoSettings(uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null)
+        /// <summary>
+        /// Configures OBS video settings based on the provided dimensions.
+        /// </summary>
+        /// <param name="is4by3">True if the content was detected as 4:3 and stretched to 16:9.</param>
+        private static void ResetVideoSettings(out bool is4by3, uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null)
         {
             SettingsService.GetPrimaryMonitorResolution(out uint baseWidth, out uint baseHeight);
 
@@ -399,12 +405,11 @@ namespace Segra.Backend.Recorder
 
             // Check if the input aspect ratio is close to 4:3 (1.33)
             double aspectRatio = (double)baseWidth / baseHeight;
-            bool is4by3 = Math.Abs(aspectRatio - 4.0 / 3.0) < 0.1; // Allow some tolerance
+            is4by3 = Math.Abs(aspectRatio - 4.0 / 3.0) < 0.1 && Settings.Instance.Stretch4By3;
 
-            // TODO: Implement a setting to disable this behavior
-            // If the content is 4:3, stretch it to 16:9 while preserving height
+            // If the content is 4:3 and stretching is enabled, stretch it to 16:9 while preserving height
             // Only modify output dimensions, not base dimensions (base = actual capture size)
-            if (is4by3 && customOutputWidth == null)
+            if (is4by3)
             {
                 // Calculate 16:9 width based on the current height for output only
                 outputWidth = (uint)(baseHeight * (16.0 / 9.0));
@@ -425,6 +430,9 @@ namespace Segra.Backend.Recorder
 
                 Log.Information($"Downscaling from {baseWidth}x{baseHeight} to {outputWidth}x{outputHeight} (max height: {maxHeight})");
             }
+
+            _currentBaseWidth = baseWidth;
+            _currentBaseHeight = baseHeight;
 
             Obs.SetVideo(v => v
                 .BaseResolution(baseWidth, baseHeight)
@@ -468,7 +476,7 @@ namespace Segra.Backend.Recorder
             _isStoppingOrStopped = false;
 
             // Configure video settings specifically for this recording/buffer
-            ResetVideoSettings(customFps: (uint)Settings.Instance.FrameRate);
+            ResetVideoSettings(out _, customFps: (uint)Settings.Instance.FrameRate);
 
             // Create main scene for this recording
             _mainScene = new Scene("Recording Scene");
@@ -479,6 +487,8 @@ namespace Segra.Backend.Recorder
             {
                 Log.Information("Manual recording started - using display capture");
                 AddMonitorCapture();
+                // Use base dimensions for bounds - scene canvas is at base resolution
+                _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
             }
             else
             {
@@ -513,10 +523,18 @@ namespace Segra.Backend.Recorder
                 if (WindowUtils.GetWindowDimensionsByPreRecordingExeOrPid(out uint windowWidth, out uint windowHeight))
                 {
                     ResetVideoSettings(
+                        out bool is4by3,
                         customFps: (uint)Settings.Instance.FrameRate,
                         customOutputWidth: windowWidth,
                         customOutputHeight: windowHeight
                     );
+
+                    // Scene item bounds must use BASE dimensions (not output) because the scene canvas is at base resolution.
+                    // For 4:3 content: base is 4:3, output is 16:9 - OBS handles the stretch at the output level.
+                    // For non-4:3: base == output, ScaleInner ensures content scales with black bars if window shrinks.
+                    var boundsType = is4by3 ? ObsBoundsType.Stretch : ObsBoundsType.ScaleInner;
+                    _gameCaptureItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+                    _displayItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
                 }
                 else
                 {
@@ -1135,16 +1153,13 @@ namespace Segra.Backend.Recorder
 
                 Log.Information($"Game hooked: Title='{title}', Class='{windowClass}', Executable='{executable}'");
 
-                // Overwrite the file name with the hooked one because sometimes the current tracked file name is the startup exe instead of the actual game
-                _hookedExecutableFileName = executable;
+                // Remove display capture to save resources while game is hooked
+                DisposeDisplaySource();
+
                 if (Settings.Instance.State.Recording != null)
                 {
-                    if (_hookedExecutableFileName != null)
-                    {
-                        Settings.Instance.State.Recording.FileName = _hookedExecutableFileName;
-                    }
                     Settings.Instance.State.Recording.IsUsingGameHook = true;
-                    _ = MessageService.SendSettingsToFrontend("Updated game hook");
+                    _ = SendSettingsToFrontend("Updated game hook");
                 }
             }
             catch (Exception ex)
