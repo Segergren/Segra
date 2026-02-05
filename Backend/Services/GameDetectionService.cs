@@ -283,35 +283,35 @@ namespace Segra.Backend.Services
                 return false;
             }
 
-            // 6. If not in any list, use the default Steam detection
-            bool isSteamGame = exePath.Replace("\\", "/").Contains("/steamapps/common/", StringComparison.OrdinalIgnoreCase);
-            if (isSteamGame)
+            // 6. Launcher-based detection (Steam, EA, Epic, Ubisoft)
+            string[] launcherMarkers = { "/steamapps/common/", "/EA Games/", "/Epic Games/", "/Ubisoft/" };
+            string[] launcherNames = { "Steam", "EA", "Epic", "Ubisoft" };
+
+            for (int i = 0; i < launcherMarkers.Length; i++)
             {
-                Log.Information($"Detected Steam game at {exePath}, will record");
+                int markerIndex = normalizedExePath.IndexOf(launcherMarkers[i], StringComparison.OrdinalIgnoreCase);
+                if (markerIndex < 0) continue;
+
+                int afterMarker = markerIndex + launcherMarkers[i].Length;
+                int nextSlash = normalizedExePath.IndexOf('/', afterMarker);
+                if (nextSlash < 0) continue;
+
+                string gameFolderName = normalizedExePath.Substring(afterMarker, nextSlash - afterMarker);
+                string basePath = normalizedExePath.Substring(0, afterMarker).Replace("/", "\\");
+
+                // Check if a known game exe exists in this folder - if so, this process is likely a splash screen and should be skipped
+                // Remember that the check for if the current exe is a known game has already been done above
+                if (GameUtils.HasKnownGameExeInFolder(gameFolderName, basePath))
+                {
+                    Log.Information($"Skipping {exePath} - a known game exe exists in '{gameFolderName}' that differs from this process");
+                    return false;
+                }
+
+                Log.Information($"Detected {launcherNames[i]} game at {exePath}, will record");
+                return true;
             }
 
-            // 7. If not in any list, use EA Games detection
-            bool isEAGame = exePath.Replace("\\", "/").Contains("/EA Games/", StringComparison.OrdinalIgnoreCase);
-            if (isEAGame)
-            {
-                Log.Information($"Detected EA game at {exePath}, will record");
-            }
-
-            // 8. If not in any list, use Epic Games detection
-            bool isEpicGame = exePath.Replace("\\", "/").Contains("/Epic Games/", StringComparison.OrdinalIgnoreCase);
-            if (isEpicGame)
-            {
-                Log.Information($"Detected Epic game at {exePath}, will record");
-            }
-
-            // 9. If not in any list, use Ubisoft Games detection
-            bool isUbisoftGame = exePath.Replace("\\", "/").Contains("/Ubisoft/", StringComparison.OrdinalIgnoreCase);
-            if (isUbisoftGame)
-            {
-                Log.Information($"Detected Ubisoft game at {exePath}, will record");
-            }
-
-            return isSteamGame || isEAGame || isEpicGame || isUbisoftGame;
+            return false;
         }
 
         private static bool ContainsBlacklistedTextInFilePath(string exePath)
