@@ -537,6 +537,10 @@ namespace Segra.Backend.Windows.Display
                     return true;
                 }
 
+                // Check if dimensions match a display (fullscreen) - needs fewer stability checks
+                SettingsService.GetPrimaryMonitorResolution(out uint monitorWidth, out uint monitorHeight);
+                bool isFullscreen = width == monitorWidth && height == monitorHeight;
+
                 // Window dimensions are 0x0 or 1x1 when the window is not visible
                 if (width > 1 && height > 1)
                 {
@@ -563,7 +567,7 @@ namespace Segra.Backend.Windows.Display
                             lastWidth = width;
                             lastHeight = height;
 
-                            requiredStabilityChecks = isStandardAspectRatio ? 10 : 30;
+                            requiredStabilityChecks = isFullscreen ? 5 : isStandardAspectRatio ? 10 : 30;
                             stabilityChecks = 0;
 
                             Thread.Sleep(1000);
@@ -572,7 +576,7 @@ namespace Segra.Backend.Windows.Display
                     else
                     {
                         // First valid dimensions detected
-                        requiredStabilityChecks = isStandardAspectRatio ? 10 : 30;
+                        requiredStabilityChecks = isFullscreen ? 5 : isStandardAspectRatio ? 10 : 30;
                         stabilityChecks = 0;
 
                         string aspectRatioNote = isStandardAspectRatio ? "standard aspect ratio" : "non-standard aspect ratio";
