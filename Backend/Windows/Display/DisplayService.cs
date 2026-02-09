@@ -9,6 +9,8 @@ namespace Segra.Backend.Windows.Display
     public static class DisplayService
     {
         private static List<Core.Models.Display> displays = new();
+        private static List<Core.Models.Display> pendingDisplays = new();
+        private static bool isCollectingDisplays = false;
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         public static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);
@@ -126,15 +128,49 @@ namespace Segra.Backend.Windows.Display
             return false;
         }
 
-        public static void LoadAvailableMonitorsIntoState()
+        public static bool LoadAvailableMonitorsIntoState()
         {
-            displays.Clear();
-            Log.Information("=== Available Monitors ===");
+            // Collect new displays without logging
+            pendingDisplays.Clear();
+            isCollectingDisplays = true;
             EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, MonitorEnumProc, IntPtr.Zero);
-            Settings.Instance.State.Displays = displays;
-            Settings.Instance.State.MaxDisplayHeight = GetMaxDisplayHeight();
-            Log.Information("Max display height: {MaxHeight}p", Settings.Instance.State.MaxDisplayHeight);
-            Log.Information("=== End Monitor List ===");
+            isCollectingDisplays = false;
+
+            var newMaxHeight = GetMaxDisplayHeight();
+            var currentDisplays = Settings.Instance.State.Displays;
+            var currentMaxHeight = Settings.Instance.State.MaxDisplayHeight;
+
+            // Check if anything changed
+            bool displaysChanged = currentDisplays == null || !currentDisplays.SequenceEqual(pendingDisplays);
+            bool maxHeightChanged = currentMaxHeight != newMaxHeight;
+
+            if (!displaysChanged && !maxHeightChanged)
+            {
+                return false;
+            }
+
+            // Something changed - log and update state
+            if (displaysChanged)
+            {
+                Log.Information("=== Available Monitors ===");
+                foreach (var display in pendingDisplays)
+                {
+                    Log.Information("Monitor: {FriendlyName}, DeviceId: {DeviceID}, Primary: {IsPrimary}",
+                        display.DeviceName, display.DeviceId, display.IsPrimary);
+                }
+                Log.Information("=== End Monitor List ===");
+
+                displays = new List<Core.Models.Display>(pendingDisplays);
+                Settings.Instance.State.Displays = displays;
+            }
+
+            if (maxHeightChanged)
+            {
+                Log.Information("Max display height changed: {MaxHeight}p", newMaxHeight);
+                Settings.Instance.State.MaxDisplayHeight = newMaxHeight;
+            }
+
+            return true;
         }
 
         private static bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData)
@@ -150,18 +186,16 @@ namespace Segra.Backend.Windows.Display
                 if (EnumDisplayDevices(mi.DeviceName, 0, ref device, 1))
                 {
                     string friendlyName = GetFriendlyMonitorName(device.DeviceID, device.DeviceString);
-                    Log.Information("Monitor Found:");
-                    Log.Information("  Device Name: {DeviceName}", mi.DeviceName);
-                    Log.Information("  Friendly Name: {FriendlyName}", friendlyName);
-                    Log.Information("  Device ID: {DeviceID}", device.DeviceID);
-                    Log.Information("  Display String: {DeviceString}", device.DeviceString);
-                    Log.Information("  Resolution: {Width}x{Height}",
-                        mi.Monitor.Right - mi.Monitor.Left,
-                        mi.Monitor.Bottom - mi.Monitor.Top);
-                    Log.Information("  Position: {X},{Y}", mi.Monitor.Left, mi.Monitor.Top);
-                    Log.Information("  Primary: {IsPrimary}", (mi.Flags & 1) != 0);
-                    Log.Information("---");
-                    displays.Add(new Core.Models.Display { DeviceName = friendlyName, DeviceId = device.DeviceID, IsPrimary = (mi.Flags & 1) != 0 });
+                    var display = new Core.Models.Display { DeviceName = friendlyName, DeviceId = device.DeviceID, IsPrimary = (mi.Flags & 1) != 0 };
+
+                    if (isCollectingDisplays)
+                    {
+                        pendingDisplays.Add(display);
+                    }
+                    else
+                    {
+                        displays.Add(display);
+                    }
                 }
             }
 

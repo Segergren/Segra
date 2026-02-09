@@ -202,6 +202,7 @@ export interface Settings {
     | 'sunset';
   resolution: '720p' | '1080p' | '1440p' | '4K';
   frameRate: number;
+  stretch4By3: boolean;
   rateControl: string;
   crfValue: number;
   cqLevel: number;
@@ -216,10 +217,8 @@ export interface Settings {
   inputDevices: DeviceSetting[];
   outputDevices: DeviceSetting[];
   forceMonoInputSources: boolean;
-  enableDisplayRecording: boolean;
   selectedDisplay: Display | null;
   displayCaptureMethod: DisplayCaptureMethod;
-  recordWindowedApplications: boolean;
   selectedOBSVersion: string | null; // null means automatic (latest non-beta)
   enableAi: boolean;
   autoGenerateHighlights: boolean;
@@ -274,6 +273,7 @@ export const initialSettings: Settings = {
   theme: 'segra',
   resolution: '720p',
   frameRate: 30,
+  stretch4By3: true,
   rateControl: 'CBR',
   crfValue: 23,
   cqLevel: 20,
@@ -288,10 +288,8 @@ export const initialSettings: Settings = {
   inputDevices: [],
   outputDevices: [],
   forceMonoInputSources: false,
-  enableDisplayRecording: true,
   selectedDisplay: null, // Default to null (auto-select)
   displayCaptureMethod: 'Auto',
-  recordWindowedApplications: false,
   selectedOBSVersion: null, // null means automatic (latest non-beta)
   enableAi: true,
   autoGenerateHighlights: true,

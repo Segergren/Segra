@@ -910,6 +910,7 @@ namespace Segra.Backend.App
             finally
             {
                 Settings.Instance._isBulkUpdating = false;
+                SettingsService.SaveSettings();
                 _ = SendSettingsToFrontend("Moved game");
             }
         }

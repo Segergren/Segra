@@ -149,6 +149,33 @@ namespace Segra.Backend.Games
             return null;
         }
 
+        // Checks if a known game executable from games.json exists on disk in the given game folder.
+        public static bool HasKnownGameExeInFolder(string gameFolderName, string basePath)
+        {
+            if (!_isInitialized) return false;
+
+            string folderPrefix = gameFolderName + "/";
+
+            foreach (var gamePath in _gameExePaths)
+            {
+                // Skip entries without a sub-path (just filenames like "60seconds.exe")
+                if (!gamePath.Contains('/')) continue;
+
+                // Check if this entry contains the game folder name as a path component
+                if (!gamePath.StartsWith(folderPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+
+                // Build full path and check if it exists on disk
+                string fullPath = Path.Combine(basePath, gamePath.Replace("/", "\\"));
+                if (File.Exists(fullPath))
+                {
+                    Log.Information($"Found known game executable on disk: {fullPath}");
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public static string[] GetBlacklistedPathTexts() => _blacklist.PathTexts;
 
         public static string[] GetBlacklistedWords() => _blacklist.DescriptionWords;

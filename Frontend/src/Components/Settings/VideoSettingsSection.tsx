@@ -433,102 +433,55 @@ export default function VideoSettingsSection({
         )}
       </AnimatePresence>
 
-      <div className="flex items-center justify-between mt-3">
+      <div className="grid grid-cols-2 gap-4 mt-3">
+        <div className="flex flex-col">
+          <span className="font-medium">Monitor Selection</span>
+          <DropdownSelect
+            items={[
+              { value: 'Automatic', label: 'Automatic' },
+              ...settings.state.displays.map((d) => ({
+                value: d.deviceName,
+                label: `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`,
+              })),
+            ]}
+            value={settings.selectedDisplay?.deviceName || 'Automatic'}
+            onChange={(val) =>
+              updateSettings({
+                selectedDisplay:
+                  val === 'Automatic'
+                    ? undefined
+                    : settings.state.displays.find((d) => d.deviceName === val),
+              })
+            }
+          />
+        </div>
+        <div className="flex flex-col">
+          <span className="font-medium">Capture Method</span>
+          <DropdownSelect
+            items={[
+              { value: 'Auto', label: 'Auto' },
+              { value: 'DXGI', label: 'DXGI (Desktop Duplication)' },
+              { value: 'WGC', label: 'WGC (Windows Graphics Capture)' },
+            ]}
+            value={settings.displayCaptureMethod}
+            onChange={(val) =>
+              updateSettings({ displayCaptureMethod: val as DisplayCaptureMethod })
+            }
+          />
+        </div>
+      </div>
+
+      {/* 4:3 Stretch Option */}
+      <div className="mt-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
-            name="enableDisplayRecording"
-            checked={settings.enableDisplayRecording}
-            onChange={(e) => updateSettings({ enableDisplayRecording: e.target.checked })}
+            checked={settings.stretch4By3}
+            onChange={(e) => updateSettings({ stretch4By3: e.target.checked })}
             className="checkbox checkbox-primary checkbox-sm"
           />
-          <span className="font-medium cursor-pointer">Enable Display Recording</span>
+          <span>Stretch 4:3 content to 16:9</span>
         </label>
-      </div>
-
-      <AnimatePresence>
-        {settings.enableDisplayRecording && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{
-              opacity: 1,
-              height: 'fit-content',
-              transition: {
-                duration: 0.3,
-                height: { type: 'spring', stiffness: 300, damping: 30 },
-              },
-            }}
-            exit={{
-              opacity: 0,
-              height: 0,
-              transition: {
-                duration: 0.2,
-              },
-            }}
-            style={{ overflow: 'visible' }}
-            key="display-selection"
-          >
-            <div className="grid grid-cols-2 gap-4 mt-2">
-              <div className="flex flex-col">
-                <span className="font-medium">Monitor Selection</span>
-                <DropdownSelect
-                  items={[
-                    { value: 'Automatic', label: 'Automatic' },
-                    ...settings.state.displays.map((d) => ({
-                      value: d.deviceName,
-                      label: `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`,
-                    })),
-                  ]}
-                  value={settings.selectedDisplay?.deviceName || 'Automatic'}
-                  onChange={(val) =>
-                    updateSettings({
-                      selectedDisplay:
-                        val === 'Automatic'
-                          ? undefined
-                          : settings.state.displays.find((d) => d.deviceName === val),
-                    })
-                  }
-                />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-medium">Capture Method</span>
-                <DropdownSelect
-                  items={[
-                    { value: 'Auto', label: 'Auto' },
-                    { value: 'DXGI', label: 'DXGI (Desktop Duplication)' },
-                    { value: 'WGC', label: 'WGC (Windows Graphics Capture)' },
-                  ]}
-                  value={settings.displayCaptureMethod}
-                  onChange={(val) =>
-                    updateSettings({ displayCaptureMethod: val as DisplayCaptureMethod })
-                  }
-                />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="flex items-center justify-between mt-3">
-        <div className="flex flex-col gap-1">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              name="recordWindowedApplications"
-              checked={settings.recordWindowedApplications}
-              onChange={(e) => updateSettings({ recordWindowedApplications: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-              disabled={isRecording || settings.enableDisplayRecording}
-            />
-            <span className="font-medium cursor-pointer">Capture Windowed Games</span>
-            <span className="badge badge-primary badge-sm">Beta</span>
-          </label>
-          {settings.enableDisplayRecording && (
-            <span className="text-xs text-warning ml-7">
-              Cannot be enabled with Display Recording while this feature is in Beta
-            </span>
-          )}
-        </div>
       </div>
     </div>
   );

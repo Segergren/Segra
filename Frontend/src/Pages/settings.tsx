@@ -35,8 +35,8 @@ const NAV_ITEMS: { id: SectionId; label: string }[] = [
 
 function SectionHeader({ id, children }: { id: string; children: React.ReactNode }) {
   return (
-    <div id={id} className="scroll-mt-16">
-      <h2 className="text-sm font-semibold text-primary uppercase tracking-wider mb-4 mt-8 first:mt-0">
+    <div id={id} className="scroll-mt-16 mb-0">
+      <h2 className="text-sm font-semibold text-primary uppercase tracking-wider mb-2 mt-8 first:mt-0">
         {children}
       </h2>
     </div>
@@ -56,7 +56,7 @@ export default function Settings() {
   // Scroll spy to track which section is currently visible
   useEffect(() => {
     const handleScroll = () => {
-      const viewportCenter = window.innerHeight / 3; // Check upper-third of viewport
+      const viewportCenter = window.innerHeight / 2.3; // Check upper-third of viewport
 
       // Find the last section whose top has passed the check point
       for (let i = NAV_ITEMS.length - 1; i >= 0; i--) {
