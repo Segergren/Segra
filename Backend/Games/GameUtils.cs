@@ -1,7 +1,9 @@
 using Segra.Backend.App;
 using Serilog;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace Segra.Backend.Games
 {
@@ -13,6 +15,7 @@ namespace Segra.Backend.Games
         private static Dictionary<string, string> _exeToCoverImageId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static List<GameEntry> _gamesList = new List<GameEntry>();
         private static BlacklistEntry _blacklist = new BlacklistEntry();
+        private static readonly ConcurrentDictionary<string, Regex> _wildcardRegexCache = new();
         private static bool _isInitialized = false;
 
         public static async Task InitializeAsync()
@@ -26,6 +29,17 @@ namespace Segra.Backend.Games
             _isInitialized = true;
         }
 
+        public static bool MatchesExePattern(string exePath, string pattern)
+        {
+            if (string.IsNullOrEmpty(exePath) || string.IsNullOrEmpty(pattern))
+                return false;
+
+            string normalizedPath = exePath.Replace("\\", "/");
+            string fileName = Path.GetFileName(exePath);
+            string normalizedPattern = pattern.Replace("\\", "/");
+            return MatchesGamePattern(normalizedPath, fileName, normalizedPattern);
+        }
+
         public static bool IsGameExePath(string exePath)
         {
             if (!_isInitialized || string.IsNullOrEmpty(exePath))
@@ -34,25 +48,10 @@ namespace Segra.Backend.Games
             string normalizedPath = exePath.Replace("\\", "/");
             string fileName = Path.GetFileName(exePath);
 
-            // Check if any game exe path matches
             foreach (var gamePath in _gameExePaths)
             {
-                // If gamePath contains a slash, it's a path - check if it's contained in the full path
-                if (gamePath.Contains('/'))
-                {
-                    if (normalizedPath.Contains(gamePath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
-                }
-                // Otherwise it's just a filename - check exact match
-                else
-                {
-                    if (fileName.Equals(gamePath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
-                }
+                if (MatchesGamePattern(normalizedPath, fileName, gamePath))
+                    return true;
             }
 
             return false;
@@ -68,22 +67,8 @@ namespace Segra.Backend.Games
 
             foreach (var entry in _exeToGameName)
             {
-                // If the key contains a slash, it's a path - check if it's contained in the full path
-                if (entry.Key.Contains('/'))
-                {
-                    if (normalizedPath.Contains(entry.Key, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return entry.Value;
-                    }
-                }
-                // Otherwise it's just a filename - check exact match
-                else
-                {
-                    if (fileName.Equals(entry.Key, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return entry.Value;
-                    }
-                }
+                if (MatchesGamePattern(normalizedPath, fileName, entry.Key))
+                    return entry.Value;
             }
 
             return null;
@@ -99,22 +84,8 @@ namespace Segra.Backend.Games
 
             foreach (var entry in _exeToIgdbId)
             {
-                // If the key contains a slash, it's a path - check if it's contained in the full path
-                if (entry.Key.Contains('/'))
-                {
-                    if (normalizedPath.Contains(entry.Key, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return entry.Value;
-                    }
-                }
-                // Otherwise it's just a filename - check exact match
-                else
-                {
-                    if (fileName.Equals(entry.Key, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return entry.Value;
-                    }
-                }
+                if (MatchesGamePattern(normalizedPath, fileName, entry.Key))
+                    return entry.Value;
             }
 
             return null;
@@ -130,26 +101,13 @@ namespace Segra.Backend.Games
 
             foreach (var entry in _exeToCoverImageId)
             {
-                if (entry.Key.Contains('/'))
-                {
-                    if (normalizedPath.Contains(entry.Key, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return entry.Value;
-                    }
-                }
-                else
-                {
-                    if (fileName.Equals(entry.Key, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return entry.Value;
-                    }
-                }
+                if (MatchesGamePattern(normalizedPath, fileName, entry.Key))
+                    return entry.Value;
             }
 
             return null;
         }
 
-        // Checks if a known game executable from games.json exists on disk in the given game folder.
         public static bool HasKnownGameExeInFolder(string gameFolderName, string basePath)
         {
             if (!_isInitialized) return false;
@@ -158,18 +116,37 @@ namespace Segra.Backend.Games
 
             foreach (var gamePath in _gameExePaths)
             {
-                // Skip entries without a sub-path (just filenames like "60seconds.exe")
                 if (!gamePath.Contains('/')) continue;
-
-                // Check if this entry contains the game folder name as a path component
                 if (!gamePath.StartsWith(folderPrefix, StringComparison.OrdinalIgnoreCase)) continue;
 
-                // Build full path and check if it exists on disk
-                string fullPath = Path.Combine(basePath, gamePath.Replace("/", "\\"));
-                if (File.Exists(fullPath))
+                if (gamePath.Contains('*'))
                 {
-                    Log.Information($"Found known game executable on disk: {fullPath}");
-                    return true;
+                    string relativePath = gamePath.Substring(folderPrefix.Length).Replace("/", "\\");
+                    string subDir = Path.GetDirectoryName(relativePath) ?? "";
+                    string searchPattern = Path.GetFileName(relativePath);
+                    string directory = Path.Combine(basePath, gameFolderName, subDir);
+
+                    if (Directory.Exists(directory))
+                    {
+                        try
+                        {
+                            if (Directory.EnumerateFiles(directory, searchPattern).Any())
+                            {
+                                Log.Information($"Found known game executable matching wildcard pattern in folder: {directory}\\{searchPattern}");
+                                return true;
+                            }
+                        }
+                        catch (Exception) { }
+                    }
+                }
+                else
+                {
+                    string fullPath = Path.Combine(basePath, gamePath.Replace("/", "\\"));
+                    if (File.Exists(fullPath))
+                    {
+                        Log.Information($"Found known game executable on disk: {fullPath}");
+                        return true;
+                    }
                 }
             }
 
@@ -189,6 +166,36 @@ namespace Segra.Backend.Games
             }).ToList();
         }
 
+        private static Regex GetWildcardRegex(string pattern, bool anchorToFullString)
+        {
+            string cacheKey = (anchorToFullString ? "^" : "") + pattern;
+            return _wildcardRegexCache.GetOrAdd(cacheKey, _ =>
+            {
+                string regexPattern = Regex.Escape(pattern).Replace("\\*", ".*");
+                if (anchorToFullString)
+                    regexPattern = "^" + regexPattern + "$";
+                return new Regex(regexPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            });
+        }
+
+        private static bool MatchesGamePattern(string normalizedPath, string fileName, string gamePattern)
+        {
+            bool isWildcard = gamePattern.Contains('*');
+
+            if (gamePattern.Contains('/'))
+            {
+                if (isWildcard)
+                    return GetWildcardRegex(gamePattern, false).IsMatch(normalizedPath);
+                return normalizedPath.Contains(gamePattern, StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                if (isWildcard)
+                    return GetWildcardRegex(gamePattern, true).IsMatch(fileName);
+                return fileName.Equals(gamePattern, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
         private static void LoadGamesFromJson()
         {
             string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
@@ -205,22 +212,20 @@ namespace Segra.Backend.Games
                 string jsonContent = File.ReadAllText(jsonPath);
                 _gamesList = JsonSerializer.Deserialize<List<GameEntry>>(jsonContent) ?? new List<GameEntry>();
 
-                // Build lookup collections for fast access
                 _gameExePaths.Clear();
                 _exeToGameName.Clear();
                 _exeToIgdbId.Clear();
                 _exeToCoverImageId.Clear();
+                _wildcardRegexCache.Clear();
 
                 foreach (var entry in _gamesList)
                 {
                     foreach (var exe in entry.Executables)
                     {
-                        // Normalize path for consistent comparison
                         string normalizedExe = exe.Replace("\\", "/");
                         _gameExePaths.Add(normalizedExe);
                         _exeToGameName[normalizedExe] = entry.Name;
 
-                        // Store IGDB ID and cover image ID if available
                         if (entry.Igdb?.Id != null)
                         {
                             _exeToIgdbId[normalizedExe] = entry.Igdb.Id;
@@ -245,7 +250,7 @@ namespace Segra.Backend.Games
         private static async Task DownloadBlacklistJsonIfNeededAsync()
         {
             string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
-            Directory.CreateDirectory(appDataDir); // Ensure directory exists
+            Directory.CreateDirectory(appDataDir);
 
             string jsonPath = Path.Combine(appDataDir, "blacklist.json");
             string cdnUrl = "https://cdn.segra.tv/games/blacklist.json";
@@ -256,7 +261,6 @@ namespace Segra.Backend.Games
 
                 try
                 {
-                    // Send HEAD request to check Last-Modified header
                     var headRequest = new HttpRequestMessage(HttpMethod.Head, cdnUrl);
                     var headResponse = await httpClient.SendAsync(headRequest);
 
@@ -268,7 +272,6 @@ namespace Segra.Backend.Games
 
                     DateTimeOffset? remoteLastModified = headResponse.Content.Headers.LastModified;
 
-                    // Check if we need to download
                     bool shouldDownload = false;
 
                     if (!File.Exists(jsonPath))
@@ -283,7 +286,6 @@ namespace Segra.Backend.Games
                     }
                     else
                     {
-                        // Compare remote Last-Modified with local file's last write time
                         var localLastModified = File.GetLastWriteTimeUtc(jsonPath);
 
                         if (localLastModified >= remoteLastModified.Value.UtcDateTime)
@@ -303,7 +305,6 @@ namespace Segra.Backend.Games
                         var jsonBytes = await httpClient.GetByteArrayAsync(cdnUrl);
                         await File.WriteAllBytesAsync(jsonPath, jsonBytes);
 
-                        // Set the file's last write time to match the remote Last-Modified timestamp
                         if (remoteLastModified != null)
                         {
                             File.SetLastWriteTimeUtc(jsonPath, remoteLastModified.Value.UtcDateTime);
@@ -346,7 +347,7 @@ namespace Segra.Backend.Games
         private static async Task DownloadGamesJsonIfNeededAsync()
         {
             string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
-            Directory.CreateDirectory(appDataDir); // Ensure directory exists
+            Directory.CreateDirectory(appDataDir);
 
             string jsonPath = Path.Combine(appDataDir, "games.json");
             string cdnUrl = "https://cdn.segra.tv/games/games.json";
@@ -357,7 +358,6 @@ namespace Segra.Backend.Games
 
                 try
                 {
-                    // Send HEAD request to check Last-Modified header
                     var headRequest = new HttpRequestMessage(HttpMethod.Head, cdnUrl);
                     var headResponse = await httpClient.SendAsync(headRequest);
 
@@ -369,7 +369,6 @@ namespace Segra.Backend.Games
 
                     DateTimeOffset? remoteLastModified = headResponse.Content.Headers.LastModified;
 
-                    // Check if we need to download
                     bool shouldDownload = false;
 
                     if (!File.Exists(jsonPath))
@@ -384,7 +383,6 @@ namespace Segra.Backend.Games
                     }
                     else
                     {
-                        // Compare remote Last-Modified with local file's last write time
                         var localLastModified = File.GetLastWriteTimeUtc(jsonPath);
 
                         if (localLastModified >= remoteLastModified.Value.UtcDateTime)
@@ -404,7 +402,6 @@ namespace Segra.Backend.Games
                         var jsonBytes = await httpClient.GetByteArrayAsync(cdnUrl);
                         await File.WriteAllBytesAsync(jsonPath, jsonBytes);
 
-                        // Set the file's last write time to match the remote Last-Modified timestamp
                         if (remoteLastModified != null)
                         {
                             File.SetLastWriteTimeUtc(jsonPath, remoteLastModified.Value.UtcDateTime);
