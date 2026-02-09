@@ -1338,18 +1338,50 @@ namespace Segra.Backend.Recorder
         /// </summary>
         public static void StartGameCaptureHookRetry()
         {
-            // Can't retry if there's no game capture source
-            if (GameCaptureSource == null)
-            {
-                Log.Information("Cannot retry game capture hook: GameCaptureSource is null.");
-                return;
-            }
-
             // Already hooked, no need to retry
             if (IsGameCaptureHooked)
             {
                 Log.Information("Game capture already hooked, skipping retry.");
                 return;
+            }
+
+            // Need recording state and scene to add game capture
+            if (Settings.Instance.State.Recording == null || _mainScene == null)
+            {
+                Log.Information("Cannot retry game capture hook: No active recording or scene.");
+                return;
+            }
+
+            string? fileName = Settings.Instance.State.Recording.FileName;
+            if (string.IsNullOrEmpty(fileName))
+            {
+                Log.Information("Cannot retry game capture hook: No filename in recording state.");
+                return;
+            }
+
+            // If GameCaptureSource is null (was disposed after 90s timeout), recreate it
+            if (GameCaptureSource == null)
+            {
+                try
+                {
+                    Log.Information($"Recreating GameCaptureSource for: {fileName}");
+                    GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
+                    GameCaptureSource.SetWindow($"*:*:{fileName}");
+
+                    // Add game capture to scene (top layer - visible when hooked)
+                    _gameCaptureItem = _mainScene.AddSource(GameCaptureSource);
+
+                    // Subscribe to GameCapture's hooked/unhooked events
+                    GameCaptureSource.Hooked += OnGameCaptureHookedEvent;
+                    GameCaptureSource.Unhooked += OnGameCaptureUnhookedEvent;
+
+                    Log.Information($"GameCaptureSource recreated and added to scene.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to recreate GameCaptureSource: {ex.Message}");
+                    return;
+                }
             }
 
             // Cancel any existing retry
