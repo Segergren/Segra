@@ -966,9 +966,6 @@ namespace Segra.Backend.Services
                 }
             }
 
-            // Timer for retrying game capture hook on focus
-            private static CancellationTokenSource? _retryHookCts;
-
             private static void WinEventCallback(
                 IntPtr hWinEventHook,
                 uint eventType,
@@ -995,11 +992,10 @@ namespace Segra.Backend.Services
                         // Check if the focused window belongs to the game we're recording
                         if (pid > 0 && Settings.Instance.State.Recording.Pid.HasValue && 
                             pid == Settings.Instance.State.Recording.Pid.Value &&
-                            !Settings.Instance.State.Recording.IsUsingGameHook &&
-                            OBSService.GameCaptureSource != null)
+                            !Settings.Instance.State.Recording.IsUsingGameHook)
                         {
                             Log.Information($"Game regained focus while recording without hook. Starting 15s hook retry.");
-                            StartGameCaptureHookRetry();
+                            OBSService.StartGameCaptureHookRetry();
                         }
                         return;
                     }
@@ -1028,60 +1024,6 @@ namespace Segra.Backend.Services
                         Log.Warning("No valid process associated with the window handle.");
                     }
                 }
-            }
-
-            private static void StartGameCaptureHookRetry()
-            {
-                // Cancel any existing retry
-                _retryHookCts?.Cancel();
-                _retryHookCts = new CancellationTokenSource();
-                var token = _retryHookCts.Token;
-
-                _ = Task.Run(async () =>
-                {
-                    var startTime = DateTime.Now;
-                    var retryDuration = TimeSpan.FromSeconds(15);
-
-                    while (!token.IsCancellationRequested && DateTime.Now - startTime < retryDuration)
-                    {
-                        // Check if hook succeeded
-                        if (OBSService.GameCaptureSource?.IsHooked == true)
-                        {
-                            Log.Information("Game capture hook succeeded during retry.");
-                            return;
-                        }
-
-                        // Check if recording stopped
-                        if (Settings.Instance.State.Recording == null)
-                        {
-                            Log.Information("Recording stopped during hook retry.");
-                            return;
-                        }
-
-                        // Try to refresh the game capture target
-                        if (OBSService.GameCaptureSource != null && Settings.Instance.State.Recording?.FileName != null)
-                        {
-                            try
-                            {
-                                var settings = OBSService.GameCaptureSource.GetSettings();
-                                settings.Set("window", $"*:*:{Settings.Instance.State.Recording.FileName}");
-                                OBSService.GameCaptureSource.Update(settings);
-                                Log.Information($"Refreshed game capture target: {Settings.Instance.State.Recording.FileName}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Warning($"Failed to refresh game capture: {ex.Message}");
-                            }
-                        }
-
-                        await Task.Delay(1000, token).ConfigureAwait(false);
-                    }
-
-                    if (!token.IsCancellationRequested)
-                    {
-                        Log.Information("Game capture hook retry timed out after 15 seconds.");
-                    }
-                }, token);
             }
         }
     }

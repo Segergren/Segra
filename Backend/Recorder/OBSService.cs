@@ -97,6 +97,7 @@ namespace Segra.Backend.Recorder
         private static string? _hookedExecutableFileName;
         private static System.Threading.Timer? _gameCaptureHookTimeoutTimer = null;
         private static bool _isStillHookedAfterUnhook = false;
+        private static CancellationTokenSource? _retryHookCts = null;
 
         // Recording/output state
         private static bool _isStoppingOrStopped = false;
@@ -1329,6 +1330,77 @@ namespace Segra.Backend.Recorder
                 // Just stop the timer without disposing the game capture source if it's hooked
                 StopGameCaptureHookTimeoutTimer();
             }
+        }
+
+        /// <summary>
+        /// Retries game capture hook for 15 seconds when game regains focus.
+        /// Called from GameDetectionService when the game window gains focus while recording without an active hook.
+        /// </summary>
+        public static void StartGameCaptureHookRetry()
+        {
+            // Can't retry if there's no game capture source
+            if (GameCaptureSource == null)
+            {
+                Log.Information("Cannot retry game capture hook: GameCaptureSource is null.");
+                return;
+            }
+
+            // Already hooked, no need to retry
+            if (IsGameCaptureHooked)
+            {
+                Log.Information("Game capture already hooked, skipping retry.");
+                return;
+            }
+
+            // Cancel any existing retry
+            _retryHookCts?.Cancel();
+            _retryHookCts = new CancellationTokenSource();
+            var token = _retryHookCts.Token;
+
+            _ = Task.Run(async () =>
+            {
+                var startTime = DateTime.Now;
+                var retryDuration = TimeSpan.FromSeconds(15);
+
+                Log.Information("Starting 15s game capture hook retry...");
+
+                while (!token.IsCancellationRequested && DateTime.Now - startTime < retryDuration)
+                {
+                    // Check if hook succeeded
+                    if (GameCaptureSource?.IsHooked == true)
+                    {
+                        Log.Information("Game capture hook succeeded during retry.");
+                        return;
+                    }
+
+                    // Check if recording stopped or source was disposed
+                    if (Settings.Instance.State.Recording == null || GameCaptureSource == null)
+                    {
+                        Log.Information("Recording stopped or source disposed during hook retry.");
+                        return;
+                    }
+
+                    // Try to refresh the game capture target
+                    try
+                    {
+                        var settings = GameCaptureSource.GetSettings();
+                        settings.Set("window", $"*:*:{Settings.Instance.State.Recording.FileName}");
+                        GameCaptureSource.Update(settings);
+                        Log.Debug($"Refreshed game capture target: {Settings.Instance.State.Recording.FileName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Failed to refresh game capture: {ex.Message}");
+                    }
+
+                    await Task.Delay(1000, token).ConfigureAwait(false);
+                }
+
+                if (!token.IsCancellationRequested)
+                {
+                    Log.Information("Game capture hook retry timed out after 15 seconds.");
+                }
+            }, token);
         }
 
         public static void DisposeDisplaySource()
