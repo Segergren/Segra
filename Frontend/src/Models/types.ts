@@ -339,6 +339,7 @@ export interface Selection {
   thumbnailDataUrl?: string;
   isLoading: boolean;
   fileName: string;
+  filePath: string;
   game?: string;
   title?: string;
   igdbId?: number;

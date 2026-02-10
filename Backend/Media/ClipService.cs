@@ -60,11 +60,19 @@ namespace Segra.Backend.Media
                 double processedDuration = 0;
                 foreach (var selection in selections)
                 {
-                    // Input files are organized by game
-                    string inputGameFolder = StorageService.SanitizeGameNameForFolder(selection.Game);
-                    var selectionType = Enum.Parse<Content.ContentType>(selection.Type);
-                    string inputFolderName = FolderNames.GetVideoFolderName(selectionType);
-                    string inputFilePath = Path.Combine(videoFolder, inputFolderName, inputGameFolder, $"{selection.FileName}.mp4");
+                    // Use the actual file path from metadata when available, fall back to reconstructed path
+                    string inputFilePath;
+                    if (!string.IsNullOrEmpty(selection.FilePath) && File.Exists(selection.FilePath))
+                    {
+                        inputFilePath = selection.FilePath;
+                    }
+                    else
+                    {
+                        string inputGameFolder = StorageService.SanitizeGameNameForFolder(selection.Game);
+                        var selectionType = Enum.Parse<Content.ContentType>(selection.Type);
+                        string inputFolderName = FolderNames.GetVideoFolderName(selectionType);
+                        inputFilePath = Path.Combine(videoFolder, inputFolderName, inputGameFolder, $"{selection.FileName}.mp4");
+                    }
                     if (!File.Exists(inputFilePath))
                     {
                         Log.Information($"Input video file not found: {inputFilePath}");

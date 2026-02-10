@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { MdChevronLeft, MdChevronRight } from 'react-icons/md';
-import { HiOutlineSparkles } from 'react-icons/hi';
 import { RecoveryFileData } from '../Models/WebSocketMessages';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings } from '../Context/SettingsContext';
@@ -24,7 +23,7 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
   const totalCount = remainingFiles.length;
 
   const getCurrentGame = (file: RecoveryFileData) => {
-    return gameOverrides[file.recoveryId] || file.aiIdentifiedGame || '';
+    return gameOverrides[file.recoveryId] || file.detectedGame || '';
   };
 
   const allGames = useMemo(() => {
@@ -67,10 +66,10 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
   const handleGameSelect = (game: string) => {
     const newOverrides = { ...gameOverrides, [currentFile.recoveryId]: game };
 
-    if (currentFile.aiIdentifiedGame) {
+    if (currentFile.detectedGame) {
       remainingFiles.forEach((file) => {
         if (
-          file.aiIdentifiedGame === currentFile.aiIdentifiedGame &&
+          file.detectedGame === currentFile.detectedGame &&
           file.recoveryId !== currentFile.recoveryId
         ) {
           newOverrides[file.recoveryId] = game;
@@ -170,45 +169,41 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
             <span className="text-gray-400">Size</span>
             <span className="text-gray-200 font-medium">{currentFile.fileSize}</span>
           </div>
-          {currentFile.aiIdentifiedGame && (
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400 flex items-center gap-1">
-                Detected Game <HiOutlineSparkles className="text-purple-400" />
-              </span>
-              <div className="relative" ref={dropdownRef}>
-                <input
-                  type="text"
-                  className="input input-sm bg-base-300 border-base-400 text-gray-200 font-medium w-[200px]"
-                  placeholder={getCurrentGame(currentFile) || 'Search games...'}
-                  value={inputValue}
-                  onChange={(e) => {
-                    setInputValue(e.target.value);
-                    setShowDropdown(true);
-                  }}
-                  onFocus={() => {
-                    setShowDropdown(true);
-                  }}
-                />
-                {showDropdown && filteredGames.length > 0 && inputValue.trim().length >= 2 && (
-                  <div className="absolute z-50 w-full mt-1 bg-base-200 border border-base-400 rounded-lg shadow-lg max-h-[7.5rem] overflow-y-auto">
-                    {filteredGames.map((game) => {
-                      const isSelected = game === getCurrentGame(currentFile);
-                      return (
-                        <div
-                          key={game}
-                          className={`p-2 hover:bg-base-300 cursor-pointer border-b border-base-300 last:border-b-0 text-sm truncate ${isSelected ? 'bg-accent/20 text-accent font-medium' : ''}`}
-                          onClick={() => handleGameSelect(game)}
-                          title={game}
-                        >
-                          {game}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400">Game</span>
+            <div className="relative" ref={dropdownRef}>
+              <input
+                type="text"
+                className="input input-sm bg-base-300 border-base-400 text-gray-200 font-medium w-[200px]"
+                placeholder={getCurrentGame(currentFile) || 'Search games...'}
+                value={inputValue}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  setShowDropdown(true);
+                }}
+                onFocus={() => {
+                  setShowDropdown(true);
+                }}
+              />
+              {showDropdown && filteredGames.length > 0 && inputValue.trim().length >= 2 && (
+                <div className="absolute z-50 w-full mt-1 bg-base-200 border border-base-400 rounded-lg shadow-lg max-h-[7.5rem] overflow-y-auto">
+                  {filteredGames.map((game) => {
+                    const isSelected = game === getCurrentGame(currentFile);
+                    return (
+                      <div
+                        key={game}
+                        className={`p-2 hover:bg-base-300 cursor-pointer border-b border-base-300 last:border-b-0 text-sm truncate ${isSelected ? 'bg-accent/20 text-accent font-medium' : ''}`}
+                        onClick={() => handleGameSelect(game)}
+                        title={game}
+                      >
+                        {game}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+          </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-400">Location</span>
             <button

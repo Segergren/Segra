@@ -41,7 +41,7 @@ export interface RecoveryFileData {
   type: string;
   typeLabel: string;
   fileSize: string;
-  aiIdentifiedGame?: string;
+  detectedGame?: string;
 }
 
 export interface RecoveryPromptMessage {

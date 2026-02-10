@@ -3,6 +3,7 @@ using Segra.Backend.Core.Models;
 using Segra.Backend.Games;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
+using Segra.Backend.Windows.Storage;
 using Serilog;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -26,7 +27,7 @@ namespace Segra.Backend.Services
     internal class RecoveryService
     {
         private static readonly Dictionary<string, OrphanedFile> _pendingRecoveries = new();
-        private static readonly Dictionary<string, string> _aiIdentifiedGames = new();
+        private static readonly Dictionary<string, string> _detectedGames = new();
 
         private static async Task<Dictionary<string, string>> IdentifyGamesWithAi(List<OrphanedFile> orphanedFiles)
         {
@@ -155,12 +156,17 @@ namespace Segra.Backend.Services
 
                 Log.Information($"Found {orphanedFiles.Count} orphaned video file(s) without metadata");
 
-                bool useAi = Settings.Instance.EnableAi && AuthService.IsAuthenticated();
+                // Only use AI for files that aren't already in a game subfolder
+                var filesNeedingAi = orphanedFiles.Where(f => string.IsNullOrEmpty(f.FolderGame)).ToList();
                 Dictionary<string, string>? aiIdentifiedGames = null;
 
-                if (useAi)
+                if (filesNeedingAi.Count > 0)
                 {
-                    aiIdentifiedGames = await IdentifyGamesWithAi(orphanedFiles);
+                    bool useAi = Settings.Instance.EnableAi && AuthService.IsAuthenticated();
+                    if (useAi)
+                    {
+                        aiIdentifiedGames = await IdentifyGamesWithAi(filesNeedingAi);
+                    }
                 }
 
                 var fileDataList = orphanedFiles.Select(orphanedFile =>
@@ -183,11 +189,16 @@ namespace Segra.Backend.Services
                         _ => orphanedFile.Type.ToString()
                     };
 
-                    string? aiIdentifiedGame = null;
-                    if (aiIdentifiedGames != null && aiIdentifiedGames.TryGetValue(orphanedFile.FilePath, out string? game))
+                    // Use folder-derived game first, then AI as fallback
+                    string? detectedGame = orphanedFile.FolderGame;
+                    if (string.IsNullOrEmpty(detectedGame) && aiIdentifiedGames != null && aiIdentifiedGames.TryGetValue(orphanedFile.FilePath, out string? aiGame))
                     {
-                        aiIdentifiedGame = game;
-                        _aiIdentifiedGames[recoveryId] = game;
+                        detectedGame = aiGame;
+                    }
+
+                    if (!string.IsNullOrEmpty(detectedGame))
+                    {
+                        _detectedGames[recoveryId] = detectedGame;
                     }
 
                     return new
@@ -198,7 +209,7 @@ namespace Segra.Backend.Services
                         type = orphanedFile.Type.ToString(),
                         typeLabel,
                         fileSize = formattedSize,
-                        aiIdentifiedGame
+                        detectedGame
                     };
                 }).ToList();
 
@@ -245,19 +256,19 @@ namespace Segra.Backend.Services
                         string? gameName = gameOverride;
                         if (string.IsNullOrEmpty(gameName))
                         {
-                            gameName = _aiIdentifiedGames.TryGetValue(recoveryId, out string? aiGame) ? aiGame : null;
+                            gameName = _detectedGames.TryGetValue(recoveryId, out string? detected) ? detected : null;
                         }
                         await RecoverFile(orphanedFile, gameName);
-                        _aiIdentifiedGames.Remove(recoveryId);
+                        _detectedGames.Remove(recoveryId);
                         await SettingsService.LoadContentFromFolderIntoState(true);
                         break;
                     case "delete":
                         DeleteFile(orphanedFile);
-                        _aiIdentifiedGames.Remove(recoveryId);
+                        _detectedGames.Remove(recoveryId);
                         break;
                     case "skip":
                         Log.Information($"User skipped recovery for: {orphanedFile.FileName}");
-                        _aiIdentifiedGames.Remove(recoveryId);
+                        _detectedGames.Remove(recoveryId);
                         break;
                 }
             }
@@ -271,6 +282,22 @@ namespace Segra.Backend.Services
         {
             var orphanedFiles = new List<OrphanedFile>();
             string contentFolder = Settings.Instance.ContentFolder;
+
+            // Build a lookup from sanitized folder name -> original game name
+            var knownGameNames = Settings.Instance.State.Content
+                .Where(c => !string.IsNullOrEmpty(c.Game))
+                .Select(c => c.Game)
+                .Concat(Settings.Instance.Whitelist.Select(g => g.Name))
+                .Concat(Settings.Instance.Blacklist.Select(g => g.Name))
+                .Distinct()
+                .ToList();
+
+            var folderToGameName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var gameName in knownGameNames)
+            {
+                string sanitized = StorageService.SanitizeGameNameForFolder(gameName);
+                folderToGameName.TryAdd(sanitized, gameName);
+            }
 
             var contentTypes = new[]
             {
@@ -298,11 +325,24 @@ namespace Segra.Backend.Services
 
                     if (!File.Exists(metadataFile))
                     {
+                        // Detect game from parent folder name (e.g., "Full Sessions/PUBG/video.mp4" -> "PUBG")
+                        string? folderGame = null;
+                        string? parentDir = Path.GetDirectoryName(videoFile);
+                        if (parentDir != null && !string.Equals(parentDir, videoFolder, StringComparison.OrdinalIgnoreCase))
+                        {
+                            string folderName = Path.GetFileName(parentDir);
+                            // Reverse-lookup: match sanitized folder name back to original game name
+                            folderGame = folderToGameName.TryGetValue(folderName, out string? originalName)
+                                ? originalName
+                                : folderName;
+                        }
+
                         orphanedFiles.Add(new OrphanedFile
                         {
                             FilePath = videoFile,
                             Type = type,
-                            FileName = Path.GetFileName(videoFile)
+                            FileName = Path.GetFileName(videoFile),
+                            FolderGame = folderGame
                         });
                     }
                 }
@@ -311,17 +351,17 @@ namespace Segra.Backend.Services
             return orphanedFiles;
         }
 
-        private static async Task RecoverFile(OrphanedFile orphanedFile, string? aiIdentifiedGame)
+        private static async Task RecoverFile(OrphanedFile orphanedFile, string? detectedGame)
         {
             try
             {
                 Log.Information($"Recovering file: {orphanedFile.FileName}");
 
                 string gameName;
-                if (!string.IsNullOrEmpty(aiIdentifiedGame))
+                if (!string.IsNullOrEmpty(detectedGame))
                 {
-                    gameName = aiIdentifiedGame;
-                    Log.Information($"Using AI-identified game: {gameName}");
+                    gameName = detectedGame;
+                    Log.Information($"Using detected game: {gameName}");
                 }
                 else
                 {
@@ -370,6 +410,7 @@ namespace Segra.Backend.Services
             public required string FilePath { get; set; }
             public required Content.ContentType Type { get; set; }
             public required string FileName { get; set; }
+            public string? FolderGame { get; set; }
         }
     }
 }

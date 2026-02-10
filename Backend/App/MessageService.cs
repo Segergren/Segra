@@ -21,6 +21,7 @@ namespace Segra.Backend.App
         public double StartTime { get; set; }
         public double EndTime { get; set; }
         public required string FileName { get; set; }
+        public string? FilePath { get; set; }
         public required string Game { get; set; }
         public string Title { get; set; } = string.Empty;
         public int? IgdbId { get; set; }
@@ -353,6 +354,9 @@ namespace Segra.Backend.App
                         int? igdbId = selectionElement.TryGetProperty("igdbId", out JsonElement igdbIdElement) && igdbIdElement.ValueKind == JsonValueKind.Number
                             ? igdbIdElement.GetInt32()
                             : null;
+                        string? filePath = selectionElement.TryGetProperty("filePath", out JsonElement filePathElement)
+                            ? filePathElement.GetString()
+                            : null;
 
                         // Create a new Selection instance with all required properties.
                         selections.Add(new Selection
@@ -362,6 +366,7 @@ namespace Segra.Backend.App
                             StartTime = startTime,
                             EndTime = endTime,
                             FileName = fileName,
+                            FilePath = filePath,
                             Game = game,
                             Title = title,
                             IgdbId = igdbId
