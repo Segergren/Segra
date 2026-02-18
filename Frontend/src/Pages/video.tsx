@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { Content, BookmarkType, Selection, Bookmark } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
@@ -49,6 +49,18 @@ const timeStringToSeconds = (timeStr: string): number => {
 
 const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 1.5, 2] as const;
 const formatPlaybackRateLabel = (rate: number) => `${rate}x`;
+
+// Format time in seconds to "HH:MM:SS" when needed, otherwise "MM:SS"
+const formatTime = (time: number) => {
+  const totalSeconds = Math.max(0, Math.floor(time));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours.toString()}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
 
 function TopInfoBar({ video }: { video: Content }) {
   const { setSelectedVideo } = useSelectedVideo();
@@ -141,9 +153,16 @@ export default function VideoComponent({ video }: { video: Content }) {
   const latestDraggedSelectionRef = useRef<Selection | null>(null);
   const speedButtonRef = useRef<HTMLButtonElement | null>(null);
   const speedDropdownRef = useRef<HTMLDivElement | null>(null);
+  const currentTimeRef = useRef(0);
+  const markerRef = useRef<HTMLDivElement>(null);
+  const overlayTimeRef = useRef<HTMLSpanElement>(null);
+  const overlaySliderRef = useRef<HTMLInputElement>(null);
+  const pixelsPerSecondRef = useRef(0);
+  const durationRef = useRef(0);
+  const wavesurferRef = useRef<ReturnType<typeof WaveSurfer.create> | null>(null);
 
   // Video state
-  const [currentTime, setCurrentTime] = useState(0);
+  const [, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [zoom, setZoom] = useState(1);
 
@@ -329,11 +348,16 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Computed values
   const basePixelsPerSecond = duration > 0 ? containerWidth / duration : 0;
   const pixelsPerSecond = basePixelsPerSecond * zoom;
+  pixelsPerSecondRef.current = pixelsPerSecond;
+  durationRef.current = duration;
 
   // Make sure bookmarks are only shown when we have valid duration and zoom
   // Prevents weird positioning on initial load
   const bookmarksReady = duration > 0 && pixelsPerSecond > 0;
-  const sortedSelections = [...selections].sort((a, b) => a.startTime - b.startTime);
+  const sortedSelections = useMemo(
+    () => [...selections].sort((a, b) => a.startTime - b.startTime),
+    [selections],
+  );
   const selectionsRef = useRef(selections);
   useEffect(() => {
     selectionsRef.current = selections;
@@ -507,12 +531,23 @@ export default function VideoComponent({ video }: { video: Content }) {
   }, [volume, isMuted, isFullscreen]);
 
   // Handle video playback time updates using requestAnimationFrame for smooth updates
+  // Updates DOM directly instead of triggering React re-renders at 60fps
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
     let rafId = 0;
     const updateCurrentTime = () => {
-      setCurrentTime(vid.currentTime);
+      const t = vid.currentTime;
+      currentTimeRef.current = t;
+      if (markerRef.current) {
+        markerRef.current.style.left = `${t * pixelsPerSecondRef.current}px`;
+      }
+      if (overlayTimeRef.current) {
+        overlayTimeRef.current.textContent = formatTime(t);
+      }
+      if (overlaySliderRef.current) {
+        overlaySliderRef.current.value = String(Math.min(t, durationRef.current));
+      }
       if (!vid.paused && !vid.ended) {
         rafId = requestAnimationFrame(updateCurrentTime);
       }
@@ -678,7 +713,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     const oldPixelsPerSecond = basePixelsPerSecond * zoom;
 
     // Use current time as the focus point for zooming
-    const markerTime = currentTime;
+    const markerTime = currentTimeRef.current;
     const markerPosition = markerTime * oldPixelsPerSecond;
 
     // Calculate new zoom
@@ -835,6 +870,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     const clickPos = e.clientX - rect.left + scrollContainerRef.current.scrollLeft;
     const newTime = clickPos / pixelsPerSecond;
     const clampedTime = Math.max(0, Math.min(newTime, duration));
+    currentTimeRef.current = clampedTime;
     setCurrentTime(clampedTime);
     if (videoRef.current) {
       videoRef.current.currentTime = clampedTime;
@@ -853,9 +889,11 @@ export default function VideoComponent({ video }: { video: Content }) {
     const rect = scrollContainerRef.current.getBoundingClientRect();
     const dragPos = e.clientX - rect.left + scrollContainerRef.current.scrollLeft;
     const newTime = dragPos / pixelsPerSecond;
-    setCurrentTime(Math.max(0, Math.min(newTime, duration)));
+    const clampedTime = Math.max(0, Math.min(newTime, duration));
+    currentTimeRef.current = clampedTime;
+    setCurrentTime(clampedTime);
     if (videoRef.current) {
-      videoRef.current.currentTime = newTime;
+      videoRef.current.currentTime = clampedTime;
     }
   };
 
@@ -864,20 +902,8 @@ export default function VideoComponent({ video }: { video: Content }) {
     setTimeout(() => setIsInteracting(false), 0);
   };
 
-  // Format time in seconds to "HH:MM:SS" when needed, otherwise "MM:SS"
-  const formatTime = (time: number) => {
-    const totalSeconds = Math.max(0, Math.floor(time));
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    if (hours > 0) {
-      return `${hours.toString()}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   // Generate major and minor tick marks for the timeline based on zoom level
-  const generateTicks = () => {
+  const { majorTicks, minorTicks } = useMemo(() => {
     const maxTicks = 10;
     const minTickSpacing = 50;
     const totalPixels = duration * pixelsPerSecond;
@@ -899,18 +925,16 @@ export default function VideoComponent({ video }: { video: Content }) {
       minorTicks.push(t);
     }
     return { majorTicks, minorTicks };
-  };
-
-  const { majorTicks, minorTicks } = generateTicks();
+  }, [duration, pixelsPerSecond]);
 
   // Add a new selection at the current video position
   const handleAddSelection = async () => {
     if (!videoRef.current) return;
-    const start = currentTime;
+    const start = currentTimeRef.current;
     const zoomRatio = (zoom / 50) * 100;
     // Cap the default selection duration at 2 minutes (120s)
     const selectionDuration = Math.min(120, Math.max(0.1, duration * 0.0019 * (100 / zoomRatio)));
-    const end = currentTime + selectionDuration;
+    const end = start + selectionDuration;
 
     const newSelection: Selection = {
       id: Date.now(),
@@ -1043,7 +1067,6 @@ export default function VideoComponent({ video }: { video: Content }) {
     )[0] as HTMLElement;
     if (!timelineContainer) return;
 
-    let wavesurfer: ReturnType<typeof WaveSurfer.create> | null = null;
     const style = document.createElement('style');
     style.textContent = `
           .timeline-container ::part(wrapper),
@@ -1077,7 +1100,7 @@ export default function VideoComponent({ video }: { video: Content }) {
           durationFromPeaks = (columns * spp) / sr;
         }
 
-        wavesurfer = WaveSurfer.create({
+        const ws = WaveSurfer.create({
           container: timelineContainer,
           waveColor: '#49515b',
           progressColor: '#49515b',
@@ -1091,23 +1114,45 @@ export default function VideoComponent({ video }: { video: Content }) {
           barRadius: 2,
         });
 
-        wavesurfer.on('error', (err: Error) => {
+        ws.on('error', (err: Error) => {
           console.error('[Waveform] WaveSurfer error:', err);
         });
+
+        // Disconnect the built-in ResizeObserver (hardcoded 100ms debounce).
+        // We call renderer.reRender() ourselves with no delay instead.
+        try {
+          (ws as any).renderer?.resizeObserver?.disconnect();
+        } catch {
+          // Ignore if internal API changes
+        }
+
+        wavesurferRef.current = ws;
       })
       .catch((error: Error) => {
         console.error('Error loading audio peaks:', error);
       });
 
     return () => {
-      if (wavesurfer) {
-        wavesurfer.destroy();
+      if (wavesurferRef.current) {
+        wavesurferRef.current.destroy();
+        wavesurferRef.current = null;
       }
       if (document.head.contains(style)) {
         document.head.removeChild(style);
       }
     };
   }, [settings.showAudioWaveformInTimeline]);
+
+  // Re-render waveform immediately when zoom/container size changes
+  useEffect(() => {
+    const ws = wavesurferRef.current;
+    if (!ws || pixelsPerSecond <= 0) return;
+    try {
+      (ws as any).renderer?.reRender();
+    } catch {
+      // Ignore if destroyed
+    }
+  }, [pixelsPerSecond]);
 
   // Prepare to resize on drag (click-through on simple click)
   const handleResizeMouseDown = (
@@ -1155,6 +1200,7 @@ export default function VideoComponent({ video }: { video: Content }) {
 
     // While resizing, keep the video time at the active edge and update marker state
     const edgeTime = activeDir === 'start' ? updatedSelection.startTime : updatedSelection.endTime;
+    currentTimeRef.current = edgeTime;
     if (videoRef.current) {
       const clamped = Math.max(0, Math.min(edgeTime, duration));
       videoRef.current.currentTime = clamped;
@@ -1177,12 +1223,16 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Right-click to remove selection disabled to keep segments click-through
 
   // Move selection card in the sidebar
-  const moveCard = (dragIndex: number, hoverIndex: number) => {
-    const newSelections = [...selections];
-    const [removed] = newSelections.splice(dragIndex, 1);
-    newSelections.splice(hoverIndex, 0, removed);
-    updateSelectionsArray(newSelections);
-  };
+  const moveCard = useCallback(
+    (dragIndex: number, hoverIndex: number) => {
+      const current = selectionsRef.current;
+      const newSelections = [...current];
+      const [removed] = newSelections.splice(dragIndex, 1);
+      newSelections.splice(hoverIndex, 0, removed);
+      updateSelectionsArray(newSelections);
+    },
+    [updateSelectionsArray],
+  );
 
   // Get video source URL - use the filePath from metadata
   const getVideoPath = (): string => {
@@ -1410,18 +1460,23 @@ export default function VideoComponent({ video }: { video: Content }) {
                 {isPlaying ? <MdPause className="w-6 h-6" /> : <MdPlayArrow className="w-6 h-6" />}
               </button>
 
-              <span className="w-12 text-xs text-right tabular-nums text-white/90">
-                {formatTime(currentTime)}
+              <span
+                ref={overlayTimeRef}
+                className="w-12 text-xs text-right tabular-nums text-white/90"
+              >
+                {formatTime(currentTimeRef.current)}
               </span>
 
               <input
+                ref={overlaySliderRef}
                 type="range"
                 min={0}
                 max={Math.max(0.01, duration)}
                 step={0.01}
-                value={Math.min(currentTime, duration)}
+                value={Math.min(currentTimeRef.current, duration)}
                 onChange={(e) => {
                   const t = parseFloat(e.target.value);
+                  currentTimeRef.current = t;
                   setCurrentTime(t);
                   if (videoRef.current) videoRef.current.currentTime = t;
                 }}
@@ -1590,6 +1645,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                             0,
                             timeInSeconds - (bookmark.type == BookmarkType.Manual ? 10 : 5),
                           );
+                          currentTimeRef.current = seekTo;
                           setCurrentTime(seekTo);
                           if (videoRef.current) {
                             videoRef.current.currentTime = seekTo;
@@ -1694,8 +1750,9 @@ export default function VideoComponent({ video }: { video: Content }) {
               })}
               {resizingSelectionId == null && (
                 <div
+                  ref={markerRef}
                   className="absolute top-0 left-0 z-10 w-1 h-full -translate-x-1/2 rounded-sm shadow cursor-pointer marker bg-accent"
-                  style={{ left: `${currentTime * pixelsPerSecond}px` }}
+                  style={{ left: `${currentTimeRef.current * pixelsPerSecond}px` }}
                   onMouseDown={handleMarkerDragStart}
                 />
               )}

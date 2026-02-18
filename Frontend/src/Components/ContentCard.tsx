@@ -457,7 +457,7 @@ export default function ContentCard({
             </ul>
           </div>
         </div>
-        <p className="text-sm text-gray-200 flex items-center justify-between w-full">
+        <div className="text-sm text-gray-200 flex items-center justify-between w-full">
           <span>
             {content!.fileSize} &bull; {new Date(content!.createdAt).toLocaleDateString()}
           </span>
@@ -498,7 +498,7 @@ export default function ContentCard({
               </span>
             </div>
           )}
-        </p>
+        </div>
       </div>
     </div>
   );
