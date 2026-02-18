@@ -141,6 +141,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const latestDraggedSelectionRef = useRef<Selection | null>(null);
   const speedButtonRef = useRef<HTMLButtonElement | null>(null);
   const speedDropdownRef = useRef<HTMLDivElement | null>(null);
+  const wavesurferRef = useRef<ReturnType<typeof WaveSurfer.create> | null>(null);
 
   // Video state
   const [currentTime, setCurrentTime] = useState(0);
@@ -1043,7 +1044,6 @@ export default function VideoComponent({ video }: { video: Content }) {
     )[0] as HTMLElement;
     if (!timelineContainer) return;
 
-    let wavesurfer: ReturnType<typeof WaveSurfer.create> | null = null;
     const style = document.createElement('style');
     style.textContent = `
           .timeline-container ::part(wrapper),
@@ -1077,7 +1077,7 @@ export default function VideoComponent({ video }: { video: Content }) {
           durationFromPeaks = (columns * spp) / sr;
         }
 
-        wavesurfer = WaveSurfer.create({
+        const ws = WaveSurfer.create({
           container: timelineContainer,
           waveColor: '#49515b',
           progressColor: '#49515b',
@@ -1091,23 +1091,48 @@ export default function VideoComponent({ video }: { video: Content }) {
           barRadius: 2,
         });
 
-        wavesurfer.on('error', (err: Error) => {
+        ws.on('error', (err: Error) => {
           console.error('[Waveform] WaveSurfer error:', err);
         });
+
+        // Disconnect the built-in ResizeObserver (hardcoded 100ms debounce).
+        // We call renderer.reRender() ourselves with no delay instead.
+        try {
+          (ws as any).renderer?.resizeObserver?.disconnect();
+        } catch {
+          // Ignore if internal API changes
+        }
+
+        wavesurferRef.current = ws;
       })
       .catch((error: Error) => {
         console.error('Error loading audio peaks:', error);
       });
 
     return () => {
-      if (wavesurfer) {
-        wavesurfer.destroy();
+      if (wavesurferRef.current) {
+        wavesurferRef.current.destroy();
+        wavesurferRef.current = null;
       }
       if (document.head.contains(style)) {
         document.head.removeChild(style);
       }
     };
   }, [settings.showAudioWaveformInTimeline]);
+
+  // Re-render waveform when zoom/container size changes (50ms debounce, down from built-in 100ms)
+  useEffect(() => {
+    const ws = wavesurferRef.current;
+    if (!ws || pixelsPerSecond <= 0) return;
+    const timer = setTimeout(() => {
+      try {
+        (ws as any).renderer?.reRender();
+      } catch {
+        // Ignore if destroyed
+      }
+    }, 10);
+    return () => clearTimeout(timer);
+  }, [pixelsPerSecond]);
 
   // Prepare to resize on drag (click-through on simple click)
   const handleResizeMouseDown = (
