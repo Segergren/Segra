@@ -71,7 +71,7 @@ function TopInfoBar({ video }: { video: Content }) {
       });
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1 mb-2 text-xs leading-tight text-gray-300 border rounded-lg bg-base-300 border-base-400">
+    <div className="flex items-center gap-2 px-2 py-1 mb-2 text-xs leading-tight text-gray-300 border rounded-lg shrink-0 bg-base-300 border-base-400">
       <Button
         variant="ghost"
         size="xs"
@@ -319,12 +319,9 @@ export default function VideoComponent({ video }: { video: Content }) {
     startClientX: number;
   } | null>(null);
 
-  const isHighlightOrClip = video.type === 'Highlight' || video.type === 'Clip';
   const videoWrapperClassName = [
     'block relative w-full',
-    isFullscreen ? 'h-full' : 'rounded-lg overflow-hidden aspect-video max-h-[calc(100vh-100px)]',
-    !isFullscreen &&
-      (isHighlightOrClip ? 'md:max-h-[calc(100vh-230px)]' : 'md:max-h-[calc(100vh-200px)]'),
+    isFullscreen ? 'h-full' : 'rounded-lg overflow-hidden h-full',
   ]
     .filter(Boolean)
     .join(' ');
@@ -1358,10 +1355,10 @@ export default function VideoComponent({ video }: { video: Content }) {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="flex w-full h-full overflow-hidden bg-base-200" ref={containerRef}>
-        <div className="flex-1 w-full p-4 lg:w-3/4">
+        <div className="flex flex-col flex-1 w-full h-full p-4 pb-2 overflow-hidden lg:w-3/4">
           <TopInfoBar video={video} />
           <div
-            className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative'} ${!controlsVisible && isPointerInPlayer ? 'cursor-none' : ''}`}
+            className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative flex-1 min-h-0'} ${!controlsVisible && isPointerInPlayer ? 'cursor-none' : ''}`}
             ref={playerContainerRef}
             onMouseMove={() => {
               setIsPointerInPlayer(true);
@@ -1380,7 +1377,7 @@ export default function VideoComponent({ video }: { video: Content }) {
             <div className={videoWrapperClassName}>
               <video
                 autoPlay
-                className="w-full h-full"
+                className="w-full h-full object-contain"
                 src={getVideoPath()}
                 ref={videoRef}
                 onClick={onVideoClick}
@@ -1391,7 +1388,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 onWheel={onVideoWheel}
                 style={{
                   backgroundColor: 'black',
-                  objectFit: isFullscreen ? ('contain' as const) : undefined,
+                  objectFit: 'contain' as const,
                   transform: `translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`,
                   transformOrigin: '0 0',
                   touchAction: videoScale > 1 ? 'none' : undefined,
@@ -1555,7 +1552,7 @@ export default function VideoComponent({ video }: { video: Content }) {
             </div>
           </div>
           <div
-            className="relative w-full mt-2 overflow-x-scroll overflow-y-hidden select-none timeline-wrapper"
+            className="relative w-full mt-2 overflow-x-scroll overflow-y-hidden select-none shrink-0 timeline-wrapper"
             ref={scrollContainerRef}
             onMouseMove={(e) => {
               handleSelectionDrag(e);
@@ -1704,7 +1701,7 @@ export default function VideoComponent({ video }: { video: Content }) {
               )}
             </div>
           </div>
-          <div className="flex items-center justify-between gap-4 py-1">
+          <div className="flex items-center justify-between gap-4 py-1 shrink-0">
             <div className="flex items-center gap-3">
               <div className="flex items-center border rounded-lg join bg-base-300 border-base-400">
                 <button
@@ -1830,7 +1827,7 @@ export default function VideoComponent({ video }: { video: Content }) {
           </div>
         </div>
         {(video.type === 'Session' || video.type === 'Buffer') && (
-          <div className="flex flex-col h-full pt-4 pl-4 pr-1 border-l bg-base-300 text-neutral-content w-52 2xl:w-72 border-base-400">
+          <div className="flex flex-col h-full pt-4 pl-4 pr-1 border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
             <div className="flex-1 p-1 mt-1 overflow-y-scroll">
               {selections.map((sel, index) => (
                 <SelectionCard
