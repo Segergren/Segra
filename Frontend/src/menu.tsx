@@ -97,10 +97,12 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const hasUnavailableDevices = () => {
     const unavailableInput = settings.inputDevices.some(
       (deviceSetting: { id: string }) =>
+        deviceSetting.id !== 'default' &&
         !settings.state.inputDevices.some((d) => d.id === deviceSetting.id),
     );
     const unavailableOutput = settings.outputDevices.some(
       (deviceSetting: { id: string }) =>
+        deviceSetting.id !== 'default' &&
         !settings.state.outputDevices.some((d) => d.id === deviceSetting.id),
     );
     return unavailableInput || unavailableOutput;

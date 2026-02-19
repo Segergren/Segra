@@ -17,11 +17,13 @@ export default function AudioDevicesSection({
 }: AudioDevicesSectionProps) {
   const [draggingVolume, setDraggingVolume] = useState<{
     deviceId: string | null;
+    deviceType: 'input' | 'output' | null;
     volume: number | null;
-  }>({ deviceId: null, volume: null });
+  }>({ deviceId: null, deviceType: null, volume: null });
 
   // Helper function to check if the selected device is available
   const isDeviceAvailable = (deviceId: string, devices: AudioDevice[]) => {
+    if (deviceId === 'default') return true;
     return devices.some((device) => device.id === deviceId);
   };
 
@@ -58,12 +60,19 @@ export default function AudioDevicesSection({
     if (isSelected) {
       updatedDevices = selectedDevices.filter((d) => d.id !== deviceId);
     } else {
-      const deviceToAdd = availableDevices.find((d) => d.id === deviceId);
-      if (deviceToAdd) {
+      if (deviceId === 'default') {
         updatedDevices = [
           ...selectedDevices,
-          { id: deviceId, name: deviceToAdd.name, volume: 1.0 },
+          { id: 'default', name: 'Default Device', volume: 1.0 },
         ];
+      } else {
+        const deviceToAdd = availableDevices.find((d) => d.id === deviceId);
+        if (deviceToAdd) {
+          updatedDevices = [
+            ...selectedDevices,
+            { id: deviceId, name: deviceToAdd.name, volume: 1.0 },
+          ];
+        }
       }
     }
 
@@ -96,10 +105,13 @@ export default function AudioDevicesSection({
     const selectedDevices = isInput ? settings.inputDevices : settings.outputDevices;
     const availableDevices = isInput ? settings.state.inputDevices : settings.state.outputDevices;
 
+    const defaultDevice: AudioDevice = { id: 'default', name: 'Default Device', isDefault: false };
+    const allDevices = [defaultDevice, ...availableDevices];
+
     return (
       <>
         {/* List available devices as checkboxes */}
-        {availableDevices.map((device) => (
+        {allDevices.map((device) => (
           <div key={device.id} className="form-control mb-1 last:mb-0">
             <label className="cursor-pointer flex items-center gap-2 p-1 hover:bg-base-200 rounded">
               <input
@@ -127,54 +139,62 @@ export default function AudioDevicesSection({
                 })()}
               </span>
               {/* Volume slider for selected devices */}
-              {selectedDevices.some((d) => d.id === device.id) && (
-                <div className="flex items-center gap-1 w-32">
-                  <input
-                    type="range"
-                    min="0"
-                    max="2"
-                    step="0.02"
-                    value={
-                      draggingVolume.deviceId === device.id
-                        ? (draggingVolume.volume ?? 0)
-                        : (selectedDevices.find((d) => d.id === device.id)?.volume ?? 1.0)
-                    }
-                    className="range range-xs range-primary [--range-fill:0]"
-                    onChange={(e) => {
-                      if (draggingVolume.deviceId === device.id) {
-                        setDraggingVolume({
-                          ...draggingVolume,
-                          volume: parseFloat(e.target.value),
-                        });
-                      }
-                    }}
-                    onMouseDown={(e) =>
-                      setDraggingVolume({
-                        deviceId: device.id,
-                        volume: parseFloat(e.currentTarget.value),
-                      })
-                    }
-                    onMouseUp={(e) => {
-                      if (draggingVolume.deviceId === device.id) {
-                        handleVolumeChange(
-                          device.id,
-                          parseFloat(e.currentTarget.value),
-                          deviceType,
-                        );
-                        setDraggingVolume({ deviceId: null, volume: null });
-                      }
-                    }}
-                  />
-                  <span className="text-xs w-8 text-right">
-                    {Math.round(
-                      (draggingVolume.deviceId === device.id
-                        ? (draggingVolume.volume ?? 0)
-                        : (selectedDevices.find((d) => d.id === device.id)?.volume ?? 1.0)) * 100,
-                    )}
-                    %
-                  </span>
-                </div>
-              )}
+              {selectedDevices.some((d) => d.id === device.id) &&
+                (() => {
+                  const isDragging =
+                    draggingVolume.deviceId === device.id &&
+                    draggingVolume.deviceType === deviceType;
+                  return (
+                    <div className="flex items-center gap-1 w-32">
+                      <input
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="0.02"
+                        value={
+                          isDragging
+                            ? (draggingVolume.volume ?? 0)
+                            : (selectedDevices.find((d) => d.id === device.id)?.volume ?? 1.0)
+                        }
+                        className="range range-xs range-primary [--range-fill:0]"
+                        onChange={(e) => {
+                          if (isDragging) {
+                            setDraggingVolume({
+                              ...draggingVolume,
+                              volume: parseFloat(e.target.value),
+                            });
+                          }
+                        }}
+                        onMouseDown={(e) =>
+                          setDraggingVolume({
+                            deviceId: device.id,
+                            deviceType,
+                            volume: parseFloat(e.currentTarget.value),
+                          })
+                        }
+                        onMouseUp={(e) => {
+                          if (isDragging) {
+                            handleVolumeChange(
+                              device.id,
+                              parseFloat(e.currentTarget.value),
+                              deviceType,
+                            );
+                            setDraggingVolume({ deviceId: null, deviceType: null, volume: null });
+                          }
+                        }}
+                      />
+                      <span className="text-xs w-8 text-right">
+                        {Math.round(
+                          (isDragging
+                            ? (draggingVolume.volume ?? 0)
+                            : (selectedDevices.find((d) => d.id === device.id)?.volume ?? 1.0)) *
+                            100,
+                        )}
+                        %
+                      </span>
+                    </div>
+                  );
+                })()}
             </label>
           </div>
         ))}
@@ -183,7 +203,9 @@ export default function AudioDevicesSection({
         {selectedDevices
           .filter(
             (deviceSetting) =>
-              !isDeviceAvailable(deviceSetting.id, availableDevices) && deviceSetting.id,
+              deviceSetting.id !== 'default' &&
+              !isDeviceAvailable(deviceSetting.id, availableDevices) &&
+              deviceSetting.id,
           )
           .map((deviceSetting) => (
             <div key={deviceSetting.id} className="form-control mb-1 last:mb-0">
@@ -204,54 +226,54 @@ export default function AudioDevicesSection({
                   {deviceSetting.name.replace(' (Default)', '')}
                 </span>
                 {/* Volume slider for selected devices */}
-                {
-                  <div className="flex items-center gap-1 w-32">
-                    <input
-                      type="range"
-                      min="0"
-                      max="2"
-                      step="0.02"
-                      value={
-                        draggingVolume.deviceId === deviceSetting.id
-                          ? (draggingVolume.volume ?? 0)
-                          : deviceSetting.volume
-                      }
-                      className="range range-xs range-primary [--range-fill:0]"
-                      onChange={(e) => {
-                        if (draggingVolume.deviceId === deviceSetting.id) {
+                {(() => {
+                  const isDragging =
+                    draggingVolume.deviceId === deviceSetting.id &&
+                    draggingVolume.deviceType === deviceType;
+                  return (
+                    <div className="flex items-center gap-1 w-32">
+                      <input
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="0.02"
+                        value={isDragging ? (draggingVolume.volume ?? 0) : deviceSetting.volume}
+                        className="range range-xs range-primary [--range-fill:0]"
+                        onChange={(e) => {
+                          if (isDragging) {
+                            setDraggingVolume({
+                              ...draggingVolume,
+                              volume: parseFloat(e.target.value),
+                            });
+                          }
+                        }}
+                        onMouseDown={(e) =>
                           setDraggingVolume({
-                            ...draggingVolume,
-                            volume: parseFloat(e.target.value),
-                          });
-                        }
-                      }}
-                      onMouseDown={(e) =>
-                        setDraggingVolume({
-                          deviceId: deviceSetting.id,
-                          volume: parseFloat(e.currentTarget.value),
-                        })
-                      }
-                      onMouseUp={(e) => {
-                        if (draggingVolume.deviceId === deviceSetting.id) {
-                          handleVolumeChange(
-                            deviceSetting.id,
-                            parseFloat(e.currentTarget.value),
+                            deviceId: deviceSetting.id,
                             deviceType,
-                          );
-                          setDraggingVolume({ deviceId: null, volume: null });
+                            volume: parseFloat(e.currentTarget.value),
+                          })
                         }
-                      }}
-                    />
-                    <span className="text-xs w-8 text-right">
-                      {Math.round(
-                        (draggingVolume.deviceId === deviceSetting.id
-                          ? (draggingVolume.volume ?? 0)
-                          : deviceSetting.volume) * 100,
-                      )}
-                      %
-                    </span>
-                  </div>
-                }
+                        onMouseUp={(e) => {
+                          if (isDragging) {
+                            handleVolumeChange(
+                              deviceSetting.id,
+                              parseFloat(e.currentTarget.value),
+                              deviceType,
+                            );
+                            setDraggingVolume({ deviceId: null, deviceType: null, volume: null });
+                          }
+                        }}
+                      />
+                      <span className="text-xs w-8 text-right">
+                        {Math.round(
+                          (isDragging ? (draggingVolume.volume ?? 0) : deviceSetting.volume) * 100,
+                        )}
+                        %
+                      </span>
+                    </div>
+                  );
+                })()}
               </label>
             </div>
           ))}

@@ -644,7 +644,9 @@ namespace Segra.Backend.Recorder
                     if (!string.IsNullOrEmpty(deviceSetting.Id))
                     {
                         string sourceName = $"Microphone_{_micSources.Count + 1}";
-                        var micSource = AudioInputCapture.FromDevice(deviceSetting.Id, sourceName);
+                        var micSource = deviceSetting.Id == "default"
+                            ? AudioInputCapture.FromDefault(sourceName)
+                            : AudioInputCapture.FromDevice(deviceSetting.Id, sourceName);
 
                         // Apply Force Mono if enabled
                         SetForceMono(micSource, Settings.Instance.ForceMonoInputSources);
@@ -669,7 +671,9 @@ namespace Segra.Backend.Recorder
                     if (!string.IsNullOrEmpty(deviceSetting.Id))
                     {
                         string sourceName = $"DesktopAudio_{_desktopSources.Count + 1}";
-                        var desktopSource = AudioOutputCapture.FromDevice(deviceSetting.Id, sourceName);
+                        var desktopSource = deviceSetting.Id == "default"
+                            ? AudioOutputCapture.FromDefault(sourceName)
+                            : AudioOutputCapture.FromDevice(deviceSetting.Id, sourceName);
 
                         desktopSource.Volume = deviceSetting.Volume;
 

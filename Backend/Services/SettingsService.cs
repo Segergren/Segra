@@ -904,6 +904,12 @@ namespace Segra.Backend.Services
 
             foreach (DeviceSetting selectedDevice in selectedDevices)
             {
+                // "default" is a virtual device that always resolves at capture time — skip reconciliation
+                if (selectedDevice.Id == "default")
+                {
+                    continue;
+                }
+
                 bool idExists = availableDevices.Any(d => d.Id == selectedDevice.Id);
                 if (idExists)
                 {
@@ -958,36 +964,21 @@ namespace Segra.Backend.Services
 
         public static void SelectDefaultDevices()
         {
-            List<AudioDevice> inputDevices = Settings.Instance.State.InputDevices;
-            List<AudioDevice> outputDevices = Settings.Instance.State.OutputDevices;
-
-            AudioDevice? defaultInputDevice = inputDevices.FirstOrDefault(d => d.IsDefault);
-            if (defaultInputDevice != null)
+            Settings.Instance.BeginBulkUpdate();
+            Settings.Instance.InputDevices.Add(new DeviceSetting
             {
-                Settings.Instance.BeginBulkUpdate();
-                Settings.Instance.InputDevices.Add(new DeviceSetting
-                {
-                    Id = defaultInputDevice.Id,
-                    Name = defaultInputDevice.Name,
-                    Volume = 1.0f
-                });
-                Settings.Instance.EndBulkUpdateAndSaveSettings();
-                Log.Information($"Auto-selected default input device: {defaultInputDevice.Name}");
-            }
-
-            AudioDevice? defaultOutputDevice = outputDevices.FirstOrDefault(d => d.IsDefault);
-            if (defaultOutputDevice != null)
+                Id = "default",
+                Name = "Default Device",
+                Volume = 1.0f
+            });
+            Settings.Instance.OutputDevices.Add(new DeviceSetting
             {
-                Settings.Instance.BeginBulkUpdate();
-                Settings.Instance.OutputDevices.Add(new DeviceSetting
-                {
-                    Id = defaultOutputDevice.Id,
-                    Name = defaultOutputDevice.Name,
-                    Volume = 1.0f
-                });
-                Settings.Instance.EndBulkUpdateAndSaveSettings();
-                Log.Information($"Auto-selected default output device: {defaultOutputDevice.Name}");
-            }
+                Id = "default",
+                Name = "Default Device",
+                Volume = 1.0f
+            });
+            Settings.Instance.EndBulkUpdateAndSaveSettings();
+            Log.Information("Auto-selected default input and output devices");
         }
 
         /// <summary>
