@@ -56,8 +56,19 @@ namespace Segra.Backend.Media
                         var perSourceNames = new List<string>();
                         if (Settings.Instance.InputDevices != null)
                             perSourceNames.AddRange(Settings.Instance.InputDevices.Select(d => d.Name));
-                        if (Settings.Instance.OutputDevices != null)
-                            perSourceNames.AddRange(Settings.Instance.OutputDevices.Select(d => d.Name));
+
+                        var audioOutputMode = Settings.Instance.AudioOutputMode;
+                        if (audioOutputMode == AudioOutputMode.All)
+                        {
+                            if (Settings.Instance.OutputDevices != null)
+                                perSourceNames.AddRange(Settings.Instance.OutputDevices.Select(d => d.Name));
+                        }
+                        else
+                        {
+                            perSourceNames.Add("Game Audio");
+                            if (audioOutputMode == AudioOutputMode.GameAndDiscord)
+                                perSourceNames.Add("Discord");
+                        }
 
                         // OBS supports 6 tracks total; we already used 1 for the mix
                         foreach (var name in perSourceNames.Take(5))

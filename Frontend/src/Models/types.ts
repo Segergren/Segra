@@ -4,6 +4,8 @@ export type RecordingMode = 'Session' | 'Buffer' | 'Hybrid';
 
 export type DisplayCaptureMethod = 'Auto' | 'DXGI' | 'WGC';
 
+export type AudioOutputMode = 'All' | 'GameOnly' | 'GameAndDiscord';
+
 export interface Content {
   type: ContentType;
   title: string;
@@ -245,6 +247,7 @@ export interface Settings {
   showGameBackground: boolean; // Show game background while recording
   showAudioWaveformInTimeline: boolean; // Show audio waveform in video timeline
   enableSeparateAudioTracks: boolean; // Advanced: per-source audio tracks
+  audioOutputMode: AudioOutputMode;
   videoQualityPreset: VideoQualityPreset;
   clipQualityPreset: ClipQualityPreset;
   removeOriginalAfterCompression: boolean;
@@ -312,6 +315,7 @@ export const initialSettings: Settings = {
   showGameBackground: true,
   showAudioWaveformInTimeline: true,
   enableSeparateAudioTracks: false,
+  audioOutputMode: 'All',
   videoQualityPreset: 'high',
   clipQualityPreset: 'standard',
   removeOriginalAfterCompression: false,

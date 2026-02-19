@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MdWarning, MdClose, MdError } from 'react-icons/md';
+import { MdWarning, MdClose, MdError, MdVolumeUp } from 'react-icons/md';
+import { LuGamepad2 } from 'react-icons/lu';
+import { FaDiscord } from 'react-icons/fa';
 import Button from '../Button';
-import { Settings as SettingsType, AudioDevice } from '../../Models/types';
+import { Settings as SettingsType, AudioDevice, AudioOutputMode } from '../../Models/types';
 
 interface AudioDevicesSectionProps {
   settings: SettingsType;
@@ -303,6 +305,49 @@ export default function AudioDevicesSection({
           />
           <span className="ml-2">Separate Audio Tracks</span>
         </label>
+
+        <div className="flex flex-col gap-1 w-70">
+          <label className="label-text text-base-content mb-1">Output Audio Mode</label>
+          {[
+            {
+              value: 'All' as AudioOutputMode,
+              label: 'All PC Audio',
+              icons: <MdVolumeUp className="h-4 w-4" />,
+            },
+            {
+              value: 'GameOnly' as AudioOutputMode,
+              label: 'Game Audio Only',
+              icons: <LuGamepad2 className="h-4 w-4" />,
+            },
+            {
+              value: 'GameAndDiscord' as AudioOutputMode,
+              label: 'Game + Discord Audio Only',
+              icons: (
+                <span className="flex items-center gap-1.5">
+                  <LuGamepad2 className="h-4 w-4" />
+                  <FaDiscord className="h-4 w-4" />
+                </span>
+              ),
+            },
+          ].map((option) => (
+            <label
+              key={option.value}
+              className="cursor-pointer flex items-center gap-2 p-1 hover:bg-base-200 rounded"
+            >
+              <input
+                type="radio"
+                name="audioOutputMode"
+                className="radio radio-sm radio-accent"
+                checked={settings.audioOutputMode === option.value}
+                onChange={() => updateSettings({ audioOutputMode: option.value })}
+              />
+              <span className="flex items-center gap-1.5 text-sm">
+                {option.label}
+                {option.icons}
+              </span>
+            </label>
+          ))}
+        </div>
 
         <AnimatePresence>
           {hasOverTrackLimit && !trackLimitWarnDismissed && (

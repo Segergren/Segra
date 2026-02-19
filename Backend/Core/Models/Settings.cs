@@ -66,6 +66,7 @@ namespace Segra.Backend.Core.Models
         private bool _showGameBackground = true;
         private bool _showAudioWaveformInTimeline = true;
         private bool _enableSeparateAudioTracks = false;
+        private AudioOutputMode _audioOutputMode = AudioOutputMode.All;
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "standard";
         private bool _removeOriginalAfterCompression = false;
@@ -686,6 +687,19 @@ namespace Segra.Backend.Core.Models
                 if (_enableSeparateAudioTracks != value)
                 {
                     _enableSeparateAudioTracks = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("audioOutputMode")]
+        public AudioOutputMode AudioOutputMode
+        {
+            get => _audioOutputMode;
+            set
+            {
+                if (_audioOutputMode != value)
+                {
+                    _audioOutputMode = value;
                 }
             }
         }
@@ -1410,6 +1424,14 @@ namespace Segra.Backend.Core.Models
         Auto,
         DXGI,
         WGC
+    }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum AudioOutputMode
+    {
+        All,
+        GameOnly,
+        GameAndDiscord
     }
 
     public class Game

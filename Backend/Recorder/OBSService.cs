@@ -88,6 +88,7 @@ namespace Segra.Backend.Recorder
         private static MonitorCapture? _displaySource;
         private static readonly List<AudioInputCapture> _micSources = [];
         private static readonly List<AudioOutputCapture> _desktopSources = [];
+        private static Source? _discordAudioSource;
 
         // OBS encoder resources
         private static VideoEncoder? _videoEncoder;
@@ -537,6 +538,13 @@ namespace Segra.Backend.Recorder
                     GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
                     GameCaptureSource.SetWindow($"*:*:{fileName}");
 
+                    // Enable capture_audio on game capture when using GameOnly or GameAndDiscord mode
+                    if (Settings.Instance.AudioOutputMode != AudioOutputMode.All)
+                    {
+                        GameCaptureSource.Update(s => s.Set("capture_audio", true));
+                        Log.Information($"Game capture audio enabled (mode: {Settings.Instance.AudioOutputMode})");
+                    }
+
                     Log.Information($"Game capture configured for: {fileName}");
 
                     // Add game capture to scene (top layer - visible when hooked)
@@ -651,6 +659,9 @@ namespace Segra.Backend.Recorder
                 }
             }
 
+            var audioOutputMode = Settings.Instance.AudioOutputMode;
+
+            // Always add desktop audio sources - they serve as fallback until game hooks in GameOnly/GameAndDiscord modes
             if (Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
             {
                 foreach (var deviceSetting in Settings.Instance.OutputDevices)
@@ -670,12 +681,53 @@ namespace Segra.Backend.Recorder
                 }
             }
 
+            // In GameAndDiscord mode, also create Discord application audio capture (starts muted until game hooks)
+            if (audioOutputMode == AudioOutputMode.GameAndDiscord && GameCaptureSource != null)
+            {
+                try
+                {
+                    _discordAudioSource = new Source("wasapi_process_output_capture", "Discord Audio");
+                    _discordAudioSource.Update(s =>
+                    {
+                        // Window format: title:class:executable
+                        s.Set("window", "Discord:Chrome_WidgetWin_1:Discord.exe");
+                        s.Set("priority", 2); // WINDOW_PRIORITY_EXE
+                    });
+                    _discordAudioSource.IsMuted = true; // Muted until game hooks (desktop audio covers Discord until then)
+                    _mainScene!.AddSource(_discordAudioSource);
+                    Log.Information("Added Discord application audio capture source (muted until game hooks)");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to create Discord audio capture source: {ex.Message}");
+                    _discordAudioSource = null;
+                }
+            }
+
             // Configure mixers and audio encoders based on setting.
             // If enabled: Track 1 = Full Mix, Tracks 2..6 = per-source isolated (up to 5 sources)
             // If disabled: Track 1 only (Full Mix)
+            // "Primary" sources get separate tracks; desktop sources in non-All modes are fallback-only (full mix only).
             var allAudioSources = new List<Source>();
             allAudioSources.AddRange(_micSources);
             allAudioSources.AddRange(_desktopSources);
+
+            if (audioOutputMode != AudioOutputMode.All && GameCaptureSource != null)
+            {
+                // Desktop sources are fallback-only: assign to full mix (Track 1) only, no separate tracks
+                foreach (var desktopSource in _desktopSources)
+                {
+                    try { desktopSource.AudioMixers = 1u << 0; }
+                    catch (Exception ex) { Log.Warning($"Failed to set mixer for fallback desktop source: {ex.Message}"); }
+                }
+
+                // Remove desktop sources from the list that gets separate tracks
+                allAudioSources = new List<Source>();
+                allAudioSources.AddRange(_micSources);
+                allAudioSources.Add(GameCaptureSource);
+                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
+                    allAudioSources.Add(_discordAudioSource);
+            }
 
             // Build list of device names for encoder naming
             var audioDeviceNames = new List<string>();
@@ -684,10 +736,19 @@ namespace Segra.Backend.Recorder
                 foreach (var device in Settings.Instance.InputDevices.Where(d => !string.IsNullOrEmpty(d.Id)))
                     audioDeviceNames.Add(device.Name.Replace(" (Default)", "") ?? "Microphone");
             }
-            if (Settings.Instance.OutputDevices != null)
+            if (audioOutputMode == AudioOutputMode.All || GameCaptureSource == null)
             {
-                foreach (var device in Settings.Instance.OutputDevices.Where(d => !string.IsNullOrEmpty(d.Id)))
-                    audioDeviceNames.Add(device.Name.Replace(" (Default)", "") ?? "Desktop Audio");
+                if (Settings.Instance.OutputDevices != null)
+                {
+                    foreach (var device in Settings.Instance.OutputDevices.Where(d => !string.IsNullOrEmpty(d.Id)))
+                        audioDeviceNames.Add(device.Name.Replace(" (Default)", "") ?? "Desktop Audio");
+                }
+            }
+            else
+            {
+                audioDeviceNames.Add("Game Audio");
+                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
+                    audioDeviceNames.Add("Discord");
             }
 
             bool separateTracks = Settings.Instance.EnableSeparateAudioTracks;
@@ -1192,6 +1253,25 @@ namespace Segra.Backend.Recorder
                 // Remove display capture to save resources while game is hooked
                 DisposeDisplaySource();
 
+                // Switch output audio: mute desktop sources and unmute game/discord sources
+                var audioOutputMode = Settings.Instance.AudioOutputMode;
+                if (audioOutputMode != AudioOutputMode.All)
+                {
+                    foreach (var desktopSource in _desktopSources)
+                    {
+                        try { desktopSource.IsMuted = true; }
+                        catch (Exception ex) { Log.Warning($"Failed to mute desktop source: {ex.Message}"); }
+                    }
+                    Log.Information("Muted desktop audio sources (game hooked, using capture_audio)");
+
+                    if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
+                    {
+                        try { _discordAudioSource.IsMuted = false; }
+                        catch (Exception ex) { Log.Warning($"Failed to unmute Discord source: {ex.Message}"); }
+                        Log.Information("Unmuted Discord audio source (game hooked)");
+                    }
+                }
+
                 if (Settings.Instance.State.Recording != null)
                 {
                     Settings.Instance.State.Recording.IsUsingGameHook = true;
@@ -1212,6 +1292,25 @@ namespace Segra.Backend.Recorder
         {
             // IsHooked is now managed by GameCapture automatically
             Log.Information("Game unhooked.");
+
+            // Switch output audio back: unmute desktop sources and mute discord source
+            var audioOutputMode = Settings.Instance.AudioOutputMode;
+            if (audioOutputMode != AudioOutputMode.All)
+            {
+                foreach (var desktopSource in _desktopSources)
+                {
+                    try { desktopSource.IsMuted = false; }
+                    catch (Exception ex) { Log.Warning($"Failed to unmute desktop source: {ex.Message}"); }
+                }
+                Log.Information("Unmuted desktop audio sources (game unhooked, falling back to desktop audio)");
+
+                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
+                {
+                    try { _discordAudioSource.IsMuted = true; }
+                    catch (Exception ex) { Log.Warning($"Failed to mute Discord source: {ex.Message}"); }
+                    Log.Information("Muted Discord audio source (game unhooked)");
+                }
+            }
         }
 
         private static void OnReplaySaved(nint calldata)
@@ -1293,6 +1392,20 @@ namespace Segra.Backend.Recorder
                 }
             }
             _desktopSources.Clear();
+
+            // Dispose Discord audio source
+            if (_discordAudioSource != null)
+            {
+                try
+                {
+                    _discordAudioSource.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to dispose Discord audio source: {ex.Message}");
+                }
+                _discordAudioSource = null;
+            }
         }
 
         public static void DisposeGameCaptureSource()

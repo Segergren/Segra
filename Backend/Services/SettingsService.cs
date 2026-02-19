@@ -345,6 +345,14 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update AudioOutputMode
+            if (settings.AudioOutputMode != updatedSettings.AudioOutputMode)
+            {
+                Log.Information($"AudioOutputMode changed from '{settings.AudioOutputMode}' to '{updatedSettings.AudioOutputMode}'");
+                settings.AudioOutputMode = updatedSettings.AudioOutputMode;
+                hasChanges = true;
+            }
+
             // Update VideoQualityPreset
             if (settings.VideoQualityPreset != updatedSettings.VideoQualityPreset)
             {
