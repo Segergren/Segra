@@ -197,10 +197,46 @@ namespace Segra.Backend.Recorder
 
             Log.Information("Replay buffer save process completed successfully");
 
+            // Restart replay buffer so subsequent saves only include new footage
+            await ResetReplayBuffer();
+
             // Reset the flag
             _replaySaved = false;
 
             return true;
+        }
+
+        /// <summary>
+        /// Stops and restarts the replay buffer so that subsequent saves
+        /// only contain footage recorded after the last save.
+        /// </summary>
+        private static async Task ResetReplayBuffer()
+        {
+            if (_bufferOutput == null)
+                return;
+
+            Log.Information("Resetting replay buffer...");
+
+            bool stopped = _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
+
+            if (!stopped)
+            {
+                Log.Warning("Replay buffer did not stop within timeout for reset. Forcing stop.");
+                _bufferOutput.ForceStop();
+                await Task.Delay(500);
+            }
+
+            bool started = _bufferOutput.Start();
+
+            if (!started)
+            {
+                string error = _bufferOutput.LastError ?? "Unknown error";
+                Log.Error($"Failed to restart replay buffer after reset: {error}");
+            }
+            else
+            {
+                Log.Information("Replay buffer restarted successfully");
+            }
         }
 
         /// <summary>
