@@ -32,8 +32,11 @@ namespace Segra.Backend.Utils
             "Radeon(TM) Graphics"
         };
 
-        // Cache the detected GPU vendor to avoid repeated WMI queries
+        // Cache the detected GPU vendor and description to avoid repeated WMI queries
         private static GpuVendor? _cachedGpuVendor = null;
+        private static string? _cachedGpuDescription = null;
+
+        public static string? DetectedGpuDescription => _cachedGpuDescription;
 
         public static GpuVendor DetectGpuVendor()
         {
@@ -85,18 +88,21 @@ namespace Segra.Backend.Utils
                     {
                         Log.Information($"Detected NVIDIA GPU: {name}");
                         _cachedGpuVendor = GpuVendor.Nvidia;
+                        _cachedGpuDescription = name;
                         return GpuVendor.Nvidia;
                     }
                     else if (name.Contains("amd", StringComparison.OrdinalIgnoreCase) || name.Contains("radeon", StringComparison.OrdinalIgnoreCase) || name.Contains("ati", StringComparison.OrdinalIgnoreCase))
                     {
                         Log.Information($"Detected AMD GPU: {name}");
                         _cachedGpuVendor = GpuVendor.AMD;
+                        _cachedGpuDescription = name;
                         return GpuVendor.AMD;
                     }
                     else if (name.Contains("intel", StringComparison.OrdinalIgnoreCase))
                     {
                         Log.Information($"Detected Intel GPU: {name}");
                         _cachedGpuVendor = GpuVendor.Intel;
+                        _cachedGpuDescription = name;
                         return GpuVendor.Intel;
                     }
                 }
@@ -143,23 +149,27 @@ namespace Segra.Backend.Utils
                     foreach (var gpu in gpus)
                     {
                         string name = gpu["Name"]?.ToString()?.ToLower() ?? string.Empty;
+                        string displayName = gpu["Name"]?.ToString() ?? string.Empty;
 
                         if (name.Contains("nvidia"))
                         {
-                            Log.Information($"Detected NVIDIA GPU: {gpu["Name"]}");
+                            Log.Information($"Detected NVIDIA GPU: {displayName}");
                             _cachedGpuVendor = GpuVendor.Nvidia;
+                            _cachedGpuDescription = displayName;
                             return GpuVendor.Nvidia;
                         }
                         else if (name.Contains("amd") || name.Contains("radeon") || name.Contains("ati"))
                         {
-                            Log.Information($"Detected AMD GPU: {gpu["Name"]}");
+                            Log.Information($"Detected AMD GPU: {displayName}");
                             _cachedGpuVendor = GpuVendor.AMD;
+                            _cachedGpuDescription = displayName;
                             return GpuVendor.AMD;
                         }
                         else if (name.Contains("intel"))
                         {
-                            Log.Information($"Detected Intel GPU: {gpu["Name"]}");
+                            Log.Information($"Detected Intel GPU: {displayName}");
                             _cachedGpuVendor = GpuVendor.Intel;
+                            _cachedGpuDescription = displayName;
                             return GpuVendor.Intel;
                         }
                     }
@@ -180,23 +190,27 @@ namespace Segra.Backend.Utils
                     foreach (System.Management.ManagementObject gpu in allGpus)
                     {
                         string name = gpu["Name"]?.ToString()?.ToLower() ?? string.Empty;
+                        string displayName = gpu["Name"]?.ToString() ?? string.Empty;
 
                         if (name.Contains("nvidia"))
                         {
-                            Log.Information($"Detected NVIDIA GPU: {gpu["Name"]}");
+                            Log.Information($"Detected NVIDIA GPU: {displayName}");
                             _cachedGpuVendor = GpuVendor.Nvidia;
+                            _cachedGpuDescription = displayName;
                             return GpuVendor.Nvidia;
                         }
                         else if (name.Contains("amd") || name.Contains("radeon") || name.Contains("ati"))
                         {
-                            Log.Information($"Detected AMD GPU: {gpu["Name"]}");
+                            Log.Information($"Detected AMD GPU: {displayName}");
                             _cachedGpuVendor = GpuVendor.AMD;
+                            _cachedGpuDescription = displayName;
                             return GpuVendor.AMD;
                         }
                         else if (name.Contains("intel"))
                         {
-                            Log.Information($"Detected Intel GPU: {gpu["Name"]}");
+                            Log.Information($"Detected Intel GPU: {displayName}");
                             _cachedGpuVendor = GpuVendor.Intel;
+                            _cachedGpuDescription = displayName;
                             return GpuVendor.Intel;
                         }
                     }

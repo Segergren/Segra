@@ -600,7 +600,12 @@ namespace Segra.Backend.Recorder
             videoEncoderSettings.Set("use_bufsize", true);
             videoEncoderSettings.Set("rate_control", Settings.Instance.RateControl);
             videoEncoderSettings.Set("keyint_sec", 1);
-            videoEncoderSettings.Set("bf", 0);
+
+            if (ShouldDisableBFrames(encoderId))
+            {
+                Log.Information($"Disabling B-frames for encoder '{encoderId}' (not supported on this GPU)");
+                videoEncoderSettings.Set("bf", 0);
+            }
 
             switch (Settings.Instance.RateControl)
             {
@@ -1880,6 +1885,32 @@ namespace Segra.Backend.Recorder
             {
                 Settings.Instance.Codec = SelectDefaultCodec(Settings.Instance.Encoder, Settings.Instance.State.Codecs);
             }
+        }
+
+        /// <summary>
+        /// Checks whether B-frames should be explicitly disabled for the given NVENC encoder.
+        /// HEVC B-frames require Turing (RTX 20xx / GTX 16xx) or newer.
+        /// H.264 B-frames are supported on all NVENC generations.
+        /// AV1 encoding is only available on Ada Lovelace+ which supports B-frames.
+        /// </summary>
+        private static bool ShouldDisableBFrames(string encoderId)
+        {
+            // Only HEVC on pre-Turing GPUs lacks B-frame support
+            if (!encoderId.Equals("jim_hevc_nvenc", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            string gpu = DetectedGpuDescription ?? "";
+
+            // RTX cards are Turing (20xx) or newer — all support HEVC B-frames
+            if (gpu.Contains("RTX", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            // GTX 16xx series is Turing
+            if (Regex.IsMatch(gpu, @"GTX\s*16\d{2}", RegexOptions.IgnoreCase))
+                return false;
+
+            // Everything else (GTX 10xx, 9xx, Titan V, Quadro non-RTX, unknown) is pre-Turing
+            return true;
         }
 
         public static Codec? SelectDefaultCodec(string encoderType, List<Codec> availableCodecs)
