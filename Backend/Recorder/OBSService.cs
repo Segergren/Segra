@@ -600,6 +600,7 @@ namespace Segra.Backend.Recorder
             videoEncoderSettings.Set("use_bufsize", true);
             videoEncoderSettings.Set("rate_control", Settings.Instance.RateControl);
             videoEncoderSettings.Set("keyint_sec", 1);
+            videoEncoderSettings.Set("bf", 0);
 
             switch (Settings.Instance.RateControl)
             {
