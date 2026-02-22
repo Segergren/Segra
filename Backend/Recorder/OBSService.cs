@@ -22,6 +22,7 @@ using Segra.Backend.Windows.Display;
 using Segra.Backend.Games;
 using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Storage;
+using System.Diagnostics;
 using System.Threading.Channels;
 
 namespace Segra.Backend.Recorder
@@ -923,6 +924,18 @@ namespace Segra.Backend.Recorder
             _ = MessageService.SendSettingsToFrontend("OBS Start recording");
 
             Log.Information("Recording started: " + videoOutputPath);
+
+            // Set process priority to High while recording to reduce frame drops
+            try
+            {
+                Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
+                Log.Information("Process priority set to High for recording");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to set process priority to High: {ex.Message}");
+            }
+
             if (!isReplayBufferMode)
             {
                 _ = GameIntegrationService.Start(name);
@@ -990,6 +1003,17 @@ namespace Segra.Backend.Recorder
 
                 // Mark as stopping to prevent concurrent stop attempts
                 _isStoppingOrStopped = true;
+
+                // Reset process priority back to Normal
+                try
+                {
+                    Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Normal;
+                    Log.Information("Process priority set back to Normal");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to reset process priority to Normal: {ex.Message}");
+                }
 
                 StopGameCaptureHookTimeoutTimer();
 
