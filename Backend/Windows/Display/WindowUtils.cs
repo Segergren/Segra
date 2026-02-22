@@ -13,9 +13,6 @@ namespace Segra.Backend.Windows.Display
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
 
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern uint GetDpiForWindow(IntPtr hWnd);
-
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
 
@@ -501,33 +498,10 @@ namespace Segra.Backend.Windows.Display
                     continue;
                 }
 
-                // Get logical dimensions from client rect
-                int logicalWidth = rect.Width;
-                int logicalHeight = rect.Height;
-
-                // Get DPI for this specific window and convert to physical pixels
-                try
-                {
-                    uint dpi = GetDpiForWindow(windowHandle);
-                    if (dpi > 0)
-                    {
-                        double scale = dpi / 96.0;
-                        width = (uint)Math.Round(logicalWidth * scale);
-                        height = (uint)Math.Round(logicalHeight * scale);
-                    }
-                    else
-                    {
-                        // Fallback to logical dimensions if DPI is 0
-                        width = (uint)logicalWidth;
-                        height = (uint)logicalHeight;
-                    }
-                }
-                catch
-                {
-                    // Fallback to logical dimensions on error
-                    width = (uint)logicalWidth;
-                    height = (uint)logicalHeight;
-                }
+                // GetClientRect returns physical pixel dimensions because Segra is
+                // PerMonitorV2 DPI-aware (declared in app.manifest). No DPI conversion needed.
+                width = (uint)rect.Width;
+                height = (uint)rect.Height;
 
                 // If this is the first attempt and we have a standard aspect ratio, return immediately
                 // This prevents unnecessary waiting for games that are already open
