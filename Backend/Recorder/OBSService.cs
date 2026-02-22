@@ -10,7 +10,9 @@ using ObsKit.NET.Sources;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
 using Segra.Backend.Shared;
+using Segra.Backend.Utils;
 using Serilog;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
 using static Segra.Backend.Utils.GeneralUtils;
@@ -923,6 +925,7 @@ namespace Segra.Backend.Recorder
             _ = MessageService.SendSettingsToFrontend("OBS Start recording");
 
             Log.Information("Recording started: " + videoOutputPath);
+            GeneralUtils.SetProcessPriority(ProcessPriorityClass.High);
             if (!isReplayBufferMode)
             {
                 _ = GameIntegrationService.Start(name);
@@ -990,6 +993,8 @@ namespace Segra.Backend.Recorder
 
                 // Mark as stopping to prevent concurrent stop attempts
                 _isStoppingOrStopped = true;
+
+                GeneralUtils.SetProcessPriority(ProcessPriorityClass.Normal);
 
                 StopGameCaptureHookTimeoutTimer();
 
@@ -1960,5 +1965,6 @@ namespace Segra.Backend.Recorder
 
             return true;
         }
+
     }
 }

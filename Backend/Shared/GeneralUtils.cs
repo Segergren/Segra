@@ -1,4 +1,5 @@
 using Serilog;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Vortice.DXCore;
 
@@ -306,6 +307,19 @@ namespace Segra.Backend.Utils
             }
 
             return -1; // No matching bracket found
+        }
+
+        public static void SetProcessPriority(ProcessPriorityClass priority)
+        {
+            try
+            {
+                Process.GetCurrentProcess().PriorityClass = priority;
+                Log.Information($"Process priority set to {priority}");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to set process priority to {priority}: {ex.Message}");
+            }
         }
 
         /// <summary>
