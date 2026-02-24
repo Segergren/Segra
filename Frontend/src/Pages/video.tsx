@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { Content, BookmarkType, Selection, Bookmark } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
@@ -47,11 +47,12 @@ const timeStringToSeconds = (timeStr: string): number => {
   return hours * 3600 + minutes * 60 + seconds + (milliseconds ? Number(`0.${milliseconds}`) : 0);
 };
 
-function drawWaveform(
+// Render waveform bars onto a canvas for a given pixel range [regionLeft, regionLeft + canvas.width)
+function renderWaveformRegion(
   canvas: HTMLCanvasElement,
   peaks: number[],
   totalWidth: number,
-  scrollLeft: number,
+  regionLeft: number,
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -62,27 +63,55 @@ function drawWaveform(
   const columns = Math.floor(peaks.length / 2);
   if (columns === 0) return;
   const barWidth = totalWidth / columns;
-  const gap = Math.max(0.5, barWidth * 0.15);
-  const drawWidth = Math.max(0.5, barWidth - gap);
 
-  // Only draw columns visible in the viewport
-  const startCol = Math.max(0, Math.floor(scrollLeft / barWidth) - 1);
-  const endCol = Math.min(columns, Math.ceil((scrollLeft + width) / barWidth) + 1);
+  if (barWidth >= 1) {
+    // Zoomed in enough that each column is >= 1px — draw individually
+    const gap = Math.max(0.5, barWidth * 0.15);
+    const drawWidth = Math.max(0.5, barWidth - gap);
 
-  for (let i = startCol; i < endCol; i++) {
-    const min = peaks[i * 2];
-    const max = peaks[i * 2 + 1];
-    const amplitude = Math.max(Math.abs(min), Math.abs(max)) / 128;
-    const barHeight = Math.max(1, amplitude * height);
-    const x = i * barWidth - scrollLeft;
-    const y = height - barHeight;
+    const startCol = Math.max(0, Math.floor(regionLeft / barWidth) - 1);
+    const endCol = Math.min(columns, Math.ceil((regionLeft + width) / barWidth) + 1);
 
-    ctx.fillRect(x, y, drawWidth, barHeight);
+    for (let i = startCol; i < endCol; i++) {
+      const min = peaks[i * 2];
+      const max = peaks[i * 2 + 1];
+      const amplitude = Math.max(Math.abs(min), Math.abs(max)) / 128;
+      const barHeight = Math.max(1, amplitude * height);
+      const x = i * barWidth - regionLeft;
+      const y = height - barHeight;
+      ctx.fillRect(x, y, drawWidth, barHeight);
+    }
+  } else {
+    // Zoomed out — multiple columns per pixel. Draw one bar per pixel,
+    // using the max amplitude across all columns that map to that pixel.
+    for (let px = 0; px < width; px++) {
+      const worldX = regionLeft + px;
+      const colStart = Math.max(0, Math.floor(worldX / barWidth));
+      const colEnd = Math.min(columns, Math.ceil((worldX + 1) / barWidth));
+
+      let maxAmp = 0;
+      for (let i = colStart; i < colEnd; i++) {
+        const amp = Math.max(Math.abs(peaks[i * 2]), Math.abs(peaks[i * 2 + 1]));
+        if (amp > maxAmp) maxAmp = amp;
+      }
+
+      const amplitude = maxAmp / 128;
+      const barHeight = Math.max(1, amplitude * height);
+      ctx.fillRect(px, height - barHeight, 1, barHeight);
+    }
   }
 }
 
 const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 1.5, 2] as const;
 const formatPlaybackRateLabel = (rate: number) => `${rate}x`;
+
+const ICON_MAPPING: Record<BookmarkType, IconType> = {
+  Manual: MdBookmark,
+  Kill: FaGun,
+  Goal: IoIosFootball,
+  Assist: MdOutlineHandshake,
+  Death: IoSkull,
+};
 
 function TopInfoBar({ video }: { video: Content }) {
   const { setSelectedVideo } = useSelectedVideo();
@@ -173,11 +202,14 @@ export default function VideoComponent({ video }: { video: Content }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const latestDraggedSelectionRef = useRef<Selection | null>(null);
+  const pendingScrollRef = useRef<number | null>(null);
+  const zoomAnimationRef = useRef<number>(0);
   const speedButtonRef = useRef<HTMLButtonElement | null>(null);
   const speedDropdownRef = useRef<HTMLDivElement | null>(null);
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const peaksRef = useRef<number[] | null>(null);
   const waveformStateRef = useRef({ pixelsPerSecond: 0, duration: 0 });
+  const waveformBufferRef = useRef({ regionLeft: 0, regionRight: 0 });
 
   // Video state
   const [currentTime, setCurrentTime] = useState(0);
@@ -372,20 +404,14 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Make sure bookmarks are only shown when we have valid duration and zoom
   // Prevents weird positioning on initial load
   const bookmarksReady = duration > 0 && pixelsPerSecond > 0;
-  const sortedSelections = [...selections].sort((a, b) => a.startTime - b.startTime);
+  const sortedSelections = useMemo(
+    () => [...selections].sort((a, b) => a.startTime - b.startTime),
+    [selections],
+  );
   const selectionsRef = useRef(selections);
   useEffect(() => {
     selectionsRef.current = selections;
   }, [selections]);
-
-  // Icon mapping
-  const iconMapping: Record<BookmarkType, IconType> = {
-    Manual: MdBookmark,
-    Kill: FaGun,
-    Goal: IoIosFootball,
-    Assist: MdOutlineHandshake,
-    Death: IoSkull,
-  };
 
   // Track in-flight thumbnail requests to avoid stale overwrites
   const thumbnailReqTokenRef = useRef<Map<number, number>>(new Map());
@@ -667,7 +693,7 @@ export default function VideoComponent({ video }: { video: Content }) {
 
       // Calculate new zoom level
       const zoomFactor = e.deltaY < 0 ? 1.2 : 0.8;
-      const newZoom = Math.min(Math.max(wheelZoomRef.current * zoomFactor, 1), 50);
+      const newZoom = Math.min(Math.max(wheelZoomRef.current * zoomFactor, 1), 500);
 
       // Update zoom ref immediately
       wheelZoomRef.current = newZoom;
@@ -677,24 +703,11 @@ export default function VideoComponent({ video }: { video: Content }) {
       const newCursorPosition = timeAtCursor * newPixelsPerSecond;
       const newScrollLeft = newCursorPosition - cursorX;
 
-      // Apply scroll position immediately
-      requestAnimationFrame(() => {
-        if (container) {
-          container.scrollLeft = newScrollLeft;
+      // Cancel any running button zoom animation
+      cancelAnimationFrame(zoomAnimationRef.current);
 
-          // Double check the position after the frame renders
-          requestAnimationFrame(() => {
-            if (container) {
-              const currentScrollLeft = container.scrollLeft;
-              if (Math.abs(currentScrollLeft - newScrollLeft) > 5) {
-                container.scrollLeft = newScrollLeft;
-              }
-            }
-          });
-        }
-      });
-
-      // Update React state
+      // Store scroll target — useLayoutEffect applies after React commits DOM
+      pendingScrollRef.current = newScrollLeft;
       setZoom(newZoom);
     };
 
@@ -711,39 +724,50 @@ export default function VideoComponent({ video }: { video: Content }) {
 
     const container = scrollContainerRef.current;
     const scrollLeft = container.scrollLeft;
+    const bpps = containerWidth / duration;
 
-    // Calculate time at marker position (current time)
-    const basePixelsPerSecond = containerWidth / duration;
-    const oldPixelsPerSecond = basePixelsPerSecond * zoom;
-
-    // Use current time as the focus point for zooming
+    // Anchor point: keep current time marker at same viewport position
     const markerTime = currentTime;
-    const markerPosition = markerTime * oldPixelsPerSecond;
+    const markerViewportX = markerTime * bpps * zoom - scrollLeft;
 
-    // Calculate new zoom
+    // Compute target zoom
     const newZoom = increment ? zoom * 1.5 : zoom * 0.5;
-    const finalZoom = Math.min(Math.max(newZoom, 1), 50);
+    const targetZoom = Math.min(Math.max(newZoom, 1), 500);
 
-    // Update zoom state
-    setZoom(finalZoom);
+    // Cancel any running animation
+    cancelAnimationFrame(zoomAnimationRef.current);
 
-    // Calculate new scroll position to keep marker in view
-    setTimeout(() => {
-      if (container) {
-        const newPixelsPerSecond = basePixelsPerSecond * finalZoom;
-        const newMarkerPosition = markerTime * newPixelsPerSecond;
+    const startZoom = zoom;
+    const animDuration = 200;
+    const startTime = performance.now();
 
-        // Calculate new scroll position to center on marker
-        // Adjust scroll to position marker at same relative position
-        const viewportWidth = container.clientWidth;
-        const markerOffset = markerPosition - scrollLeft;
-        const visibleRatio = markerOffset / viewportWidth;
-        const newScrollPosition = newMarkerPosition - visibleRatio * viewportWidth;
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / animDuration, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
 
-        container.scrollLeft = newScrollPosition;
+      const currentZoom = startZoom + (targetZoom - startZoom) * eased;
+
+      // Compute scroll so marker stays at same viewport x
+      pendingScrollRef.current = markerTime * bpps * currentZoom - markerViewportX;
+      wheelZoomRef.current = currentZoom;
+      setZoom(currentZoom);
+
+      if (t < 1) {
+        zoomAnimationRef.current = requestAnimationFrame(animate);
       }
-    }, 0);
+    };
+
+    zoomAnimationRef.current = requestAnimationFrame(animate);
   };
+
+  // Apply pending scroll synchronously before browser paint
+  useLayoutEffect(() => {
+    if (pendingScrollRef.current !== null && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = pendingScrollRef.current;
+      pendingScrollRef.current = null;
+    }
+  }, [zoom]);
 
   // Video control functions
   const handlePlayPause = () => {
@@ -916,7 +940,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   };
 
   // Generate major and minor tick marks for the timeline based on zoom level
-  const generateTicks = () => {
+  const { majorTicks, minorTicks } = useMemo(() => {
     const maxTicks = 10;
     const minTickSpacing = 50;
     const totalPixels = duration * pixelsPerSecond;
@@ -938,15 +962,13 @@ export default function VideoComponent({ video }: { video: Content }) {
       minorTicks.push(t);
     }
     return { majorTicks, minorTicks };
-  };
-
-  const { majorTicks, minorTicks } = generateTicks();
+  }, [duration, pixelsPerSecond]);
 
   // Add a new selection at the current video position
   const handleAddSelection = async () => {
     if (!videoRef.current) return;
     const start = currentTime;
-    const zoomRatio = (zoom / 50) * 100;
+    const zoomRatio = (zoom / 500) * 100;
     // Cap the default selection duration at 2 minutes (120s)
     const selectionDuration = Math.min(120, Math.max(0.1, duration * 0.0019 * (100 / zoomRatio)));
     const end = currentTime + selectionDuration;
@@ -1074,8 +1096,8 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
   };
 
-  // Stable redraw function — reads all dynamic values from refs
-  const redrawWaveform = useCallback(() => {
+  // Render a 3x-viewport buffer and position it; scrolling just moves the canvas
+  const renderWaveformBuffer = useCallback(() => {
     const canvas = waveformCanvasRef.current;
     const peaks = peaksRef.current;
     const scroller = scrollContainerRef.current;
@@ -1084,11 +1106,35 @@ export default function VideoComponent({ video }: { video: Content }) {
     const totalWidth = dur * pps;
     const viewportWidth = scroller.clientWidth;
     const scrollLeft = scroller.scrollLeft;
-    canvas.style.left = `${scrollLeft}px`;
-    if (canvas.width !== viewportWidth) canvas.width = viewportWidth;
+
+    // Buffer: 3x viewport centered on current scroll, clamped to timeline bounds
+    const bufferWidth = Math.min(viewportWidth * 3, Math.ceil(totalWidth));
+    const regionLeft = Math.max(0, Math.floor(scrollLeft - viewportWidth));
+    const regionRight = regionLeft + bufferWidth;
+
+    if (canvas.width !== bufferWidth) canvas.width = bufferWidth;
     if (canvas.height !== 49) canvas.height = 49;
-    drawWaveform(canvas, peaks, totalWidth, scrollLeft);
+
+    canvas.style.left = `${regionLeft}px`;
+    renderWaveformRegion(canvas, peaks, totalWidth, regionLeft);
+    waveformBufferRef.current = { regionLeft, regionRight };
   }, []);
+
+  // Reposition canvas on scroll; only re-render if scrolled past buffer edges
+  const updateWaveformScroll = useCallback(() => {
+    const canvas = waveformCanvasRef.current;
+    const scroller = scrollContainerRef.current;
+    if (!canvas || !peaksRef.current?.length || !scroller) return;
+    const scrollLeft = scroller.scrollLeft;
+    const viewportWidth = scroller.clientWidth;
+    const { regionLeft, regionRight } = waveformBufferRef.current;
+
+    // If viewport is fully within the buffer, no redraw needed
+    if (scrollLeft >= regionLeft && scrollLeft + viewportWidth <= regionRight) return;
+
+    // Scrolled past buffer — re-render a new buffer region
+    renderWaveformBuffer();
+  }, [renderWaveformBuffer]);
 
   // Fetch waveform peaks data
   useEffect(() => {
@@ -1108,7 +1154,7 @@ export default function VideoComponent({ video }: { video: Content }) {
         const canvas = waveformCanvasRef.current;
         if (canvas) {
           canvas.style.opacity = '0.6';
-          requestAnimationFrame(redrawWaveform);
+          requestAnimationFrame(renderWaveformBuffer);
         }
       })
       .catch((error: Error) => {
@@ -1119,30 +1165,31 @@ export default function VideoComponent({ video }: { video: Content }) {
       cancelled = true;
       peaksRef.current = null;
     };
-  }, [settings.showAudioWaveformInTimeline, redrawWaveform]);
+  }, [settings.showAudioWaveformInTimeline, renderWaveformBuffer]);
 
-  // Redraw waveform when zoom changes
+  // Re-render waveform buffer when zoom changes
   useEffect(() => {
     if (!peaksRef.current?.length || pixelsPerSecond <= 0) return;
-    const id = requestAnimationFrame(redrawWaveform);
+    waveformBufferRef.current = { regionLeft: 0, regionRight: 0 };
+    const id = requestAnimationFrame(renderWaveformBuffer);
     return () => cancelAnimationFrame(id);
-  }, [pixelsPerSecond, duration, redrawWaveform]);
+  }, [pixelsPerSecond, duration, renderWaveformBuffer]);
 
-  // Redraw waveform on scroll — attaches once, never re-attaches on zoom
+  // On scroll: check if buffer needs re-rendering (most scrolls are free)
   useEffect(() => {
     const scroller = scrollContainerRef.current;
     if (!scroller || !settings.showAudioWaveformInTimeline) return;
     let rafId = 0;
     const onScroll = () => {
       cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(redrawWaveform);
+      rafId = requestAnimationFrame(updateWaveformScroll);
     };
     scroller.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       scroller.removeEventListener('scroll', onScroll);
       cancelAnimationFrame(rafId);
     };
-  }, [settings.showAudioWaveformInTimeline, redrawWaveform]);
+  }, [settings.showAudioWaveformInTimeline, updateWaveformScroll]);
 
   // Prepare to resize on drag (click-through on simple click)
   const handleResizeMouseDown = (
@@ -1603,12 +1650,12 @@ export default function VideoComponent({ video }: { video: Content }) {
                 overflow: 'hidden',
               }}
             >
-              <AnimatePresence>
+              <AnimatePresence initial={false}>
                 {bookmarksReady &&
                   filteredBookmarks.map((bookmark, index) => {
                     const timeInSeconds = timeStringToSeconds(bookmark.time);
                     const leftPos = timeInSeconds * pixelsPerSecond;
-                    const Icon = iconMapping[bookmark.type as BookmarkType] || IoSkull;
+                    const Icon = ICON_MAPPING[bookmark.type as BookmarkType] || IoSkull;
 
                     return (
                       <motion.div
@@ -1647,12 +1694,12 @@ export default function VideoComponent({ video }: { video: Content }) {
                     );
                   })}
               </AnimatePresence>
-              {minorTicks.map((tickTime, index) => {
+              {minorTicks.map((tickTime) => {
                 if (tickTime >= duration) return null;
                 const leftPos = tickTime * pixelsPerSecond;
                 return (
                   <div
-                    key={`minor-${index}`}
+                    key={`minor-${tickTime}`}
                     className="absolute bottom-0 h-[6px] border-l border-white/20"
                     style={{
                       left: `${leftPos}px`,
@@ -1660,12 +1707,12 @@ export default function VideoComponent({ video }: { video: Content }) {
                   />
                 );
               })}
-              {majorTicks.map((tickTime, index) => {
+              {majorTicks.map((tickTime) => {
                 if (tickTime > duration) return null;
                 const leftPos = tickTime * pixelsPerSecond;
                 return (
                   <div
-                    key={`major-${index}`}
+                    key={`major-${tickTime}`}
                     className="absolute bottom-0 text-center text-white -translate-x-1/2 select-none whitespace-nowrap"
                     style={{
                       left: `${leftPos}px`,
@@ -1831,7 +1878,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                           onClick={() => toggleBookmarkType(type)}
                           className={`btn btn-sm btn-secondary border-none transition-colors join-item ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
                         >
-                          {React.createElement(iconMapping[type] || IoSkull, {
+                          {React.createElement(ICON_MAPPING[type] || IoSkull, {
                             className: 'w-6 h-6',
                           })}
                         </button>
@@ -1860,12 +1907,12 @@ export default function VideoComponent({ video }: { video: Content }) {
                   <IoRemove className="w-4 h-4" />
                 </button>
                 <span className="text-sm font-medium text-center text-gray-300">
-                  {Math.round((zoom * 100) / 5) * 5}%
+                  {zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)}x
                 </span>
                 <button
                   onClick={() => handleZoomChange(true)}
                   className="btn btn-sm btn-secondary"
-                  disabled={zoom >= 50}
+                  disabled={zoom >= 500}
                 >
                   <IoAdd className="w-4 h-4" />
                 </button>
