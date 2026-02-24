@@ -4,13 +4,15 @@ import { LuGamepad2 } from 'react-icons/lu';
 import { BsDisplay } from 'react-icons/bs';
 import { useSettings } from '../Context/SettingsContext';
 
+const pad = (n: number) => String(n).padStart(2, '0');
+
 interface RecordingCardProps {
   recording?: Recording;
   preRecording?: PreRecording;
 }
 
 const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }) => {
-  const [elapsedTime, setElapsedTime] = useState({ hours: 0, minutes: 0, seconds: 0 });
+  const timerRef = useRef<HTMLSpanElement>(null);
   const { showGameBackground } = useSettings();
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const lastFetchedGameRef = useRef<string | null>(null);
@@ -34,29 +36,31 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
 
   useEffect(() => {
     if (preRecording) {
-      setElapsedTime({ hours: 0, minutes: 0, seconds: 0 });
+      if (timerRef.current) timerRef.current.textContent = '00:00';
       return;
     }
 
     if (!recording?.startTime) return;
 
-    const startTime = new Date(recording.startTime).getTime(); // Get the timestamp in milliseconds
+    const startTime = new Date(recording.startTime).getTime();
 
     const updateElapsedTime = () => {
-      const now = Date.now(); // Current time in milliseconds
+      if (!timerRef.current) return;
+      const now = Date.now();
       const secondsElapsed = Math.max(0, Math.floor((now - startTime) / 1000));
 
       const hours = Math.floor(secondsElapsed / 3600);
       const minutes = Math.floor((secondsElapsed % 3600) / 60);
       const seconds = secondsElapsed % 60;
 
-      setElapsedTime({ hours, minutes, seconds });
+      timerRef.current.textContent =
+        hours > 0
+          ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+          : `${pad(minutes)}:${pad(seconds)}`;
     };
 
-    // Update the timer every second
+    updateElapsedTime();
     const intervalId = setInterval(updateElapsedTime, 1000);
-
-    // Clean up the interval when the component unmounts
     return () => clearInterval(intervalId);
   }, [recording?.startTime, preRecording]);
 
@@ -144,7 +148,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
         <div className="flex items-center mb-1 relative z-10">
           <div className="flex items-center">
             <span
-              className={`w-3 h-3 rounded-full mr-2 ${preRecording ? 'bg-orange-500' : 'bg-red-500 animate-pulse'}`}
+              className={`w-3 h-3 shrink-0 mb-0.5 rounded-full mr-1.5 ${preRecording ? 'bg-orange-500' : 'bg-red-500'}`}
             ></span>
             <span className="text-gray-200 text-sm font-medium">
               {preRecording ? preRecording.status : 'Recording'}
@@ -171,22 +175,8 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
         {/* Recording Details */}
         <div className="flex items-center text-gray-400 text-sm relative z-10">
           <div className="flex items-center max-w-[105%]">
-            <span className="countdown">
-              {elapsedTime.hours > 0 && (
-                <>
-                  <span
-                    style={{ '--value': elapsedTime.hours, '--digits': 2 } as React.CSSProperties}
-                  ></span>
-                  :
-                </>
-              )}
-              <span
-                style={{ '--value': elapsedTime.minutes, '--digits': 2 } as React.CSSProperties}
-              ></span>
-              :
-              <span
-                style={{ '--value': elapsedTime.seconds, '--digits': 2 } as React.CSSProperties}
-              ></span>
+            <span ref={timerRef} className="tabular-nums">
+              00:00
             </span>
             <p className="truncate ml-2">{preRecording ? preRecording.game : recording?.game}</p>
           </div>
