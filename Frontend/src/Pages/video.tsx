@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { Content, BookmarkType, Selection, Bookmark } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
@@ -34,7 +34,7 @@ import {
 } from 'react-icons/md';
 import { IoSkull, IoAdd, IoRemove } from 'react-icons/io5';
 import SelectionCard from '../Components/SelectionCard';
-import WaveSurfer from 'wavesurfer.js';
+
 import { TbZoomIn, TbZoomOut } from 'react-icons/tb';
 import { IoIosFootball } from 'react-icons/io';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -46,6 +46,40 @@ const timeStringToSeconds = (timeStr: string): number => {
   const [hours, minutes, seconds] = time.split(':').map(Number);
   return hours * 3600 + minutes * 60 + seconds + (milliseconds ? Number(`0.${milliseconds}`) : 0);
 };
+
+function drawWaveform(
+  canvas: HTMLCanvasElement,
+  peaks: number[],
+  totalWidth: number,
+  scrollLeft: number,
+) {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const { width, height } = canvas;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = '#49515b';
+
+  const columns = Math.floor(peaks.length / 2);
+  if (columns === 0) return;
+  const barWidth = totalWidth / columns;
+  const gap = Math.max(0.5, barWidth * 0.15);
+  const drawWidth = Math.max(0.5, barWidth - gap);
+
+  // Only draw columns visible in the viewport
+  const startCol = Math.max(0, Math.floor(scrollLeft / barWidth) - 1);
+  const endCol = Math.min(columns, Math.ceil((scrollLeft + width) / barWidth) + 1);
+
+  for (let i = startCol; i < endCol; i++) {
+    const min = peaks[i * 2];
+    const max = peaks[i * 2 + 1];
+    const amplitude = Math.max(Math.abs(min), Math.abs(max)) / 128;
+    const barHeight = Math.max(1, amplitude * height);
+    const x = i * barWidth - scrollLeft;
+    const y = height - barHeight;
+
+    ctx.fillRect(x, y, drawWidth, barHeight);
+  }
+}
 
 const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 1.5, 2] as const;
 const formatPlaybackRateLabel = (rate: number) => `${rate}x`;
@@ -141,7 +175,9 @@ export default function VideoComponent({ video }: { video: Content }) {
   const latestDraggedSelectionRef = useRef<Selection | null>(null);
   const speedButtonRef = useRef<HTMLButtonElement | null>(null);
   const speedDropdownRef = useRef<HTMLDivElement | null>(null);
-  const wavesurferRef = useRef<ReturnType<typeof WaveSurfer.create> | null>(null);
+  const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
+  const peaksRef = useRef<number[] | null>(null);
+  const waveformStateRef = useRef({ pixelsPerSecond: 0, duration: 0 });
 
   // Video state
   const [currentTime, setCurrentTime] = useState(0);
@@ -330,6 +366,8 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Computed values
   const basePixelsPerSecond = duration > 0 ? containerWidth / duration : 0;
   const pixelsPerSecond = basePixelsPerSecond * zoom;
+  waveformStateRef.current.pixelsPerSecond = pixelsPerSecond;
+  waveformStateRef.current.duration = duration;
 
   // Make sure bookmarks are only shown when we have valid duration and zoom
   // Prevents weird positioning on initial load
@@ -1036,103 +1074,75 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
   };
 
+  // Stable redraw function — reads all dynamic values from refs
+  const redrawWaveform = useCallback(() => {
+    const canvas = waveformCanvasRef.current;
+    const peaks = peaksRef.current;
+    const scroller = scrollContainerRef.current;
+    if (!canvas || !peaks || peaks.length === 0 || !scroller) return;
+    const { pixelsPerSecond: pps, duration: dur } = waveformStateRef.current;
+    const totalWidth = dur * pps;
+    const viewportWidth = scroller.clientWidth;
+    const scrollLeft = scroller.scrollLeft;
+    canvas.style.left = `${scrollLeft}px`;
+    if (canvas.width !== viewportWidth) canvas.width = viewportWidth;
+    if (canvas.height !== 49) canvas.height = 49;
+    drawWaveform(canvas, peaks, totalWidth, scrollLeft);
+  }, []);
+
+  // Fetch waveform peaks data
   useEffect(() => {
-    if (!settings.showAudioWaveformInTimeline) return;
+    if (!settings.showAudioWaveformInTimeline) {
+      peaksRef.current = null;
+      return;
+    }
 
-    const timelineContainer = document.getElementsByClassName(
-      'timeline-container',
-    )[0] as HTMLElement;
-    if (!timelineContainer) return;
-
-    const style = document.createElement('style');
-    style.textContent = `
-          .timeline-container ::part(wrapper),
-          .timeline-container ::part(scroll),
-          .timeline-container ::part(canvases),
-          .timeline-container ::part(progress),
-          .timeline-container ::part(cursor) {
-            pointer-events: none !important;
-          }
-          .timeline-container ::part(canvases) {
-            opacity: 0;
-            transition: opacity 1000ms ease-in;
-          }
-          .timeline-container.waveform-ready ::part(canvases) {
-            opacity: 0.6;
-          }
-        `;
-    document.head.appendChild(style);
-
-    // Fetch the peaks data and then initialize WaveSurfer
+    let cancelled = false;
     const peaksUrl = getWaveformPath();
     fetch(peaksUrl)
       .then((response) => response.json())
       .then((peaksData) => {
-        let durationFromPeaks: number | undefined = undefined;
+        if (cancelled) return;
         const data: number[] = Array.isArray(peaksData?.data) ? peaksData.data : [];
-        const sr = Number(peaksData?.sample_rate) || 0;
-        const spp = Number(peaksData?.samples_per_pixel) || 0;
-        if (sr > 0 && spp > 0 && data.length > 1) {
-          const columns = Math.floor(data.length / 2); // min/max pairs for mono
-          durationFromPeaks = (columns * spp) / sr;
+        peaksRef.current = data;
+        const canvas = waveformCanvasRef.current;
+        if (canvas) {
+          canvas.style.opacity = '0.6';
+          requestAnimationFrame(redrawWaveform);
         }
-
-        const ws = WaveSurfer.create({
-          container: timelineContainer,
-          waveColor: '#49515b',
-          progressColor: '#49515b',
-          cursorColor: 'transparent',
-          peaks: peaksData.data,
-          duration: durationFromPeaks,
-          height: 49,
-          interact: false,
-          barHeight: 1,
-          barAlign: 'bottom',
-          barRadius: 2,
-        });
-
-        ws.on('error', (err: Error) => {
-          console.error('[Waveform] WaveSurfer error:', err);
-        });
-
-        // Disconnect the built-in ResizeObserver (hardcoded 100ms debounce).
-        // We call renderer.reRender() ourselves with no delay instead.
-        try {
-          (ws as any).renderer?.resizeObserver?.disconnect();
-        } catch {
-          // Ignore if internal API changes
-        }
-
-        wavesurferRef.current = ws;
       })
       .catch((error: Error) => {
         console.error('Error loading audio peaks:', error);
       });
 
     return () => {
-      if (wavesurferRef.current) {
-        wavesurferRef.current.destroy();
-        wavesurferRef.current = null;
-      }
-      if (document.head.contains(style)) {
-        document.head.removeChild(style);
-      }
+      cancelled = true;
+      peaksRef.current = null;
     };
-  }, [settings.showAudioWaveformInTimeline]);
+  }, [settings.showAudioWaveformInTimeline, redrawWaveform]);
 
-  // Re-render waveform when zoom/container size changes (50ms debounce, down from built-in 100ms)
+  // Redraw waveform when zoom changes
   useEffect(() => {
-    const ws = wavesurferRef.current;
-    if (!ws || pixelsPerSecond <= 0) return;
-    const timer = setTimeout(() => {
-      try {
-        (ws as any).renderer?.reRender();
-      } catch {
-        // Ignore if destroyed
-      }
-    }, 10);
-    return () => clearTimeout(timer);
-  }, [pixelsPerSecond]);
+    if (!peaksRef.current?.length || pixelsPerSecond <= 0) return;
+    const id = requestAnimationFrame(redrawWaveform);
+    return () => cancelAnimationFrame(id);
+  }, [pixelsPerSecond, duration, redrawWaveform]);
+
+  // Redraw waveform on scroll — attaches once, never re-attaches on zoom
+  useEffect(() => {
+    const scroller = scrollContainerRef.current;
+    if (!scroller || !settings.showAudioWaveformInTimeline) return;
+    let rafId = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(redrawWaveform);
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scroller.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(rafId);
+    };
+  }, [settings.showAudioWaveformInTimeline, redrawWaveform]);
 
   // Prepare to resize on drag (click-through on simple click)
   const handleResizeMouseDown = (
@@ -1670,13 +1680,25 @@ export default function VideoComponent({ video }: { video: Content }) {
               })}
             </div>
             <div
-              className="timeline-container bg-base-300 border border-base-400 rounded-lg relative h-[50px] w-full overflow-hidden waveform-ready"
+              className="timeline-container bg-base-300 border border-base-400 rounded-lg relative h-[50px] w-full overflow-hidden"
               style={{
                 width: `${duration * pixelsPerSecond}px`,
                 minWidth: '100%',
               }}
               onClick={handleTimelineClick}
             >
+              {settings.showAudioWaveformInTimeline && (
+                <canvas
+                  ref={waveformCanvasRef}
+                  height={49}
+                  className="absolute top-0 pointer-events-none"
+                  style={{
+                    height: '49px',
+                    opacity: 0,
+                    transition: 'opacity 1000ms ease-in',
+                  }}
+                />
+              )}
               {sortedSelections.map((sel) => {
                 const left = sel.startTime * pixelsPerSecond;
                 const width = (sel.endTime - sel.startTime) * pixelsPerSecond;
