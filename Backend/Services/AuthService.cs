@@ -7,8 +7,8 @@ namespace Segra.Backend.Services
     public static class AuthService
     {
         public static Session? Session { get; set; }
-        private const string Url = "https://ponthqrnesnanivsatps.supabase.co";
-        private const string PublicApiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvbnRocXJuZXNuYW5pdnNhdHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc2NzMzMjgsImV4cCI6MjA1MzI0OTMyOH0.k8pLDkDgKV0ZLjZjAZ6eUHa40rot5qWa7iJDQKWy1FA";
+        private const string Url = "https://supabase.segra.tv";
+        private const string PublicApiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzM3NjczMzI4LCJleHAiOjIwNTMyNDkzMjh9.MhhUzFqo2wSaMj0hN-59LrW0TJK388tpdFiXUSKhXnQ";
         private static readonly Supabase.Client _client = new(Url, PublicApiKey);
         private static readonly SemaphoreSlim _loginSemaphore = new(1, 1);
         private static readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
