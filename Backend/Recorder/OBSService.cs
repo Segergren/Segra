@@ -1419,6 +1419,19 @@ namespace Segra.Backend.Recorder
 
         public static void DisposeGameCaptureSource()
         {
+            if (_gameCaptureItem != null)
+            {
+                try
+                {
+                    _gameCaptureItem.Remove();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to remove game capture scene item: {ex.Message}");
+                }
+                _gameCaptureItem = null;
+            }
+
             if (GameCaptureSource != null)
             {
                 try
@@ -1441,7 +1454,6 @@ namespace Segra.Backend.Recorder
                     Log.Warning($"Failed to dispose game capture source: {ex.Message}");
                 }
                 GameCaptureSource = null;
-                _gameCaptureItem = null;
             }
             // Dispose the timer if it exists
             StopGameCaptureHookTimeoutTimer();
@@ -1491,10 +1503,25 @@ namespace Segra.Backend.Recorder
 
         public static void DisposeDisplaySource()
         {
+            if (_displayItem != null)
+            {
+                try
+                {
+                    Log.Information("Removing display scene item from scene");
+                    _displayItem.Remove();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to remove display scene item: {ex.Message}");
+                }
+                _displayItem = null;
+            }
+
             if (_displaySource != null)
             {
                 try
                 {
+                    Log.Information("Disposing display source (expect OBS 'source destroyed' log to confirm WGC cleanup)");
                     _displaySource.Dispose();
                 }
                 catch (Exception ex)
@@ -1502,7 +1529,6 @@ namespace Segra.Backend.Recorder
                     Log.Warning($"Failed to dispose display source: {ex.Message}");
                 }
                 _displaySource = null;
-                _displayItem = null;
             }
         }
 
