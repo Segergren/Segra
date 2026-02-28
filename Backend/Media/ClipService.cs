@@ -58,6 +58,7 @@ namespace Segra.Backend.Media
                 }
 
                 double processedDuration = 0;
+                List<string>? sourceAudioTrackNames = null;
                 foreach (var selection in selections)
                 {
                     // Use the actual file path from metadata when available, fall back to reconstructed path
@@ -77,6 +78,13 @@ namespace Segra.Backend.Media
                     {
                         Log.Information($"Input video file not found: {inputFilePath}");
                         continue;
+                    }
+
+                    // Capture audio track names from the first valid source recording
+                    if (sourceAudioTrackNames == null)
+                    {
+                        var sourceContent = Settings.Instance.State.Content.FirstOrDefault(c => c.FilePath == inputFilePath);
+                        sourceAudioTrackNames = sourceContent?.AudioTrackNames;
                     }
 
                     string tempFileName = Path.Combine(Path.GetTempPath(), $"clip{Guid.NewGuid()}.mp4");
@@ -162,7 +170,7 @@ namespace Segra.Backend.Media
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, selections });
 
-                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId);
+                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId, audioTrackNames: sourceAudioTrackNames);
                 await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Clip);
                 await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Clip);
 
@@ -282,7 +290,8 @@ namespace Segra.Backend.Media
             string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
 
             string arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" -c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                             $"-i \"{inputFilePath}\" -map 0:v:0 -map 0:a " +
+                             $"-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
                              $"-c:a aac -b:a {settings.ClipAudioQuality} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");

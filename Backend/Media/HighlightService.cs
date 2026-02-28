@@ -98,7 +98,7 @@ namespace Segra.Backend.Media
                 progressCallback?.Invoke(92, "Creating metadata...");
 
                 // Create metadata, thumbnail, and waveform
-                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Highlight, content.Game!, null, content.Title, igdbId: content.IgdbId);
+                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Highlight, content.Game!, null, content.Title, igdbId: content.IgdbId, audioTrackNames: content.AudioTrackNames);
 
                 progressCallback?.Invoke(95, "Creating thumbnail...");
                 await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Highlight);

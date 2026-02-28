@@ -17,7 +17,7 @@ namespace Segra.Backend.Media
             WriteIndented = true
         };
 
-        public static async Task CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null, int? igdbId = null, bool isImported = false)
+        public static async Task CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null, int? igdbId = null, bool isImported = false, List<string>? audioTrackNames = null)
         {
             bookmarks ??= [];
 
@@ -44,42 +44,51 @@ namespace Segra.Backend.Media
                 string metadataFilePath = Path.Combine(metadataFolderPath, $"{contentFileName}.json");
                 var (displaySize, sizeKb) = GetFileSize(filePath);
 
-                // Build audio track names: Track 1 is Full Mix, then one per audio source (inputs then outputs), up to OBS's 6 total tracks
-                var trackNames = new List<string>
+                // Use provided audio track names (e.g. inherited from source recording for clips/highlights),
+                // or build from current settings for new recordings
+                List<string> trackNames;
+                if (audioTrackNames != null && audioTrackNames.Count > 0)
                 {
-                    "Full Mix"
-                };
-                try
+                    trackNames = audioTrackNames;
+                }
+                else
                 {
-                    if (Settings.Instance.EnableSeparateAudioTracks)
+                    trackNames = new List<string>
                     {
-                        var perSourceNames = new List<string>();
-                        if (Settings.Instance.InputDevices != null)
-                            perSourceNames.AddRange(Settings.Instance.InputDevices.Select(d => d.Name));
+                        "Full Mix"
+                    };
+                    try
+                    {
+                        if (Settings.Instance.EnableSeparateAudioTracks)
+                        {
+                            var perSourceNames = new List<string>();
+                            if (Settings.Instance.InputDevices != null)
+                                perSourceNames.AddRange(Settings.Instance.InputDevices.Select(d => d.Name));
 
-                        var audioOutputMode = Settings.Instance.AudioOutputMode;
-                        if (audioOutputMode == AudioOutputMode.All)
-                        {
-                            if (Settings.Instance.OutputDevices != null)
-                                perSourceNames.AddRange(Settings.Instance.OutputDevices.Select(d => d.Name));
-                        }
-                        else
-                        {
-                            perSourceNames.Add("Game Audio");
-                            if (audioOutputMode == AudioOutputMode.GameAndDiscord)
-                                perSourceNames.Add("Discord");
-                        }
+                            var audioOutputMode = Settings.Instance.AudioOutputMode;
+                            if (audioOutputMode == AudioOutputMode.All)
+                            {
+                                if (Settings.Instance.OutputDevices != null)
+                                    perSourceNames.AddRange(Settings.Instance.OutputDevices.Select(d => d.Name));
+                            }
+                            else
+                            {
+                                perSourceNames.Add("Game Audio");
+                                if (audioOutputMode == AudioOutputMode.GameAndDiscord)
+                                    perSourceNames.Add("Discord");
+                            }
 
-                        // OBS supports 6 tracks total; we already used 1 for the mix
-                        foreach (var name in perSourceNames.Take(5))
-                        {
-                            trackNames.Add(name);
+                            // OBS supports 6 tracks total; we already used 1 for the mix
+                            foreach (var name in perSourceNames.Take(5))
+                            {
+                                trackNames.Add(name);
+                            }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to build audio track names for metadata: {ex.Message}");
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Failed to build audio track names for metadata: {ex.Message}");
+                    }
                 }
 
                 var duration = await GetVideoDurationAsync(filePath);
