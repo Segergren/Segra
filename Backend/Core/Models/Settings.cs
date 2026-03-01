@@ -1494,6 +1494,6 @@ namespace Segra.Backend.Core.Models
         public GameIntegrationSettings Pubg { get; set; } = new GameIntegrationSettings(true);
 
         [JsonPropertyName("rocketLeague")]
-        public GameIntegrationSettings RocketLeague { get; set; } = new GameIntegrationSettings(false);
+        public GameIntegrationSettings RocketLeague { get; set; } = new GameIntegrationSettings(true);
     }
 }

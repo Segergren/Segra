@@ -41,7 +41,6 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     settingsKey: 'rocketLeague',
     bookmarks: ['Goals', 'Assists'],
     backgroundImage: 'https://segra.tv/api/games/cover/coaiyq',
-    isBeta: true,
   },
 ];
 
