@@ -261,19 +261,19 @@ namespace Segra.Backend.Services
                 }
             }
 
-            // 3. Check if the file path contains blacklisted text
-            if (ContainsBlacklistedTextInFilePath(exePath))
-            {
-                return false;
-            }
-
-            // 4. Check if the game is in the games.json list
+            // 3. Check if the game is in the games.json list
             bool isKnownGame = GameUtils.IsGameExePath(exePath);
             if (isKnownGame)
             {
                 string gameName = GameUtils.GetGameNameFromExePath(exePath) ?? Path.GetFileNameWithoutExtension(exePath);
                 Log.Information($"Detected known game {gameName} at {exePath}, will record");
                 return true;
+            }
+
+            // 4. Check if the file path contains blacklisted text
+            if (ContainsBlacklistedTextInFilePath(exePath))
+            {
+                return false;
             }
 
             // 5. Check for anticheat in file description and log window information
