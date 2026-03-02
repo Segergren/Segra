@@ -439,18 +439,23 @@ export default function VideoSettingsSection({
           <DropdownSelect
             items={[
               { value: 'Automatic', label: 'Automatic' },
-              ...settings.state.displays.map((d) => ({
-                value: d.deviceName,
-                label: `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`,
-              })),
+              ...settings.state.displays.map((d, i) => {
+                const hasDuplicateName = settings.state.displays.some(
+                  (other, j) => j !== i && other.deviceName === d.deviceName,
+                );
+                const label = hasDuplicateName
+                  ? `${d.deviceName} (${i + 1})${d.isPrimary ? ' (Primary)' : ''}`
+                  : `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`;
+                return { value: d.deviceId, label };
+              }),
             ]}
-            value={settings.selectedDisplay?.deviceName || 'Automatic'}
+            value={settings.selectedDisplay?.deviceId || 'Automatic'}
             onChange={(val) =>
               updateSettings({
                 selectedDisplay:
                   val === 'Automatic'
                     ? undefined
-                    : settings.state.displays.find((d) => d.deviceName === val),
+                    : settings.state.displays.find((d) => d.deviceId === val),
               })
             }
           />
