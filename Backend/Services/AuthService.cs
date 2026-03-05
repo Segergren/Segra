@@ -1,198 +1,91 @@
+using System.Text;
+using System.Text.Json;
 using Serilog;
-using Supabase.Gotrue;
 
 namespace Segra.Backend.Services
 {
-
     public static class AuthService
     {
-        public static Session? Session { get; set; }
-        private const string Url = "https://supabase.segra.tv";
-        private const string PublicApiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzM3NjczMzI4LCJleHAiOjIwNTMyNDkzMjh9.MhhUzFqo2wSaMj0hN-59LrW0TJK388tpdFiXUSKhXnQ";
-        private static readonly Supabase.Client _client = new(Url, PublicApiKey);
-        private static readonly SemaphoreSlim _loginSemaphore = new(1, 1);
+        private const string ApiBase = "https://segra.tv/api";
+        private static readonly HttpClient _httpClient = new();
         private static readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
 
-        // Try to login with stored credentials on startup
-        public static async Task TryAutoLogin()
+        private static Core.Models.Auth Auth => Core.Models.Settings.Instance.Auth;
+
+        public static void Login(string jwt, string refreshToken)
         {
-            try
+            if (string.IsNullOrEmpty(jwt) || string.IsNullOrEmpty(refreshToken))
             {
-                var auth = Core.Models.Settings.Instance.Auth;
-                if (auth.HasCredentials())
-                {
-                    Log.Information("Attempting to login with stored credentials");
-                    await Login(auth.Jwt, auth.RefreshToken, isAutoLogin: true);
-                }
+                Log.Warning("Login attempt with empty JWT or refresh token");
+                return;
             }
-            catch (Exception ex)
-            {
-                Log.Error($"Auto login failed: {ex.Message}");
-                Session = null;
-            }
+
+            Auth.Jwt = jwt;
+            Auth.RefreshToken = refreshToken;
+            Log.Information("Login successful");
         }
 
-        public static async Task Login(string jwt, string refreshToken, bool isAutoLogin = false)
+        public static void Logout()
         {
-            await _loginSemaphore.WaitAsync();
-            try
-            {
-                Log.Debug($"Login attempt starting - JWT length: {jwt?.Length ?? 0}, RefreshToken length: {refreshToken?.Length ?? 0}, IsAutoLogin: {isAutoLogin}");
-
-                if (string.IsNullOrEmpty(jwt) || string.IsNullOrEmpty(refreshToken))
-                {
-                    Log.Warning("Login attempt with empty JWT or refresh token");
-                    return;
-                }
-
-                if (!IsAuthenticated() || Session == null || Session.Expired())
-                {
-                    Log.Debug("Current session is null, expired, or not authenticated. Setting new session...");
-                    Session = await _client.Auth.SetSession(jwt, refreshToken);
-                    Log.Debug($"SetSession completed. Session is {(Session == null ? "null" : "valid")}");
-
-                    Log.Debug("Refreshing session...");
-                    Session = await _client.Auth.RefreshSession();
-                    Log.Debug($"RefreshSession completed. Session is {(Session == null ? "null" : "valid")}");
-
-                    // Save the updated tokens to settings
-                    if (Session != null)
-                    {
-                        Log.Debug($"Saving tokens to settings. AccessToken length: {Session.AccessToken?.Length ?? 0}, RefreshToken length: {Session.RefreshToken?.Length ?? 0}");
-                        Core.Models.Settings.Instance.Auth.Jwt = Session?.AccessToken ?? string.Empty;
-                        Core.Models.Settings.Instance.Auth.RefreshToken = Session?.RefreshToken ?? string.Empty;
-
-                        if (isAutoLogin)
-                        {
-                            Log.Information($"Auto login successful for user {Session?.User?.Id}");
-                        }
-                        else
-                        {
-                            Log.Information($"Manual login successful for user {Session?.User?.Id}");
-                        }
-                    }
-                    else
-                    {
-                        Log.Warning("Session is null after refresh attempt");
-                    }
-                }
-                else
-                {
-                    Log.Debug("User already authenticated with valid session");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Login failed: {ex.Message}");
-                Log.Debug($"Login exception details: {ex}");
-                Session = null;
-            }
-            finally
-            {
-                _loginSemaphore.Release();
-            }
+            Log.Information("Logged out user");
+            Auth.Jwt = string.Empty;
+            Auth.RefreshToken = string.Empty;
         }
 
-        public static Task Logout()
-        {
-            if (Session != null)
-            {
-                try
-                {
-                    string userId = Session.User?.Id ?? "unknown";
-
-                    // We do not need to call the sign out method because the session is already removed since frontend called it
-                    //await _client.Auth.SignOut();
-
-                    Log.Information($"Logged out user: {userId}");
-                    Session = null;
-
-                    // Clear stored credentials
-                    Core.Models.Settings.Instance.Auth.Jwt = string.Empty;
-                    Core.Models.Settings.Instance.Auth.RefreshToken = string.Empty;
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"Logout failed: {ex.Message}");
-
-                    // Clear stored credentials
-                    Core.Models.Settings.Instance.Auth.Jwt = string.Empty;
-                    Core.Models.Settings.Instance.Auth.RefreshToken = string.Empty;
-                }
-            }
-
-            return Task.CompletedTask;
-        }
-
-        public static bool IsAuthenticated()
-        {
-            bool isAuthenticated = Session != null && !string.IsNullOrEmpty(Session.AccessToken);
-            Log.Debug($"IsAuthenticated check: {isAuthenticated}, Session is {(Session == null ? "null" : "not null")}, AccessToken is {(string.IsNullOrEmpty(Session?.AccessToken) ? "empty/null" : "present")}");
-
-            if (Session != null && Session.Expired())
-            {
-                Log.Debug("Session exists but is expired");
-            }
-
-            return isAuthenticated;
-        }
+        public static bool IsAuthenticated() => Auth.HasCredentials();
 
         public static async Task<string> GetJwtAsync()
         {
-            Log.Debug($"GetJwtAsync called. Session is {(Session == null ? "null" : "not null")}");
+            var jwt = Auth.Jwt;
+            if (string.IsNullOrEmpty(jwt)) return string.Empty;
 
-            if (Session == null)
+            await _refreshSemaphore.WaitAsync();
+            try
             {
-                Log.Debug("Session is null, attempting to refresh");
-            }
-            else if (Session.Expired())
-            {
-                Log.Debug($"Session is expired (Expiry: {Session.ExpiresAt}), attempting to refresh");
-            }
-
-            if (Session == null || Session.Expired() == true)
-            {
-                await _refreshSemaphore.WaitAsync();
-                try
+                if (IsTokenExpired(Auth.Jwt))
                 {
-                    // Double-check after acquiring the lock in case another thread already refreshed
-                    if (Session == null || Session.Expired() == true)
-                    {
-                        Log.Debug("Refreshing session...");
-                        Session = await _client.Auth.RefreshSession();
-                        Log.Debug($"RefreshSession completed. Session is {(Session == null ? "null" : "valid")}");
+                    var content = new StringContent(
+                        JsonSerializer.Serialize(new { refresh_token = Auth.RefreshToken }),
+                        Encoding.UTF8, "application/json");
 
-                        // Update stored tokens when refreshed
-                        if (Session != null)
-                        {
-                            Log.Debug($"Refreshed tokens. New AccessToken length: {Session.AccessToken?.Length ?? 0}, RefreshToken length: {Session.RefreshToken?.Length ?? 0}");
-                            Core.Models.Settings.Instance.Auth.Jwt = Session.AccessToken ?? string.Empty;
-                            Core.Models.Settings.Instance.Auth.RefreshToken = Session.RefreshToken ?? string.Empty;
-                        }
-                        else
-                        {
-                            Log.Warning("Session is null after refresh attempt in GetJwtAsync");
-                        }
+                    var response = await _httpClient.PostAsync($"{ApiBase}/auth/token/refresh", content);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                        Auth.Jwt = doc.RootElement.GetProperty("access_token").GetString() ?? string.Empty;
+                        Auth.RefreshToken = doc.RootElement.GetProperty("refresh_token").GetString() ?? string.Empty;
+                        Log.Debug("Backend refreshed expired token");
                     }
                 }
-                catch (Exception ex)
-                {
-                    Log.Error($"Failed to refresh session: {ex.Message}");
-                    Log.Debug($"Session refresh exception details: {ex}");
-                }
-                finally
-                {
-                    _refreshSemaphore.Release();
-                }
             }
-            else
+            catch (Exception ex)
             {
-                Log.Debug($"Using existing valid session token (Expiry: {Session.ExpiresAt()})");
+                Log.Error($"Backend token refresh failed: {ex.Message}");
+            }
+            finally
+            {
+                _refreshSemaphore.Release();
             }
 
-            string token = Session?.AccessToken ?? string.Empty;
-            Log.Debug($"Returning JWT token of length: {token.Length}");
-            return token;
+            return Auth.Jwt;
+        }
+
+        private static bool IsTokenExpired(string jwt)
+        {
+            try
+            {
+                var payload = jwt.Split('.')[1];
+                payload = payload.Replace('-', '+').Replace('_', '/');
+                switch (payload.Length % 4)
+                {
+                    case 2: payload += "=="; break;
+                    case 3: payload += "="; break;
+                }
+                using var doc = JsonDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(payload)));
+                var exp = doc.RootElement.GetProperty("exp").GetInt64();
+                return DateTimeOffset.UtcNow.ToUnixTimeSeconds() >= exp - 30;
+            }
+            catch { return false; }
         }
     }
 }

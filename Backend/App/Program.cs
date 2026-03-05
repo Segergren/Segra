@@ -216,9 +216,6 @@ namespace Segra.Backend.App
                 // Run data migrations
                 Task.Run(MigrationService.RunMigrations);
 
-                // Try to login with stored credentials
-                Task.Run(AuthService.TryAutoLogin);
-
                 // Start WebSocket and Load Settings
                 Task.Run(MessageService.StartWebsocket);
                 Task.Run(StorageService.EnsureStorageBelowLimit);

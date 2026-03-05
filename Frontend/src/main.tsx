@@ -1,12 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { supabase } from './lib/supabase/client';
 import './globals.css';
 import App from './App.tsx';
 import { SelectedVideoProvider } from './Context/SelectedVideoContext.tsx';
 import { SelectedMenuProvider } from './Context/SelectedMenuContext';
-import { AuthProvider } from './Hooks/useAuth.tsx';
+import { AuthProvider, onSignOut } from './Hooks/useAuth.tsx';
 
 // Create a React Query client
 const queryClient = new QueryClient({
@@ -18,12 +17,8 @@ const queryClient = new QueryClient({
   },
 });
 
-// Initialize auth listener
-supabase.auth.onAuthStateChange((event) => {
-  if (event === 'SIGNED_OUT') {
-    queryClient.clear();
-  }
-});
+// Clear query cache on sign out
+onSignOut(() => queryClient.clear());
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

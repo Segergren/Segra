@@ -2,52 +2,72 @@ import React, { useState } from 'react';
 import { FaDiscord } from 'react-icons/fa';
 import { MdWarning, MdOutlineLogout, MdOutlineMoreHoriz, MdOutlineEmail } from 'react-icons/md';
 import CloudBadge from '../CloudBadge';
-import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../Hooks/useAuth';
 import { useProfile } from '../../Hooks/useUserProfile';
 import Button from '../Button';
 
+type AuthTab = 'login' | 'register';
+
 export default function AccountSection() {
-  const { session, isAuthenticating, clearAuthError, signOut } = useAuth();
+  const {
+    user,
+    session,
+    isAuthenticating,
+    authError,
+    clearAuthError,
+    login,
+    register,
+    loginWithDiscord,
+    signOut,
+  } = useAuth();
   const { data: profile, error: profileError } = useProfile();
   const [error, setError] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [tab, setTab] = useState<AuthTab>('login');
+  const [confirmEmailMessage, setConfirmEmailMessage] = useState('');
 
-  const handleDiscordLogin = async () => {
+  const handleDiscordLogin = () => {
     setError('');
     clearAuthError();
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'discord',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-
-    if (error) {
-      setError(error.message);
-    }
+    loginWithDiscord();
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     clearAuthError();
+    await login(email, password);
+  };
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    clearAuthError();
+    setConfirmEmailMessage('');
 
-    if (error) {
-      setError(error.message);
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    const result = await register(email, password);
+    if (result?.confirmEmail) {
+      setConfirmEmailMessage('Check your email to confirm your account, then log in.');
     }
   };
 
   const handleLogout = async () => {
-    await signOut();
+    signOut();
   };
+
+  const displayError = error || authError;
 
   if (!session) {
     return (
@@ -56,10 +76,16 @@ export default function AccountSection() {
           Authentication <CloudBadge />
         </h2>
 
-        {error && (
+        {displayError && (
           <div className="alert alert-error mb-4" role="alert">
             <MdWarning className="w-5 h-5" />
-            <span>{error}</span>
+            <span>{displayError}</span>
+          </div>
+        )}
+
+        {confirmEmailMessage && (
+          <div className="alert alert-success mb-4" role="alert">
+            <span>{confirmEmailMessage}</span>
           </div>
         )}
 
@@ -76,43 +102,120 @@ export default function AccountSection() {
 
           <div className="divider">Or Use Email</div>
 
-          <form onSubmit={handleEmailLogin} className="space-y-4">
-            <div className="form-control">
-              <div className="mb-2">Email</div>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input input-bordered bg-base-200 w-full"
-                disabled={isAuthenticating}
-                placeholder="example@example.com"
-                required
-              />
-            </div>
-
-            <div className="form-control">
-              <div className="mb-2">Password</div>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input input-bordered bg-base-200 w-full"
-                disabled={isAuthenticating}
-                placeholder="********"
-                required
-              />
-            </div>
-
-            <Button
-              type="submit"
-              variant="primary"
-              className="w-full font-semibold text-white border-custom hover:border-custom"
-              loading={isAuthenticating}
+          {/* Tab toggle */}
+          <div className="tabs tabs-boxed justify-center">
+            <button
+              className={`tab ${tab === 'login' ? 'tab-active' : ''}`}
+              onClick={() => {
+                setTab('login');
+                setError('');
+                setConfirmEmailMessage('');
+              }}
             >
-              <MdOutlineEmail size={20} />
-              Sign In With Email
-            </Button>
-          </form>
+              Login
+            </button>
+            <button
+              className={`tab ${tab === 'register' ? 'tab-active' : ''}`}
+              onClick={() => {
+                setTab('register');
+                setError('');
+                setConfirmEmailMessage('');
+              }}
+            >
+              Register
+            </button>
+          </div>
+
+          {tab === 'login' ? (
+            <form onSubmit={handleEmailLogin} className="space-y-4">
+              <div className="form-control">
+                <div className="mb-2">Email</div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input input-bordered bg-base-200 w-full"
+                  disabled={isAuthenticating}
+                  placeholder="example@example.com"
+                  required
+                />
+              </div>
+
+              <div className="form-control">
+                <div className="mb-2">Password</div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input input-bordered bg-base-200 w-full"
+                  disabled={isAuthenticating}
+                  placeholder="********"
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-full font-semibold text-white border-custom hover:border-custom"
+                loading={isAuthenticating}
+              >
+                <MdOutlineEmail size={20} />
+                Sign In With Email
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div className="form-control">
+                <div className="mb-2">Email</div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input input-bordered bg-base-200 w-full"
+                  disabled={isAuthenticating}
+                  placeholder="example@example.com"
+                  required
+                />
+              </div>
+
+              <div className="form-control">
+                <div className="mb-2">Password</div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input input-bordered bg-base-200 w-full"
+                  disabled={isAuthenticating}
+                  placeholder="********"
+                  required
+                />
+              </div>
+
+              <div className="form-control">
+                <div className="mb-2">Confirm Password</div>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="input input-bordered bg-base-200 w-full"
+                  disabled={isAuthenticating}
+                  placeholder="********"
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-full font-semibold text-white border-custom hover:border-custom"
+                loading={isAuthenticating}
+              >
+                <MdOutlineEmail size={20} />
+                Create Account
+              </Button>
+            </form>
+          )}
         </div>
       </div>
     );
@@ -153,15 +256,13 @@ export default function AccountSection() {
             {/* Profile Info */}
             <div className="min-w-0 flex-1">
               <h3 className="font-bold truncate">
-                {profile?.username ? (
+                {profile?.username && !profile.username.startsWith('user_') ? (
                   profile.username
                 ) : (
                   <div className="skeleton h-[24px] w-24"></div>
                 )}
               </h3>
-              <p className="text-sm opacity-70 truncate">
-                {session?.user?.email || 'Authenticated User'}
-              </p>
+              <p className="text-sm opacity-70 truncate">{user?.email || 'Authenticated User'}</p>
             </div>
 
             {/* More Options Dropdown */}
