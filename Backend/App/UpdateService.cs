@@ -1,3 +1,4 @@
+using Segra.Backend.Recorder;
 using Serilog;
 using System.Net.Http.Headers;
 using System.Text;
@@ -97,6 +98,10 @@ namespace Segra.Backend.App
                 Log.Warning("UpdateManager or LatestUpdateInfo is null, cannot apply update");
                 return;
             }
+
+            // Shutdown OBS before restarting to unload graphics-hook64.dll from game processes.
+            // ApplyUpdatesAndRestart kills the process immediately, bypassing Program.Shutdown().
+            OBSService.Shutdown();
 
             UpdateManager.ApplyUpdatesAndRestart(LatestUpdateInfo);
         }
