@@ -968,10 +968,10 @@ export default function VideoComponent({ video }: { video: Content }) {
   const handleAddSelection = async () => {
     if (!videoRef.current) return;
     const start = currentTime;
-    const zoomRatio = (zoom / 500) * 100;
-    // Cap the default selection duration at 2 minutes (120s)
-    const selectionDuration = Math.min(120, Math.max(0.1, duration * 0.0019 * (100 / zoomRatio)));
-    const end = currentTime + selectionDuration;
+    // Default to 10% of the visible timeline, capped at 2 minutes and clamped to video duration
+    const visibleDuration = duration / zoom;
+    const selectionDuration = Math.min(120, Math.max(6, visibleDuration * 0.1));
+    const end = Math.min(start + selectionDuration, duration);
 
     const newSelection: Selection = {
       id: Date.now(),
@@ -1153,7 +1153,6 @@ export default function VideoComponent({ video }: { video: Content }) {
         peaksRef.current = data;
         const canvas = waveformCanvasRef.current;
         if (canvas) {
-          canvas.style.opacity = '0.6';
           requestAnimationFrame(renderWaveformBuffer);
         }
       })
@@ -1741,8 +1740,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   className="absolute top-0 pointer-events-none"
                   style={{
                     height: '49px',
-                    opacity: 0,
-                    transition: 'opacity 1000ms ease-in',
+                    opacity: 0.6,
                   }}
                 />
               )}
