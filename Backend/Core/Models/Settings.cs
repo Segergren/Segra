@@ -24,9 +24,9 @@ namespace Segra.Backend.Core.Models
         private string _resolution = "1440p";
         private int _frameRate = 60;
         private bool _stretch4By3 = true;
-        private int _bitrate = 70;
-        private int _minBitrate = 70;
-        private int _maxBitrate = 100;
+        private int _bitrate = 50;
+        private int _minBitrate = 35;
+        private int _maxBitrate = 70;
         private string _rateControl = "VBR";
         private int _crfValue = 23;
         private int _cqLevel = 20;

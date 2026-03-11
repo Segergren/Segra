@@ -7,6 +7,12 @@ namespace Segra.Backend.Services
 {
     public static class PresetsService
     {
+        private static bool IsAmdEncoder()
+        {
+            var codec = Settings.Instance.Codec;
+            return codec != null && codec.InternalEncoderId.Contains("amf", StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>
         /// Applies a video quality preset to the settings
         /// </summary>
@@ -14,6 +20,7 @@ namespace Segra.Backend.Services
         {
             var settings = Settings.Instance;
             settings.BeginBulkUpdate();
+            bool isAmd = IsAmdEncoder();
 
             try
             {
@@ -23,8 +30,11 @@ namespace Segra.Backend.Services
                         settings.VideoQualityPreset = "low";
                         settings.Resolution = "720p";
                         settings.FrameRate = 30;
-                        settings.RateControl = "CBR";
-                        settings.Bitrate = 10;
+                        settings.RateControl = "VBR";
+                        settings.CqLevel = isAmd ? 22 : 24;
+                        settings.Bitrate = isAmd ? 20 : 15;
+                        settings.MinBitrate = 10;
+                        settings.MaxBitrate = isAmd ? 20 : 15;
                         settings.Encoder = "gpu";
                         break;
 
@@ -33,9 +43,10 @@ namespace Segra.Backend.Services
                         settings.Resolution = "1080p";
                         settings.FrameRate = 60;
                         settings.RateControl = "VBR";
-                        settings.Bitrate = 40;
-                        settings.MinBitrate = 40;
-                        settings.MaxBitrate = 60;
+                        settings.CqLevel = isAmd ? 20 : 22;
+                        settings.Bitrate = isAmd ? 40 : 30;
+                        settings.MinBitrate = isAmd ? 25 : 20;
+                        settings.MaxBitrate = isAmd ? 50 : 40;
                         settings.Encoder = "gpu";
                         break;
 
@@ -44,9 +55,10 @@ namespace Segra.Backend.Services
                         settings.Resolution = DisplayService.HasDisplayWithMinHeight(1440) ? "1440p" : "1080p";
                         settings.FrameRate = 60;
                         settings.RateControl = "VBR";
-                        settings.Bitrate = 70;
-                        settings.MinBitrate = 70;
-                        settings.MaxBitrate = 100;
+                        settings.CqLevel = isAmd ? 18 : 20;
+                        settings.Bitrate = isAmd ? 60 : 50;
+                        settings.MinBitrate = isAmd ? 45 : 40;
+                        settings.MaxBitrate = isAmd ? 90 : 70;
                         settings.Encoder = "gpu";
                         break;
 
