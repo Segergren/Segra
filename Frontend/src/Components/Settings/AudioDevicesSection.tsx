@@ -28,12 +28,20 @@ export default function AudioDevicesSection({
   };
 
   // Multi-track audio: first 5 selected sources get isolated tracks (Track 1 is Full Mix)
+  // In GameOnly/GameAndDiscord modes, output devices are replaced by Game Audio (+Discord)
   const selectedInputIds = settings.inputDevices.map((d) => d.id);
-  const selectedOutputIds = settings.outputDevices.map((d) => d.id);
+  const implicitOutputCount =
+    settings.audioOutputMode === 'GameAndDiscord'
+      ? 2
+      : settings.audioOutputMode === 'GameOnly'
+        ? 1
+        : 0;
+  const selectedOutputIds = implicitOutputCount > 0 ? [] : settings.outputDevices.map((d) => d.id);
   const combinedSelectedIds = [...selectedInputIds, ...selectedOutputIds];
+  const totalSourceCount = combinedSelectedIds.length + implicitOutputCount;
   const maxIsolatedTracks = 5;
   const hasOverTrackLimit =
-    settings.enableSeparateAudioTracks && combinedSelectedIds.length > maxIsolatedTracks;
+    settings.enableSeparateAudioTracks && totalSourceCount > maxIsolatedTracks;
   const selectionSig = combinedSelectedIds.join(',');
 
   // Dismissible warning for track limit exceeded
@@ -127,7 +135,8 @@ export default function AudioDevicesSection({
                   const showLimitIcon =
                     settings.enableSeparateAudioTracks &&
                     selectedDevices.some((d) => d.id === device.id) &&
-                    selectedIndex >= maxIsolatedTracks;
+                    selectedIndex >= 0 &&
+                    selectedIndex + implicitOutputCount >= maxIsolatedTracks;
                   return showLimitIcon ? (
                     <div
                       className="tooltip tooltip-bottom tooltip-warning ml-1 inline-flex"
@@ -283,40 +292,8 @@ export default function AudioDevicesSection({
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <h2 className="text-xl font-semibold mb-4">Input/Output Devices</h2>
-      <div className="grid grid-cols-2 gap-4">
-        {/* Input Devices (Multiple Selection) */}
-        <div className="form-control">
-          <label className="label">
-            <span className="label-text text-base-content">Input Devices</span>
-          </label>
-          <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
-            {renderDeviceList('input')}
-          </div>
-        </div>
 
-        {/* Output Devices (Multiple Selection) */}
-        <div className="form-control">
-          <label className="label">
-            <span className="label-text text-base-content">Output Devices</span>
-          </label>
-          <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
-            {renderDeviceList('output')}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-col gap-3">
-        <label className="cursor-pointer flex items-center">
-          <input
-            type="checkbox"
-            name="forceMonoInputSources"
-            checked={settings.forceMonoInputSources}
-            onChange={(e) => updateSettings({ forceMonoInputSources: e.target.checked })}
-            className="checkbox checkbox-sm checkbox-accent"
-          />
-          <span className="ml-2">Mono Input Devices</span>
-        </label>
-
+      <div className="mb-4 flex flex-col gap-2">
         <label className="cursor-pointer flex items-center">
           <input
             type="checkbox"
@@ -327,89 +304,130 @@ export default function AudioDevicesSection({
           />
           <span className="ml-2">Separate Audio Tracks</span>
         </label>
+      </div>
 
-        <div className="flex flex-col gap-1 w-70">
-          <label className="label-text text-base-content mb-1">Output Audio Mode</label>
-          {[
-            {
-              value: 'All' as AudioOutputMode,
-              label: 'All PC Audio',
-              icons: <MdVolumeUp className="h-4 w-4" />,
-            },
-            {
-              value: 'GameOnly' as AudioOutputMode,
-              label: 'Game Audio Only',
-              icons: <LuGamepad2 className="h-4 w-4" />,
-            },
-            {
-              value: 'GameAndDiscord' as AudioOutputMode,
-              label: 'Game + Discord Audio Only',
-              icons: (
-                <span className="flex items-center gap-1.5">
-                  <LuGamepad2 className="h-4 w-4" />
-                  <FaDiscord className="h-4 w-4" />
-                </span>
-              ),
-            },
-          ].map((option) => (
-            <label
-              key={option.value}
-              className="cursor-pointer flex items-center gap-2 p-1 hover:bg-base-200 rounded"
-            >
+      <div className="grid grid-cols-2 gap-4">
+        {/* Input Devices (Multiple Selection) */}
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text text-base-content">Input Devices</span>
+          </label>
+          <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
+            {renderDeviceList('input')}
+          </div>
+
+          <div className="mt-3">
+            <label className="cursor-pointer flex items-center">
               <input
-                type="radio"
-                name="audioOutputMode"
-                className="radio radio-sm radio-accent"
-                checked={settings.audioOutputMode === option.value}
-                onChange={() => updateSettings({ audioOutputMode: option.value })}
+                type="checkbox"
+                name="forceMonoInputSources"
+                checked={settings.forceMonoInputSources}
+                onChange={(e) => updateSettings({ forceMonoInputSources: e.target.checked })}
+                className="checkbox checkbox-sm checkbox-accent"
               />
-              <span className="flex items-center gap-1.5 text-sm">
-                {option.label}
-                {option.icons}
-              </span>
+              <span className="ml-2">Force Mono</span>
             </label>
-          ))}
+          </div>
         </div>
 
-        <AnimatePresence>
-          {hasOverTrackLimit && !trackLimitWarnDismissed && (
-            <motion.div
-              initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
-              animate={{
-                opacity: 1,
-                height: 'fit-content',
-                transition: {
-                  duration: 0.3,
-                  height: { type: 'spring', stiffness: 300, damping: 30 },
-                },
-              }}
-              exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
-              className="mt-3 bg-amber-900 bg-opacity-30 border border-amber-500 rounded px-3 text-amber-400 text-sm flex items-center"
-            >
-              <div className="py-2 flex items-center w-full">
-                <MdWarning className="h-5 w-5 mr-2 shrink-0" />
-                <motion.span className="flex-1">
-                  You have selected more than 5 audio sources. Only the first 5 will be saved as
-                  separate audio tracks. Any additional sources will be recorded in the Full Mix
-                  only.
-                </motion.span>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  aria-label="Dismiss track limit warning"
-                  className="text-amber-300 hover:text-amber-100"
-                  onClick={() => {
-                    setTrackLimitWarnDismissed(true);
-                    localStorage.setItem('segra.trackLimitWarnDismissedSig', selectionSig);
+        {/* Output Devices (Multiple Selection) */}
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text text-base-content">Output Devices</span>
+          </label>
+          <div
+            className={`bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5${settings.audioOutputMode !== 'All' ? ' opacity-50 pointer-events-none' : ''}`}
+          >
+            {renderDeviceList('output')}
+          </div>
+
+          <div className="flex flex-col gap-1 w-70 mt-2">
+            {[
+              {
+                value: 'All' as AudioOutputMode,
+                label: 'All PC Audio',
+                icons: <MdVolumeUp className="h-4 w-4" />,
+              },
+              {
+                value: 'GameOnly' as AudioOutputMode,
+                label: 'Game Audio Only',
+                icons: <LuGamepad2 className="h-4 w-4" />,
+              },
+              {
+                value: 'GameAndDiscord' as AudioOutputMode,
+                label: 'Game + Discord Audio Only',
+                icons: (
+                  <span className="flex items-center gap-1.5">
+                    <LuGamepad2 className="h-4 w-4" />
+                    <FaDiscord className="h-4 w-4" />
+                  </span>
+                ),
+              },
+            ].map((option) => (
+              <label
+                key={option.value}
+                className="cursor-pointer flex items-center gap-2 p-1 hover:bg-base-200 rounded"
+              >
+                <input
+                  type="radio"
+                  name="audioOutputMode"
+                  className="radio radio-sm radio-accent"
+                  checked={settings.audioOutputMode === option.value}
+                  onChange={() => {
+                    const updates: Partial<SettingsType> = { audioOutputMode: option.value };
+                    if (option.value !== 'All') {
+                      updates.outputDevices = [];
+                    }
+                    updateSettings(updates);
                   }}
-                >
-                  <MdClose className="h-4 w-4" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                />
+                <span className="flex items-center gap-1.5 text-sm">
+                  {option.label}
+                  {option.icons}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
+
+      <AnimatePresence>
+        {hasOverTrackLimit && !trackLimitWarnDismissed && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+            animate={{
+              opacity: 1,
+              height: 'fit-content',
+              transition: {
+                duration: 0.3,
+                height: { type: 'spring', stiffness: 300, damping: 30 },
+              },
+            }}
+            exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
+            className="mt-3 bg-amber-900 bg-opacity-30 border border-amber-500 rounded px-3 text-amber-400 text-sm flex items-center"
+          >
+            <div className="py-2 flex items-center w-full">
+              <MdWarning className="h-5 w-5 mr-2 shrink-0" />
+              <motion.span className="flex-1">
+                You have selected more than 5 audio sources. Only the first 5 will be saved as
+                separate audio tracks. Any additional sources will be recorded in the Full Mix only.
+              </motion.span>
+              <Button
+                variant="ghost"
+                size="xs"
+                aria-label="Dismiss track limit warning"
+                className="text-amber-300 hover:text-amber-100"
+                onClick={() => {
+                  setTrackLimitWarnDismissed(true);
+                  localStorage.setItem('segra.trackLimitWarnDismissedSig', selectionSig);
+                }}
+              >
+                <MdClose className="h-4 w-4" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
