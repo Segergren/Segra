@@ -636,6 +636,15 @@ namespace Segra.Backend.Recorder
                     throw new Exception("Unsupported Rate Control method.");
             }
 
+            // Disable b-frames on older NVIDIA GPUs (requires compute capability >= 7.0)
+            if (encoderId.Contains("nvenc", StringComparison.OrdinalIgnoreCase) &&
+                Settings.Instance.State.CudaComputeCapability != null &&
+                Settings.Instance.State.CudaComputeCapability < 7.0)
+            {
+                videoEncoderSettings.Set("bf", 0);
+                Log.Information("NVENC b-frames disabled (CUDA compute capability < 7.0)");
+            }
+
             _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
 
             // Create audio sources and add to scene

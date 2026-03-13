@@ -1,5 +1,6 @@
 using Serilog;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Vortice.DXCore;
 
@@ -35,6 +36,96 @@ namespace Segra.Backend.Utils
 
         // Cache the detected GPU vendor to avoid repeated WMI queries
         private static GpuVendor? _cachedGpuVendor = null;
+
+        // CUDA Driver API delegates
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int CuInit(uint flags);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int CuDeviceGetCount(out int count);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int CuDeviceGet(out int device, int ordinal);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int CuDeviceGetAttribute(out int value, int attribute, int device);
+
+        private const int CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR = 75;
+        private const int CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR = 76;
+
+        /// <summary>
+        /// Detects the highest CUDA compute capability across all NVIDIA GPUs by loading nvcuda.dll directly.
+        /// Returns null if nvcuda.dll is not found, CUDA is unavailable, or any error occurs.
+        /// </summary>
+        public static double? DetectCudaComputeCapability()
+        {
+            const string nvcudaPath = @"C:\Windows\System32\nvcuda.dll";
+
+            try
+            {
+                if (!File.Exists(nvcudaPath))
+                {
+                    Log.Information("nvcuda.dll not found, CUDA compute capability unavailable");
+                    return null;
+                }
+
+                if (!NativeLibrary.TryLoad(nvcudaPath, out var handle))
+                {
+                    Log.Warning("Failed to load nvcuda.dll");
+                    return null;
+                }
+
+                try
+                {
+                    var cuInit = Marshal.GetDelegateForFunctionPointer<CuInit>(NativeLibrary.GetExport(handle, "cuInit"));
+                    var cuDeviceGetCount = Marshal.GetDelegateForFunctionPointer<CuDeviceGetCount>(NativeLibrary.GetExport(handle, "cuDeviceGetCount"));
+                    var cuDeviceGet = Marshal.GetDelegateForFunctionPointer<CuDeviceGet>(NativeLibrary.GetExport(handle, "cuDeviceGet"));
+                    var cuDeviceGetAttribute = Marshal.GetDelegateForFunctionPointer<CuDeviceGetAttribute>(NativeLibrary.GetExport(handle, "cuDeviceGetAttribute"));
+
+                    if (cuInit(0) != 0)
+                    {
+                        Log.Warning("cuInit failed");
+                        return null;
+                    }
+
+                    if (cuDeviceGetCount(out int deviceCount) != 0 || deviceCount == 0)
+                    {
+                        Log.Warning("No CUDA devices found");
+                        return null;
+                    }
+
+                    double highestCapability = 0;
+
+                    for (int i = 0; i < deviceCount; i++)
+                    {
+                        if (cuDeviceGet(out int device, i) != 0) continue;
+
+                        if (cuDeviceGetAttribute(out int major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, device) != 0) continue;
+                        if (cuDeviceGetAttribute(out int minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, device) != 0) continue;
+
+                        double capability = major + (minor * 0.1);
+                        Log.Information($"CUDA device {i}: compute capability {major},{minor}");
+
+                        if (capability > highestCapability)
+                            highestCapability = capability;
+                    }
+
+                    if (highestCapability > 0)
+                    {
+                        Log.Information($"Highest CUDA compute capability: {highestCapability}");
+                        return highestCapability;
+                    }
+
+                    return null;
+                }
+                finally
+                {
+                    NativeLibrary.Free(handle);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error detecting CUDA compute capability: {ex.Message}");
+                return null;
+            }
+        }
 
         public static GpuVendor DetectGpuVendor()
         {

@@ -887,6 +887,7 @@ namespace Segra.Backend.Core.Models
     internal class State : IDisposable
     {
         private GpuVendor _gpuVendor = GpuVendor.Unknown;
+        private double? _cudaComputeCapability = null;
         private PreRecording? _preRecording = null;
         private Recording? _recording = null;
         private bool _hasLoadedObs = false;
@@ -936,6 +937,19 @@ namespace Segra.Backend.Core.Models
                 if (_gpuVendor != value)
                 {
                     _gpuVendor = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("cudaComputeCapability")]
+        public double? CudaComputeCapability
+        {
+            get => _cudaComputeCapability;
+            set
+            {
+                if (_cudaComputeCapability != value)
+                {
+                    _cudaComputeCapability = value;
                 }
             }
         }
