@@ -636,8 +636,8 @@ namespace Segra.Backend.Recorder
                     throw new Exception("Unsupported Rate Control method.");
             }
 
-            // Disable b-frames on older NVIDIA GPUs (requires compute capability >= 7.0)
-            if (encoderId.Contains("nvenc", StringComparison.OrdinalIgnoreCase) &&
+            // Disable HEVC b-frames on older NVIDIA GPUs (requires compute capability >= 7.0)
+            if (encoderId.Equals("jim_hevc_nvenc", StringComparison.OrdinalIgnoreCase) &&
                 Settings.Instance.State.CudaComputeCapability != null &&
                 Settings.Instance.State.CudaComputeCapability < 7.0)
             {
