@@ -542,7 +542,7 @@ namespace Segra.Backend.App
 
                 using (var icon = new NotifyIcon())
                 {
-                    icon.Icon = new Icon(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico"));
+                    icon.Icon = Properties.Resources.icon;
                     icon.Text = "Segra";
                     icon.Visible = true;
 
@@ -560,6 +560,8 @@ namespace Segra.Backend.App
                         if (e.Button == MouseButtons.Left)
                             await ShowApplicationWindow();
                     };
+
+                    NotifyIconService.Initialize(icon);
 
                     Application.Run();
                 }

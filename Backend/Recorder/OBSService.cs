@@ -933,6 +933,8 @@ namespace Segra.Backend.Recorder
             Settings.Instance.State.PreRecording = null;
             _ = MessageService.SendSettingsToFrontend("OBS Start recording");
 
+            NotifyIconService.SetNotifyIconStatus(NotifyIconState.Recording);
+
             Log.Information("Recording started: " + videoOutputPath);
             GeneralUtils.SetProcessPriority(ProcessPriorityClass.High);
             if (!isReplayBufferMode)
@@ -1033,6 +1035,8 @@ namespace Segra.Backend.Recorder
                     DisposeSources();
                     DisposeEncoders();
 
+                    NotifyIconService.SetNotifyIconStatus(NotifyIconState.Idle);
+
                     Log.Information("Replay buffer stopped and disposed.");
 
                     _ = GameIntegrationService.Shutdown();
@@ -1066,6 +1070,8 @@ namespace Segra.Backend.Recorder
                     DisposeOutput();
                     DisposeSources();
                     DisposeEncoders();
+
+                    NotifyIconService.SetNotifyIconStatus(NotifyIconState.Idle);
 
                     Log.Information("Recording stopped and disposed.");
 
@@ -1163,6 +1169,8 @@ namespace Segra.Backend.Recorder
                     DisposeOutput();
                     DisposeSources();
                     DisposeEncoders();
+
+                    NotifyIconService.SetNotifyIconStatus(NotifyIconState.Idle);
 
                     Log.Information("Hybrid: All outputs stopped and disposed.");
 
