@@ -393,6 +393,22 @@ export default function ClipSettingsSection({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Keep Separate Audio Tracks */}
+      {settings.enableSeparateAudioTracks && (
+        <div className="flex items-center mt-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="clipKeepSeparateAudioTracks"
+              checked={settings.clipKeepSeparateAudioTracks}
+              onChange={(e) => updateSettings({ clipKeepSeparateAudioTracks: e.target.checked })}
+              className="checkbox checkbox-primary checkbox-sm"
+            />
+            <span className="cursor-pointer">Keep Audio Tracks Separated</span>
+          </label>
+        </div>
+      )}
     </div>
   );
 }

@@ -61,6 +61,7 @@ namespace Segra.Backend.Core.Models
         private int _clipFps = 60; // 0 for 'Original'
         private string _clipAudioQuality = "128k";
         private string _clipPreset = "veryfast";
+        private bool _clipKeepSeparateAudioTracks = false;
         private float _soundEffectsVolume = 0.5f;
         private bool _showNewBadgeOnVideos = false;
         private bool _showGameBackground = true;
@@ -622,6 +623,19 @@ namespace Segra.Backend.Core.Models
                 if (_clipPreset != value)
                 {
                     _clipPreset = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("clipKeepSeparateAudioTracks")]
+        public bool ClipKeepSeparateAudioTracks
+        {
+            get => _clipKeepSeparateAudioTracks;
+            set
+            {
+                if (_clipKeepSeparateAudioTracks != value)
+                {
+                    _clipKeepSeparateAudioTracks = value;
                 }
             }
         }

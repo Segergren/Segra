@@ -307,6 +307,14 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update ClipKeepSeparateAudioTracks
+            if (settings.ClipKeepSeparateAudioTracks != updatedSettings.ClipKeepSeparateAudioTracks)
+            {
+                Log.Information($"ClipKeepSeparateAudioTracks changed from '{settings.ClipKeepSeparateAudioTracks}' to '{updatedSettings.ClipKeepSeparateAudioTracks}'");
+                settings.ClipKeepSeparateAudioTracks = updatedSettings.ClipKeepSeparateAudioTracks;
+                hasChanges = true;
+            }
+
             // Update SoundEffectsVolume
             if (settings.SoundEffectsVolume != updatedSettings.SoundEffectsVolume)
             {

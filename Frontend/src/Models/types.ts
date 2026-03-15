@@ -238,6 +238,7 @@ export interface Settings {
   clipFps: ClipFPS;
   clipAudioQuality: ClipAudioQuality;
   clipPreset: ClipPreset;
+  clipKeepSeparateAudioTracks: boolean;
   keybindings: Keybind[];
   whitelist: Game[];
   blacklist: Game[];
@@ -310,6 +311,7 @@ export const initialSettings: Settings = {
   clipFps: 60,
   clipAudioQuality: '128k',
   clipPreset: 'veryfast',
+  clipKeepSeparateAudioTracks: false,
   soundEffectsVolume: 1,
   showNewBadgeOnVideos: false,
   showGameBackground: true,

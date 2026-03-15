@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
@@ -57,6 +58,13 @@ namespace Segra.Backend.Media
                     return;
                 }
 
+                // Read source audio track names for embedding in clip metadata
+                List<string>? sourceAudioTrackNames = null;
+                if (Settings.Instance.ClipKeepSeparateAudioTracks && firstSelection != null)
+                {
+                    sourceAudioTrackNames = GetSourceAudioTrackNames(firstSelection);
+                }
+
                 double processedDuration = 0;
                 foreach (var selection in selections)
                 {
@@ -82,7 +90,7 @@ namespace Segra.Backend.Media
                     string tempFileName = Path.Combine(Path.GetTempPath(), $"clip{Guid.NewGuid()}.mp4");
                     double clipDuration = selection.EndTime - selection.StartTime;
 
-                    await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, progress =>
+                    await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, sourceAudioTrackNames, progress =>
                     {
                         double clampedProgress = Math.Min(progress, 1.0);
                         double currentProgress = (processedDuration + (clampedProgress * clipDuration)) / totalDuration * 95;
@@ -162,7 +170,7 @@ namespace Segra.Backend.Media
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, selections });
 
-                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId);
+                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId, audioTrackNames: sourceAudioTrackNames);
                 await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Clip);
                 await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Clip);
 
@@ -197,7 +205,7 @@ namespace Segra.Backend.Media
         }
 
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
-                            Action<double> progressCallback)
+                            List<string>? audioTrackNames, Action<double> progressCallback)
         {
             double duration = endTime - startTime;
             var settings = Settings.Instance;
@@ -280,10 +288,21 @@ namespace Segra.Backend.Media
             }
 
             string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
+            string mapArgs = settings.ClipKeepSeparateAudioTracks ? "-map 0:v:0 -map 0:a " : "";
+
+            // Set audio track title metadata so editing software shows the correct names
+            string metadataArgs = "";
+            if (settings.ClipKeepSeparateAudioTracks && audioTrackNames != null)
+            {
+                for (int i = 0; i < audioTrackNames.Count; i++)
+                {
+                    metadataArgs += $"-metadata:s:a:{i} title=\"{audioTrackNames[i]}\" ";
+                }
+            }
 
             string arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" -c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
-                             $"-c:a aac -b:a {settings.ClipAudioQuality} -movflags +faststart \"{outputFilePath}\"";
+                             $"-i \"{inputFilePath}\" {mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                             $"-c:a aac -b:a {settings.ClipAudioQuality} {metadataArgs}-movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");
 
@@ -364,6 +383,32 @@ namespace Segra.Backend.Media
             {
                 await MessageService.SendFrontendMessage("ClipProgress", new { id = clipId, progress = 100, selections = new List<Selection>() });
             }
+        }
+
+        private static List<string>? GetSourceAudioTrackNames(Selection selection)
+        {
+            try
+            {
+                var contentType = Enum.Parse<Content.ContentType>(selection.Type);
+                string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
+                string metadataFilePath = Path.Combine(metadataFolderPath, $"{selection.FileName}.json");
+
+                if (File.Exists(metadataFilePath))
+                {
+                    var metadataContent = File.ReadAllText(metadataFilePath);
+                    var metadata = JsonSerializer.Deserialize<Content>(metadataContent);
+                    if (metadata?.AudioTrackNames != null && metadata.AudioTrackNames.Count > 1)
+                    {
+                        return metadata.AudioTrackNames;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to read source audio track names: {ex.Message}");
+            }
+
+            return null;
         }
 
         private static void SafeDelete(string path)
