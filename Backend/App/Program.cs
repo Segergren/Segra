@@ -445,6 +445,7 @@ namespace Segra.Backend.App
             Log.Information("Loading frontend, app url is " + appUrl);
             // Initialize the PhotinoWindow
             Window = new PhotinoWindow()
+                .SetBrowserControlInitParameters("--enable-blink-features=AudioVideoTracks")
                 .SetNotificationsEnabled(false) // Disabled due to it creating a second start menu entry with incorrect start path. See https://github.com/tryphotino/photino.NET/issues/85
                 .SetUseOsDefaultSize(false)
                 .SetIconFile(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico"))

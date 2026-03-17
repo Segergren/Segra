@@ -20,6 +20,7 @@ export interface Content {
   uploadId?: string;
   igdbId?: number;
   isImported: boolean;
+  audioTrackNames?: string[];
 }
 
 export interface OBSVersion {
@@ -349,6 +350,7 @@ export interface Selection {
   game?: string;
   title?: string;
   igdbId?: number;
+  mutedAudioTracks?: number[];
 }
 
 export interface SelectionCardProps {
@@ -359,6 +361,8 @@ export interface SelectionCardProps {
   isHovered: boolean;
   setHoveredSelectionId: (id: number | null) => void;
   removeSelection: (id: number) => void;
+  audioTrackNames?: string[];
+  onMutedAudioTracksChange?: (id: number, mutedTracks: number[]) => void;
 }
 
 export interface AiProgress {

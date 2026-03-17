@@ -25,6 +25,7 @@ namespace Segra.Backend.App
         public required string Game { get; set; }
         public string Title { get; set; } = string.Empty;
         public int? IgdbId { get; set; }
+        public List<int>? MutedAudioTracks { get; set; }
     }
 
     public static class MessageService

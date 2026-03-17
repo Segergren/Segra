@@ -1,7 +1,10 @@
 using Serilog;
 using System.Net;
+using System.Text.Json;
 using System.Web;
+using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
+using Segra.Backend.Shared;
 
 namespace Segra.Backend.Api
 {
@@ -62,6 +65,10 @@ namespace Segra.Backend.Api
                 if (rawUrl.StartsWith("/api/thumbnail"))
                 {
                     await HandleThumbnailRequest(context);
+                }
+                else if (rawUrl.StartsWith("/api/audiotracks"))
+                {
+                    await HandleAudioTracksRequest(context);
                 }
                 else if (rawUrl.StartsWith("/api/content"))
                 {
@@ -217,7 +224,8 @@ namespace Segra.Backend.Api
                 return;
             }
 
-            if (fileName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+            if (fileName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                fileName.EndsWith(".m4a", StringComparison.OrdinalIgnoreCase))
             {
                 await StreamVideoFile(fileName, context);
             }
@@ -232,6 +240,109 @@ namespace Segra.Backend.Api
                 using (var writer = new StreamWriter(response.OutputStream))
                 {
                     await writer.WriteAsync("Unsupported file type.");
+                }
+            }
+        }
+
+        private static async Task HandleAudioTracksRequest(HttpListenerContext context)
+        {
+            var query = HttpUtility.ParseQueryString(context.Request?.Url?.Query ?? "");
+            string input = query["input"] ?? "";
+            string typeStr = query["type"] ?? "";
+            var response = context.Response;
+
+            response.AddHeader("Access-Control-Allow-Origin", "*");
+
+            if (!File.Exists(input))
+            {
+                response.StatusCode = (int)HttpStatusCode.NotFound;
+                response.ContentType = "text/plain";
+                using (var writer = new StreamWriter(response.OutputStream))
+                {
+                    await writer.WriteAsync("File not found.");
+                }
+                return;
+            }
+
+            try
+            {
+                if (!Enum.TryParse<Content.ContentType>(typeStr, true, out var contentType))
+                {
+                    contentType = FolderNames.GetContentTypeFromPath(input) ?? Content.ContentType.Session;
+                }
+
+                // Read metadata to get audio track names
+                string fileName = Path.GetFileNameWithoutExtension(input);
+                string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
+                string metadataFilePath = Path.Combine(metadataFolderPath, $"{fileName}.json");
+
+                List<string>? trackNames = null;
+                if (File.Exists(metadataFilePath))
+                {
+                    var metadataContent = await File.ReadAllTextAsync(metadataFilePath);
+                    var metadata = JsonSerializer.Deserialize<Content>(metadataContent);
+                    trackNames = metadata?.AudioTrackNames;
+                }
+
+                if (trackNames == null || trackNames.Count <= 1)
+                {
+                    response.StatusCode = (int)HttpStatusCode.OK;
+                    response.ContentType = "application/json";
+                    using (var writer = new StreamWriter(response.OutputStream))
+                    {
+                        await writer.WriteAsync("[]");
+                    }
+                    return;
+                }
+
+                string audioTracksDir = FolderNames.GetAudioTracksFolderPath(contentType);
+                Directory.CreateDirectory(audioTracksDir);
+
+                var result = new List<object>();
+
+                // Skip track 0 (Full Mix) - it duplicates the individual tracks
+                for (int i = 1; i < trackNames.Count; i++)
+                {
+                    string trackFileName = $"{fileName}_track{i}.m4a";
+                    string trackFilePath = Path.Combine(audioTracksDir, trackFileName);
+
+                    if (!File.Exists(trackFilePath))
+                    {
+                        try
+                        {
+                            await FFmpegService.ExtractAudioTrack(input, trackFilePath, i);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning($"Failed to extract audio track {i} from {input}: {ex.Message}");
+                            continue;
+                        }
+                    }
+
+                    result.Add(new
+                    {
+                        index = i,
+                        name = trackNames[i],
+                        url = $"/api/content?input={Uri.EscapeDataString(trackFilePath)}"
+                    });
+                }
+
+                response.StatusCode = (int)HttpStatusCode.OK;
+                response.ContentType = "application/json";
+                string json = JsonSerializer.Serialize(result);
+                using (var writer = new StreamWriter(response.OutputStream))
+                {
+                    await writer.WriteAsync(json);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error handling audio tracks request");
+                response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                response.ContentType = "text/plain";
+                using (var writer = new StreamWriter(response.OutputStream))
+                {
+                    await writer.WriteAsync("Error extracting audio tracks.");
                 }
             }
         }
@@ -273,7 +384,7 @@ namespace Segra.Backend.Api
                 long contentLength = end - start + 1;
 
                 response.StatusCode = string.IsNullOrEmpty(rangeHeader) ? (int)HttpStatusCode.OK : (int)HttpStatusCode.PartialContent;
-                response.ContentType = "video/mp4";
+                response.ContentType = fileName.EndsWith(".m4a", StringComparison.OrdinalIgnoreCase) ? "audio/mp4" : "video/mp4";
                 response.AddHeader("Accept-Ranges", "bytes");
 
                 if (!string.IsNullOrEmpty(rangeHeader))

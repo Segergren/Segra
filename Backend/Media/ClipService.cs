@@ -58,9 +58,10 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                // Read source audio track names for embedding in clip metadata
+                // Read source audio track names when keeping separate tracks or when any selection has muted tracks
                 List<string>? sourceAudioTrackNames = null;
-                if (Settings.Instance.ClipKeepSeparateAudioTracks && firstSelection != null)
+                bool anySelectionHasMutedTracks = selections.Any(s => s.MutedAudioTracks != null && s.MutedAudioTracks.Count > 0);
+                if ((Settings.Instance.ClipKeepSeparateAudioTracks || anySelectionHasMutedTracks) && firstSelection != null)
                 {
                     sourceAudioTrackNames = GetSourceAudioTrackNames(firstSelection);
                 }
@@ -90,7 +91,7 @@ namespace Segra.Backend.Media
                     string tempFileName = Path.Combine(Path.GetTempPath(), $"clip{Guid.NewGuid()}.mp4");
                     double clipDuration = selection.EndTime - selection.StartTime;
 
-                    await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, sourceAudioTrackNames, progress =>
+                    await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, sourceAudioTrackNames, selection.MutedAudioTracks, progress =>
                     {
                         double clampedProgress = Math.Min(progress, 1.0);
                         double currentProgress = (processedDuration + (clampedProgress * clipDuration)) / totalDuration * 95;
@@ -205,7 +206,7 @@ namespace Segra.Backend.Media
         }
 
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
-                            List<string>? audioTrackNames, Action<double> progressCallback)
+                            List<string>? audioTrackNames, List<int>? mutedAudioTracks, Action<double> progressCallback)
         {
             double duration = endTime - startTime;
             var settings = Settings.Instance;
@@ -288,12 +289,62 @@ namespace Segra.Backend.Media
             }
 
             string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
-            string mapArgs = settings.ClipKeepSeparateAudioTracks ? "-map 0:v:0 -map 0:a " : "";
 
-            // Set audio track title metadata so editing software shows the correct names
+            // Build audio mapping, filter, and metadata based on per-selection muted tracks
+            string mapArgs = "";
             string metadataArgs = "";
-            if (settings.ClipKeepSeparateAudioTracks && audioTrackNames != null)
+            string filterArgs = "";
+
+            // Determine which individual tracks (index > 0) are not muted
+            bool hasMutedTracks = mutedAudioTracks != null && mutedAudioTracks.Count > 0 && audioTrackNames != null && audioTrackNames.Count > 1;
+
+            if (hasMutedTracks)
             {
+                // Build list of non-muted individual track indices (skip track 0 = original Full Mix)
+                var enabledTracks = new List<int>();
+                for (int i = 1; i < audioTrackNames!.Count; i++)
+                {
+                    if (!mutedAudioTracks!.Contains(i))
+                        enabledTracks.Add(i);
+                }
+
+                if (enabledTracks.Count > 0)
+                {
+                    // Create a new Full Mix from only the non-muted individual tracks
+                    if (enabledTracks.Count == 1)
+                    {
+                        // Single track: use it directly as the mix, no filter needed
+                        filterArgs = "";
+                        mapArgs = $"-map 0:v:0 -map 0:a:{enabledTracks[0]} ";
+                    }
+                    else
+                    {
+                        // Multiple tracks: use amix filter to create a new Full Mix
+                        string filterInputs = string.Join("", enabledTracks.Select(i => $"[0:a:{i}]"));
+                        filterArgs = $"-filter_complex \"{filterInputs}amix=inputs={enabledTracks.Count}:duration=longest[mix]\" ";
+                        mapArgs = "-map 0:v:0 -map \"[mix]\" ";
+                    }
+
+                    int outputTrackIndex = 0;
+                    metadataArgs = $"-metadata:s:a:{outputTrackIndex} title=\"Full Mix\" ";
+                    outputTrackIndex++;
+
+                    // When keeping separate tracks, also map each individual non-muted track
+                    if (settings.ClipKeepSeparateAudioTracks)
+                    {
+                        foreach (int i in enabledTracks)
+                        {
+                            mapArgs += $"-map 0:a:{i} ";
+                            metadataArgs += $"-metadata:s:a:{outputTrackIndex} title=\"{audioTrackNames[i]}\" ";
+                            outputTrackIndex++;
+                        }
+                    }
+                }
+            }
+            else if (settings.ClipKeepSeparateAudioTracks && audioTrackNames != null)
+            {
+                // No muted tracks, keep all audio tracks as-is
+                mapArgs = "-map 0:v:0 -map 0:a ";
                 for (int i = 0; i < audioTrackNames.Count; i++)
                 {
                     metadataArgs += $"-metadata:s:a:{i} title=\"{audioTrackNames[i]}\" ";
@@ -301,7 +352,7 @@ namespace Segra.Backend.Media
             }
 
             string arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" {mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                             $"-i \"{inputFilePath}\" {filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
                              $"-c:a aac -b:a {settings.ClipAudioQuality} {metadataArgs}-movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");

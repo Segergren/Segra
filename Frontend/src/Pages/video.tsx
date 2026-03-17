@@ -35,7 +35,8 @@ import {
 import { IoSkull, IoAdd, IoRemove } from 'react-icons/io5';
 import SelectionCard from '../Components/SelectionCard';
 
-import { TbZoomIn, TbZoomOut } from 'react-icons/tb';
+import { TbZoomIn, TbZoomOut, TbHeadphones } from 'react-icons/tb';
+import { useAudioTracks } from '../Hooks/useAudioTracks';
 import { IoIosFootball } from 'react-icons/io';
 import { AnimatePresence, motion } from 'framer-motion';
 import Button from '../Components/Button';
@@ -210,6 +211,10 @@ export default function VideoComponent({ video }: { video: Content }) {
   const peaksRef = useRef<number[] | null>(null);
   const waveformStateRef = useRef({ pixelsPerSecond: 0, duration: 0 });
   const waveformBufferRef = useRef({ regionLeft: 0, regionRight: 0 });
+
+  // Audio tracks
+  const audioTracks = useAudioTracks(videoRef, video);
+  const [showAudioTracks, setShowAudioTracks] = useState(false);
 
   // Video state
   const [currentTime, setCurrentTime] = useState(0);
@@ -455,8 +460,11 @@ export default function VideoComponent({ video }: { video: Content }) {
     if (!vid) return;
 
     // Apply saved volume and muted state on load
-    vid.volume = volume;
-    vid.muted = isMuted;
+    // When multi-track is active, the hook controls muting
+    if (!audioTracks.isMultiTrack) {
+      vid.volume = volume;
+      vid.muted = isMuted;
+    }
     // Apply saved playback rate
     vid.playbackRate = playbackRate;
 
@@ -469,6 +477,9 @@ export default function VideoComponent({ video }: { video: Content }) {
     const onPause = () => setIsPlaying(false);
     const onVolumeChange = () => {
       if (vid) {
+        // When multi-track audio is active, the video is muted by the hook
+        if (audioTracks.isMultiTrack) return;
+
         setVolume(vid.volume);
         setIsMuted(vid.muted);
 
@@ -569,7 +580,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       vid.removeEventListener('ratechange', onRateChange);
       window.removeEventListener('keydown', handleKeyDown, keyOptions as any);
     };
-  }, [volume, isMuted, isFullscreen]);
+  }, [volume, isMuted, isFullscreen, audioTracks.isMultiTrack]);
 
   // Handle video playback time updates using requestAnimationFrame for smooth updates
   useEffect(() => {
@@ -597,6 +608,45 @@ export default function VideoComponent({ video }: { video: Content }) {
       cancelAnimationFrame(rafId);
     };
   }, []);
+
+  // Apply per-selection audio track muting during playback
+  const activeSelectionIdRef = useRef<number | null>(null);
+  const savedMuteStateRef = useRef<Set<number> | null>(null);
+  useEffect(() => {
+    if (!audioTracks.isMultiTrack) return;
+
+    const checkInterval = setInterval(() => {
+      const vid = videoRef.current;
+      if (!vid || vid.paused) return;
+
+      const t = vid.currentTime;
+      const activeSelection = selections.find(
+        (s) =>
+          s.mutedAudioTracks && s.mutedAudioTracks.length > 0 && t >= s.startTime && t <= s.endTime,
+      );
+
+      const activeId = activeSelection?.id ?? null;
+      if (activeId === activeSelectionIdRef.current) return;
+
+      if (activeId !== null && activeSelectionIdRef.current === null) {
+        // Entering a selection with muted tracks -- save current state
+        savedMuteStateRef.current = new Set(audioTracks.mutedTracks);
+      }
+
+      activeSelectionIdRef.current = activeId;
+
+      if (activeSelection?.mutedAudioTracks) {
+        // Apply this selection's muted tracks
+        audioTracks.setMutedTracks(new Set(activeSelection.mutedAudioTracks));
+      } else if (savedMuteStateRef.current !== null) {
+        // Exiting selection -- restore saved state
+        audioTracks.setMutedTracks(savedMuteStateRef.current);
+        savedMuteStateRef.current = null;
+      }
+    }, 100);
+
+    return () => clearInterval(checkInterval);
+  }, [audioTracks.isMultiTrack, selections]);
 
   // Update container width on window resize
   useEffect(() => {
@@ -794,13 +844,16 @@ export default function VideoComponent({ video }: { video: Content }) {
       setVolume(target);
       return;
     }
-    el.volume = target;
-    if (target === 0) {
-      el.muted = true;
-      setIsMuted(true);
-    } else if (el.muted) {
-      el.muted = false;
-      setIsMuted(false);
+    // When multi-track is active, don't touch the video element's volume/muted
+    if (!audioTracks.isMultiTrack) {
+      el.volume = target;
+      if (target === 0) {
+        el.muted = true;
+        setIsMuted(true);
+      } else if (el.muted) {
+        el.muted = false;
+        setIsMuted(false);
+      }
     }
     setVolume(target);
     localStorage.setItem('segra-volume', target.toString());
@@ -985,6 +1038,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       game: video.game,
       title: video.title,
       igdbId: video.igdbId,
+      mutedAudioTracks: audioTracks.isMultiTrack ? [...audioTracks.mutedTracks] : undefined,
     };
     addSelection(newSelection);
     // Kick off thumbnail generation; uses latest state and guards against stale overwrites
@@ -1010,6 +1064,7 @@ export default function VideoComponent({ video }: { video: Content }) {
         startTime: s.startTime,
         endTime: s.endTime,
         igdbId: s.igdbId,
+        mutedAudioTracks: s.mutedAudioTracks,
       })),
     };
     sendMessageToBackend('CreateClip', params);
@@ -1417,6 +1472,9 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Toggle mute state
   const toggleMute = () => {
     if (videoRef.current) {
+      // When multi-track is active, don't toggle the video element's muted state
+      if (audioTracks.isMultiTrack) return;
+
       const newMutedState = !videoRef.current.muted;
       videoRef.current.muted = newMutedState;
       setIsMuted(newMutedState);
@@ -1546,6 +1604,39 @@ export default function VideoComponent({ video }: { video: Content }) {
                   aria-label="Volume"
                 />
               </div>
+
+              {audioTracks.isMultiTrack && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowAudioTracks(!showAudioTracks)}
+                    className={`flex items-center justify-center p-1 text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20 ${showAudioTracks ? 'text-accent bg-accent/20' : ''}`}
+                    aria-label="Audio tracks"
+                  >
+                    <TbHeadphones className="w-4 h-4" />
+                  </button>
+                  {showAudioTracks && (
+                    <div className="absolute bottom-full right-0 mb-2 p-2 bg-black/90 rounded-lg border border-base-400 min-w-40 z-50">
+                      {audioTracks.tracks.map((track) => {
+                        const isMuted = audioTracks.mutedTracks.has(track.index);
+                        return (
+                          <label
+                            key={track.index}
+                            className="flex items-center gap-2 py-0.5 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!isMuted}
+                              onChange={() => audioTracks.toggleTrackMute(track.index)}
+                              className="checkbox checkbox-primary checkbox-xs"
+                            />
+                            <span className="text-xs text-white/80 truncate">{track.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex items-center gap-2 ml-3">
                 <button
@@ -1931,6 +2022,13 @@ export default function VideoComponent({ video }: { video: Content }) {
                   isHovered={hoveredSelectionId === sel.id}
                   setHoveredSelectionId={setHoveredSelectionId}
                   removeSelection={removeSelection}
+                  audioTrackNames={video.audioTrackNames}
+                  onMutedAudioTracksChange={(id, mutedTracks) =>
+                    updateSelection({
+                      ...selections.find((s) => s.id === id)!,
+                      mutedAudioTracks: mutedTracks,
+                    })
+                  }
                 />
               ))}
             </div>
