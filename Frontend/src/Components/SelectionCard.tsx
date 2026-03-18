@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { SelectionCardProps } from '../Models/types';
 import { useDrag, useDrop } from 'react-dnd';
 import { TbHeadphones } from 'react-icons/tb';
@@ -19,6 +19,13 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
   }) => {
     const [showAudioMenu, setShowAudioMenu] = useState(false);
 
+    const indexRef = useRef(index);
+    const moveCardRef = useRef(moveCard);
+    useLayoutEffect(() => {
+      indexRef.current = index;
+      moveCardRef.current = moveCard;
+    });
+
     const [{ isDragging }, dragRef] = useDrag(
       () => ({
         type: DRAG_TYPE,
@@ -34,13 +41,13 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
       () => ({
         accept: DRAG_TYPE,
         hover: (item: { index: number }) => {
-          if (item.index !== index) {
-            moveCard(item.index, index);
-            item.index = index;
+          if (item.index !== indexRef.current) {
+            moveCardRef.current(item.index, indexRef.current);
+            item.index = indexRef.current;
           }
         },
       }),
-      [index, moveCard],
+      [],
     );
 
     const dragDropRef = (node: HTMLDivElement | null) => {

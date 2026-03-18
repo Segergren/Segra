@@ -215,6 +215,11 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Audio tracks
   const audioTracks = useAudioTracks(videoRef, video);
   const [showAudioTracks, setShowAudioTracks] = useState(false);
+  const [timelineAudioMenu, setTimelineAudioMenu] = useState<{
+    selId: number;
+    x: number;
+    y: number;
+  } | null>(null);
 
   // Video state
   const [currentTime, setCurrentTime] = useState(0);
@@ -260,6 +265,14 @@ export default function VideoComponent({ video }: { video: Content }) {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [showSpeedMenu]);
+
+  // Close timeline audio menu when clicking outside
+  useEffect(() => {
+    if (!timelineAudioMenu) return;
+    const handleClickOutside = () => setTimelineAudioMenu(null);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [timelineAudioMenu]);
 
   // Clamp translation so the video remains at least partially visible
   const clampTranslate = (t: { x: number; y: number }) => {
@@ -615,6 +628,15 @@ export default function VideoComponent({ video }: { video: Content }) {
   useEffect(() => {
     if (!audioTracks.isMultiTrack) return;
 
+    // If already inside a selection when selections change (e.g. user toggled a track),
+    // re-apply immediately without waiting for the next interval tick.
+    if (activeSelectionIdRef.current !== null) {
+      const currentSel = selections.find((s) => s.id === activeSelectionIdRef.current);
+      if (currentSel) {
+        audioTracks.setMutedTracks(new Set(currentSel.mutedAudioTracks ?? []));
+      }
+    }
+
     const checkInterval = setInterval(() => {
       const vid = videoRef.current;
       if (!vid || vid.paused) return;
@@ -643,7 +665,7 @@ export default function VideoComponent({ video }: { video: Content }) {
         audioTracks.setMutedTracks(savedMuteStateRef.current);
         savedMuteStateRef.current = null;
       }
-    }, 100);
+    }, 50);
 
     return () => clearInterval(checkInterval);
   }, [audioTracks.isMultiTrack, selections]);
@@ -1038,7 +1060,12 @@ export default function VideoComponent({ video }: { video: Content }) {
       game: video.game,
       title: video.title,
       igdbId: video.igdbId,
-      mutedAudioTracks: audioTracks.isMultiTrack ? [...audioTracks.mutedTracks] : undefined,
+      mutedAudioTracks:
+        selections.length > 0
+          ? selections[selections.length - 1].mutedAudioTracks
+          : audioTracks.isMultiTrack
+            ? [...audioTracks.mutedTracks]
+            : undefined,
     };
     addSelection(newSelection);
     // Kick off thumbnail generation; uses latest state and guards against stale overwrites
@@ -1861,6 +1888,30 @@ export default function VideoComponent({ video }: { video: Content }) {
                       <div className="absolute left-0 top-0 h-full w-[4px] bg-accent/80 rounded-l-sm pointer-events-none" />
                       <div className="absolute right-0 top-0 h-full w-[4px] bg-accent/80 rounded-r-sm pointer-events-none" />
 
+                      {audioTracks.isMultiTrack &&
+                        video.audioTrackNames &&
+                        video.audioTrackNames.length > 1 && (
+                          <button
+                            className={`absolute top-[4px] left-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity ${
+                              sel.mutedAudioTracks && sel.mutedAudioTracks.length > 0
+                                ? 'bg-red-500/55 text-white opacity-100'
+                                : `bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSelectionId === sel.id || timelineAudioMenu?.selId === sel.id ? 'opacity-100' : 'opacity-0'}`
+                            }`}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setTimelineAudioMenu(
+                                timelineAudioMenu?.selId === sel.id
+                                  ? null
+                                  : { selId: sel.id, x: rect.left, y: rect.bottom + 4 },
+                              );
+                            }}
+                          >
+                            <TbHeadphones className="w-2.5 h-2.5" />
+                          </button>
+                        )}
+
                       <div
                         className="absolute top-0 -left-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
                         onMouseDown={(e) => handleResizeMouseDown(e, sel.id, 'start')}
@@ -1884,6 +1935,41 @@ export default function VideoComponent({ video }: { video: Content }) {
               )}
             </div>
           </div>
+          {timelineAudioMenu &&
+            (() => {
+              const menuSel = selections.find((s) => s.id === timelineAudioMenu.selId);
+              if (!menuSel || !video.audioTrackNames) return null;
+              const mutedTracks = menuSel.mutedAudioTracks ?? [];
+              return (
+                <div
+                  className="fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-40 z-[200]"
+                  style={{ left: timelineAudioMenu.x, top: timelineAudioMenu.y }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {video.audioTrackNames.map((name, i) => {
+                    if (i === 0) return null;
+                    const isMuted = mutedTracks.includes(i);
+                    return (
+                      <label key={i} className="flex items-center gap-2 py-0.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!isMuted}
+                          onChange={() => {
+                            const newMuted = isMuted
+                              ? mutedTracks.filter((t) => t !== i)
+                              : [...mutedTracks, i];
+                            updateSelection({ ...menuSel, mutedAudioTracks: newMuted });
+                          }}
+                          className="checkbox checkbox-primary checkbox-xs"
+                        />
+                        <span className="text-xs text-white/80 truncate">{name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           <div className="flex items-center justify-between gap-4 py-1 shrink-0">
             <div className="flex items-center gap-3">
               <div className="flex items-center border rounded-lg join bg-base-300 border-base-400">

@@ -358,6 +358,12 @@ namespace Segra.Backend.App
                         string? filePath = selectionElement.TryGetProperty("filePath", out JsonElement filePathElement)
                             ? filePathElement.GetString()
                             : null;
+                        List<int>? mutedAudioTracks = null;
+                        if (selectionElement.TryGetProperty("mutedAudioTracks", out JsonElement mutedEl)
+                            && mutedEl.ValueKind == JsonValueKind.Array)
+                        {
+                            mutedAudioTracks = mutedEl.EnumerateArray().Select(e => e.GetInt32()).ToList();
+                        }
 
                         // Create a new Selection instance with all required properties.
                         selections.Add(new Selection
@@ -370,7 +376,8 @@ namespace Segra.Backend.App
                             FilePath = filePath,
                             Game = game,
                             Title = title,
-                            IgdbId = igdbId
+                            IgdbId = igdbId,
+                            MutedAudioTracks = mutedAudioTracks
                         });
                     }
                 }

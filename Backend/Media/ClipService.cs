@@ -58,15 +58,26 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                // Read source audio track names when keeping separate tracks or when any selection has muted tracks
-                List<string>? sourceAudioTrackNames = null;
+                // Read per-selection audio track names and build union layout
                 bool anySelectionHasMutedTracks = selections.Any(s => s.MutedAudioTracks != null && s.MutedAudioTracks.Count > 0);
-                if ((Settings.Instance.ClipKeepSeparateAudioTracks || anySelectionHasMutedTracks) && firstSelection != null)
+                var perSelectionTrackNames = new List<List<string>?>();
+                if (Settings.Instance.ClipKeepSeparateAudioTracks || anySelectionHasMutedTracks)
                 {
-                    sourceAudioTrackNames = GetSourceAudioTrackNames(firstSelection);
+                    foreach (var sel in selections)
+                        perSelectionTrackNames.Add(GetSourceAudioTrackNames(sel));
+                }
+                else
+                {
+                    perSelectionTrackNames.AddRange(Enumerable.Repeat<List<string>?>(null, selections.Count));
                 }
 
+                // Union of all track names across sources -- used to normalise every temp clip to the same stream layout
+                List<string>? unionAudioLayout = Settings.Instance.ClipKeepSeparateAudioTracks
+                    ? BuildUnionAudioLayout(perSelectionTrackNames)
+                    : null;
+
                 double processedDuration = 0;
+                int selectionIndex = 0;
                 foreach (var selection in selections)
                 {
                     // Use the actual file path from metadata when available, fall back to reconstructed path
@@ -85,13 +96,17 @@ namespace Segra.Backend.Media
                     if (!File.Exists(inputFilePath))
                     {
                         Log.Information($"Input video file not found: {inputFilePath}");
+                        selectionIndex++;
                         continue;
                     }
 
                     string tempFileName = Path.Combine(Path.GetTempPath(), $"clip{Guid.NewGuid()}.mp4");
                     double clipDuration = selection.EndTime - selection.StartTime;
 
-                    await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, sourceAudioTrackNames, selection.MutedAudioTracks, progress =>
+                    List<string>? selectionTrackNames = perSelectionTrackNames[selectionIndex];
+                    List<string>? targetLayout = Settings.Instance.ClipKeepSeparateAudioTracks ? unionAudioLayout : null;
+
+                    await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, selectionTrackNames, selection.MutedAudioTracks, targetLayout, progress =>
                     {
                         double clampedProgress = Math.Min(progress, 1.0);
                         double currentProgress = (processedDuration + (clampedProgress * clipDuration)) / totalDuration * 95;
@@ -107,6 +122,7 @@ namespace Segra.Backend.Media
 
                     processedDuration += clipDuration;
                     tempClipFiles.Add(tempFileName);
+                    selectionIndex++;
                 }
 
                 if (!tempClipFiles.Any())
@@ -133,8 +149,14 @@ namespace Segra.Backend.Media
 
                     try
                     {
+                        string mapAllArg = unionAudioLayout != null ? "-map 0 " : "";
+                        string concatMetadataArgs = "";
+                        if (unionAudioLayout != null)
+                        {
+                            concatMetadataArgs = string.Join(" ", unionAudioLayout.Select((name, i) => $"-metadata:s:a:{i} title=\"{name}\"")) + " ";
+                        }
                         await FFmpegService.RunWithProgress(id,
-                            $"-y -f concat -safe 0 -i \"{concatFilePath}\" -c copy -movflags +faststart \"{outputFilePath}\"",
+                            $"-y -f concat -safe 0 -i \"{concatFilePath}\" {mapAllArg}-c copy {concatMetadataArgs}-movflags +faststart \"{outputFilePath}\"",
                             totalDuration,
                             progress => { },
                             process =>
@@ -171,7 +193,7 @@ namespace Segra.Backend.Media
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, selections });
 
-                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId, audioTrackNames: sourceAudioTrackNames);
+                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId, audioTrackNames: unionAudioLayout);
                 await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Clip);
                 await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Clip);
 
@@ -206,7 +228,7 @@ namespace Segra.Backend.Media
         }
 
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
-                            List<string>? audioTrackNames, List<int>? mutedAudioTracks, Action<double> progressCallback)
+                            List<string>? audioTrackNames, List<int>? mutedAudioTracks, List<string>? targetAudioLayout, Action<double> progressCallback)
         {
             double duration = endTime - startTime;
             var settings = Settings.Instance;
@@ -294,66 +316,165 @@ namespace Segra.Backend.Media
             string mapArgs = "";
             string metadataArgs = "";
             string filterArgs = "";
+            string extraInputArgs = "";
 
-            // Determine which individual tracks (index > 0) are not muted
-            bool hasMutedTracks = mutedAudioTracks != null && mutedAudioTracks.Count > 0 && audioTrackNames != null && audioTrackNames.Count > 1;
-
-            if (hasMutedTracks)
+            if (targetAudioLayout != null && targetAudioLayout.Count > 0)
             {
-                // Build list of non-muted individual track indices (skip track 0 = original Full Mix)
-                var enabledTracks = new List<int>();
-                for (int i = 1; i < audioTrackNames!.Count; i++)
+                // Normalise output to the union layout so every temp clip has identical stream layout.
+                // Silent (muted/missing) tracks use separate -f lavfi inputs so they are never mixed
+                // with real decoded streams inside filter_complex -- mixing synthetic sources and real
+                // streams in the same filtergraph causes a scheduler deadlock in FFmpeg.
+                var filterParts = new List<string>();
+                var mapParts = new List<string> { "-map 0:v:0" };
+                var metaParts = new List<string>();
+                var extraInputParts = new List<string>();
+                int silenceInputIdx = 1; // lavfi inputs start at 1 (0 is the main file)
+
+                bool sourceHasIndividualTracks = audioTrackNames != null && audioTrackNames.Count > 1;
+
+                // Enabled individual source tracks (index > 0, not muted)
+                var enabledSourceTracks = new List<int>();
+                if (sourceHasIndividualTracks)
                 {
-                    if (!mutedAudioTracks!.Contains(i))
-                        enabledTracks.Add(i);
+                    for (int i = 1; i < audioTrackNames!.Count; i++)
+                    {
+                        if (mutedAudioTracks == null || !mutedAudioTracks.Contains(i))
+                            enabledSourceTracks.Add(i);
+                    }
                 }
 
-                if (enabledTracks.Count > 0)
+                // Pre-compute which individual track positions map to an enabled source stream
+                var indivSourceMap = new Dictionary<int, int>(); // layout position j -> source audio index
+                if (sourceHasIndividualTracks)
                 {
-                    // Create a new Full Mix from only the non-muted individual tracks
-                    if (enabledTracks.Count == 1)
+                    for (int j = 1; j < targetAudioLayout.Count; j++)
                     {
-                        // Single track: use it directly as the mix, no filter needed
-                        filterArgs = "";
-                        mapArgs = $"-map 0:v:0 -map 0:a:{enabledTracks[0]} ";
+                        int srcIdx = audioTrackNames!.FindIndex(n => string.Equals(n, targetAudioLayout[j], StringComparison.OrdinalIgnoreCase));
+                        if (srcIdx > 0 && (mutedAudioTracks == null || !mutedAudioTracks.Contains(srcIdx)))
+                            indivSourceMap[j] = srcIdx;
+                    }
+                }
+
+                // Count how many times each source audio stream index is referenced
+                var refCount = new Dictionary<int, int>();
+                foreach (int i in enabledSourceTracks)
+                {
+                    refCount.TryGetValue(i, out int c);
+                    refCount[i] = c + 1;
+                }
+                foreach (int srcIdx in indivSourceMap.Values)
+                {
+                    refCount.TryGetValue(srcIdx, out int c);
+                    refCount[srcIdx] = c + 1;
+                }
+
+                // Build asplit filters for streams referenced more than once
+                var available = new Dictionary<int, Queue<string>>();
+                foreach (var (srcIdx, count) in refCount)
+                {
+                    if (count <= 1)
+                    {
+                        available[srcIdx] = new Queue<string>(new[] { $"[0:a:{srcIdx}]" });
                     }
                     else
                     {
-                        // Multiple tracks: use amix filter to create a new Full Mix
-                        string filterInputs = string.Join("", enabledTracks.Select(i => $"[0:a:{i}]"));
-                        filterArgs = $"-filter_complex \"{filterInputs}amix=inputs={enabledTracks.Count}:duration=longest[mix]\" ";
-                        mapArgs = "-map 0:v:0 -map \"[mix]\" ";
-                    }
-
-                    int outputTrackIndex = 0;
-                    metadataArgs = $"-metadata:s:a:{outputTrackIndex} title=\"Full Mix\" ";
-                    outputTrackIndex++;
-
-                    // When keeping separate tracks, also map each individual non-muted track
-                    if (settings.ClipKeepSeparateAudioTracks)
-                    {
-                        foreach (int i in enabledTracks)
-                        {
-                            mapArgs += $"-map 0:a:{i} ";
-                            metadataArgs += $"-metadata:s:a:{outputTrackIndex} title=\"{audioTrackNames[i]}\" ";
-                            outputTrackIndex++;
-                        }
+                        var labels = Enumerable.Range(0, count).Select(k => $"[split_{srcIdx}_{k}]").ToList();
+                        filterParts.Add($"[0:a:{srcIdx}]asplit={count}{string.Join("", labels)}");
+                        available[srcIdx] = new Queue<string>(labels);
                     }
                 }
-            }
-            else if (settings.ClipKeepSeparateAudioTracks && audioTrackNames != null)
-            {
-                // No muted tracks, keep all audio tracks as-is
-                mapArgs = "-map 0:v:0 -map 0:a ";
-                for (int i = 0; i < audioTrackNames.Count; i++)
+
+                string durationStr = duration.ToString(CultureInfo.InvariantCulture);
+                string silenceInput = $"-f lavfi -t {durationStr} -i \"anullsrc=cl=stereo:r=44100\"";
+
+                // Position 0: Full Mix
+                if (!sourceHasIndividualTracks)
                 {
-                    metadataArgs += $"-metadata:s:a:{i} title=\"{audioTrackNames[i]}\" ";
+                    // No individual track metadata -- pass through the source's default audio
+                    filterParts.Add("[0:a:0]acopy[out_a0]");
+                    mapParts.Add("-map \"[out_a0]\"");
+                }
+                else if (enabledSourceTracks.Count == 0)
+                {
+                    extraInputParts.Add(silenceInput);
+                    mapParts.Add($"-map {silenceInputIdx++}:a:0");
+                }
+                else if (enabledSourceTracks.Count == 1)
+                {
+                    filterParts.Add($"{available[enabledSourceTracks[0]].Dequeue()}acopy[out_a0]");
+                    mapParts.Add("-map \"[out_a0]\"");
+                }
+                else
+                {
+                    string inputs = string.Join("", enabledSourceTracks.Select(i => available[i].Dequeue()));
+                    filterParts.Add($"{inputs}amix=inputs={enabledSourceTracks.Count}:duration=longest[out_a0]");
+                    mapParts.Add("-map \"[out_a0]\"");
+                }
+                metaParts.Add($"-metadata:s:a:0 title=\"{targetAudioLayout[0]}\"");
+
+                // Positions 1+: individual tracks aligned by name
+                for (int j = 1; j < targetAudioLayout.Count; j++)
+                {
+                    if (indivSourceMap.TryGetValue(j, out int srcIdx))
+                    {
+                        filterParts.Add($"{available[srcIdx].Dequeue()}acopy[out_a{j}]");
+                        mapParts.Add($"-map \"[out_a{j}]\"");
+                    }
+                    else
+                    {
+                        extraInputParts.Add(silenceInput);
+                        mapParts.Add($"-map {silenceInputIdx++}:a:0");
+                    }
+                    metaParts.Add($"-metadata:s:a:{j} title=\"{targetAudioLayout[j]}\"");
+                }
+
+                filterArgs = filterParts.Count > 0 ? $"-filter_complex \"{string.Join(";", filterParts)}\" " : "";
+                extraInputArgs = extraInputParts.Count > 0 ? string.Join(" ", extraInputParts) + " " : "";
+                mapArgs = string.Join(" ", mapParts) + " ";
+                metadataArgs = string.Join(" ", metaParts) + " ";
+            }
+            else
+            {
+                // Legacy paths (keepSeparate=false or no track metadata)
+                bool hasMutedTracks = mutedAudioTracks != null && mutedAudioTracks.Count > 0 && audioTrackNames != null && audioTrackNames.Count > 1;
+
+                if (hasMutedTracks)
+                {
+                    var enabledTracks = new List<int>();
+                    for (int i = 1; i < audioTrackNames!.Count; i++)
+                    {
+                        if (!mutedAudioTracks!.Contains(i))
+                            enabledTracks.Add(i);
+                    }
+
+                    if (enabledTracks.Count > 0)
+                    {
+                        if (enabledTracks.Count == 1)
+                        {
+                            mapArgs = $"-map 0:v:0 -map 0:a:{enabledTracks[0]} ";
+                        }
+                        else
+                        {
+                            string filterInputs = string.Join("", enabledTracks.Select(i => $"[0:a:{i}]"));
+                            filterArgs = $"-filter_complex \"{filterInputs}amix=inputs={enabledTracks.Count}:duration=longest[mix]\" ";
+                            mapArgs = "-map 0:v:0 -map \"[mix]\" ";
+                        }
+
+                        metadataArgs = "-metadata:s:a:0 title=\"Full Mix\" ";
+                    }
+                }
+                else if (settings.ClipKeepSeparateAudioTracks && audioTrackNames != null)
+                {
+                    mapArgs = "-map 0:v:0 -map 0:a ";
+                    for (int i = 0; i < audioTrackNames.Count; i++)
+                        metadataArgs += $"-metadata:s:a:{i} title=\"{audioTrackNames[i]}\" ";
                 }
             }
 
-            string arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" {filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
-                             $"-c:a aac -b:a {settings.ClipAudioQuality} {metadataArgs}-movflags +faststart \"{outputFilePath}\"";
+            string verboseFlag = filterArgs.Length > 0 || extraInputArgs.Length > 0 ? "-v verbose " : "";
+            string arguments = $"-y {verboseFlag}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
+                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                             $"-c:a aac -b:a {settings.ClipAudioQuality} {metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");
 
@@ -434,6 +555,21 @@ namespace Segra.Backend.Media
             {
                 await MessageService.SendFrontendMessage("ClipProgress", new { id = clipId, progress = 100, selections = new List<Selection>() });
             }
+        }
+
+        private static List<string>? BuildUnionAudioLayout(List<List<string>?> perSelectionTrackNames)
+        {
+            var union = new List<string> { "Full Mix" };
+            foreach (var trackNames in perSelectionTrackNames)
+            {
+                if (trackNames == null) continue;
+                foreach (var name in trackNames.Skip(1))
+                {
+                    if (!union.Any(u => string.Equals(u, name, StringComparison.OrdinalIgnoreCase)))
+                        union.Add(name);
+                }
+            }
+            return union.Count > 1 ? union : null;
         }
 
         private static List<string>? GetSourceAudioTrackNames(Selection selection)
