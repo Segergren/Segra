@@ -383,6 +383,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   useEffect(() => {
     if (!controlsVisible) {
       setShowSpeedMenu(false);
+      setShowAudioTracks(false);
       speedButtonRef.current?.blur();
     }
   }, [controlsVisible]);
@@ -622,53 +623,40 @@ export default function VideoComponent({ video }: { video: Content }) {
     };
   }, []);
 
-  // Apply per-selection audio track muting during playback
+  // Apply per-selection audio track muting during playback.
+  // The default mute state (mixer panel) is never touched -- we use a ref-based
+  // override so entering/leaving selections can't desync or bug out.
   const activeSelectionIdRef = useRef<number | null>(null);
-  const savedMuteStateRef = useRef<Set<number> | null>(null);
   useEffect(() => {
     if (!audioTracks.isMultiTrack) return;
 
-    // If already inside a selection when selections change (e.g. user toggled a track),
-    // re-apply immediately without waiting for the next interval tick.
-    if (activeSelectionIdRef.current !== null) {
-      const currentSel = selections.find((s) => s.id === activeSelectionIdRef.current);
-      if (currentSel) {
-        audioTracks.setMutedTracks(new Set(currentSel.mutedAudioTracks ?? []));
-      }
-    }
-
-    const checkInterval = setInterval(() => {
+    const check = () => {
       const vid = videoRef.current;
-      if (!vid || vid.paused) return;
+      if (!vid) return;
 
       const t = vid.currentTime;
-      const activeSelection = selections.find(
-        (s) =>
-          s.mutedAudioTracks && s.mutedAudioTracks.length > 0 && t >= s.startTime && t <= s.endTime,
-      );
-
+      const activeSelection = selections.find((s) => t >= s.startTime && t <= s.endTime);
       const activeId = activeSelection?.id ?? null;
+
       if (activeId === activeSelectionIdRef.current) return;
-
-      if (activeId !== null && activeSelectionIdRef.current === null) {
-        // Entering a selection with muted tracks -- save current state
-        savedMuteStateRef.current = new Set(audioTracks.mutedTracks);
-      }
-
       activeSelectionIdRef.current = activeId;
 
-      if (activeSelection?.mutedAudioTracks) {
-        // Apply this selection's muted tracks
-        audioTracks.setMutedTracks(new Set(activeSelection.mutedAudioTracks));
-      } else if (savedMuteStateRef.current !== null) {
-        // Exiting selection -- restore saved state
-        audioTracks.setMutedTracks(savedMuteStateRef.current);
-        savedMuteStateRef.current = null;
+      if (activeSelection) {
+        audioTracks.setMuteOverride(activeSelection.mutedAudioTracks ?? []);
+      } else {
+        audioTracks.setMuteOverride(null);
       }
-    }, 50);
+    };
 
-    return () => clearInterval(checkInterval);
-  }, [audioTracks.isMultiTrack, selections]);
+    activeSelectionIdRef.current = null; // force re-apply after selections change
+    check();
+    const intervalId = setInterval(check, 50);
+
+    return () => {
+      clearInterval(intervalId);
+      audioTracks.setMuteOverride(null);
+    };
+  }, [audioTracks.isMultiTrack, audioTracks.setMuteOverride, selections]);
 
   // Update container width on window resize
   useEffect(() => {

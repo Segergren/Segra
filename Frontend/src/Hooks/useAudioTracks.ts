@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { Content } from '../Models/types';
 
 export interface AudioTrackInfo {
@@ -16,6 +16,7 @@ export interface AudioTrackState {
   toggleTrackMute: (index: number) => void;
   setMutedTracks: (muted: Set<number>) => void;
   toggleSolo: (index: number) => void;
+  setMuteOverride: (mutedIndices: number[] | null) => void;
   isMultiTrack: boolean;
 }
 
@@ -176,17 +177,33 @@ export function useAudioTracks(
     };
   }, [videoRef, isMultiTrack]);
 
-  // Apply volume/mute/solo to audio elements
-  useEffect(() => {
+  // Override for per-selection muting -- stored as ref so changes don't cause re-renders.
+  // When set, audio elements use this instead of the default mutedTracks state.
+  const muteOverrideRef = useRef<Set<number> | null>(null);
+
+  // Keep latest state in refs so the stable setMuteOverride can read them
+  const latestRef = useRef({ mutedTracks, soloTrack, volumes });
+  useLayoutEffect(() => {
+    latestRef.current = { mutedTracks, soloTrack, volumes };
+  });
+
+  const applyMuting = useCallback(() => {
+    const { mutedTracks: defaultMuted, soloTrack: solo, volumes: vols } = latestRef.current;
+    const effectiveMuted = muteOverrideRef.current ?? defaultMuted;
     for (const [index, audio] of audioElementsRef.current.entries()) {
-      if (soloTrack !== null) {
-        audio.muted = index !== soloTrack;
+      if (solo !== null) {
+        audio.muted = index !== solo;
       } else {
-        audio.muted = mutedTracks.has(index);
+        audio.muted = effectiveMuted.has(index);
       }
-      audio.volume = volumes[index] ?? 1;
+      audio.volume = vols[index] ?? 1;
     }
-  }, [volumes, mutedTracks, soloTrack, tracks]);
+  }, []);
+
+  // Apply when React state changes
+  useEffect(() => {
+    applyMuting();
+  }, [volumes, mutedTracks, soloTrack, tracks, applyMuting]);
 
   const setTrackVolume = useCallback((index: number, volume: number) => {
     const clamped = Math.max(0, Math.min(1, volume));
@@ -213,6 +230,16 @@ export function useAudioTracks(
     setSoloTrack((prev) => (prev === index ? null : index));
   }, []);
 
+  // Stable function to set/clear a per-selection mute override.
+  // Directly applies to audio elements without touching React state.
+  const setMuteOverride = useCallback(
+    (mutedIndices: number[] | null) => {
+      muteOverrideRef.current = mutedIndices ? new Set(mutedIndices) : null;
+      applyMuting();
+    },
+    [applyMuting],
+  );
+
   return {
     tracks,
     volumes,
@@ -222,6 +249,7 @@ export function useAudioTracks(
     toggleTrackMute,
     setMutedTracks: replaceMutedTracks,
     toggleSolo,
+    setMuteOverride,
     isMultiTrack,
   };
 }
