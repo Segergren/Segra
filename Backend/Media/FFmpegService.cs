@@ -348,6 +348,15 @@ namespace Segra.Backend.Media
         }
 
         /// <summary>
+        /// Extracts a single audio track from a video file to an M4A file (copy, no re-encoding)
+        /// </summary>
+        public static async Task ExtractAudioTrack(string inputFilePath, string outputM4aPath, int audioStreamIndex)
+        {
+            string arguments = $"-y -i \"{inputFilePath}\" -map 0:a:{audioStreamIndex} -c copy \"{outputM4aPath}\"";
+            await RunSimple(arguments);
+        }
+
+        /// <summary>
         /// Extracts audio as PCM data for waveform generation
         /// </summary>
         public static async Task ExtractPcmAudio(string inputFilePath, string outputPcmPath, int sampleRate = 11025)

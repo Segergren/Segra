@@ -217,6 +217,17 @@ namespace Segra.Backend.App
                     Directory.CreateDirectory(Settings.Instance.ContentFolder);
                 }
 
+                // Clean up cached audio track files from previous session
+                Task.Run(() =>
+                {
+                    string audioTracksCacheFolder = Path.Combine(Settings.Instance.CacheFolder, FolderNames.AudioTracks);
+                    if (Directory.Exists(audioTracksCacheFolder))
+                    {
+                        try { Directory.Delete(audioTracksCacheFolder, true); }
+                        catch (Exception ex) { Log.Warning($"Failed to clean up audio tracks cache: {ex.Message}"); }
+                    }
+                });
+
                 // Run data migrations
                 Task.Run(MigrationService.RunMigrations);
 
@@ -445,6 +456,7 @@ namespace Segra.Backend.App
             Log.Information("Loading frontend, app url is " + appUrl);
             // Initialize the PhotinoWindow
             Window = new PhotinoWindow()
+                .SetBrowserControlInitParameters("--enable-blink-features=AudioVideoTracks")
                 .SetNotificationsEnabled(false) // Disabled due to it creating a second start menu entry with incorrect start path. See https://github.com/tryphotino/photino.NET/issues/85
                 .SetUseOsDefaultSize(false)
                 .SetIconFile(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico"))

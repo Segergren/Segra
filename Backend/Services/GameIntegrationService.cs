@@ -10,14 +10,14 @@ namespace Segra.Backend.Services
 {
     public static class GameIntegrationService
     {
-        private const string PUBG = "PLAYERUNKNOWN'S BATTLEGROUNDS";
-        private const string LOL = "League of Legends";
-        private const string CS2 = "Counter-Strike 2";
-        private const string ROCKET_LEAGUE = "Rocket League";
+        private const int PUBG_IGDB_ID = 27789;
+        private const int LOL_IGDB_ID = 115;
+        private const int CS2_IGDB_ID = 242408;
+        private const int ROCKET_LEAGUE_IGDB_ID = 11198;
         private static Integration? _gameIntegration;
         public static Integration? GameIntegration => _gameIntegration;
 
-        public static async Task Start(string gameName)
+        public static async Task Start(int? igdbId)
         {
             if (_gameIntegration != null)
             {
@@ -25,12 +25,12 @@ namespace Segra.Backend.Services
                 await _gameIntegration.Shutdown();
             }
 
-            _gameIntegration = gameName switch
+            _gameIntegration = igdbId switch
             {
-                PUBG => Settings.Instance.GameIntegrations.Pubg.Enabled ? new PubgIntegration() : null,
-                LOL => Settings.Instance.GameIntegrations.LeagueOfLegends.Enabled ? new LeagueOfLegendsIntegration() : null,
-                CS2 => Settings.Instance.GameIntegrations.CounterStrike2.Enabled ? new CounterStrike2Integration() : null,
-                ROCKET_LEAGUE => Settings.Instance.GameIntegrations.RocketLeague.Enabled ? new RocketLeagueIntegration() : null,
+                PUBG_IGDB_ID => Settings.Instance.GameIntegrations.Pubg.Enabled ? new PubgIntegration() : null,
+                LOL_IGDB_ID => Settings.Instance.GameIntegrations.LeagueOfLegends.Enabled ? new LeagueOfLegendsIntegration() : null,
+                CS2_IGDB_ID => Settings.Instance.GameIntegrations.CounterStrike2.Enabled ? new CounterStrike2Integration() : null,
+                ROCKET_LEAGUE_IGDB_ID => Settings.Instance.GameIntegrations.RocketLeague.Enabled ? new RocketLeagueIntegration() : null,
                 _ => null,
             };
 
@@ -39,7 +39,7 @@ namespace Segra.Backend.Services
                 return;
             }
 
-            Log.Information($"Starting game integration for: {gameName}");
+            Log.Information($"Starting game integration for IGDB ID: {igdbId}");
             _ = _gameIntegration.Start();
         }
 

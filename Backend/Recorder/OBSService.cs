@@ -939,7 +939,7 @@ namespace Segra.Backend.Recorder
             GeneralUtils.SetProcessPriority(ProcessPriorityClass.High);
             if (!isReplayBufferMode)
             {
-                _ = GameIntegrationService.Start(name);
+                _ = GameIntegrationService.Start(GameUtils.GetIgdbIdFromExePath(exePath));
             }
             Task.Run(KeybindCaptureService.Start);
             return true;

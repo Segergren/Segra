@@ -25,6 +25,8 @@ namespace Segra.Backend.App
         public required string Game { get; set; }
         public string Title { get; set; } = string.Empty;
         public int? IgdbId { get; set; }
+        public List<int>? MutedAudioTracks { get; set; }
+        public Dictionary<int, double>? AudioTrackVolumes { get; set; }
     }
 
     public static class MessageService
@@ -357,6 +359,23 @@ namespace Segra.Backend.App
                         string? filePath = selectionElement.TryGetProperty("filePath", out JsonElement filePathElement)
                             ? filePathElement.GetString()
                             : null;
+                        List<int>? mutedAudioTracks = null;
+                        if (selectionElement.TryGetProperty("mutedAudioTracks", out JsonElement mutedEl)
+                            && mutedEl.ValueKind == JsonValueKind.Array)
+                        {
+                            mutedAudioTracks = mutedEl.EnumerateArray().Select(e => e.GetInt32()).ToList();
+                        }
+                        Dictionary<int, double>? audioTrackVolumes = null;
+                        if (selectionElement.TryGetProperty("audioTrackVolumes", out JsonElement volEl)
+                            && volEl.ValueKind == JsonValueKind.Object)
+                        {
+                            audioTrackVolumes = new Dictionary<int, double>();
+                            foreach (var prop in volEl.EnumerateObject())
+                            {
+                                if (int.TryParse(prop.Name, out int trackIdx) && prop.Value.TryGetDouble(out double vol))
+                                    audioTrackVolumes[trackIdx] = vol;
+                            }
+                        }
 
                         // Create a new Selection instance with all required properties.
                         selections.Add(new Selection
@@ -369,7 +388,9 @@ namespace Segra.Backend.App
                             FilePath = filePath,
                             Game = game,
                             Title = title,
-                            IgdbId = igdbId
+                            IgdbId = igdbId,
+                            MutedAudioTracks = mutedAudioTracks,
+                            AudioTrackVolumes = audioTrackVolumes
                         });
                     }
                 }
