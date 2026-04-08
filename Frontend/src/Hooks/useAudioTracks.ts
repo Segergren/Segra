@@ -12,11 +12,16 @@ export interface AudioTrackState {
   volumes: Record<number, number>;
   mutedTracks: Set<number>;
   soloTrack: number | null;
+  masterMuted: boolean;
+  masterVolume: number;
   setTrackVolume: (index: number, volume: number) => void;
   toggleTrackMute: (index: number) => void;
   setMutedTracks: (muted: Set<number>) => void;
   toggleSolo: (index: number) => void;
+  setMasterMuted: (muted: boolean) => void;
+  setMasterVolume: (vol: number) => void;
   setMuteOverride: (mutedIndices: number[] | null) => void;
+  setVolumeOverride: (volumes: Record<number, number> | null) => void;
   isMultiTrack: boolean;
 }
 
@@ -177,9 +182,16 @@ export function useAudioTracks(
     };
   }, [videoRef, isMultiTrack]);
 
-  // Override for per-selection muting -- stored as ref so changes don't cause re-renders.
-  // When set, audio elements use this instead of the default mutedTracks state.
+  // Master mute/volume -- playback-only controls, don't affect per-track state or clip output.
+  const masterMutedRef = useRef(false);
+  const [masterMuted, setMasterMutedState] = useState(false);
+  const masterVolumeRef = useRef(1);
+  const [masterVolume, setMasterVolumeState] = useState(1);
+
+  // Overrides for per-selection muting/volumes -- stored as refs so changes don't cause re-renders.
+  // When set, audio elements use these instead of the default state.
   const muteOverrideRef = useRef<Set<number> | null>(null);
+  const volumeOverrideRef = useRef<Record<number, number> | null>(null);
 
   // Keep latest state in refs so the stable setMuteOverride can read them
   const latestRef = useRef({ mutedTracks, soloTrack, volumes });
@@ -190,13 +202,16 @@ export function useAudioTracks(
   const applyMuting = useCallback(() => {
     const { mutedTracks: defaultMuted, soloTrack: solo, volumes: vols } = latestRef.current;
     const effectiveMuted = muteOverrideRef.current ?? defaultMuted;
+    const effectiveVolumes = volumeOverrideRef.current ?? vols;
     for (const [index, audio] of audioElementsRef.current.entries()) {
-      if (solo !== null) {
+      if (masterMutedRef.current) {
+        audio.muted = true;
+      } else if (solo !== null) {
         audio.muted = index !== solo;
       } else {
         audio.muted = effectiveMuted.has(index);
       }
-      audio.volume = vols[index] ?? 1;
+      audio.volume = (effectiveVolumes[index] ?? 1) * masterVolumeRef.current;
     }
   }, []);
 
@@ -230,6 +245,25 @@ export function useAudioTracks(
     setSoloTrack((prev) => (prev === index ? null : index));
   }, []);
 
+  const setMasterMuted = useCallback(
+    (muted: boolean) => {
+      masterMutedRef.current = muted;
+      setMasterMutedState(muted);
+      applyMuting();
+    },
+    [applyMuting],
+  );
+
+  const setMasterVolume = useCallback(
+    (vol: number) => {
+      const clamped = Math.max(0, Math.min(1, vol));
+      masterVolumeRef.current = clamped;
+      setMasterVolumeState(clamped);
+      applyMuting();
+    },
+    [applyMuting],
+  );
+
   // Stable function to set/clear a per-selection mute override.
   // Directly applies to audio elements without touching React state.
   const setMuteOverride = useCallback(
@@ -240,16 +274,30 @@ export function useAudioTracks(
     [applyMuting],
   );
 
+  // Stable function to set/clear a per-selection volume override.
+  const setVolumeOverride = useCallback(
+    (vols: Record<number, number> | null) => {
+      volumeOverrideRef.current = vols;
+      applyMuting();
+    },
+    [applyMuting],
+  );
+
   return {
     tracks,
     volumes,
     mutedTracks,
     soloTrack,
+    masterMuted,
+    masterVolume,
     setTrackVolume,
     toggleTrackMute,
     setMutedTracks: replaceMutedTracks,
     toggleSolo,
+    setMasterMuted,
+    setMasterVolume,
     setMuteOverride,
+    setVolumeOverride,
     isMultiTrack,
   };
 }

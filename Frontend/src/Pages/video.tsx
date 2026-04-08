@@ -596,19 +596,71 @@ export default function VideoComponent({ video }: { video: Content }) {
     };
   }, [volume, isMuted, isFullscreen, audioTracks.isMultiTrack]);
 
-  // Handle video playback time updates using requestAnimationFrame for smooth updates
+  // Per-selection audio override state, kept in refs for the rAF loop below.
+  const activeSelectionIdRef = useRef<number | null>(null);
+  const audioTracksRef = useRef(audioTracks);
+  useLayoutEffect(() => {
+    audioTracksRef.current = audioTracks;
+  });
+
+  // Reset active selection when selections change so the override is re-applied
+  useEffect(() => {
+    activeSelectionIdRef.current = null;
+  }, [selections]);
+
+  // Clean up overrides when multi-track is deactivated
+  useEffect(() => {
+    if (audioTracks.isMultiTrack) {
+      // Sync master mute/volume from saved state when entering multi-track
+      audioTracks.setMasterMuted(localStorage.getItem('segra-muted') === 'true');
+      const savedVol = localStorage.getItem('segra-volume');
+      audioTracks.setMasterVolume(savedVol ? parseFloat(savedVol) : 1);
+    } else {
+      audioTracks.setMuteOverride(null);
+      audioTracks.setVolumeOverride(null);
+    }
+  }, [
+    audioTracks.isMultiTrack,
+    audioTracks.setMasterMuted,
+    audioTracks.setMuteOverride,
+    audioTracks.setVolumeOverride,
+  ]);
+
+  // Handle video playback time updates using requestAnimationFrame for smooth updates.
+  // Also checks per-selection audio overrides each frame (cheap: one find + early return).
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
     let rafId = 0;
-    const updateCurrentTime = () => {
+    const tick = () => {
       setCurrentTime(vid.currentTime);
+
+      // Per-selection audio mute/volume override
+      const at = audioTracksRef.current;
+      if (at.isMultiTrack) {
+        const t = vid.currentTime;
+        const sels = selectionsRef.current;
+        const activeSel = sels.find((s) => t >= s.startTime && t <= s.endTime);
+        const activeId = activeSel?.id ?? null;
+
+        if (activeId !== activeSelectionIdRef.current) {
+          activeSelectionIdRef.current = activeId;
+          if (activeSel) {
+            at.setMuteOverride(activeSel.mutedAudioTracks ?? []);
+            at.setVolumeOverride(activeSel.audioTrackVolumes ?? null);
+          } else {
+            at.setMuteOverride(null);
+            at.setVolumeOverride(null);
+          }
+        }
+      }
+
       if (!vid.paused && !vid.ended) {
-        rafId = requestAnimationFrame(updateCurrentTime);
+        rafId = requestAnimationFrame(tick);
       }
     };
     const onPlay = () => {
-      rafId = requestAnimationFrame(updateCurrentTime);
+      rafId = requestAnimationFrame(tick);
     };
     const onPause = () => {
       cancelAnimationFrame(rafId);
@@ -622,41 +674,6 @@ export default function VideoComponent({ video }: { video: Content }) {
       cancelAnimationFrame(rafId);
     };
   }, []);
-
-  // Apply per-selection audio track muting during playback.
-  // The default mute state (mixer panel) is never touched -- we use a ref-based
-  // override so entering/leaving selections can't desync or bug out.
-  const activeSelectionIdRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!audioTracks.isMultiTrack) return;
-
-    const check = () => {
-      const vid = videoRef.current;
-      if (!vid) return;
-
-      const t = vid.currentTime;
-      const activeSelection = selections.find((s) => t >= s.startTime && t <= s.endTime);
-      const activeId = activeSelection?.id ?? null;
-
-      if (activeId === activeSelectionIdRef.current) return;
-      activeSelectionIdRef.current = activeId;
-
-      if (activeSelection) {
-        audioTracks.setMuteOverride(activeSelection.mutedAudioTracks ?? []);
-      } else {
-        audioTracks.setMuteOverride(null);
-      }
-    };
-
-    activeSelectionIdRef.current = null; // force re-apply after selections change
-    check();
-    const intervalId = setInterval(check, 50);
-
-    return () => {
-      clearInterval(intervalId);
-      audioTracks.setMuteOverride(null);
-    };
-  }, [audioTracks.isMultiTrack, audioTracks.setMuteOverride, selections]);
 
   // Update container width on window resize
   useEffect(() => {
@@ -854,8 +871,17 @@ export default function VideoComponent({ video }: { video: Content }) {
       setVolume(target);
       return;
     }
-    // When multi-track is active, don't touch the video element's volume/muted
-    if (!audioTracks.isMultiTrack) {
+    if (audioTracks.isMultiTrack) {
+      // Route to master volume -- purely a preview control
+      audioTracks.setMasterVolume(target);
+      if (target === 0) {
+        audioTracks.setMasterMuted(true);
+        setIsMuted(true);
+      } else if (audioTracks.masterMuted) {
+        audioTracks.setMasterMuted(false);
+        setIsMuted(false);
+      }
+    } else {
       el.volume = target;
       if (target === 0) {
         el.muted = true;
@@ -867,7 +893,10 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
     setVolume(target);
     localStorage.setItem('segra-volume', target.toString());
-    localStorage.setItem('segra-muted', el.muted.toString());
+    localStorage.setItem(
+      'segra-muted',
+      (audioTracks.isMultiTrack ? audioTracks.masterMuted : el.muted).toString(),
+    );
   };
 
   // Pointer handlers for panning the video when zoomed
@@ -1080,6 +1109,7 @@ export default function VideoComponent({ video }: { video: Content }) {
         endTime: s.endTime,
         igdbId: s.igdbId,
         mutedAudioTracks: s.mutedAudioTracks,
+        audioTrackVolumes: s.audioTrackVolumes,
       })),
     };
     sendMessageToBackend('CreateClip', params);
@@ -1487,14 +1517,18 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Toggle mute state
   const toggleMute = () => {
     if (videoRef.current) {
-      // When multi-track is active, don't toggle the video element's muted state
-      if (audioTracks.isMultiTrack) return;
+      if (audioTracks.isMultiTrack) {
+        // Master mute for multi-track: silences all audio elements
+        const newMuted = !audioTracks.masterMuted;
+        audioTracks.setMasterMuted(newMuted);
+        setIsMuted(newMuted);
+        localStorage.setItem('segra-muted', newMuted.toString());
+        return;
+      }
 
       const newMutedState = !videoRef.current.muted;
       videoRef.current.muted = newMutedState;
       setIsMuted(newMutedState);
-
-      // Save to localStorage
       localStorage.setItem('segra-muted', newMutedState.toString());
     }
   };
@@ -1630,22 +1664,49 @@ export default function VideoComponent({ video }: { video: Content }) {
                     <TbHeadphones className="w-4 h-4" />
                   </button>
                   {showAudioTracks && (
-                    <div className="absolute bottom-full right-0 mb-2 p-2 bg-black/90 rounded-lg border border-base-400 min-w-40 z-50">
+                    <div className="absolute bottom-full right-0 mb-2 p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-50">
                       {audioTracks.tracks.map((track) => {
                         const isMuted = audioTracks.mutedTracks.has(track.index);
+                        const vol = audioTracks.volumes[track.index] ?? 1;
                         return (
-                          <label
+                          <div
                             key={track.index}
-                            className="flex items-center gap-2 py-0.5 cursor-pointer"
+                            className="flex items-center justify-between gap-2 py-0.5"
                           >
-                            <input
-                              type="checkbox"
-                              checked={!isMuted}
-                              onChange={() => audioTracks.toggleTrackMute(track.index)}
-                              className="checkbox checkbox-primary checkbox-xs"
-                            />
-                            <span className="text-xs text-white/80 truncate">{track.name}</span>
-                          </label>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={!isMuted}
+                                onChange={() => audioTracks.toggleTrackMute(track.index)}
+                                className="checkbox checkbox-primary checkbox-xs shrink-0"
+                              />
+                              <span
+                                className="text-xs text-white/80 truncate"
+                                title={track.name.replace(' (Default)', '')}
+                              >
+                                {track.name.replace(' (Default)', '')}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.02"
+                                value={vol}
+                                onChange={(e) =>
+                                  audioTracks.setTrackVolume(
+                                    track.index,
+                                    parseFloat(e.target.value),
+                                  )
+                                }
+                                className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-accent"
+                              />
+                              <span className="text-[10px] text-white/50 w-7 text-right tabular-nums">
+                                {Math.round(vol * 100)}%
+                              </span>
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
@@ -1880,11 +1941,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                         video.audioTrackNames &&
                         video.audioTrackNames.length > 1 && (
                           <button
-                            className={`absolute top-[4px] left-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity ${
-                              sel.mutedAudioTracks && sel.mutedAudioTracks.length > 0
-                                ? 'bg-red-500/55 text-white opacity-100'
-                                : `bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSelectionId === sel.id || timelineAudioMenu?.selId === sel.id ? 'opacity-100' : 'opacity-0'}`
-                            }`}
+                            className={`absolute top-[4px] left-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSelectionId === sel.id || timelineAudioMenu?.selId === sel.id ? 'opacity-100' : 'opacity-0'}`}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1928,9 +1985,10 @@ export default function VideoComponent({ video }: { video: Content }) {
               const menuSel = selections.find((s) => s.id === timelineAudioMenu.selId);
               if (!menuSel || !video.audioTrackNames) return null;
               const mutedTracks = menuSel.mutedAudioTracks ?? [];
+              const trackVolumes = menuSel.audioTrackVolumes ?? {};
               return (
                 <div
-                  className="fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-40 z-[200]"
+                  className="fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200]"
                   style={{ left: timelineAudioMenu.x, top: timelineAudioMenu.y }}
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
@@ -1938,21 +1996,49 @@ export default function VideoComponent({ video }: { video: Content }) {
                   {video.audioTrackNames.map((name, i) => {
                     if (i === 0) return null;
                     const isMuted = mutedTracks.includes(i);
+                    const vol = trackVolumes[i] ?? 1;
                     return (
-                      <label key={i} className="flex items-center gap-2 py-0.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={!isMuted}
-                          onChange={() => {
-                            const newMuted = isMuted
-                              ? mutedTracks.filter((t) => t !== i)
-                              : [...mutedTracks, i];
-                            updateSelection({ ...menuSel, mutedAudioTracks: newMuted });
-                          }}
-                          className="checkbox checkbox-primary checkbox-xs"
-                        />
-                        <span className="text-xs text-white/80 truncate">{name}</span>
-                      </label>
+                      <div key={i} className="flex items-center justify-between gap-2 py-0.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={!isMuted}
+                            onChange={() => {
+                              const newMuted = isMuted
+                                ? mutedTracks.filter((t) => t !== i)
+                                : [...mutedTracks, i];
+                              updateSelection({ ...menuSel, mutedAudioTracks: newMuted });
+                            }}
+                            className="checkbox checkbox-primary checkbox-xs shrink-0"
+                          />
+                          <span
+                            className="text-xs text-white/80 truncate"
+                            title={name.replace(' (Default)', '')}
+                          >
+                            {name.replace(' (Default)', '')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.02"
+                            value={vol}
+                            onChange={(e) => {
+                              const newVolumes = {
+                                ...trackVolumes,
+                                [i]: parseFloat(e.target.value),
+                              };
+                              updateSelection({ ...menuSel, audioTrackVolumes: newVolumes });
+                            }}
+                            className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-accent"
+                          />
+                          <span className="text-[10px] text-white/50 w-7 text-right tabular-nums">
+                            {Math.round(vol * 100)}%
+                          </span>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -2101,6 +2187,12 @@ export default function VideoComponent({ video }: { video: Content }) {
                     updateSelection({
                       ...selections.find((s) => s.id === id)!,
                       mutedAudioTracks: mutedTracks,
+                    })
+                  }
+                  onAudioTrackVolumesChange={(id, volumes) =>
+                    updateSelection({
+                      ...selections.find((s) => s.id === id)!,
+                      audioTrackVolumes: volumes,
                     })
                   }
                 />

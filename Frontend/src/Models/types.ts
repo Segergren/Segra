@@ -351,6 +351,7 @@ export interface Selection {
   title?: string;
   igdbId?: number;
   mutedAudioTracks?: number[];
+  audioTrackVolumes?: Record<number, number>;
 }
 
 export interface SelectionCardProps {
@@ -363,6 +364,7 @@ export interface SelectionCardProps {
   removeSelection: (id: number) => void;
   audioTrackNames?: string[];
   onMutedAudioTracksChange?: (id: number, mutedTracks: number[]) => void;
+  onAudioTrackVolumesChange?: (id: number, volumes: Record<number, number>) => void;
 }
 
 export interface AiProgress {

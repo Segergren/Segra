@@ -12,6 +12,7 @@ namespace Segra.Backend.Api
     {
         private static readonly HttpListener _httpListener = new();
         private static CancellationTokenSource? _cancellationTokenSource;
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task> _extractionTasks = new();
 
         public static void StartServer(string prefix)
         {
@@ -310,12 +311,17 @@ namespace Segra.Backend.Api
                     {
                         try
                         {
-                            await FFmpegService.ExtractAudioTrack(input, trackFilePath, i);
+                            var task = _extractionTasks.GetOrAdd(trackFilePath, _ => FFmpegService.ExtractAudioTrack(input, trackFilePath, i));
+                            await task;
                         }
                         catch (Exception ex)
                         {
                             Log.Warning($"Failed to extract audio track {i} from {input}: {ex.Message}");
                             continue;
+                        }
+                        finally
+                        {
+                            _extractionTasks.TryRemove(trackFilePath, out _);
                         }
                     }
 

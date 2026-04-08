@@ -16,8 +16,9 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
     removeSelection,
     audioTrackNames,
     onMutedAudioTracksChange,
+    onAudioTrackVolumesChange,
   }) => {
-    const [showAudioMenu, setShowAudioMenu] = useState(false);
+    const [audioMenuPos, setAudioMenuPos] = useState<{ x: number; y: number } | null>(null);
 
     const indexRef = useRef(index);
     const moveCardRef = useRef(moveCard);
@@ -59,6 +60,7 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
     const hasAudioTracks =
       audioTrackNames && audioTrackNames.length > 1 && onMutedAudioTracksChange;
     const mutedTracks = selection.mutedAudioTracks ?? [];
+    const trackVolumes = selection.audioTrackVolumes ?? {};
 
     const toggleTrack = (trackIndex: number) => {
       if (!onMutedAudioTracksChange) return;
@@ -69,8 +71,6 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
       onMutedAudioTracksChange(selection.id, newMuted);
     };
 
-    const hasMutedTracks = mutedTracks.length > 0;
-
     return (
       <div
         ref={dragDropRef}
@@ -79,7 +79,7 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
         onMouseEnter={() => setHoveredSelectionId(selection.id)}
         onMouseLeave={() => {
           setHoveredSelectionId(null);
-          setShowAudioMenu(false);
+          setAudioMenuPos(null);
         }}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -107,36 +107,68 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
         )}
 
         {hasAudioTracks && (
-          <div className="absolute top-1.5 left-1.5">
+          <div className="absolute top-1.5 right-1.5">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setShowAudioMenu(!showAudioMenu);
+                if (audioMenuPos) {
+                  setAudioMenuPos(null);
+                } else {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setAudioMenuPos({ x: rect.right, y: rect.bottom + 4 });
+                }
               }}
-              className={`flex items-center justify-center w-6 h-6 rounded transition-colors cursor-pointer ${hasMutedTracks ? 'bg-red-500/70 text-white' : 'bg-black/60 text-white/80 hover:text-white hover:bg-black/80'}`}
+              className="flex items-center justify-center w-6 h-6 rounded transition-colors cursor-pointer bg-black/60 text-white/80 hover:text-white hover:bg-black/80"
               title="Audio tracks"
             >
               <TbHeadphones className="w-3.5 h-3.5" />
             </button>
-            {showAudioMenu && (
+            {audioMenuPos && (
               <div
-                className="absolute top-full left-0 mt-1 p-2 bg-black/90 rounded-lg border border-base-400 min-w-40 z-50"
+                className="fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200]"
+                style={{ right: window.innerWidth - audioMenuPos.x, top: audioMenuPos.y }}
                 onClick={(e) => e.stopPropagation()}
               >
                 {audioTrackNames.map((name, i) => {
                   // Skip track 0 (Full Mix)
                   if (i === 0) return null;
                   const isMuted = mutedTracks.includes(i);
+                  const vol = trackVolumes[i] ?? 1;
                   return (
-                    <label key={i} className="flex items-center gap-2 py-0.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!isMuted}
-                        onChange={() => toggleTrack(i)}
-                        className="checkbox checkbox-primary checkbox-xs"
-                      />
-                      <span className="text-xs text-white/80 truncate">{name}</span>
-                    </label>
+                    <div key={i} className="flex items-center justify-between gap-2 py-0.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={!isMuted}
+                          onChange={() => toggleTrack(i)}
+                          className="checkbox checkbox-primary checkbox-xs shrink-0"
+                        />
+                        <span
+                          className="text-xs text-white/80 truncate"
+                          title={name.replace(' (Default)', '')}
+                        >
+                          {name.replace(' (Default)', '')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.02"
+                          value={vol}
+                          onChange={(e) => {
+                            if (!onAudioTrackVolumesChange) return;
+                            const newVolumes = { ...trackVolumes, [i]: parseFloat(e.target.value) };
+                            onAudioTrackVolumesChange(selection.id, newVolumes);
+                          }}
+                          className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-accent"
+                        />
+                        <span className="text-[10px] text-white/50 w-7 text-right tabular-nums">
+                          {Math.round(vol * 100)}%
+                        </span>
+                      </div>
+                    </div>
                   );
                 })}
               </div>

@@ -26,6 +26,7 @@ namespace Segra.Backend.App
         public string Title { get; set; } = string.Empty;
         public int? IgdbId { get; set; }
         public List<int>? MutedAudioTracks { get; set; }
+        public Dictionary<int, double>? AudioTrackVolumes { get; set; }
     }
 
     public static class MessageService
@@ -364,6 +365,17 @@ namespace Segra.Backend.App
                         {
                             mutedAudioTracks = mutedEl.EnumerateArray().Select(e => e.GetInt32()).ToList();
                         }
+                        Dictionary<int, double>? audioTrackVolumes = null;
+                        if (selectionElement.TryGetProperty("audioTrackVolumes", out JsonElement volEl)
+                            && volEl.ValueKind == JsonValueKind.Object)
+                        {
+                            audioTrackVolumes = new Dictionary<int, double>();
+                            foreach (var prop in volEl.EnumerateObject())
+                            {
+                                if (int.TryParse(prop.Name, out int trackIdx) && prop.Value.TryGetDouble(out double vol))
+                                    audioTrackVolumes[trackIdx] = vol;
+                            }
+                        }
 
                         // Create a new Selection instance with all required properties.
                         selections.Add(new Selection
@@ -377,7 +389,8 @@ namespace Segra.Backend.App
                             Game = game,
                             Title = title,
                             IgdbId = igdbId,
-                            MutedAudioTracks = mutedAudioTracks
+                            MutedAudioTracks = mutedAudioTracks,
+                            AudioTrackVolumes = audioTrackVolumes
                         });
                     }
                 }
