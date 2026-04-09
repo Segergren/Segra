@@ -63,25 +63,24 @@ export function useAudioTracks(
         const res = await fetch(url);
         const data: AudioTrackInfo[] = await res.json();
 
-        // Exclude track 0 (Full Mix) since it doubles individual tracks
-        const individualTracks = data.filter((t) => t.index > 0);
-        if (cancelled || individualTracks.length === 0) return;
+        if (cancelled || data.length === 0) return;
 
-        setTracks(individualTracks);
+        setTracks(data);
 
         const initialVolumes: Record<number, number> = {};
-        for (const t of individualTracks) {
+        for (const t of data) {
           initialVolumes[t.index] = 1;
         }
         setVolumes(initialVolumes);
-        setMutedTracks(new Set());
+        // Full Mix (track 0) is muted by default since individual tracks cover the same audio
+        setMutedTracks(new Set([0]));
         setSoloTrack(null);
 
         // Clean up existing elements before creating new ones
         cleanupAudioElements(audioElementsRef.current);
 
         const elements = new Map<number, HTMLAudioElement>();
-        for (const track of individualTracks) {
+        for (const track of data) {
           const audio = new Audio();
           audio.src = `http://localhost:2222${track.url}`;
           audio.preload = 'auto';
@@ -227,13 +226,29 @@ export function useAudioTracks(
 
   const toggleTrackMute = useCallback((index: number) => {
     setMutedTracks((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
+      const wasEnabled = prev.has(index);
+      if (wasEnabled) {
+        // Enabling this track
+        if (index === 0) {
+          // Enabling Full Mix: mute all individual tracks
+          const next = new Set<number>();
+          for (const [i] of audioElementsRef.current) {
+            if (i !== 0) next.add(i);
+          }
+          return next;
+        } else {
+          // Enabling an individual track: mute Full Mix
+          const next = new Set(prev);
+          next.delete(index);
+          next.add(0);
+          return next;
+        }
       } else {
+        // Muting this track
+        const next = new Set(prev);
         next.add(index);
+        return next;
       }
-      return next;
     });
   }, []);
 

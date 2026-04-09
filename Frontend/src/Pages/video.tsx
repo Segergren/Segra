@@ -1994,7 +1994,6 @@ export default function VideoComponent({ video }: { video: Content }) {
                   onClick={(e) => e.stopPropagation()}
                 >
                   {video.audioTrackNames.map((name, i) => {
-                    if (i === 0) return null;
                     const isMuted = mutedTracks.includes(i);
                     const vol = trackVolumes[i] ?? 1;
                     return (
@@ -2004,9 +2003,23 @@ export default function VideoComponent({ video }: { video: Content }) {
                             type="checkbox"
                             checked={!isMuted}
                             onChange={() => {
-                              const newMuted = isMuted
-                                ? mutedTracks.filter((t) => t !== i)
-                                : [...mutedTracks, i];
+                              let newMuted: number[];
+                              if (isMuted) {
+                                // Enabling this track
+                                if (i === 0) {
+                                  // Enabling Full Mix: mute all individual tracks
+                                  newMuted = video.audioTrackNames
+                                    .map((_, idx) => idx)
+                                    .filter((idx) => idx !== 0);
+                                } else {
+                                  // Enabling an individual track: mute Full Mix
+                                  newMuted = mutedTracks.filter((t) => t !== i);
+                                  if (!newMuted.includes(0)) newMuted.push(0);
+                                }
+                              } else {
+                                // Muting this track
+                                newMuted = [...mutedTracks, i];
+                              }
                               updateSelection({ ...menuSel, mutedAudioTracks: newMuted });
                             }}
                             className="checkbox checkbox-primary checkbox-xs shrink-0"

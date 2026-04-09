@@ -97,8 +97,9 @@ namespace Segra.Backend.Media
 
                 progressCallback?.Invoke(92, "Creating metadata...");
 
-                // Create metadata, thumbnail, and waveform
-                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Highlight, content.Game!, null, content.Title, igdbId: content.IgdbId);
+                // Create metadata, thumbnail, and waveform.
+                // Highlights use stream-copy extract+concat, so they preserve the source's audio tracks.
+                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Highlight, content.Game!, null, content.Title, igdbId: content.IgdbId, audioTrackNames: content.AudioTrackNames);
 
                 progressCallback?.Invoke(95, "Creating thumbnail...");
                 await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Highlight);
@@ -163,11 +164,16 @@ namespace Segra.Backend.Media
 
                     progressCallback?.Invoke(processedDuration / totalDuration, $"Extracting clip {i + 1} of {segments.Count}");
 
-                    string arguments =
-                        $"-y -ss {segment.StartTime.ToString(CultureInfo.InvariantCulture)} " +
-                        $"-t {segmentDuration.ToString(CultureInfo.InvariantCulture)} " +
-                        $"-i \"{inputFilePath}\" " +
-                        $"-c copy -avoid_negative_ts make_zero \"{tempFile}\"";
+                    var arguments = new[]
+                    {
+                        "-y",
+                        "-ss", segment.StartTime.ToString(CultureInfo.InvariantCulture),
+                        "-t", segmentDuration.ToString(CultureInfo.InvariantCulture),
+                        "-i", inputFilePath,
+                        "-c", "copy",
+                        "-avoid_negative_ts", "make_zero",
+                        tempFile
+                    };
 
                     await FFmpegService.RunSimple(arguments);
 
@@ -203,7 +209,16 @@ namespace Segra.Backend.Media
                 await File.WriteAllLinesAsync(concatFilePath, concatLines);
 
                 // Concatenate all segments using stream copy
-                string concatArguments = $"-y -f concat -safe 0 -i \"{concatFilePath}\" -c copy -movflags +faststart \"{outputFilePath}\"";
+                var concatArguments = new[]
+                {
+                    "-y",
+                    "-f", "concat",
+                    "-safe", "0",
+                    "-i", concatFilePath,
+                    "-c", "copy",
+                    "-movflags", "+faststart",
+                    outputFilePath
+                };
                 await FFmpegService.RunSimple(concatArguments);
 
                 progressCallback?.Invoke(1.0, "Done");

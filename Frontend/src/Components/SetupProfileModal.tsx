@@ -54,13 +54,30 @@ export default function SetupProfileModal() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Avatar must be a JPEG, PNG, GIF, or WebP image');
+      return;
+    }
+
     if (file.size > 5 * 1024 * 1024) {
       setError('Avatar must be less than 5MB');
       return;
     }
 
     setAvatarFile(file);
-    setAvatarPreview(URL.createObjectURL(file));
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (
+        typeof result === 'string' &&
+        /^data:image\/(jpeg|png|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(result)
+      ) {
+        setAvatarPreview(result);
+      }
+    };
+    reader.readAsDataURL(file);
     setError('');
   };
 

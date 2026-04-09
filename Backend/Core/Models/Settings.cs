@@ -1302,6 +1302,9 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("coverImageId")]
         public string? CoverImageId { get; set; }
 
+        [JsonPropertyName("audioTrackNames")]
+        public List<string>? AudioTrackNames { get; set; }
+
         [JsonPropertyName("duration")]
         public TimeSpan? Duration
         {

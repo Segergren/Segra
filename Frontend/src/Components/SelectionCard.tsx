@@ -63,12 +63,24 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
     const trackVolumes = selection.audioTrackVolumes ?? {};
 
     const toggleTrack = (trackIndex: number) => {
-      if (!onMutedAudioTracksChange) return;
+      if (!onMutedAudioTracksChange || !audioTrackNames) return;
       const isMuted = mutedTracks.includes(trackIndex);
-      const newMuted = isMuted
-        ? mutedTracks.filter((t) => t !== trackIndex)
-        : [...mutedTracks, trackIndex];
-      onMutedAudioTracksChange(selection.id, newMuted);
+      if (isMuted) {
+        // Enabling this track
+        if (trackIndex === 0) {
+          // Enabling Full Mix: mute all individual tracks
+          const newMuted = audioTrackNames.map((_, i) => i).filter((i) => i !== 0);
+          onMutedAudioTracksChange(selection.id, newMuted);
+        } else {
+          // Enabling an individual track: mute Full Mix
+          const newMuted = mutedTracks.filter((t) => t !== trackIndex);
+          if (!newMuted.includes(0)) newMuted.push(0);
+          onMutedAudioTracksChange(selection.id, newMuted);
+        }
+      } else {
+        // Muting this track
+        onMutedAudioTracksChange(selection.id, [...mutedTracks, trackIndex]);
+      }
     };
 
     return (
@@ -130,8 +142,6 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
                 onClick={(e) => e.stopPropagation()}
               >
                 {audioTrackNames.map((name, i) => {
-                  // Skip track 0 (Full Mix)
-                  if (i === 0) return null;
                   const isMuted = mutedTracks.includes(i);
                   const vol = trackVolumes[i] ?? 1;
                   return (

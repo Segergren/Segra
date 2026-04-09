@@ -122,15 +122,16 @@ namespace Segra.Backend.Api
         private static async Task HandleThumbnailRequest(HttpListenerContext context)
         {
             var query = HttpUtility.ParseQueryString(context.Request?.Url?.Query ?? "");
-            string input = query["input"] ?? "";
+            string rawInput = query["input"] ?? "";
             string timeParam = query["time"] ?? "";
             var response = context.Response;
 
             response.AddHeader("Access-Control-Allow-Origin", "*");
 
-            if (!File.Exists(input))
+            string? input = ValidateUserPath(rawInput);
+            if (input == null || !File.Exists(input))
             {
-                Log.Warning("Thumbnail request file not found: {Input}", input);
+                Log.Warning("Thumbnail request file not found or invalid: {Input}", rawInput);
                 response.StatusCode = (int)HttpStatusCode.NotFound;
                 response.ContentType = "text/plain";
                 using (var writer = new StreamWriter(response.OutputStream))
@@ -209,12 +210,13 @@ namespace Segra.Backend.Api
         private static async Task HandleContentRequest(HttpListenerContext context)
         {
             var query = HttpUtility.ParseQueryString(context.Request?.Url?.Query ?? "");
-            string fileName = query["input"] ?? "";
+            string rawInput = query["input"] ?? "";
             var response = context.Response;
 
             response.AddHeader("Access-Control-Allow-Origin", "*");
 
-            if (!File.Exists(fileName))
+            string? fileName = ValidateUserPath(rawInput);
+            if (fileName == null || !File.Exists(fileName))
             {
                 response.StatusCode = (int)HttpStatusCode.NotFound;
                 response.ContentType = "text/plain";
@@ -248,13 +250,14 @@ namespace Segra.Backend.Api
         private static async Task HandleAudioTracksRequest(HttpListenerContext context)
         {
             var query = HttpUtility.ParseQueryString(context.Request?.Url?.Query ?? "");
-            string input = query["input"] ?? "";
+            string rawInput = query["input"] ?? "";
             string typeStr = query["type"] ?? "";
             var response = context.Response;
 
             response.AddHeader("Access-Control-Allow-Origin", "*");
 
-            if (!File.Exists(input))
+            string? input = ValidateUserPath(rawInput);
+            if (input == null || !File.Exists(input))
             {
                 response.StatusCode = (int)HttpStatusCode.NotFound;
                 response.ContentType = "text/plain";
@@ -301,8 +304,7 @@ namespace Segra.Backend.Api
 
                 var result = new List<object>();
 
-                // Skip track 0 (Full Mix) - it duplicates the individual tracks
-                for (int i = 1; i < trackNames.Count; i++)
+                for (int i = 0; i < trackNames.Count; i++)
                 {
                     string trackFileName = $"{fileName}_track{i}.m4a";
                     string trackFilePath = Path.Combine(audioTracksDir, trackFileName);
@@ -435,6 +437,55 @@ namespace Segra.Backend.Api
             {
                 await fs.CopyToAsync(response.OutputStream);
             }
+        }
+
+        private static string? ValidateUserPath(string userPath)
+        {
+            if (string.IsNullOrWhiteSpace(userPath))
+                return null;
+
+            string canonical;
+            try
+            {
+                canonical = Path.GetFullPath(userPath);
+            }
+            catch
+            {
+                return null;
+            }
+
+            var allowedRoots = new[]
+            {
+                Settings.Instance.ContentFolder,
+                FolderNames.CacheFolder
+            };
+
+            foreach (var root in allowedRoots)
+            {
+                if (string.IsNullOrEmpty(root))
+                    continue;
+
+                string rootCanonical;
+                try
+                {
+                    rootCanonical = Path.GetFullPath(root);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (!rootCanonical.EndsWith(Path.DirectorySeparatorChar) &&
+                    !rootCanonical.EndsWith(Path.AltDirectorySeparatorChar))
+                {
+                    rootCanonical += Path.DirectorySeparatorChar;
+                }
+
+                if (canonical.StartsWith(rootCanonical, StringComparison.OrdinalIgnoreCase))
+                    return canonical;
+            }
+
+            return null;
         }
 
         public static void StopServer()

@@ -126,24 +126,28 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Runs ffmpeg without progress tracking (simple execution)
         /// </summary>
-        public static async Task RunSimple(string arguments)
+        public static async Task RunSimple(IEnumerable<string> arguments)
         {
             if (!FFmpegExists())
             {
                 throw new FileNotFoundException($"FFmpeg executable not found at: {FFmpegExecutable}");
             }
 
-            Log.Information("Running simple ffmpeg with arguments: " + arguments);
-
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = FFmpegExecutable,
-                Arguments = arguments,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+
+            foreach (var arg in arguments)
+            {
+                processStartInfo.ArgumentList.Add(arg);
+            }
+
+            Log.Information("Running simple ffmpeg with arguments: {Arguments}", string.Join(" ", processStartInfo.ArgumentList));
 
             using (var process = new Process { StartInfo = processStartInfo })
             {
@@ -179,7 +183,7 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Runs ffmpeg and returns stdout as byte array (useful for piping images)
         /// </summary>
-        public static async Task<byte[]> RunAndCaptureOutput(string arguments)
+        public static async Task<byte[]> RunAndCaptureOutput(IEnumerable<string> arguments)
         {
             if (!FFmpegExists())
             {
@@ -189,12 +193,16 @@ namespace Segra.Backend.Media
             var processInfo = new ProcessStartInfo
             {
                 FileName = FFmpegExecutable,
-                Arguments = arguments,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true
             };
+
+            foreach (var arg in arguments)
+            {
+                processInfo.ArgumentList.Add(arg);
+            }
 
             using (var ffmpegProcess = new Process { StartInfo = processInfo })
             {
@@ -323,8 +331,19 @@ namespace Segra.Backend.Media
         public static async Task<byte[]> GenerateThumbnail(string inputFilePath, double timeSeconds, int width = 320)
         {
             string timeString = timeSeconds.ToString(CultureInfo.InvariantCulture);
-            string arguments = $"-y -ss {timeString} -i \"{inputFilePath}\" -frames:v 1 -vf scale={width}:-1 -f image2pipe -vcodec mjpeg -q:v 20 pipe:1";
-            return await RunAndCaptureOutput(arguments);
+            var args = new[]
+            {
+                "-y",
+                "-ss", timeString,
+                "-i", inputFilePath,
+                "-frames:v", "1",
+                "-vf", $"scale={width}:-1",
+                "-f", "image2pipe",
+                "-vcodec", "mjpeg",
+                "-q:v", "20",
+                "pipe:1"
+            };
+            return await RunAndCaptureOutput(args);
         }
 
         /// <summary>
@@ -343,7 +362,15 @@ namespace Segra.Backend.Media
             TimeSpan midpoint = TimeSpan.FromTicks(duration.Ticks / 2);
             string midpointTime = midpoint.ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
 
-            string arguments = $"-ss {midpointTime} -i \"{inputFilePath}\" -vf \"scale={width}:-1\" -qscale:v {quality} -vframes 1 \"{outputFilePath}\"";
+            var arguments = new[]
+            {
+                "-ss", midpointTime,
+                "-i", inputFilePath,
+                "-vf", $"scale={width}:-1",
+                "-qscale:v", quality.ToString(CultureInfo.InvariantCulture),
+                "-vframes", "1",
+                outputFilePath
+            };
             await RunSimple(arguments);
         }
 
@@ -352,8 +379,15 @@ namespace Segra.Backend.Media
         /// </summary>
         public static async Task ExtractAudioTrack(string inputFilePath, string outputM4aPath, int audioStreamIndex)
         {
-            string arguments = $"-y -i \"{inputFilePath}\" -map 0:a:{audioStreamIndex} -c copy \"{outputM4aPath}\"";
-            await RunSimple(arguments);
+            var args = new[]
+            {
+                "-y",
+                "-i", inputFilePath,
+                "-map", $"0:a:{audioStreamIndex}",
+                "-c", "copy",
+                outputM4aPath
+            };
+            await RunSimple(args);
         }
 
         /// <summary>
@@ -361,7 +395,16 @@ namespace Segra.Backend.Media
         /// </summary>
         public static async Task ExtractPcmAudio(string inputFilePath, string outputPcmPath, int sampleRate = 11025)
         {
-            string arguments = $"-i \"{inputFilePath}\" -vn -ac 1 -ar {sampleRate} -f s16le -acodec pcm_s16le \"{outputPcmPath}\"";
+            var arguments = new[]
+            {
+                "-i", inputFilePath,
+                "-vn",
+                "-ac", "1",
+                "-ar", sampleRate.ToString(CultureInfo.InvariantCulture),
+                "-f", "s16le",
+                "-acodec", "pcm_s16le",
+                outputPcmPath
+            };
             await RunSimple(arguments);
         }
     }

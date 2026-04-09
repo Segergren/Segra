@@ -191,7 +191,7 @@ namespace Segra.Backend.Recorder
             await EnsureFileReady(savedPath);
 
             // Create metadata for the buffer recording
-            await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, game, igdbId: igdbId);
+            await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, game, igdbId: igdbId, audioTrackNames: Settings.Instance.State.Recording?.AudioTrackNames);
             await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer);
             await ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer);
 
@@ -722,7 +722,7 @@ namespace Segra.Backend.Recorder
             // Configure mixers and audio encoders based on setting.
             // If enabled: Track 1 = Full Mix, Tracks 2..6 = per-source isolated (up to 5 sources)
             // If disabled: Track 1 only (Full Mix)
-            // "Primary" sources get separate tracks; desktop sources in non-All modes are fallback-only (full mix only).
+            // In GameOnly/GameAndDiscord modes, desktop sources are fallback-only (full mix only).
             var allAudioSources = new List<Source>();
             allAudioSources.AddRange(_micSources);
             allAudioSources.AddRange(_desktopSources);
@@ -796,8 +796,11 @@ namespace Segra.Backend.Recorder
                 }
             }
 
-            // Create one audio encoder per track and bind to corresponding mixer index
+            // Create one audio encoder per track and bind to corresponding mixer index.
+            // Also capture the authoritative track name list so downstream code (metadata,
+            // clip creation, UI) matches what OBS actually recorded.
             _audioEncoders.Clear();
+            var actualAudioTrackNames = new List<string>(trackCount);
             for (int t = 0; t < trackCount; t++)
             {
                 // Track 0 is the full mix, tracks 1+ are individual devices
@@ -805,6 +808,7 @@ namespace Segra.Backend.Recorder
                     ? "Full Mix"
                     : (t - 1 < audioDeviceNames.Count ? audioDeviceNames[t - 1] : $"Audio Track {t + 1}");
 
+                actualAudioTrackNames.Add(encoderName);
                 var audioEncoder = AudioEncoder.CreateAac(encoderName, 128, t);
                 _audioEncoders.Add(audioEncoder);
             }
@@ -928,7 +932,8 @@ namespace Segra.Backend.Recorder
                 IsUsingGameHook = IsGameCaptureHooked,
                 GameImage = gameImage,
                 ExePath = exePath,
-                CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath)
+                CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath),
+                AudioTrackNames = actualAudioTrackNames
             };
             Settings.Instance.State.PreRecording = null;
             _ = MessageService.SendSettingsToFrontend("OBS Start recording");
@@ -1107,7 +1112,7 @@ namespace Segra.Backend.Recorder
                             int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath)
                                 ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath)
                                 : null;
-                            await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
+                            await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: Settings.Instance.State.Recording.AudioTrackNames);
                             await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
                             await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
 
@@ -1205,7 +1210,7 @@ namespace Segra.Backend.Recorder
                             int? igdbId = !string.IsNullOrEmpty(Settings.Instance.State.Recording.ExePath)
                                 ? GameUtils.GetIgdbIdFromExePath(Settings.Instance.State.Recording.ExePath)
                                 : null;
-                            await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId);
+                            await ContentService.CreateMetadataFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session, Settings.Instance.State.Recording.Game, Settings.Instance.State.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: Settings.Instance.State.Recording.AudioTrackNames);
                             await ContentService.CreateThumbnail(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
                             await ContentService.CreateWaveformFile(Settings.Instance.State.Recording.FilePath!, Content.ContentType.Session);
                         }

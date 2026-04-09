@@ -28,7 +28,8 @@ export default function AudioDevicesSection({
   };
 
   // Multi-track audio: first 5 selected sources get isolated tracks (Track 1 is Full Mix)
-  // In GameOnly/GameAndDiscord modes, output devices are replaced by Game Audio (+Discord)
+  // In GameOnly/GameAndDiscord modes, output devices serve as fallback audio until a game hooks,
+  // at which point they are muted and replaced by Game Audio (+Discord).
   const selectedInputIds = settings.inputDevices.map((d) => d.id);
   const implicitOutputCount =
     settings.audioOutputMode === 'GameAndDiscord'
@@ -36,7 +37,7 @@ export default function AudioDevicesSection({
       : settings.audioOutputMode === 'GameOnly'
         ? 1
         : 0;
-  const selectedOutputIds = implicitOutputCount > 0 ? [] : settings.outputDevices.map((d) => d.id);
+  const selectedOutputIds = settings.outputDevices.map((d) => d.id);
   const combinedSelectedIds = [...selectedInputIds, ...selectedOutputIds];
   const totalSourceCount = combinedSelectedIds.length + implicitOutputCount;
   const maxIsolatedTracks = 5;
@@ -335,11 +336,15 @@ export default function AudioDevicesSection({
           <label className="label">
             <span className="label-text text-base-content">Output Devices</span>
           </label>
-          <div
-            className={`bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5${settings.audioOutputMode !== 'All' ? ' opacity-50 pointer-events-none' : ''}`}
-          >
+          <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
             {renderDeviceList('output')}
           </div>
+          {settings.audioOutputMode !== 'All' && settings.outputDevices.length > 0 && (
+            <div className="mt-2 text-xs text-base-content/60 leading-snug">
+              Used as fallback audio when no game is hooked. Automatically muted while a game
+              capture is active.
+            </div>
+          )}
 
           <div className="flex flex-col gap-1 w-70 mt-2">
             {[
@@ -373,13 +378,7 @@ export default function AudioDevicesSection({
                   name="audioOutputMode"
                   className="radio radio-sm radio-accent"
                   checked={settings.audioOutputMode === option.value}
-                  onChange={() => {
-                    const updates: Partial<SettingsType> = { audioOutputMode: option.value };
-                    if (option.value !== 'All') {
-                      updates.outputDevices = [];
-                    }
-                    updateSettings(updates);
-                  }}
+                  onChange={() => updateSettings({ audioOutputMode: option.value })}
                 />
                 <span className="flex items-center gap-1.5 text-sm">
                   {option.label}

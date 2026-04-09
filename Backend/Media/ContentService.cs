@@ -1,12 +1,9 @@
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
-using Segra.Backend.Games;
 using Segra.Backend.Services;
 using Segra.Backend.Shared;
 using Serilog;
-using System.Globalization;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace Segra.Backend.Media
 {
@@ -44,9 +41,6 @@ namespace Segra.Backend.Media
                 string metadataFilePath = Path.Combine(metadataFolderPath, $"{contentFileName}.json");
                 var (displaySize, sizeKb) = GetFileSize(filePath);
 
-                // Build audio track names from current settings, or use provided names directly
-                var trackNames = audioTrackNames ?? BuildAudioTrackNames();
-
                 var duration = await GetVideoDurationAsync(filePath);
                 var metadataContent = new Content
                 {
@@ -60,7 +54,7 @@ namespace Segra.Backend.Media
                     FileSizeKb = sizeKb,
                     CreatedAt = createdAt ?? DateTime.Now,
                     Duration = duration,
-                    AudioTrackNames = trackNames,
+                    AudioTrackNames = audioTrackNames,
                     IgdbId = igdbId,
                     IsImported = isImported
                 };
@@ -111,44 +105,6 @@ namespace Segra.Backend.Media
                 Log.Error($"Error updating metadata file {metadataFilePath}: {ex.Message}");
                 return null;
             }
-        }
-
-        private static List<string> BuildAudioTrackNames()
-        {
-            var trackNames = new List<string> { "Full Mix" };
-            try
-            {
-                if (Settings.Instance.EnableSeparateAudioTracks)
-                {
-                    var perSourceNames = new List<string>();
-                    if (Settings.Instance.InputDevices != null)
-                        perSourceNames.AddRange(Settings.Instance.InputDevices.Select(d => d.Name));
-
-                    var audioOutputMode = Settings.Instance.AudioOutputMode;
-                    if (audioOutputMode == AudioOutputMode.All)
-                    {
-                        if (Settings.Instance.OutputDevices != null)
-                            perSourceNames.AddRange(Settings.Instance.OutputDevices.Select(d => d.Name));
-                    }
-                    else
-                    {
-                        perSourceNames.Add("Game Audio");
-                        if (audioOutputMode == AudioOutputMode.GameAndDiscord)
-                            perSourceNames.Add("Discord");
-                    }
-
-                    // OBS supports 6 tracks total; we already used 1 for the mix
-                    foreach (var name in perSourceNames.Take(5))
-                    {
-                        trackNames.Add(name);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning($"Failed to build audio track names for metadata: {ex.Message}");
-            }
-            return trackNames;
         }
 
         public static async Task CreateThumbnail(string filePath, Content.ContentType type)
