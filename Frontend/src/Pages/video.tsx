@@ -2008,7 +2008,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                                 // Enabling this track
                                 if (i === 0) {
                                   // Enabling Full Mix: mute all individual tracks
-                                  newMuted = video.audioTrackNames
+                                  newMuted = (video.audioTrackNames ?? [])
                                     .map((_, idx) => idx)
                                     .filter((idx) => idx !== 0);
                                 } else {
