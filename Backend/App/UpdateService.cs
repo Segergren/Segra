@@ -264,13 +264,13 @@ namespace Segra.Backend.App
                         versionString = versionString.Substring(1);
                     }
 
-                    // Handle release candidate versions
+                    // Handle prerelease versions (release candidate and beta)
                     string displayVersion = versionString;
                     NuGet.Versioning.SemanticVersion? releaseVersion = null;
 
-                    if (versionString.Contains("-rc."))
+                    if (versionString.Contains("-rc.") || versionString.Contains("-beta."))
                     {
-                        // Extract base version without RC suffix for comparison
+                        // Extract base version without prerelease suffix for comparison
                         string baseVersionStr = versionString.Split('-')[0];
                         if (!NuGet.Versioning.SemanticVersion.TryParse(baseVersionStr, out releaseVersion))
                         {

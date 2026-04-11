@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       rc_tag:
-        description: 'The Release Candidate tag to use as a base (e.g., v0.1.0-rc.1)'
+        description: 'The prerelease tag to use as a base (e.g., v0.1.0-rc.1 or v0.1.0-beta.1)'
         required: true
         type: string
 
@@ -18,200 +18,41 @@ jobs:
       final_version_number: ${{ steps.extract_final_version.outputs.final_version_number }}
 
     steps:
-      - name: Get RC Tag Input
+      - name: Get Prerelease Tag Input
         id: get_rc_tag_input
         shell: bash
         run: echo "rc_tag_name=${{ github.event.inputs.rc_tag }}" >> $GITHUB_OUTPUT
 
-      - name: Validate RC Tag Format
+      - name: Validate Prerelease Tag Format
         id: validate_rc_tag
         shell: bash
         run: |
           rc_tag="${{ steps.get_rc_tag_input.outputs.rc_tag_name }}"
-          if [[ ! "$rc_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
-            echo "::error::Invalid RC tag format: $rc_tag. Expected format: vX.Y.Z-rc.N"
+          if [[ ! "$rc_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(rc|beta)\.[0-9]+$ ]]; then
+            echo "::error::Invalid prerelease tag format: $rc_tag. Expected format: vX.Y.Z-rc.N or vX.Y.Z-beta.N"
             exit 1
           fi
-          echo "RC tag $rc_tag is valid."
+          echo "Prerelease tag $rc_tag is valid."
 
-      - name: Extract Final Version from RC Tag
+      - name: Extract Final Version from Prerelease Tag
         id: extract_final_version
         shell: bash
         run: |
           rc_tag="${{ steps.get_rc_tag_input.outputs.rc_tag_name }}"
-          final_version_tag=$(echo "$rc_tag" | sed -E 's/-rc\.[0-9]+$//')
+          final_version_tag=$(echo "$rc_tag" | sed -E 's/-(rc|beta)\.[0-9]+$//')
           final_version_number=$(echo "$final_version_tag" | sed 's/^v//')
           echo "final_version_tag=$final_version_tag" >> $GITHUB_OUTPUT
           echo "final_version_number=$final_version_number" >> $GITHUB_OUTPUT
           echo "Extracted final version tag: $final_version_tag"
           echo "Extracted final version number: $final_version_number"
 
-      - name: Checkout Code at RC Tag
+      - name: Checkout Code at Prerelease Tag
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          ref: ${{ steps.get_rc_tag_input.outputs.rc_tag_name }} # Checkout the specific RC tag
+          ref: ${{ steps.get_rc_tag_input.outputs.rc_tag_name }} # Checkout the specific prerelease tag
           submodules: recursive
           fetch-depth: 0 # Fetch all history for all tags and branches
-
-      - name: Aggregate All RC Release Notes for this Version
-        id: aggregate_all_rc_notes # New ID, update downstream references if needed
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }} # Required for gh release view
-        shell: bash
-        run: |
-          echo "Ensuring all tags are available locally..."
-          # It's highly recommended to use fetch-depth: 0 in your main actions/checkout step.
-          # This fetch is a safeguard.
-          git fetch --tags --force --quiet
-
-          EFFECTIVE_RC_TAG_FOR_BASE_DERIVATION="${{ steps.get_rc_tag_input.outputs.rc_tag_name }}"
-          echo "Effective RC Tag (used to derive base version): $EFFECTIVE_RC_TAG_FOR_BASE_DERIVATION"
-
-          # Extract base version (e.g., v1.2.3 from v1.2.3-rc.4)
-          if [[ "$EFFECTIVE_RC_TAG_FOR_BASE_DERIVATION" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+)(-rc\.[0-9]+)?$ ]]; then
-            BASE_VERSION="${BASH_REMATCH[1]}"
-          else
-            echo "::error::Could not determine base version from EFFECTIVE_RC_TAG_FOR_BASE_DERIVATION: '$EFFECTIVE_RC_TAG_FOR_BASE_DERIVATION'. Expected format like vX.Y.Z-rc.N or vX.Y.Z."
-            exit 1
-          fi
-          echo "Base version determined: $BASE_VERSION"
-
-          RC_TAG_PATTERN="${BASE_VERSION}-rc.*"
-          echo "Searching for RC tags matching pattern: $RC_TAG_PATTERN"
-          
-          # List all RC tags for this base version, sorted by version number.
-          # grep ensures we only get tags like vX.Y.Z-rc.NUM and not vX.Y.Z-rc.somethingelse
-          ALL_RC_TAGS_FOR_BASE=$(git tag --list "$RC_TAG_PATTERN" | grep -E "^${BASE_VERSION}-rc\.[0-9]+$" | sort -V)
-
-          if [ -z "$ALL_RC_TAGS_FOR_BASE" ]; then
-            echo "::warning::No RC tags found for base version $BASE_VERSION (pattern: $RC_TAG_PATTERN)."
-            DELIMITER_EMPTY=$(openssl rand -hex 16)
-            {
-              echo "full_release_notes<<$DELIMITER_EMPTY"
-              echo "No release candidate tags found for version $BASE_VERSION to aggregate notes from."
-              echo "$DELIMITER_EMPTY"
-            } >> "$GITHUB_OUTPUT"
-            exit 0 # Exit successfully with a message, rather than failing the workflow.
-          fi
-
-          echo "Found the following RC tags for base version $BASE_VERSION to aggregate notes from:"
-          echo "$ALL_RC_TAGS_FOR_BASE"
-
-          COMBINED_NOTES_CONTENT="This release includes updates from the following release candidates for version $BASE_VERSION:\n"
-          
-          # Append a markdown list of RC tags to the header
-          while IFS= read -r rc_tag_item; do
-            COMBINED_NOTES_CONTENT+="\n- **${rc_tag_item}**"
-          done <<< "$ALL_RC_TAGS_FOR_BASE"
-          COMBINED_NOTES_CONTENT+="\n\n---\n" # Separator before detailed notes
-
-          RC_NOTES_CONTENT_ACCUMULATED=""
-          while IFS= read -r rc_tag_item; do
-            echo "Fetching release notes for $rc_tag_item..."
-            # Attempt to fetch release body. If 'gh release view' fails or body is empty, notes_for_tag will be empty.
-            # Errors from 'gh' are sent to /dev/null to prevent them from breaking the JSON parsing if notes are missing.
-            notes_for_tag=$(gh release view "$rc_tag_item" --json body --jq '.body' 2>/dev/null || true)
-            
-            if [ -n "$notes_for_tag" ]; then
-              RC_NOTES_CONTENT_ACCUMULATED+="## Notes from ${rc_tag_item}\n\n${notes_for_tag}\n\n---\n"
-              echo "Successfully fetched and appended notes for $rc_tag_item."
-            else
-              echo "::warning::No release notes body found or release does not exist for tag $rc_tag_item. Including a placeholder."
-              RC_NOTES_CONTENT_ACCUMULATED+="## Notes from ${rc_tag_item}\n\n_No release notes body found for this tag._\n\n---\n"
-            fi
-          done <<< "$ALL_RC_TAGS_FOR_BASE"
-
-          COMBINED_NOTES_CONTENT+="$RC_NOTES_CONTENT_ACCUMULATED"
-
-          echo "Aggregated release notes successfully."
-          
-          # Output the combined notes using a delimiter for multiline support
-          DELIMITER=$(openssl rand -hex 16)
-          {
-            echo "full_release_notes<<$DELIMITER"
-            echo -e "$COMBINED_NOTES_CONTENT" # -e interprets backslashes for newlines
-            echo "$DELIMITER"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Generate Final Release Notes with AI
-        id: generate_final_release_notes
-        shell: bash
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # Pass the aggregated notes from the previous step
-          AGGREGATED_RC_NOTES: ${{ steps.aggregate_all_rc_notes.outputs.full_release_notes }}
-        run: |
-          echo "ℹ️ Preparing to generate final release notes using AI..."
-          echo "Input (Aggregated RC Notes - first 500 chars):"
-          echo "${AGGREGATED_RC_NOTES:0:500}..."
-          echo ""
-
-          # Ensure jq is available (GitHub Actions runners usually have it)
-          if ! command -v jq &> /dev/null
-          then
-              echo "::error::jq command could not be found. Please ensure jq is installed on the runner."
-              exit 1
-          fi
-          echo "ℹ️ Using jq from path: $(which jq)"
-          echo "ℹ️ jq version: $(jq --version)"
-          echo ""
-
-          # Define system prompt for summarizing combined RC notes
-          SYSTEM_PROMPT="You are a helpful assistant who creates user-friendly release notes for open-source applications like games and clip recorders. Your task is to transform a collection of release notes from several release candidates (RCs) for the same version into a single, cohesive, and easy-to-understand final release note. Merge similar changes, prioritize user-facing updates, and maintain a casual, direct tone. Avoid overly technical jargon and details not relevant to the end-user. Do not include items like 'chore' or 'refactor' if they don't offer direct user value. The final output should be the release note itself, without any introductory phrases like 'Release Notes:' or concluding remarks like 'Thanks.'. Ensure the output is clean and ready for direct use."
-
-          echo "🔧 Escaping content..."
-          # Use printf for system prompt to handle potential special characters better before piping to jq
-          ESCAPED_SYSTEM=$(printf "%s" "$SYSTEM_PROMPT" | jq -Rs .)
-          ESCAPED_INPUT_NOTES=$(printf "%s" "$AGGREGATED_RC_NOTES" | jq -Rs .)
-
-
-          echo "🔒 Escaped System Prompt (first 100 chars): ${ESCAPED_SYSTEM:0:100}..."
-          echo "🔒 Escaped Input Notes (first 100 chars): ${ESCAPED_INPUT_NOTES:0:100}..."
-          echo ""
-
-          # Build JSON payload
-          JSON_PAYLOAD=$(jq -n \
-            --arg model "gpt-4o" \
-            --argjson system_prompt_content "$ESCAPED_SYSTEM" \
-            --argjson user_content "$ESCAPED_INPUT_NOTES" \
-            '{
-              "model": $model,
-              "messages": [
-                {"role": "system", "content": $system_prompt_content},
-                {"role": "user", "content": $user_content}
-              ]
-            }')
-
-          echo "📦 JSON Payload (first 300 chars):"
-          echo "${JSON_PAYLOAD:0:300}..."
-          echo ""
-
-          echo "📡 Making API request to OpenAI..."
-          RESPONSE=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            -d "$JSON_PAYLOAD")
-
-          echo "📨 Raw API Response (first 300 chars):"
-          echo "${RESPONSE:0:300}..."
-          echo ""
-
-          # Extract release notes, check for errors or empty response
-          AI_GENERATED_NOTES=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // ""') # Fallback to empty string if path is null
-
-          if [ -z "$AI_GENERATED_NOTES" ] || [ "$AI_GENERATED_NOTES" == "null" ] || echo "$RESPONSE" | jq -e '.error' > /dev/null; then
-            echo "::warning::AI summarization failed or returned empty/error response."
-            if echo "$RESPONSE" | jq -e '.error' > /dev/null; then
-              echo "API Error details: $(echo "$RESPONSE" | jq -c '.error')"
-            fi
-          else
-            echo "🎉 Successfully generated release notes with AI."
-            echo "📝 Final Release Notes:"
-            echo "$AI_GENERATED_NOTES"
-            echo ""
-          fi
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -322,6 +163,7 @@ jobs:
           tag_name: ${{ needs.build_and_release.outputs.final_version_tag }}
           name: "Release ${{ needs.build_and_release.outputs.final_version_tag }}"
           prerelease: false
+          generate_release_notes: false
           files: |
             ./Segra-win-Setup.exe
             ./RELEASES

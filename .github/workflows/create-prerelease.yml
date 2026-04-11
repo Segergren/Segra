@@ -1,4 +1,4 @@
-name: Create Release Candidate
+name: Create Prerelease
 
 on:
   workflow_dispatch:
@@ -12,6 +12,14 @@ on:
           - patch
           - minor
           - major
+      prerelease_type:
+        description: 'Type of prerelease (rc = Release Candidate, beta = Beta)'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - rc
 
 jobs:
   build:
@@ -27,20 +35,6 @@ jobs:
           submodules: recursive
           fetch-depth: 0
           fetch-tags: true
-
-      - name: Get Latest Tag and Git Log
-        shell: bash
-        run: |
-          LATEST_TAG=$(git tag | grep -v '\-rc\.' | sort -V | tail -n 1)
-          echo "Latest Tag: $LATEST_TAG"
-          
-          GIT_LOG=$(git log "${LATEST_TAG}..HEAD" --no-merges --oneline)
-          echo "Git Log:"
-          echo "$GIT_LOG"
-          
-          echo "GIT_LOG<<EOF" >> $GITHUB_ENV
-          echo "$GIT_LOG" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -60,95 +54,19 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      - name: Display Git Log
-        shell: bash
-        run: |
-          echo "Git Log since last tag:"
-          echo "$GIT_LOG"
-
-      - name: Generate Release Notes
-        id: generate_release_notes
-        shell: bash
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          # --- Debug: Show jq info ---
-          echo "ℹ️ Using jq from path: $(which jq)"
-          echo "ℹ️ jq version: $(jq --version)"
-        
-          # --- Debug: Show raw input ---
-          echo "📜 Raw GIT_LOG:"
-          echo "$GIT_LOG"
-          echo ""
-        
-          # Use pre-installed Chocolatey jq
-          export PATH="/c/ProgramData/Chocolatey/bin:$PATH"
-        
-          # Define system prompt
-          SYSTEM_PROMPT="You are a helpful assistant who creates user-friendly release notes for open-source applications such as games and clip recorders. Your task is to transform raw update logs into concise and easy-to-understand release notes. Use a casual, direct tone and avoid overly technical language and details that are not important for the end user. Please merge changes if you think they are the same method/function that changed. Avoid wrapping the final release notes in a Markdown code block. Non techy and do not include things like chore or refactor if it doesn't do anything for the user! Do not include the text Release Notes in the beginning. Do not say thanks in the end. Also, "
-        
-          # --- Debug: Show escaped content ---
-          echo "🔧 Escaping content..."
-          ESCAPED_SYSTEM=$(jq -Rs . <<< "$SYSTEM_PROMPT")
-          ESCAPED_LOG=$(jq -Rs . <<< "$GIT_LOG")
-        
-          echo "🔒 Escaped System Prompt:"
-          echo "$ESCAPED_SYSTEM"
-          echo ""
-          echo "🔒 Escaped Git Log:"
-          echo "$ESCAPED_LOG"
-          echo ""
-        
-          # Build JSON payload
-          JSON_PAYLOAD=$(jq -n \
-            --arg model "gpt-4o" \
-            --argjson system "$ESCAPED_SYSTEM" \
-            --argjson log "$ESCAPED_LOG" \
-            '{
-              "model": $model,
-              "messages": [
-                {"role": "system", "content": $system},
-                {"role": "user", "content": $log}
-              ]
-            }')
-        
-          # --- Debug: Show final payload ---
-          echo "📦 JSON Payload:"
-          echo "$JSON_PAYLOAD"
-          echo ""
-        
-          # Make API call
-          echo "📡 Making API request to OpenAI..."
-          RESPONSE=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            -d "$JSON_PAYLOAD")
-        
-          # --- Debug: Show raw response ---
-          echo "📨 Raw API Response:"
-          echo "$RESPONSE"
-          echo ""
-        
-          # Extract release notes
-          RELEASE_NOTES=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
-        
-          # --- Debug: Show final output ---
-          echo "🎉 Generated Release Notes:"
-          echo "$RELEASE_NOTES"
-          echo ""
-
       - name: Determine Version
         id: get_version
         shell: pwsh
         run: |
-          # Get the highest final release version (exclude RCs, sort by semver)
-          $latestFinalTag = (git tag | Where-Object { $_ -notmatch '-rc\.' } | Sort-Object { [version]($_ -replace '^v', '') } | Select-Object -Last 1) -replace '^v', ''
+          # Get the highest final release version (exclude prereleases, sort by semver)
+          $latestFinalTag = (git tag | Where-Object { $_ -notmatch '-(rc|beta)\.' } | Sort-Object { [version]($_ -replace '^v', '') } | Select-Object -Last 1) -replace '^v', ''
           if (-not $latestFinalTag) {
             $latestFinalTag = "0.0.0"
           }
           Write-Host "Latest final release: $latestFinalTag"
 
           $releaseType = "${{ github.event.inputs.release_type }}"
+          $prereleaseType = "${{ github.event.inputs.prerelease_type }}"
 
           # Calculate what the next version would be based on release type
           $versionParts = $latestFinalTag.Split('.')
@@ -163,24 +81,25 @@ jobs:
           }
           $nextBaseVersion = "$major.$minor.$patch"
           Write-Host "Next base version would be: $nextBaseVersion"
+          Write-Host "Prerelease type: $prereleaseType"
 
-          # Check if there are existing RCs for this next version
-          $existingRCs = git tag | Where-Object { $_ -match "^v$([regex]::Escape($nextBaseVersion))-rc\.(\d+)$" }
-          
-          if ($existingRCs) {
-            # Find the highest RC number
-            $highestRC = $existingRCs | ForEach-Object {
-              if ($_ -match '-rc\.(\d+)$') { [int]$Matches[1] }
+          # Check if there are existing prereleases of the selected type for this next version
+          $existingPrereleases = git tag | Where-Object { $_ -match "^v$([regex]::Escape($nextBaseVersion))-$prereleaseType\.(\d+)$" }
+
+          if ($existingPrereleases) {
+            # Find the highest prerelease number
+            $highestNum = $existingPrereleases | ForEach-Object {
+              if ($_ -match "-$prereleaseType\.(\d+)$") { [int]$Matches[1] }
             } | Sort-Object | Select-Object -Last 1
-            
-            $rcNumber = $highestRC + 1
-            Write-Host "Found existing RCs, highest is rc.$highestRC, creating rc.$rcNumber"
+
+            $prereleaseNumber = $highestNum + 1
+            Write-Host "Found existing ${prereleaseType}s, highest is $prereleaseType.$highestNum, creating $prereleaseType.$prereleaseNumber"
           } else {
-            $rcNumber = 1
-            Write-Host "No existing RCs for $nextBaseVersion, starting at rc.1"
+            $prereleaseNumber = 1
+            Write-Host "No existing ${prereleaseType}s for $nextBaseVersion, starting at $prereleaseType.1"
           }
 
-          $newVersion = "$nextBaseVersion-rc.$rcNumber"
+          $newVersion = "$nextBaseVersion-$prereleaseType.$prereleaseNumber"
           Write-Host "New version: $newVersion"
 
           echo "new_version=$newVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
@@ -263,6 +182,7 @@ jobs:
           tag_name: v${{ needs.build.outputs.new_version }}
           name: "Release v${{ needs.build.outputs.new_version }}"
           prerelease: true
+          generate_release_notes: false
           files: |
             ./Segra-win-Setup.exe
             ./RELEASES
