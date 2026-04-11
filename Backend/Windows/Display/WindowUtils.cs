@@ -411,43 +411,32 @@ namespace Segra.Backend.Windows.Display
         {
             if (width == 0 || height == 0) return false;
 
-            // Calculate GCD to reduce the aspect ratio to its simplest form
-            uint gcd = GCD(width, height);
-            uint aspectWidth = width / gcd;
-            uint aspectHeight = height / gcd;
+            double ratio = (double)width / height;
 
-            // Check against standard aspect ratios
-            var standardRatios = new (uint w, uint h)[]
+            // Check against standard aspect ratios with a small tolerance
+            // so that off-by-a-few-pixel dimensions (e.g. 2560x1441) still match
+            var standardRatios = new double[]
             {
-                (32, 9),   // 32:9
-                (21, 9),   // 21:9
-                (16, 9),   // 16:9
-                (16, 10),  // 16:10
-                (3, 2),    // 3:2
-                (4, 3),    // 4:3
-                (5, 4)     // 5:4
+                32.0 / 9.0,
+                21.0 / 9.0,
+                16.0 / 9.0,
+                15.0 / 8.0,
+                16.0 / 10.0,
+                3.0 / 2.0,
+                4.0 / 3.0,
+                5.0 / 4.0
             };
 
-            foreach (var (w, h) in standardRatios)
+            const double tolerance = 0.008; // ~0.8% difference
+            foreach (double standardRatio in standardRatios)
             {
-                if (aspectWidth == w && aspectHeight == h)
+                if (Math.Abs(ratio - standardRatio) < tolerance)
                 {
                     return true;
                 }
             }
 
             return false;
-        }
-
-        private static uint GCD(uint a, uint b)
-        {
-            while (b != 0)
-            {
-                uint temp = b;
-                b = a % b;
-                a = temp;
-            }
-            return a;
         }
 
         private static bool GetWindowDimensionsByWindowHandle(IntPtr windowHandle, string? executableFileName, int windowHandleAttempts, out uint width, out uint height)
@@ -538,8 +527,11 @@ namespace Segra.Backend.Windows.Display
                 }
 
                 // Check if dimensions match a display (fullscreen) - needs fewer stability checks
+                // Allow a small pixel tolerance so off-by-one dimensions (e.g. 2560x1441 vs 2560x1440) still count
                 SettingsService.GetPrimaryMonitorResolution(out uint monitorWidth, out uint monitorHeight);
-                bool isFullscreen = width == monitorWidth && height == monitorHeight;
+                const int fullscreenTolerance = 4;
+                bool isFullscreen = Math.Abs((int)width - (int)monitorWidth) <= fullscreenTolerance
+                    && Math.Abs((int)height - (int)monitorHeight) <= fullscreenTolerance;
 
                 // Window dimensions are 0x0 or 1x1 when the window is not visible
                 if (width > 1 && height > 1)
@@ -567,7 +559,10 @@ namespace Segra.Backend.Windows.Display
                             lastWidth = width;
                             lastHeight = height;
 
-                            requiredStabilityChecks = isFullscreen ? 5 : isStandardAspectRatio ? 10 : 30;
+                            // Low-res windows (height <= 480) need more checks — they often
+                            // briefly match a standard ratio while still loading/resizing
+                            int standardRatioChecks = height <= 480 ? 20 : 10;
+                            requiredStabilityChecks = isFullscreen ? 5 : isStandardAspectRatio ? standardRatioChecks : 30;
                             stabilityChecks = 0;
 
                             Thread.Sleep(1000);
@@ -576,7 +571,10 @@ namespace Segra.Backend.Windows.Display
                     else
                     {
                         // First valid dimensions detected
-                        requiredStabilityChecks = isFullscreen ? 5 : isStandardAspectRatio ? 10 : 30;
+                        // Low-res windows (height <= 480) need more checks — they often
+                        // briefly match a standard ratio while still loading/resizing
+                        int standardRatioChecks = height <= 480 ? 20 : 10;
+                        requiredStabilityChecks = isFullscreen ? 5 : isStandardAspectRatio ? standardRatioChecks : 30;
                         stabilityChecks = 0;
 
                         string aspectRatioNote = isStandardAspectRatio ? "standard aspect ratio" : "non-standard aspect ratio";
