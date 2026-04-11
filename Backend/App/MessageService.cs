@@ -13,7 +13,7 @@ using Segra.Backend.Games;
 
 namespace Segra.Backend.App
 {
-    public class Selection
+    public class Segment
     {
         public long Id { get; set; }
         // TODO (os): make this of type ContentType
@@ -333,18 +333,18 @@ namespace Segra.Backend.App
         {
             Log.Information($"{message}");
 
-            if (message.TryGetProperty("Selections", out JsonElement selectionsElement))
+            if (message.TryGetProperty("Segments", out JsonElement segmentsElement))
             {
-                var selections = new List<Selection>();
-                foreach (var selectionElement in selectionsElement.EnumerateArray())
+                var segments = new List<Segment>();
+                foreach (var segmentElement in segmentsElement.EnumerateArray())
                 {
-                    if (selectionElement.TryGetProperty("id", out JsonElement idElement) &&
-                        selectionElement.TryGetProperty("startTime", out JsonElement startTimeElement) &&
-                        selectionElement.TryGetProperty("endTime", out JsonElement endTimeElement) &&
-                        selectionElement.TryGetProperty("fileName", out JsonElement fileNameElement) &&
-                        selectionElement.TryGetProperty("type", out JsonElement videoTypeElement) &&
-                        selectionElement.TryGetProperty("game", out JsonElement gameElement) &&
-                        selectionElement.TryGetProperty("title", out JsonElement titleElement))
+                    if (segmentElement.TryGetProperty("id", out JsonElement idElement) &&
+                        segmentElement.TryGetProperty("startTime", out JsonElement startTimeElement) &&
+                        segmentElement.TryGetProperty("endTime", out JsonElement endTimeElement) &&
+                        segmentElement.TryGetProperty("fileName", out JsonElement fileNameElement) &&
+                        segmentElement.TryGetProperty("type", out JsonElement videoTypeElement) &&
+                        segmentElement.TryGetProperty("game", out JsonElement gameElement) &&
+                        segmentElement.TryGetProperty("title", out JsonElement titleElement))
                     {
                         long id = idElement.GetInt64();
                         double startTime = startTimeElement.GetDouble();
@@ -353,20 +353,20 @@ namespace Segra.Backend.App
                         string type = videoTypeElement.GetString()!;
                         string game = gameElement.GetString()!;
                         string title = titleElement.GetString() ?? string.Empty;
-                        int? igdbId = selectionElement.TryGetProperty("igdbId", out JsonElement igdbIdElement) && igdbIdElement.ValueKind == JsonValueKind.Number
+                        int? igdbId = segmentElement.TryGetProperty("igdbId", out JsonElement igdbIdElement) && igdbIdElement.ValueKind == JsonValueKind.Number
                             ? igdbIdElement.GetInt32()
                             : null;
-                        string? filePath = selectionElement.TryGetProperty("filePath", out JsonElement filePathElement)
+                        string? filePath = segmentElement.TryGetProperty("filePath", out JsonElement filePathElement)
                             ? filePathElement.GetString()
                             : null;
                         List<int>? mutedAudioTracks = null;
-                        if (selectionElement.TryGetProperty("mutedAudioTracks", out JsonElement mutedEl)
+                        if (segmentElement.TryGetProperty("mutedAudioTracks", out JsonElement mutedEl)
                             && mutedEl.ValueKind == JsonValueKind.Array)
                         {
                             mutedAudioTracks = mutedEl.EnumerateArray().Select(e => e.GetInt32()).ToList();
                         }
                         Dictionary<int, double>? audioTrackVolumes = null;
-                        if (selectionElement.TryGetProperty("audioTrackVolumes", out JsonElement volEl)
+                        if (segmentElement.TryGetProperty("audioTrackVolumes", out JsonElement volEl)
                             && volEl.ValueKind == JsonValueKind.Object)
                         {
                             audioTrackVolumes = new Dictionary<int, double>();
@@ -377,8 +377,8 @@ namespace Segra.Backend.App
                             }
                         }
 
-                        // Create a new Selection instance with all required properties.
-                        selections.Add(new Selection
+                        // Create a new Segment instance with all required properties.
+                        segments.Add(new Segment
                         {
                             Id = id,
                             Type = type,
@@ -395,11 +395,11 @@ namespace Segra.Backend.App
                     }
                 }
 
-                await ClipService.CreateClips(selections);
+                await ClipService.CreateClips(segments);
             }
             else
             {
-                Log.Information("Selections property not found in CreateClip message.");
+                Log.Information("Segments property not found in CreateClip message.");
             }
         }
 

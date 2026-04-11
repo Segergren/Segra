@@ -1,19 +1,19 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import { SelectionCardProps } from '../Models/types';
+import { SegmentCardProps } from '../Models/types';
 import { useDrag, useDrop } from 'react-dnd';
 import { TbHeadphones } from 'react-icons/tb';
 
-const DRAG_TYPE = 'SELECTION_CARD';
+const DRAG_TYPE = 'SEGMENT_CARD';
 
-const SelectionCard: React.FC<SelectionCardProps> = React.memo(
+const SegmentCard: React.FC<SegmentCardProps> = React.memo(
   ({
-    selection,
+    segment,
     index,
     moveCard,
     formatTime,
     isHovered,
-    setHoveredSelectionId,
-    removeSelection,
+    setHoveredSegmentId,
+    removeSegment,
     audioTrackNames,
     onMutedAudioTracksChange,
     onAudioTrackVolumesChange,
@@ -56,11 +56,11 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
       dropRef(node);
     };
 
-    const { startTime, endTime, thumbnailDataUrl, isLoading } = selection;
+    const { startTime, endTime, thumbnailDataUrl, isLoading } = segment;
     const hasAudioTracks =
       audioTrackNames && audioTrackNames.length > 1 && onMutedAudioTracksChange;
-    const mutedTracks = selection.mutedAudioTracks ?? [];
-    const trackVolumes = selection.audioTrackVolumes ?? {};
+    const mutedTracks = segment.mutedAudioTracks ?? [];
+    const trackVolumes = segment.audioTrackVolumes ?? {};
 
     const toggleTrack = (trackIndex: number) => {
       if (!onMutedAudioTracksChange || !audioTrackNames) return;
@@ -70,16 +70,16 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
         if (trackIndex === 0) {
           // Enabling Full Mix: mute all individual tracks
           const newMuted = audioTrackNames.map((_, i) => i).filter((i) => i !== 0);
-          onMutedAudioTracksChange(selection.id, newMuted);
+          onMutedAudioTracksChange(segment.id, newMuted);
         } else {
           // Enabling an individual track: mute Full Mix
           const newMuted = mutedTracks.filter((t) => t !== trackIndex);
           if (!newMuted.includes(0)) newMuted.push(0);
-          onMutedAudioTracksChange(selection.id, newMuted);
+          onMutedAudioTracksChange(segment.id, newMuted);
         }
       } else {
         // Muting this track
-        onMutedAudioTracksChange(selection.id, [...mutedTracks, trackIndex]);
+        onMutedAudioTracksChange(segment.id, [...mutedTracks, trackIndex]);
       }
     };
 
@@ -88,14 +88,14 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
         ref={dragDropRef}
         className={`mb-2 cursor-move w-full relative rounded-xl transition-all duration-200 !outline !outline-1 ${isHovered ? '!outline-primary' : '!outline-base-400'}`}
         style={{ opacity: isDragging ? 0.3 : 1 }}
-        onMouseEnter={() => setHoveredSelectionId(selection.id)}
+        onMouseEnter={() => setHoveredSegmentId(segment.id)}
         onMouseLeave={() => {
-          setHoveredSelectionId(null);
+          setHoveredSegmentId(null);
           setAudioMenuPos(null);
         }}
         onContextMenu={(e) => {
           e.preventDefault();
-          removeSelection(selection.id);
+          removeSegment(segment.id);
         }}
       >
         {isLoading ? (
@@ -107,7 +107,7 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
           </div>
         ) : thumbnailDataUrl ? (
           <figure className="relative rounded-xl overflow-hidden">
-            <img src={thumbnailDataUrl} alt="Selection" className="w-full" />
+            <img src={thumbnailDataUrl} alt="Segment" className="w-full" />
             <div className="absolute bottom-2 right-2 bg-base-100 bg-opacity-75 text-white text-xs px-2 py-1 rounded">
               {formatTime(startTime)} - {formatTime(endTime)}
             </div>
@@ -170,7 +170,7 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
                           onChange={(e) => {
                             if (!onAudioTrackVolumesChange) return;
                             const newVolumes = { ...trackVolumes, [i]: parseFloat(e.target.value) };
-                            onAudioTrackVolumesChange(selection.id, newVolumes);
+                            onAudioTrackVolumesChange(segment.id, newVolumes);
                           }}
                           className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-accent"
                         />
@@ -191,4 +191,4 @@ const SelectionCard: React.FC<SelectionCardProps> = React.memo(
 );
 
 export { DRAG_TYPE };
-export default SelectionCard;
+export default SegmentCard;

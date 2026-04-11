@@ -230,7 +230,7 @@ export interface Settings {
   recordingMode: RecordingMode;
   replayBufferDuration: number; // in seconds
   replayBufferMaxSize: number; // in MB
-  clipClearSelectionsAfterCreatingClip: boolean;
+  clipClearSegmentsAfterCreatingClip: boolean;
   clipShowInBrowserAfterUpload: boolean; // Open browser after upload
   clipEncoder: ClipEncoder;
   clipQualityCpu: number; // CPU CRF: 17 (High) to 28 (Low)
@@ -303,7 +303,7 @@ export const initialSettings: Settings = {
   recordingMode: 'Hybrid',
   replayBufferDuration: 30,
   replayBufferMaxSize: 1000,
-  clipClearSelectionsAfterCreatingClip: false,
+  clipClearSegmentsAfterCreatingClip: false,
   clipShowInBrowserAfterUpload: false,
   clipEncoder: 'cpu',
   clipQualityCpu: 23,
@@ -338,7 +338,7 @@ export const initialSettings: Settings = {
   state: initialState,
 };
 
-export interface Selection {
+export interface Segment {
   id: number;
   type: ContentType;
   startTime: number;
@@ -354,14 +354,14 @@ export interface Selection {
   audioTrackVolumes?: Record<number, number>;
 }
 
-export interface SelectionCardProps {
-  selection: Selection;
+export interface SegmentCardProps {
+  segment: Segment;
   index: number;
   moveCard: (dragIndex: number, hoverIndex: number) => void;
   formatTime: (time: number) => string;
   isHovered: boolean;
-  setHoveredSelectionId: (id: number | null) => void;
-  removeSelection: (id: number) => void;
+  setHoveredSegmentId: (id: number | null) => void;
+  removeSegment: (id: number) => void;
   audioTrackNames?: string[];
   onMutedAudioTracksChange?: (id: number, mutedTracks: number[]) => void;
   onAudioTrackVolumesChange?: (id: number, volumes: Record<number, number>) => void;

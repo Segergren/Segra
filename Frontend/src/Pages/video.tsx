@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
-import { Content, BookmarkType, Selection, Bookmark } from '../Models/types';
+import { Content, BookmarkType, Segment, Bookmark } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { openFileLocation } from '../Utils/FileUtils';
@@ -7,7 +7,7 @@ import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useAuth } from '../Hooks/useAuth.tsx';
-import { useSelections } from '../Context/SelectionsContext';
+import { useSegments } from '../Context/SegmentsContext';
 import { useUploads } from '../Context/UploadContext';
 import { useModal } from '../Context/ModalContext';
 import UploadModal from '../Components/UploadModal';
@@ -33,7 +33,7 @@ import {
   MdArrowBack,
 } from 'react-icons/md';
 import { IoSkull, IoAdd, IoRemove } from 'react-icons/io5';
-import SelectionCard from '../Components/SelectionCard';
+import SegmentCard from '../Components/SegmentCard';
 
 import { TbZoomIn, TbZoomOut, TbHeadphones } from 'react-icons/tb';
 import { useAudioTracks } from '../Hooks/useAudioTracks';
@@ -189,20 +189,20 @@ export default function VideoComponent({ video }: { video: Content }) {
   const { uploads } = useUploads();
   const { openModal, closeModal } = useModal();
   const {
-    selections,
-    addSelection,
-    updateSelection,
-    removeSelection,
-    updateSelectionsArray,
-    clearAllSelections,
-  } = useSelections();
+    segments,
+    addSegment,
+    updateSegment,
+    removeSegment,
+    updateSegmentsArray,
+    clearAllSegments,
+  } = useSegments();
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
-  const latestDraggedSelectionRef = useRef<Selection | null>(null);
+  const latestDraggedSegmentRef = useRef<Segment | null>(null);
   const pendingScrollRef = useRef<number | null>(null);
   const zoomAnimationRef = useRef<number>(0);
   const speedButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -216,7 +216,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const audioTracks = useAudioTracks(videoRef, video);
   const [showAudioTracks, setShowAudioTracks] = useState(false);
   const [timelineAudioMenu, setTimelineAudioMenu] = useState<{
-    selId: number;
+    segId: number;
     x: number;
     y: number;
   } | null>(null);
@@ -391,7 +391,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Interaction state
   const [isDragging, setIsDragging] = useState(false);
   const [isInteracting, setIsInteracting] = useState(false);
-  const [hoveredSelectionId, setHoveredSelectionId] = useState<number | null>(null);
+  const [hoveredSegmentId, setHoveredSegmentId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<{ id: number | null; offset: number }>({
     id: null,
     offset: 0,
@@ -399,7 +399,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const dragCandidateRef = useRef<{ id: number; startClientX: number; offset: number } | null>(
     null,
   );
-  const [resizingSelectionId, setResizingSelectionId] = useState<number | null>(null);
+  const [resizingSegmentId, setResizingSegmentId] = useState<number | null>(null);
   const [resizeDirection, setResizeDirection] = useState<'start' | 'end' | null>(null);
   const resizeCandidateRef = useRef<{
     id: number;
@@ -423,27 +423,27 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Make sure bookmarks are only shown when we have valid duration and zoom
   // Prevents weird positioning on initial load
   const bookmarksReady = duration > 0 && pixelsPerSecond > 0;
-  const sortedSelections = useMemo(
-    () => [...selections].sort((a, b) => a.startTime - b.startTime),
-    [selections],
+  const sortedSegments = useMemo(
+    () => [...segments].sort((a, b) => a.startTime - b.startTime),
+    [segments],
   );
-  const selectionsRef = useRef(selections);
+  const segmentsRef = useRef(segments);
   useEffect(() => {
-    selectionsRef.current = selections;
-  }, [selections]);
+    segmentsRef.current = segments;
+  }, [segments]);
 
   // Track in-flight thumbnail requests to avoid stale overwrites
   const thumbnailReqTokenRef = useRef<Map<number, number>>(new Map());
 
-  // Refreshes the thumbnail for a selection without overwriting live fields
-  const refreshSelectionThumbnail = async (selection: Selection): Promise<void> => {
-    const id = selection.id;
-    // Read the latest selection from state (may be undefined immediately after add)
-    const current = selectionsRef.current.find((s) => s.id === id);
+  // Refreshes the thumbnail for a segment without overwriting live fields
+  const refreshSegmentThumbnail = async (segment: Segment): Promise<void> => {
+    const id = segment.id;
+    // Read the latest segment from state (may be undefined immediately after add)
+    const current = segmentsRef.current.find((s) => s.id === id);
 
-    // Mark loading on latest state if present (new selection already has isLoading=true)
+    // Mark loading on latest state if present (new segment already has isLoading=true)
     if (current) {
-      updateSelection({ ...current, isLoading: true });
+      updateSegment({ ...current, isLoading: true });
     }
 
     // Bump request token for this id
@@ -451,19 +451,19 @@ export default function VideoComponent({ video }: { video: Content }) {
     thumbnailReqTokenRef.current.set(id, nextToken);
 
     try {
-      const latest = selectionsRef.current.find((s) => s.id === id) ?? current ?? selection;
+      const latest = segmentsRef.current.find((s) => s.id === id) ?? current ?? segment;
       // Use the video's filePath from metadata instead of constructing it
       const thumbnailUrl = await fetchThumbnailAtTime(video.filePath, latest.startTime);
 
-      // Only apply if this is the latest request for this selection
+      // Only apply if this is the latest request for this segment
       if (thumbnailReqTokenRef.current.get(id) === nextToken) {
-        const newest = selectionsRef.current.find((s) => s.id === id) ?? latest;
-        updateSelection({ ...newest, thumbnailDataUrl: thumbnailUrl, isLoading: false });
+        const newest = segmentsRef.current.find((s) => s.id === id) ?? latest;
+        updateSegment({ ...newest, thumbnailDataUrl: thumbnailUrl, isLoading: false });
       }
     } catch {
       if (thumbnailReqTokenRef.current.get(id) === nextToken) {
-        const newest = selectionsRef.current.find((s) => s.id === id) ?? current ?? selection;
-        updateSelection({ ...newest, isLoading: false });
+        const newest = segmentsRef.current.find((s) => s.id === id) ?? current ?? segment;
+        updateSegment({ ...newest, isLoading: false });
       }
     }
   };
@@ -596,20 +596,20 @@ export default function VideoComponent({ video }: { video: Content }) {
     };
   }, [volume, isMuted, isFullscreen, audioTracks.isMultiTrack]);
 
-  // Per-selection audio override state, kept in refs for the rAF loop below.
-  // `selectionsDirtyRef` is separate from the id ref because `null` is already
-  // the valid "no active selection" id, so id comparison alone can't detect a
-  // selection deletion when the deleted one was active.
-  const activeSelectionIdRef = useRef<number | null>(null);
-  const selectionsDirtyRef = useRef<boolean>(true);
+  // Per-segment audio override state, kept in refs for the rAF loop below.
+  // `segmentsDirtyRef` is separate from the id ref because `null` is already
+  // the valid "no active segment" id, so id comparison alone can't detect a
+  // segment deletion when the deleted one was active.
+  const activeSegmentIdRef = useRef<number | null>(null);
+  const segmentsDirtyRef = useRef<boolean>(true);
   const audioTracksRef = useRef(audioTracks);
   useLayoutEffect(() => {
     audioTracksRef.current = audioTracks;
   });
 
   useEffect(() => {
-    selectionsDirtyRef.current = true;
-  }, [selections]);
+    segmentsDirtyRef.current = true;
+  }, [segments]);
 
   // Clean up overrides when multi-track is deactivated
   useEffect(() => {
@@ -630,7 +630,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   ]);
 
   // Handle video playback time updates using requestAnimationFrame for smooth updates.
-  // Also checks per-selection audio overrides each frame (cheap: one find + early return).
+  // Also checks per-segment audio overrides each frame (cheap: one find + early return).
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
@@ -638,20 +638,20 @@ export default function VideoComponent({ video }: { video: Content }) {
     const tick = () => {
       setCurrentTime(vid.currentTime);
 
-      // Per-selection audio mute/volume override
+      // Per-segment audio mute/volume override
       const at = audioTracksRef.current;
       if (at.isMultiTrack) {
         const t = vid.currentTime;
-        const sels = selectionsRef.current;
-        const activeSel = sels.find((s) => t >= s.startTime && t <= s.endTime);
-        const activeId = activeSel?.id ?? null;
+        const segs = segmentsRef.current;
+        const activeSeg = segs.find((s) => t >= s.startTime && t <= s.endTime);
+        const activeId = activeSeg?.id ?? null;
 
-        if (activeId !== activeSelectionIdRef.current || selectionsDirtyRef.current) {
-          activeSelectionIdRef.current = activeId;
-          selectionsDirtyRef.current = false;
-          if (activeSel) {
-            at.setMuteOverride(activeSel.mutedAudioTracks ?? []);
-            at.setVolumeOverride(activeSel.audioTrackVolumes ?? null);
+        if (activeId !== activeSegmentIdRef.current || segmentsDirtyRef.current) {
+          activeSegmentIdRef.current = activeId;
+          segmentsDirtyRef.current = false;
+          if (activeSeg) {
+            at.setMuteOverride(activeSeg.mutedAudioTracks ?? []);
+            at.setVolumeOverride(activeSeg.audioTrackVolumes ?? null);
           } else {
             at.setMuteOverride(null);
             at.setVolumeOverride(null);
@@ -1060,16 +1060,16 @@ export default function VideoComponent({ video }: { video: Content }) {
     return { majorTicks, minorTicks };
   }, [duration, pixelsPerSecond]);
 
-  // Add a new selection at the current video position
-  const handleAddSelection = async () => {
+  // Add a new segment at the current video position
+  const handleAddSegment = async () => {
     if (!videoRef.current) return;
     const start = currentTime;
     // Default to 10% of the visible timeline, capped at 2 minutes and clamped to video duration
     const visibleDuration = duration / zoom;
-    const selectionDuration = Math.min(120, Math.max(6, visibleDuration * 0.1));
-    const end = Math.min(start + selectionDuration, duration);
+    const segmentDuration = Math.min(120, Math.max(6, visibleDuration * 0.1));
+    const end = Math.min(start + segmentDuration, duration);
 
-    const newSelection: Selection = {
+    const newSegment: Segment = {
       id: Date.now(),
       type: video.type,
       startTime: start,
@@ -1082,27 +1082,27 @@ export default function VideoComponent({ video }: { video: Content }) {
       title: video.title,
       igdbId: video.igdbId,
       mutedAudioTracks:
-        selections.length > 0
-          ? selections[selections.length - 1].mutedAudioTracks
+        segments.length > 0
+          ? segments[segments.length - 1].mutedAudioTracks
           : audioTracks.isMultiTrack
             ? [...audioTracks.mutedTracks]
             : undefined,
     };
-    addSelection(newSelection);
+    addSegment(newSegment);
     // Kick off thumbnail generation; uses latest state and guards against stale overwrites
-    refreshSelectionThumbnail(newSelection);
+    refreshSegmentThumbnail(newSegment);
   };
 
-  // Create a clip from current selections
+  // Create a clip from current segments
   const handleCreateClip = () => {
-    if (selections.length === 0) {
+    if (segments.length === 0) {
       setShowNoSegmentsIndicator(true);
       setTimeout(() => setShowNoSegmentsIndicator(false), 2000);
       return;
     }
 
     const params = {
-      Selections: selections.map((s) => ({
+      Segments: segments.map((s) => ({
         id: s.id,
         type: s.type,
         fileName: s.fileName,
@@ -1119,9 +1119,9 @@ export default function VideoComponent({ video }: { video: Content }) {
     sendMessageToBackend('CreateClip', params);
   };
 
-  // Handle selection drag and drop operations (drag start removed to allow segment click-through)
+  // Handle segment drag and drop operations (drag start removed to allow segment click-through)
 
-  const handleSelectionDrag = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSegmentDrag = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!scrollContainerRef.current) return;
     if ((e.buttons & 1) !== 1 && dragState.id == null) return;
     const rect = scrollContainerRef.current.getBoundingClientRect();
@@ -1142,26 +1142,26 @@ export default function VideoComponent({ video }: { video: Content }) {
     const activeOffset =
       dragState.id != null ? dragState.offset : (dragCandidateRef.current?.offset ?? 0);
     if (activeId == null) return;
-    const sel = selections.find((s) => s.id === activeId);
-    if (sel) {
-      const segLength = sel.endTime - sel.startTime;
+    const seg = segments.find((s) => s.id === activeId);
+    if (seg) {
+      const segLength = seg.endTime - seg.startTime;
       let newStart = cursorTime - activeOffset;
       newStart = Math.max(0, Math.min(newStart, duration - segLength));
-      const updatedSelection = { ...sel, startTime: newStart, endTime: newStart + segLength };
-      updateSelection(updatedSelection);
-      latestDraggedSelectionRef.current = updatedSelection;
+      const updatedSegment = { ...seg, startTime: newStart, endTime: newStart + segLength };
+      updateSegment(updatedSegment);
+      latestDraggedSegmentRef.current = updatedSegment;
     }
   };
 
-  const handleSelectionDragEnd = () => {
+  const handleSegmentDragEnd = () => {
     const draggedId = dragState.id;
     setDragState({ id: null, offset: 0 });
     dragCandidateRef.current = null;
     setTimeout(() => setIsInteracting(false), 0);
-    if (draggedId != null && latestDraggedSelectionRef.current) {
-      const sel = latestDraggedSelectionRef.current;
-      latestDraggedSelectionRef.current = null;
-      void refreshSelectionThumbnail(sel);
+    if (draggedId != null && latestDraggedSegmentRef.current) {
+      const seg = latestDraggedSegmentRef.current;
+      latestDraggedSegmentRef.current = null;
+      void refreshSegmentThumbnail(seg);
     }
   };
 
@@ -1170,10 +1170,10 @@ export default function VideoComponent({ video }: { video: Content }) {
     const handleGlobalMouseUp = () => {
       handleMarkerDragEnd();
       if (dragState.id !== null) {
-        handleSelectionDragEnd();
+        handleSegmentDragEnd();
       }
-      if (resizingSelectionId !== null) {
-        handleSelectionResizeEnd();
+      if (resizingSegmentId !== null) {
+        handleSegmentResizeEnd();
       }
       dragCandidateRef.current = null;
       resizeCandidateRef.current = null;
@@ -1182,20 +1182,20 @@ export default function VideoComponent({ video }: { video: Content }) {
     return () => {
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
-  }, [dragState.id, resizingSelectionId]);
+  }, [dragState.id, resizingSegmentId]);
 
   // Start a potential drag on mousedown without blocking click-through
-  const handleSelectionMouseDown = (e: React.MouseEvent<HTMLDivElement>, id: number) => {
+  const handleSegmentMouseDown = (e: React.MouseEvent<HTMLDivElement>, id: number) => {
     if (!scrollContainerRef.current) return;
     const rect = scrollContainerRef.current.getBoundingClientRect();
     const dragPos = e.clientX - rect.left + scrollContainerRef.current.scrollLeft;
     const cursorTime = dragPos / pixelsPerSecond;
-    const sel = selections.find((s) => s.id === id);
-    if (sel) {
+    const seg = segments.find((s) => s.id === id);
+    if (seg) {
       dragCandidateRef.current = {
         id,
         startClientX: e.clientX,
-        offset: cursorTime - sel.startTime,
+        offset: cursorTime - seg.startTime,
       };
     }
   };
@@ -1304,42 +1304,42 @@ export default function VideoComponent({ video }: { video: Content }) {
     resizeCandidateRef.current = { id, direction, startClientX: e.clientX };
   };
 
-  const handleSelectionResize = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSegmentResize = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!scrollContainerRef.current) return;
-    if ((e.buttons & 1) !== 1 && resizingSelectionId == null) return;
+    if ((e.buttons & 1) !== 1 && resizingSegmentId == null) return;
     const rect = scrollContainerRef.current.getBoundingClientRect();
     const pos = e.clientX - rect.left + scrollContainerRef.current.scrollLeft;
     const t = pos / pixelsPerSecond;
     // If no active resize yet, check if we should start (threshold)
-    if (resizingSelectionId == null || !resizeDirection) {
+    if (resizingSegmentId == null || !resizeDirection) {
       const cand = resizeCandidateRef.current;
       if (!cand) return;
       const delta = Math.abs(e.clientX - cand.startClientX);
       if (delta <= 3) return; // not enough movement
-      setResizingSelectionId(cand.id);
+      setResizingSegmentId(cand.id);
       setResizeDirection(cand.direction);
       setIsInteracting(true);
     }
 
-    const activeId = resizingSelectionId ?? resizeCandidateRef.current?.id ?? null;
+    const activeId = resizingSegmentId ?? resizeCandidateRef.current?.id ?? null;
     const activeDir = resizeDirection ?? resizeCandidateRef.current?.direction ?? null;
     if (activeId == null || !activeDir) return;
-    const sel = selections.find((s) => s.id === activeId);
-    if (!sel) return;
+    const seg = segments.find((s) => s.id === activeId);
+    if (!seg) return;
 
-    let updatedSelection;
+    let updatedSegment;
     if (activeDir === 'start') {
-      const newStart = Math.max(0, Math.min(t, sel.endTime - 0.1));
-      updatedSelection = { ...sel, startTime: newStart };
+      const newStart = Math.max(0, Math.min(t, seg.endTime - 0.1));
+      updatedSegment = { ...seg, startTime: newStart };
     } else {
-      const newEnd = Math.min(duration, Math.max(t, sel.startTime + 0.1));
-      updatedSelection = { ...sel, endTime: newEnd };
+      const newEnd = Math.min(duration, Math.max(t, seg.startTime + 0.1));
+      updatedSegment = { ...seg, endTime: newEnd };
     }
-    latestDraggedSelectionRef.current = updatedSelection;
-    updateSelection(updatedSelection);
+    latestDraggedSegmentRef.current = updatedSegment;
+    updateSegment(updatedSegment);
 
     // While resizing, keep the video time at the active edge and update marker state
-    const edgeTime = activeDir === 'start' ? updatedSelection.startTime : updatedSelection.endTime;
+    const edgeTime = activeDir === 'start' ? updatedSegment.startTime : updatedSegment.endTime;
     if (videoRef.current) {
       const clamped = Math.max(0, Math.min(edgeTime, duration));
       videoRef.current.currentTime = clamped;
@@ -1347,26 +1347,26 @@ export default function VideoComponent({ video }: { video: Content }) {
     setCurrentTime(edgeTime);
   };
 
-  const handleSelectionResizeEnd = () => {
-    setResizingSelectionId(null);
+  const handleSegmentResizeEnd = () => {
+    setResizingSegmentId(null);
     setResizeDirection(null);
     resizeCandidateRef.current = null;
     setIsInteracting(false);
-    if (latestDraggedSelectionRef.current) {
-      const sel = latestDraggedSelectionRef.current;
-      latestDraggedSelectionRef.current = null;
-      void refreshSelectionThumbnail(sel);
+    if (latestDraggedSegmentRef.current) {
+      const seg = latestDraggedSegmentRef.current;
+      latestDraggedSegmentRef.current = null;
+      void refreshSegmentThumbnail(seg);
     }
   };
 
-  // Right-click to remove selection disabled to keep segments click-through
+  // Right-click to remove segment disabled to keep segments click-through
 
-  // Move selection card in the sidebar
+  // Move segment card in the sidebar
   const moveCard = (dragIndex: number, hoverIndex: number) => {
-    const newSelections = [...selections];
-    const [removed] = newSelections.splice(dragIndex, 1);
-    newSelections.splice(hoverIndex, 0, removed);
-    updateSelectionsArray(newSelections);
+    const newSegments = [...segments];
+    const [removed] = newSegments.splice(dragIndex, 1);
+    newSegments.splice(hoverIndex, 0, removed);
+    updateSegmentsArray(newSegments);
   };
 
   // Get video source URL - use the filePath from metadata
@@ -1807,8 +1807,8 @@ export default function VideoComponent({ video }: { video: Content }) {
             className="relative w-full mt-2 overflow-x-scroll overflow-y-hidden select-none shrink-0 timeline-wrapper"
             ref={scrollContainerRef}
             onMouseMove={(e) => {
-              handleSelectionDrag(e);
-              handleSelectionResize(e);
+              handleSegmentDrag(e);
+              handleSegmentResize(e);
               handleMarkerDrag(e);
             }}
           >
@@ -1915,27 +1915,27 @@ export default function VideoComponent({ video }: { video: Content }) {
                   }}
                 />
               )}
-              {sortedSelections.map((sel) => {
-                const left = sel.startTime * pixelsPerSecond;
-                const width = (sel.endTime - sel.startTime) * pixelsPerSecond;
-                const hidden = sel.fileName !== video.fileName;
+              {sortedSegments.map((seg) => {
+                const left = seg.startTime * pixelsPerSecond;
+                const width = (seg.endTime - seg.startTime) * pixelsPerSecond;
+                const hidden = seg.fileName !== video.fileName;
                 return (
                   <>
                     <div
-                      key={sel.id}
+                      key={seg.id}
                       className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors overflow-hidden rounded-r-sm rounded-l-sm shadow-md
                                                 bg-primary/40 border border-primary/40`}
                       style={{ left: `${left}px`, width: `${width}px` }}
                       onMouseEnter={() => {
-                        setHoveredSelectionId(sel.id);
+                        setHoveredSegmentId(seg.id);
                       }}
                       onMouseLeave={() => {
-                        setHoveredSelectionId(null);
+                        setHoveredSegmentId(null);
                       }}
-                      onMouseDown={(e) => handleSelectionMouseDown(e, sel.id)}
+                      onMouseDown={(e) => handleSegmentMouseDown(e, seg.id)}
                       onContextMenu={(e) => {
                         e.preventDefault();
-                        removeSelection(sel.id);
+                        removeSegment(seg.id);
                       }}
                     >
                       <div className="absolute left-0 top-0 h-full w-[4px] bg-accent/80 rounded-l-sm pointer-events-none" />
@@ -1945,15 +1945,15 @@ export default function VideoComponent({ video }: { video: Content }) {
                         video.audioTrackNames &&
                         video.audioTrackNames.length > 1 && (
                           <button
-                            className={`absolute top-[4px] left-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSelectionId === sel.id || timelineAudioMenu?.selId === sel.id ? 'opacity-100' : 'opacity-0'}`}
+                            className={`absolute top-[4px] left-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSegmentId === seg.id || timelineAudioMenu?.segId === seg.id ? 'opacity-100' : 'opacity-0'}`}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
                               const rect = e.currentTarget.getBoundingClientRect();
                               setTimelineAudioMenu(
-                                timelineAudioMenu?.selId === sel.id
+                                timelineAudioMenu?.segId === seg.id
                                   ? null
-                                  : { selId: sel.id, x: rect.left, y: rect.bottom + 4 },
+                                  : { segId: seg.id, x: rect.left, y: rect.bottom + 4 },
                               );
                             }}
                           >
@@ -1963,19 +1963,19 @@ export default function VideoComponent({ video }: { video: Content }) {
 
                       <div
                         className="absolute top-0 -left-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
-                        onMouseDown={(e) => handleResizeMouseDown(e, sel.id, 'start')}
+                        onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
                         aria-label="Resize segment start"
                       />
                       <div
                         className="absolute top-0 -right-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
-                        onMouseDown={(e) => handleResizeMouseDown(e, sel.id, 'end')}
+                        onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
                         aria-label="Resize segment end"
                       />
                     </div>
                   </>
                 );
               })}
-              {resizingSelectionId == null && (
+              {resizingSegmentId == null && (
                 <div
                   className="absolute top-0 left-0 z-10 w-1 h-full -translate-x-1/2 rounded-sm shadow cursor-pointer marker bg-accent"
                   style={{ left: `${currentTime * pixelsPerSecond}px` }}
@@ -1986,10 +1986,10 @@ export default function VideoComponent({ video }: { video: Content }) {
           </div>
           {timelineAudioMenu &&
             (() => {
-              const menuSel = selections.find((s) => s.id === timelineAudioMenu.selId);
-              if (!menuSel || !video.audioTrackNames) return null;
-              const mutedTracks = menuSel.mutedAudioTracks ?? [];
-              const trackVolumes = menuSel.audioTrackVolumes ?? {};
+              const menuSeg = segments.find((s) => s.id === timelineAudioMenu.segId);
+              if (!menuSeg || !video.audioTrackNames) return null;
+              const mutedTracks = menuSeg.mutedAudioTracks ?? [];
+              const trackVolumes = menuSeg.audioTrackVolumes ?? {};
               return (
                 <div
                   className="fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200]"
@@ -2024,7 +2024,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                                 // Muting this track
                                 newMuted = [...mutedTracks, i];
                               }
-                              updateSelection({ ...menuSel, mutedAudioTracks: newMuted });
+                              updateSegment({ ...menuSeg, mutedAudioTracks: newMuted });
                             }}
                             className="checkbox checkbox-primary checkbox-xs shrink-0"
                           />
@@ -2047,7 +2047,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                                 ...trackVolumes,
                                 [i]: parseFloat(e.target.value),
                               };
-                              updateSelection({ ...menuSel, audioTrackVolumes: newVolumes });
+                              updateSegment({ ...menuSeg, audioTrackVolumes: newVolumes });
                             }}
                             className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-accent"
                           />
@@ -2120,7 +2120,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       variant="primary"
                       size="sm"
                       className="h-10 gap-1 hover:text-accent"
-                      onClick={handleAddSelection}
+                      onClick={handleAddSegment}
                     >
                       {showNoSegmentsIndicator && (
                         <span className="indicator-item badge badge-sm badge-primary animate-pulse"></span>
@@ -2189,26 +2189,26 @@ export default function VideoComponent({ video }: { video: Content }) {
         {(video.type === 'Session' || video.type === 'Buffer') && (
           <div className="flex flex-col h-full pt-4 pl-4 pr-1 border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
             <div className="flex-1 p-1 mt-1 overflow-y-scroll">
-              {selections.map((sel, index) => (
-                <SelectionCard
-                  key={sel.id}
-                  selection={sel}
+              {segments.map((seg, index) => (
+                <SegmentCard
+                  key={seg.id}
+                  segment={seg}
                   index={index}
                   moveCard={moveCard}
                   formatTime={formatTime}
-                  isHovered={hoveredSelectionId === sel.id}
-                  setHoveredSelectionId={setHoveredSelectionId}
-                  removeSelection={removeSelection}
+                  isHovered={hoveredSegmentId === seg.id}
+                  setHoveredSegmentId={setHoveredSegmentId}
+                  removeSegment={removeSegment}
                   audioTrackNames={video.audioTrackNames}
                   onMutedAudioTracksChange={(id, mutedTracks) =>
-                    updateSelection({
-                      ...selections.find((s) => s.id === id)!,
+                    updateSegment({
+                      ...segments.find((s) => s.id === id)!,
                       mutedAudioTracks: mutedTracks,
                     })
                   }
                   onAudioTrackVolumesChange={(id, volumes) =>
-                    updateSelection({
-                      ...selections.find((s) => s.id === id)!,
+                    updateSegment({
+                      ...segments.find((s) => s.id === id)!,
                       audioTrackVolumes: volumes,
                     })
                   }
@@ -2219,14 +2219,14 @@ export default function VideoComponent({ video }: { video: Content }) {
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  name="clipClearSelectionsAfterCreatingClip"
-                  checked={settings.clipClearSelectionsAfterCreatingClip}
+                  name="clipClearSegmentsAfterCreatingClip"
+                  checked={settings.clipClearSegmentsAfterCreatingClip}
                   onChange={(e) =>
-                    updateSettings({ clipClearSelectionsAfterCreatingClip: e.target.checked })
+                    updateSettings({ clipClearSegmentsAfterCreatingClip: e.target.checked })
                   }
                   className="checkbox checkbox-sm checkbox-accent"
                 />
-                <span className="ml-2 text-sm">Auto-Clear Selections</span>
+                <span className="ml-2 text-sm">Auto-Clear Segments</span>
               </label>
             </div>
             <div className="flex items-center h-10 gap-0 px-0 mb-2 mr-3 rounded-lg bg-base-300 tooltip">
@@ -2234,8 +2234,8 @@ export default function VideoComponent({ video }: { video: Content }) {
                 variant="primary"
                 size="sm"
                 className="w-full h-10 py-0 hover:text-accent"
-                onClick={clearAllSelections}
-                disabled={selections.length === 0}
+                onClick={clearAllSegments}
+                disabled={segments.length === 0}
               >
                 <FaTrashCan className="w-4 h-4" />
                 <span>Clear</span>

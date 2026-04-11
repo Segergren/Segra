@@ -52,7 +52,7 @@ namespace Segra.Backend.Core.Models
         private List<Game> _blacklist = new List<Game>();
         private State _state = new State();
         private Auth _auth = new Auth();
-        private bool _clipClearSelectionsAfterCreatingClip = false;
+        private bool _clipClearSegmentsAfterCreatingClip = false;
         private bool _clipShowInBrowserAfterUpload = false;
         private string _clipEncoder = "cpu";
         private int _clipQualityCpu = 23; // CPU CRF: 17 (High) to 28 (Low)
@@ -510,15 +510,15 @@ namespace Segra.Backend.Core.Models
             }
         }
 
-        [JsonPropertyName("clipClearSelectionsAfterCreatingClip")]
-        public bool ClipClearSelectionsAfterCreatingClip
+        [JsonPropertyName("clipClearSegmentsAfterCreatingClip")]
+        public bool ClipClearSegmentsAfterCreatingClip
         {
-            get => _clipClearSelectionsAfterCreatingClip;
+            get => _clipClearSegmentsAfterCreatingClip;
             set
             {
-                if (_clipClearSelectionsAfterCreatingClip != value)
+                if (_clipClearSegmentsAfterCreatingClip != value)
                 {
-                    _clipClearSelectionsAfterCreatingClip = value;
+                    _clipClearSegmentsAfterCreatingClip = value;
                 }
             }
         }

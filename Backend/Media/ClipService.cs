@@ -18,7 +18,7 @@ namespace Segra.Backend.Media
         // Lock for thread safety
         private static readonly object ProcessLock = new object();
 
-        public static async Task CreateClips(List<Selection> selections)
+        public static async Task CreateClips(List<Segment> segments)
         {
             int id = Guid.NewGuid().GetHashCode();
             List<string> tempClipFiles = new List<string>();
@@ -27,112 +27,112 @@ namespace Segra.Backend.Media
 
             try
             {
-                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 0, selections });
+                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 0, segments });
                 string videoFolder = Settings.Instance.ContentFolder;
 
-                if (selections == null || !selections.Any())
+                if (segments == null || !segments.Any())
                 {
-                    Log.Error("No selections provided.");
-                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "No selections provided" });
+                    Log.Error("No segments provided.");
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = "No segments provided" });
                     return;
                 }
 
-                double totalDuration = selections.Sum(s => s.EndTime - s.StartTime);
+                double totalDuration = segments.Sum(s => s.EndTime - s.StartTime);
                 if (totalDuration <= 0)
                 {
                     Log.Error("Total clip duration is zero or negative.");
-                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "Invalid clip duration" });
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = "Invalid clip duration" });
                     return;
                 }
 
-                // Use game from first selection for the output folder
-                var firstSelection = selections.FirstOrDefault();
-                string outputGameFolder = StorageService.SanitizeGameNameForFolder(firstSelection?.Game ?? "Unknown");
+                // Use game from first segment for the output folder
+                var firstSegment = segments.FirstOrDefault();
+                string outputGameFolder = StorageService.SanitizeGameNameForFolder(firstSegment?.Game ?? "Unknown");
                 string outputFolder = Path.Combine(videoFolder, FolderNames.Clips, outputGameFolder);
                 Directory.CreateDirectory(outputFolder);
 
                 if (!FFmpegService.FFmpegExists())
                 {
                     Log.Error($"FFmpeg executable not found at path: {FFmpegService.GetFFmpegPath()}");
-                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "FFmpeg not found" });
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = "FFmpeg not found" });
                     return;
                 }
 
-                // Read per-selection audio track names and build union layout
-                bool anySelectionHasMutedTracks = selections.Any(s => s.MutedAudioTracks != null && s.MutedAudioTracks.Count > 0);
-                var perSelectionTrackNames = new List<List<string>?>();
-                if (Settings.Instance.ClipKeepSeparateAudioTracks || anySelectionHasMutedTracks)
+                // Read per-segment audio track names and build union layout
+                bool anySegmentHasMutedTracks = segments.Any(s => s.MutedAudioTracks != null && s.MutedAudioTracks.Count > 0);
+                var perSegmentTrackNames = new List<List<string>?>();
+                if (Settings.Instance.ClipKeepSeparateAudioTracks || anySegmentHasMutedTracks)
                 {
-                    foreach (var sel in selections)
-                        perSelectionTrackNames.Add(GetSourceAudioTrackNames(sel));
+                    foreach (var seg in segments)
+                        perSegmentTrackNames.Add(GetSourceAudioTrackNames(seg));
                 }
                 else
                 {
-                    perSelectionTrackNames.AddRange(Enumerable.Repeat<List<string>?>(null, selections.Count));
+                    perSegmentTrackNames.AddRange(Enumerable.Repeat<List<string>?>(null, segments.Count));
                 }
 
                 // Union of all track names across sources -- used to normalise every temp clip to the same stream layout
                 List<string>? unionAudioLayout = Settings.Instance.ClipKeepSeparateAudioTracks
-                    ? BuildUnionAudioLayout(perSelectionTrackNames)
+                    ? BuildUnionAudioLayout(perSegmentTrackNames)
                     : null;
 
                 double processedDuration = 0;
-                int selectionIndex = 0;
-                foreach (var selection in selections)
+                int segmentIndex = 0;
+                foreach (var segment in segments)
                 {
                     // Use the actual file path from metadata when available, fall back to reconstructed path
                     string inputFilePath;
-                    if (!string.IsNullOrEmpty(selection.FilePath) && File.Exists(selection.FilePath))
+                    if (!string.IsNullOrEmpty(segment.FilePath) && File.Exists(segment.FilePath))
                     {
-                        inputFilePath = selection.FilePath;
+                        inputFilePath = segment.FilePath;
                     }
                     else
                     {
-                        string inputGameFolder = StorageService.SanitizeGameNameForFolder(selection.Game);
-                        var selectionType = Enum.Parse<Content.ContentType>(selection.Type);
-                        string inputFolderName = FolderNames.GetVideoFolderName(selectionType);
-                        inputFilePath = Path.Combine(videoFolder, inputFolderName, inputGameFolder, $"{selection.FileName}.mp4");
+                        string inputGameFolder = StorageService.SanitizeGameNameForFolder(segment.Game);
+                        var segmentType = Enum.Parse<Content.ContentType>(segment.Type);
+                        string inputFolderName = FolderNames.GetVideoFolderName(segmentType);
+                        inputFilePath = Path.Combine(videoFolder, inputFolderName, inputGameFolder, $"{segment.FileName}.mp4");
                     }
                     if (!File.Exists(inputFilePath))
                     {
                         Log.Information($"Input video file not found: {inputFilePath}");
-                        selectionIndex++;
+                        segmentIndex++;
                         continue;
                     }
 
                     string tempFileName = Path.Combine(Path.GetTempPath(), $"clip{Guid.NewGuid()}.mp4");
-                    double clipDuration = selection.EndTime - selection.StartTime;
+                    double clipDuration = segment.EndTime - segment.StartTime;
 
-                    List<string>? selectionTrackNames = perSelectionTrackNames[selectionIndex];
+                    List<string>? segmentTrackNames = perSegmentTrackNames[segmentIndex];
                     List<string>? targetLayout = Settings.Instance.ClipKeepSeparateAudioTracks ? unionAudioLayout : null;
 
-                    await ExtractClip(id, inputFilePath, tempFileName, selection.StartTime, selection.EndTime, selectionTrackNames, selection.MutedAudioTracks, selection.AudioTrackVolumes, targetLayout, progress =>
+                    await ExtractClip(id, inputFilePath, tempFileName, segment.StartTime, segment.EndTime, segmentTrackNames, segment.MutedAudioTracks, segment.AudioTrackVolumes, targetLayout, progress =>
                     {
                         double clampedProgress = Math.Min(progress, 1.0);
                         double currentProgress = (processedDuration + (clampedProgress * clipDuration)) / totalDuration * 95;
-                        _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, selections });
+                        _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, segments });
                     });
 
                     // Verify the temp file was created successfully
                     if (!File.Exists(tempFileName))
                     {
                         Log.Error($"Failed to create temp clip file: {tempFileName}");
-                        throw new Exception($"Failed to extract clip from {selection.FileName}");
+                        throw new Exception($"Failed to extract clip from {segment.FileName}");
                     }
 
                     processedDuration += clipDuration;
                     tempClipFiles.Add(tempFileName);
-                    selectionIndex++;
+                    segmentIndex++;
                 }
 
                 if (!tempClipFiles.Any())
                 {
                     Log.Error("No valid clips were extracted.");
-                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = "No valid clips were extracted" });
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = "No valid clips were extracted" });
                     return;
                 }
 
-                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 96, selections });
+                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 96, segments });
 
                 string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
                 outputFilePath = Path.Combine(outputFolder, outputFileName);
@@ -189,7 +189,7 @@ namespace Segra.Backend.Media
                     }
                 }
 
-                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 97, selections });
+                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 97, segments });
 
                 if (!File.Exists(outputFilePath))
                 {
@@ -198,16 +198,16 @@ namespace Segra.Backend.Media
 
                 await EnsureFileReady(outputFilePath);
 
-                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, selections });
+                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, segments });
 
-                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSelection?.Game!, null, firstSelection?.Title, igdbId: firstSelection?.IgdbId, audioTrackNames: unionAudioLayout);
+                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSegment?.Game!, null, firstSegment?.Title, igdbId: firstSegment?.IgdbId, audioTrackNames: unionAudioLayout);
                 await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Clip);
                 await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Clip);
 
-                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, selections });
+                _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, segments });
 
                 await SettingsService.LoadContentFromFolderIntoState();
-                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, selections });
+                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, segments });
             }
             catch (Exception ex)
             {
@@ -221,7 +221,7 @@ namespace Segra.Backend.Media
                 }
 
                 // Notify frontend of failure
-                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, selections, error = ex.Message });
+                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = ex.Message });
             }
             finally
             {
@@ -319,7 +319,7 @@ namespace Segra.Backend.Media
 
             string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
 
-            // Build audio mapping, filter, and metadata based on per-selection muted tracks
+            // Build audio mapping, filter, and metadata based on per-segment muted tracks
             string mapArgs = "";
             string metadataArgs = "";
             string filterArgs = "";
@@ -622,14 +622,14 @@ namespace Segra.Backend.Media
 
             if (wasCancelled)
             {
-                await MessageService.SendFrontendMessage("ClipProgress", new { id = clipId, progress = 100, selections = new List<Selection>() });
+                await MessageService.SendFrontendMessage("ClipProgress", new { id = clipId, progress = 100, segments = new List<Segment>() });
             }
         }
 
-        private static List<string>? BuildUnionAudioLayout(List<List<string>?> perSelectionTrackNames)
+        private static List<string>? BuildUnionAudioLayout(List<List<string>?> perSegmentTrackNames)
         {
             var union = new List<string> { "Full Mix" };
-            foreach (var trackNames in perSelectionTrackNames)
+            foreach (var trackNames in perSegmentTrackNames)
             {
                 if (trackNames == null) continue;
                 foreach (var name in trackNames.Skip(1))
@@ -641,13 +641,13 @@ namespace Segra.Backend.Media
             return union.Count > 1 ? union : null;
         }
 
-        private static List<string>? GetSourceAudioTrackNames(Selection selection)
+        private static List<string>? GetSourceAudioTrackNames(Segment segment)
         {
             try
             {
-                var contentType = Enum.Parse<Content.ContentType>(selection.Type);
+                var contentType = Enum.Parse<Content.ContentType>(segment.Type);
                 string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
-                string metadataFilePath = Path.Combine(metadataFolderPath, $"{selection.FileName}.json");
+                string metadataFilePath = Path.Combine(metadataFolderPath, $"{segment.FileName}.json");
 
                 if (File.Exists(metadataFilePath))
                 {

@@ -12,7 +12,7 @@ import { useSelectedMenu } from './Context/SelectedMenuContext';
 import { themeChange } from 'theme-change';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { DndProvider } from 'react-dnd';
-import { SelectionsProvider } from './Context/SelectionsContext';
+import { SegmentsProvider } from './Context/SegmentsContext';
 import { UploadProvider } from './Context/UploadContext';
 import { ImportProvider } from './Context/ImportContext';
 import { WebSocketProvider } from './Context/WebSocketContext';
@@ -103,7 +103,7 @@ export default function AppWrapper() {
           <ReleaseNotesContext.Provider value={{ releaseNotes, setReleaseNotes }}>
             <ModalProvider>
               <GeneralMessagesProvider>
-                <SelectionsProvider>
+                <SegmentsProvider>
                   <DndProvider backend={HTML5Backend}>
                     <UploadProvider>
                       <ImportProvider>
@@ -121,7 +121,7 @@ export default function AppWrapper() {
                       </ImportProvider>
                     </UploadProvider>
                   </DndProvider>
-                </SelectionsProvider>
+                </SegmentsProvider>
               </GeneralMessagesProvider>
             </ModalProvider>
           </ReleaseNotesContext.Provider>

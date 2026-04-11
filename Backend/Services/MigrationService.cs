@@ -145,8 +145,57 @@ internal static class MigrationService
             new("0005_clip_cpu_defaults", Apply_0005_ClipCpuDefaults),
             new("0006_organize_files_by_game", Apply_0006_OrganizeFilesByGame),
             new("0007_rename_video_folders", Apply_0007_RenameVideoFolders),
-            new("0008_move_metadata_to_appdata", Apply_0008_MoveMetadataToAppData)
+            new("0008_move_metadata_to_appdata", Apply_0008_MoveMetadataToAppData),
+            new("0009_rename_clip_clear_selections_setting", Apply_0009_RenameClipClearSelectionsSetting)
         };
+    }
+
+    // Migration 0009: Rename clipClearSelectionsAfterCreatingClip -> clipClearSegmentsAfterCreatingClip
+    // "Selections" in the UI was renamed to "Segments"; rewrite the persisted settings key so the
+    // previously saved preference survives the rename.
+    private static void Apply_0009_RenameClipClearSelectionsSetting()
+    {
+        try
+        {
+            string settingsPath = SettingsService.SettingsFilePath;
+            if (!File.Exists(settingsPath))
+            {
+                Log.Debug("Settings file not found, skipping clipClearSelections rename migration");
+                return;
+            }
+
+            string json = File.ReadAllText(settingsPath);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("clipClearSelectionsAfterCreatingClip", out var oldValue))
+            {
+                Log.Debug("clipClearSelectionsAfterCreatingClip not present in settings, skipping");
+                return;
+            }
+
+            // Build a new object with the renamed key, preserving all others
+            var newObj = new Dictionary<string, JsonElement>();
+            foreach (var prop in root.EnumerateObject())
+            {
+                if (prop.Name == "clipClearSelectionsAfterCreatingClip")
+                {
+                    newObj["clipClearSegmentsAfterCreatingClip"] = oldValue;
+                }
+                else
+                {
+                    newObj[prop.Name] = prop.Value.Clone();
+                }
+            }
+
+            var updatedJson = JsonSerializer.Serialize(newObj, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(settingsPath, updatedJson);
+            Log.Information("Migrated settings key clipClearSelectionsAfterCreatingClip -> clipClearSegmentsAfterCreatingClip");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to rename clipClearSelectionsAfterCreatingClip setting key");
+        }
     }
 
     // Migration 0001: Remove legacy .audio folder and generate waveform JSONs for existing content

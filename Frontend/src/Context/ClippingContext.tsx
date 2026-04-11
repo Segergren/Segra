@@ -1,13 +1,13 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
-import { useSelections } from './SelectionsContext';
+import { useSegments } from './SegmentsContext';
 import { useSettings } from './SettingsContext';
-import { Selection } from '../Models/types';
+import { Segment } from '../Models/types';
 
 export interface ClippingProgress {
   id: number;
   progress: number;
-  selections: Selection[];
+  segments: Segment[];
   error?: string;
 }
 
@@ -22,7 +22,7 @@ export const ClippingContext = createContext<ClippingContextType | undefined>(un
 export function ClippingProvider({ children }: { children: ReactNode }) {
   const [clippingProgress, setClippingProgress] = useState<Record<number, ClippingProgress>>({});
   const suppressedIds = useRef<Set<number>>(new Set());
-  const { removeSelection } = useSelections();
+  const { removeSegment } = useSegments();
   const settings = useSettings();
 
   useEffect(() => {
@@ -43,15 +43,15 @@ export function ClippingProvider({ children }: { children: ReactNode }) {
         }));
 
         if (progress.progress === 100) {
-          // If setting is enabled, remove all selections that were in the clip
+          // If setting is enabled, remove all segments that were in the clip
           if (
-            settings.clipClearSelectionsAfterCreatingClip &&
-            progress.selections &&
-            progress.selections.length > 0
+            settings.clipClearSegmentsAfterCreatingClip &&
+            progress.segments &&
+            progress.segments.length > 0
           ) {
-            // Remove each selection that was included in the clip
-            progress.selections.forEach((selection) => {
-              removeSelection(selection.id);
+            // Remove each segment that was included in the clip
+            progress.segments.forEach((segment) => {
+              removeSegment(segment.id);
             });
           }
 
@@ -76,7 +76,7 @@ export function ClippingProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener('websocket-message', handleWebSocketMessage as EventListener);
     };
-  }, [settings.clipClearSelectionsAfterCreatingClip, removeSelection]);
+  }, [settings.clipClearSegmentsAfterCreatingClip, removeSegment]);
 
   const removeClipping = (id: number) => {
     setClippingProgress((prev) => {
