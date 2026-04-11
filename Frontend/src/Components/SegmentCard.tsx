@@ -101,14 +101,14 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
         {isLoading ? (
           <div className="flex items-center justify-center bg-base-100 bg-opacity-75 rounded-xl w-full aspect-video">
             <span className="loading loading-spinner loading-md text-accent" />
-            <div className="absolute bottom-2 right-2 bg-base-100 bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+            <div className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
               {formatTime(startTime)} - {formatTime(endTime)}
             </div>
           </div>
         ) : thumbnailDataUrl ? (
           <figure className="relative rounded-xl overflow-hidden">
             <img src={thumbnailDataUrl} alt="Segment" className="w-full" />
-            <div className="absolute bottom-2 right-2 bg-base-100 bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+            <div className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
               {formatTime(startTime)} - {formatTime(endTime)}
             </div>
           </figure>
@@ -130,14 +130,14 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
                   setAudioMenuPos({ x: rect.right, y: rect.bottom + 4 });
                 }
               }}
-              className="flex items-center justify-center w-6 h-6 rounded transition-colors cursor-pointer bg-black/60 text-white/80 hover:text-white hover:bg-black/80"
+              className={`flex items-center justify-center w-6 h-6 rounded transition-all cursor-pointer bg-black/75 text-white/80 hover:text-white hover:bg-black/90 ${isHovered || audioMenuPos ? 'opacity-100' : 'opacity-0'}`}
               title="Audio tracks"
             >
               <TbHeadphones className="w-3.5 h-3.5" />
             </button>
             {audioMenuPos && (
               <div
-                className="fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200]"
+                className="fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200] cursor-default"
                 style={{ right: window.innerWidth - audioMenuPos.x, top: audioMenuPos.y }}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -146,20 +146,17 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
                   const vol = trackVolumes[i] ?? 1;
                   return (
                     <div key={i} className="flex items-center justify-between gap-2 py-0.5">
-                      <div className="flex items-center gap-2 min-w-0">
+                      <label className="flex items-center gap-2 min-w-0 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={!isMuted}
                           onChange={() => toggleTrack(i)}
                           className="checkbox checkbox-primary checkbox-xs shrink-0"
                         />
-                        <span
-                          className="text-xs text-white/80 truncate"
-                          title={name.replace(' (Default)', '')}
-                        >
+                        <span className="text-xs text-white/80 truncate">
                           {name.replace(' (Default)', '')}
                         </span>
-                      </div>
+                      </label>
                       <div className="flex items-center gap-2 shrink-0">
                         <input
                           type="range"

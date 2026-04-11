@@ -1945,7 +1945,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                         video.audioTrackNames &&
                         video.audioTrackNames.length > 1 && (
                           <button
-                            className={`absolute top-[4px] left-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSegmentId === seg.id || timelineAudioMenu?.segId === seg.id ? 'opacity-100' : 'opacity-0'}`}
+                            className={`absolute top-[4px] right-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSegmentId === seg.id || timelineAudioMenu?.segId === seg.id ? 'opacity-100' : 'opacity-0'}`}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1992,7 +1992,7 @@ export default function VideoComponent({ video }: { video: Content }) {
               const trackVolumes = menuSeg.audioTrackVolumes ?? {};
               return (
                 <div
-                  className="fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200]"
+                  className="fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200] cursor-default"
                   style={{ left: timelineAudioMenu.x, top: timelineAudioMenu.y }}
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
@@ -2002,7 +2002,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     const vol = trackVolumes[i] ?? 1;
                     return (
                       <div key={i} className="flex items-center justify-between gap-2 py-0.5">
-                        <div className="flex items-center gap-2 min-w-0">
+                        <label className="flex items-center gap-2 min-w-0 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={!isMuted}
@@ -2028,13 +2028,10 @@ export default function VideoComponent({ video }: { video: Content }) {
                             }}
                             className="checkbox checkbox-primary checkbox-xs shrink-0"
                           />
-                          <span
-                            className="text-xs text-white/80 truncate"
-                            title={name.replace(' (Default)', '')}
-                          >
+                          <span className="text-xs text-white/80 truncate">
                             {name.replace(' (Default)', '')}
                           </span>
-                        </div>
+                        </label>
                         <div className="flex items-center gap-2 shrink-0">
                           <input
                             type="range"
