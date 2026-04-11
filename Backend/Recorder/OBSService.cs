@@ -384,6 +384,7 @@ namespace Segra.Backend.Recorder
 
                 _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
                 GameDetectionService.StartAsync();
+                GameDetectionService.ForegroundHook.Start();
             }
             catch (Exception ex)
             {

@@ -236,8 +236,6 @@ namespace Segra.Backend.App
 
                 AddNotifyIcon();
 
-                GameDetectionService.ForegroundHook.Start();
-
                 // Start monitoring system power state changes (sleep/wake)
                 Task.Run(PowerModeMonitor.StartMonitoring);
 
