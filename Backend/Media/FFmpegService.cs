@@ -292,6 +292,95 @@ namespace Segra.Backend.Media
             return TimeSpan.Zero;
         }
 
+        private static readonly Regex _streamHeaderRegex = new(
+            @"^\s*Stream #\d+:\d+[^\n]*?:\s*(\w+):",
+            RegexOptions.Compiled);
+
+        private static readonly Regex _metadataTagRegex = new(
+            @"^\s+(\w+)\s*:\s*(.+?)\s*$",
+            RegexOptions.Compiled);
+
+        private static readonly HashSet<string> _genericHandlerNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "SoundHandler",
+            "OBS Audio Handler"
+        };
+
+        /// <summary>
+        /// Extracts per-track audio names from the stderr output of `ffmpeg -i`.
+        /// Used as a fallback for non-OBS MP4s that carry standard `title` or
+        /// non-generic `handler_name` tags. Entries are null for tracks with
+        /// no usable tag, so callers can decide how to label them. Returns
+        /// null if fewer than two audio streams are present.
+        /// </summary>
+        public static List<string?>? ExtractAudioTrackNames(string ffmpegOutput)
+        {
+            if (string.IsNullOrEmpty(ffmpegOutput))
+            {
+                return null;
+            }
+
+            var tracks = new List<string?>();
+            bool inAudioStream = false;
+            string? currentTitle = null;
+            string? currentHandler = null;
+
+            void Flush()
+            {
+                if (!inAudioStream) return;
+                string? resolved = null;
+                if (!string.IsNullOrWhiteSpace(currentTitle))
+                {
+                    resolved = currentTitle;
+                }
+                else if (!string.IsNullOrWhiteSpace(currentHandler) && !_genericHandlerNames.Contains(currentHandler!))
+                {
+                    resolved = currentHandler;
+                }
+                tracks.Add(resolved);
+                inAudioStream = false;
+                currentTitle = null;
+                currentHandler = null;
+            }
+
+            foreach (var rawLine in ffmpegOutput.Split('\n'))
+            {
+                var line = rawLine.TrimEnd('\r');
+
+                var streamMatch = _streamHeaderRegex.Match(line);
+                if (streamMatch.Success)
+                {
+                    Flush();
+                    string streamType = streamMatch.Groups[1].Value;
+                    if (streamType.Equals("Audio", StringComparison.OrdinalIgnoreCase))
+                    {
+                        inAudioStream = true;
+                    }
+                    continue;
+                }
+
+                if (!inAudioStream) continue;
+
+                var tagMatch = _metadataTagRegex.Match(line);
+                if (!tagMatch.Success) continue;
+
+                string key = tagMatch.Groups[1].Value;
+                string value = tagMatch.Groups[2].Value;
+                if (key.Equals("title", StringComparison.OrdinalIgnoreCase))
+                {
+                    currentTitle = value;
+                }
+                else if (key.Equals("handler_name", StringComparison.OrdinalIgnoreCase))
+                {
+                    currentHandler = value;
+                }
+            }
+
+            Flush();
+
+            return tracks.Count >= 2 ? tracks : null;
+        }
+
         /// <summary>
         /// Gets video duration from a file
         /// </summary>

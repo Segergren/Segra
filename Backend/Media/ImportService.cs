@@ -201,6 +201,52 @@ namespace Segra.Backend.Media
                     // Extract recording date from file
                     DateTime recordingDate = File.GetCreationTime(sourceFile);
 
+                    // Probe audio track layout so the multi-track player UI
+                    // activates for imported recordings that carry more than
+                    // one audio stream. Primary probe: walk the MP4 box tree
+                    // directly (catches OBS's custom `trak/udta/name` atoms,
+                    // which ffmpeg's mov demuxer doesn't surface). Fallback
+                    // probe: parse `ffmpeg -i` stderr for standard `title` /
+                    // non-generic `handler_name` tags on tracks the MP4 box
+                    // walker didn't find a name for.
+                    List<string>? audioTrackNames = null;
+                    var rawNames = await Mp4BoxReader.ReadAudioTrackNamesAsync(sourceFile);
+                    if (rawNames != null)
+                    {
+                        bool anyUnnamed = rawNames.Exists(n => string.IsNullOrWhiteSpace(n));
+                        if (anyUnnamed)
+                        {
+                            try
+                            {
+                                string probeOutput = await FFmpegService.GetMetadata(sourceFile);
+                                var ffmpegNames = FFmpegService.ExtractAudioTrackNames(probeOutput);
+                                if (ffmpegNames != null)
+                                {
+                                    int common = Math.Min(ffmpegNames.Count, rawNames.Count);
+                                    for (int t = 0; t < common; t++)
+                                    {
+                                        if (string.IsNullOrWhiteSpace(rawNames[t]) && !string.IsNullOrWhiteSpace(ffmpegNames[t]))
+                                        {
+                                            rawNames[t] = ffmpegNames[t];
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception probeEx)
+                            {
+                                Log.Warning($"FFmpeg track-name fallback failed for {originalFileName}: {probeEx.Message}");
+                            }
+                        }
+
+                        audioTrackNames = new List<string>(rawNames.Count);
+                        for (int t = 0; t < rawNames.Count; t++)
+                        {
+                            string? name = rawNames[t];
+                            audioTrackNames.Add(string.IsNullOrWhiteSpace(name) ? $"Track {t + 1}" : name!);
+                        }
+                        Log.Information($"Detected {audioTrackNames.Count} audio tracks in {originalFileName}: {string.Join(", ", audioTrackNames)}");
+                    }
+
                     // Send progress after file copy
                     try
                     {
@@ -220,7 +266,7 @@ namespace Segra.Backend.Media
                     }
 
                     // Create metadata file with detected game name and date
-                    await ContentService.CreateMetadataFile(targetFilePath, contentType, "Unknown", null, originalFileName.Replace("_", " "), recordingDate != DateTime.MinValue ? recordingDate : null, isImported: true);
+                    await ContentService.CreateMetadataFile(targetFilePath, contentType, "Unknown", null, originalFileName.Replace("_", " "), recordingDate != DateTime.MinValue ? recordingDate : null, isImported: true, audioTrackNames: audioTrackNames);
 
                     // Ensure file is fully written to disk/network before thumbnail generation
                     await GeneralUtils.EnsureFileReady(targetFilePath);
