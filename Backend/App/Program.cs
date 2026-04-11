@@ -217,17 +217,6 @@ namespace Segra.Backend.App
                     Directory.CreateDirectory(Settings.Instance.ContentFolder);
                 }
 
-                // Clean up cached audio track files from previous session
-                Task.Run(() =>
-                {
-                    string audioTracksCacheFolder = Path.Combine(Settings.Instance.CacheFolder, FolderNames.AudioTracks);
-                    if (Directory.Exists(audioTracksCacheFolder))
-                    {
-                        try { Directory.Delete(audioTracksCacheFolder, true); }
-                        catch (Exception ex) { Log.Warning($"Failed to clean up audio tracks cache: {ex.Message}"); }
-                    }
-                });
-
                 // Run data migrations
                 Task.Run(MigrationService.RunMigrations);
 

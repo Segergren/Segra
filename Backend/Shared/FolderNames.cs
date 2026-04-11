@@ -24,7 +24,6 @@ namespace Segra.Backend.Shared
         public const string Metadata = "metadata";
         public const string Thumbnails = "thumbnails";
         public const string Waveforms = "waveforms";
-        public const string AudioTracks = "audiotracks";
 
         // Legacy metadata folder names (with dot prefix, for migration)
         public const string LegacyMetadata = ".metadata";
@@ -117,15 +116,6 @@ namespace Segra.Backend.Shared
         public static string GetWaveformsFolderPath(Content.ContentType type)
         {
             return Path.Combine(CacheFolder, Waveforms, GetMetadataSubfolderName(type));
-        }
-
-        /// <summary>
-        /// Gets the full path to the audio tracks folder for a content type.
-        /// Audio tracks are stored in AppData/Roaming/Segra/audiotracks/{ContentType}
-        /// </summary>
-        public static string GetAudioTracksFolderPath(Content.ContentType type)
-        {
-            return Path.Combine(CacheFolder, AudioTracks, GetMetadataSubfolderName(type));
         }
 
         /// <summary>

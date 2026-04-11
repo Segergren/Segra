@@ -597,15 +597,18 @@ export default function VideoComponent({ video }: { video: Content }) {
   }, [volume, isMuted, isFullscreen, audioTracks.isMultiTrack]);
 
   // Per-selection audio override state, kept in refs for the rAF loop below.
+  // `selectionsDirtyRef` is separate from the id ref because `null` is already
+  // the valid "no active selection" id, so id comparison alone can't detect a
+  // selection deletion when the deleted one was active.
   const activeSelectionIdRef = useRef<number | null>(null);
+  const selectionsDirtyRef = useRef<boolean>(true);
   const audioTracksRef = useRef(audioTracks);
   useLayoutEffect(() => {
     audioTracksRef.current = audioTracks;
   });
 
-  // Reset active selection when selections change so the override is re-applied
   useEffect(() => {
-    activeSelectionIdRef.current = null;
+    selectionsDirtyRef.current = true;
   }, [selections]);
 
   // Clean up overrides when multi-track is deactivated
@@ -643,8 +646,9 @@ export default function VideoComponent({ video }: { video: Content }) {
         const activeSel = sels.find((s) => t >= s.startTime && t <= s.endTime);
         const activeId = activeSel?.id ?? null;
 
-        if (activeId !== activeSelectionIdRef.current) {
+        if (activeId !== activeSelectionIdRef.current || selectionsDirtyRef.current) {
           activeSelectionIdRef.current = activeId;
+          selectionsDirtyRef.current = false;
           if (activeSel) {
             at.setMuteOverride(activeSel.mutedAudioTracks ?? []);
             at.setVolumeOverride(activeSel.audioTrackVolumes ?? null);
