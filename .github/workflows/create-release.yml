@@ -158,7 +158,7 @@ jobs:
           name: Segra-Final-Build
 
       - name: Create Final GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.build_and_release.outputs.final_version_tag }}
           name: "Release ${{ needs.build_and_release.outputs.final_version_tag }}"
