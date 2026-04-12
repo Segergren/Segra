@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "=== Building Frontend ==="
-(cd Frontend && npm run build)
+(cd Frontend && bun run build)
 
 echo "=== Copying Frontend to wwwroot ==="
 rm -rf wwwroot
