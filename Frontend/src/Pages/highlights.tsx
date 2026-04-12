@@ -1,4 +1,4 @@
-import { HiOutlineSparkles } from 'react-icons/hi';
+import { Crown } from 'lucide-react';
 import { useAiHighlights } from '../Context/AiHighlightsContext';
 import ContentPage from '../Components/ContentPage';
 import AiContentCard from '../Components/AiContentCard';
@@ -17,7 +17,7 @@ export default function Highlights() {
       contentType="Highlight"
       sectionId="highlights"
       title="Highlights"
-      Icon={HiOutlineSparkles}
+      Icon={Crown}
       progressItems={aiProgress}
       isProgressVisible={Object.keys(aiProgress).length > 0}
       progressCardElement={progressCardElement}

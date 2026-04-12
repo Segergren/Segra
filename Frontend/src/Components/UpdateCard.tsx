@@ -1,7 +1,7 @@
 import { useUpdate } from '../Context/UpdateContext';
-import { FaDownload, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
+import { Download, Check, TriangleAlert } from 'lucide-react';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
-import { SiGithub } from 'react-icons/si';
+import { GithubIcon } from './icons/BrandIcons';
 import Button from './Button';
 
 export default function UpdateCard() {
@@ -15,9 +15,9 @@ export default function UpdateCard() {
         return <span className="loading loading-spinner loading-md text-primary w-8 h-8"></span>;
       case 'downloaded':
       case 'ready':
-        return <FaCheck className="text-success text-xl" />;
+        return <Check className="text-success" size={20} />;
       case 'error':
-        return <FaExclamationTriangle className="text-error text-xl" />;
+        return <TriangleAlert className="text-error" size={20} />;
       default:
         return <span className="loading loading-spinner loading-md text-primary"></span>;
     }
@@ -57,7 +57,7 @@ export default function UpdateCard() {
             disabled={updateInfo.progress !== 100}
             onClick={handleInstallClick}
           >
-            <FaDownload />
+            <Download size={14} />
             Install Now
           </Button>
           <Button
@@ -66,7 +66,7 @@ export default function UpdateCard() {
             className="no-animation"
             onClick={() => openReleaseNotesModal(__APP_VERSION__)}
           >
-            <SiGithub />
+            <GithubIcon size={14} />
             Release Notes
           </Button>
         </div>

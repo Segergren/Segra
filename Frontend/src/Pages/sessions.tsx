@@ -1,4 +1,4 @@
-import { MdOutlineVideoSettings } from 'react-icons/md';
+import { Play } from 'lucide-react';
 import ContentPage from '../Components/ContentPage';
 import { useSettings } from '../Context/SettingsContext';
 import ContentCard from '../Components/ContentCard';
@@ -18,7 +18,7 @@ export default function Sessions() {
       contentType="Session"
       sectionId="sessions"
       title="Sessions"
-      Icon={MdOutlineVideoSettings}
+      Icon={Play}
       progressItems={isRecordingFinishing ? { recording: true } : {}}
       isProgressVisible={isRecordingFinishing}
       progressCardElement={progressCardElement}

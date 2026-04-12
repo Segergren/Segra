@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { SegmentCardProps } from '../Models/types';
 import { useDrag, useDrop } from 'react-dnd';
-import { TbHeadphones } from 'react-icons/tb';
+import { Headphones } from 'lucide-react';
 
 const DRAG_TYPE = 'SEGMENT_CARD';
 
@@ -133,7 +133,7 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
               className={`flex items-center justify-center w-6 h-6 rounded transition-all cursor-pointer bg-black/75 text-white/80 hover:text-white hover:bg-black/90 ${isHovered || audioMenuPos ? 'opacity-100' : 'opacity-0'}`}
               title="Audio tracks"
             >
-              <TbHeadphones className="w-3.5 h-3.5" />
+              <Headphones className="w-3.5 h-3.5" />
             </button>
             {audioMenuPos && (
               <div

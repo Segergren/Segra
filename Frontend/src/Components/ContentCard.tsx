@@ -6,20 +6,21 @@ import { openFileLocation } from '../Utils/FileUtils';
 import { useAuth } from '../Hooks/useAuth.tsx';
 import { useModal } from '../Context/ModalContext';
 import UploadModal from './UploadModal';
-import RenameModal from './RenameModal';
 import {
-  MdOutlineFileUpload,
-  MdOutlineInsertDriveFile,
-  MdDriveFileRenameOutline,
-  MdDeleteOutline,
-  MdOutlineLink,
-  MdOutlineMoreHoriz,
-  MdOutlineCompress,
-} from 'react-icons/md';
-import { HiOutlineSparkles } from 'react-icons/hi';
+  Upload,
+  FolderOpen,
+  PenLine,
+  Trash2,
+  Link,
+  Check,
+  Ellipsis,
+  Minimize2,
+  Crown,
+  ExternalLink,
+  Copy,
+} from 'lucide-react';
 import { useAiHighlights } from '../Context/AiHighlightsContext';
 import { useCompression } from '../Context/CompressionContext';
-import { FiExternalLink } from 'react-icons/fi';
 import Button from './Button';
 
 type VideoType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
@@ -55,6 +56,11 @@ export default function ContentCard({
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [opened, setOpened] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   const updateDropdownPosition = useCallback(() => {
     if (dropdownRef.current) {
@@ -239,22 +245,26 @@ export default function ContentCard({
     sendMessageToBackend('DeleteContent', parameters);
   };
 
-  const handleRename = () => {
-    openModal(
-      <RenameModal
-        content={content!}
-        onClose={closeModal}
-        onRename={(newName) => {
-          const parameters: any = {
-            FileName: content!.fileName,
-            ContentType: type,
-            Title: newName,
-          };
+  const startRenaming = () => {
+    setRenameValue(content!.title || '');
+    setIsRenaming(true);
+    setTimeout(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }, 0);
+  };
 
-          sendMessageToBackend('RenameContent', parameters);
-        }}
-      />,
-    );
+  const commitRename = () => {
+    if (!isRenaming) return;
+    setIsRenaming(false);
+    const trimmed = renameValue.trim();
+    const invalidChars = /[<>:"/\\|?*]/;
+    if (trimmed && invalidChars.test(trimmed)) return;
+    sendMessageToBackend('RenameContent', {
+      FileName: content!.fileName,
+      ContentType: type,
+      Title: trimmed,
+    });
   };
 
   const handleOpenFileLocation = () => openFileLocation(content!.filePath);
@@ -322,11 +332,33 @@ export default function ContentCard({
         )}
       </figure>
 
-      <div className="card-body gap-1.5 pt-2">
+      <div className="card-body gap-1 pt-2">
         <div className="flex justify-between items-center">
-          <h2 className="card-title !block truncate">
-            {content!.title || content!.game || 'Untitled'}
-          </h2>
+          {isRenaming ? (
+            <input
+              ref={renameInputRef}
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitRename();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setIsRenaming(false);
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="card-title !block truncate bg-transparent outline-none w-full"
+              placeholder={content!.game || 'Untitled'}
+            />
+          ) : (
+            <h2 className="card-title !block truncate">
+              {content!.title || content!.game || 'Untitled'}
+            </h2>
+          )}
           <div
             ref={dropdownRef}
             className={`dropdown dropdown-end ${isBeingCompressed ? 'pointer-events-none opacity-50' : ''}`}
@@ -346,25 +378,41 @@ export default function ContentCard({
               tabIndex={isBeingCompressed ? -1 : 0}
               className="btn btn-ghost btn-sm btn-circle hover:bg-white/10 active:bg-white/10"
             >
-              <MdOutlineMoreHoriz size="28" />
+              <Ellipsis size={24} />
             </label>
             <ul
               tabIndex={0}
               className="dropdown-content menu bg-base-300 border border-base-400 rounded-box z-999 w-52 p-2"
             >
               {(type === 'Clip' || type === 'Highlight') && (
-                <li>
-                  <Button
-                    variant="menuPrimary"
-                    onClick={() => {
-                      (document.activeElement as HTMLElement).blur();
-                      handleUpload();
-                    }}
-                  >
-                    <MdOutlineFileUpload size="20" />
-                    <span>Upload</span>
-                  </Button>
-                </li>
+                <>
+                  <li>
+                    <Button
+                      variant="menuPrimary"
+                      onClick={() => {
+                        (document.activeElement as HTMLElement).blur();
+                        handleUpload();
+                      }}
+                    >
+                      <Upload size={20} />
+                      <span>Upload</span>
+                    </Button>
+                  </li>
+                  <li>
+                    <Button
+                      variant="menu"
+                      onClick={() => {
+                        (document.activeElement as HTMLElement).blur();
+                        sendMessageToBackend('CopyFileToClipboard', {
+                          FilePath: content!.filePath,
+                        });
+                      }}
+                    >
+                      <Copy size={20} />
+                      <span>Copy</span>
+                    </Button>
+                  </li>
+                </>
               )}
               {type === 'Session' && enableAi && (
                 <li>
@@ -390,7 +438,7 @@ export default function ContentCard({
                           }
                         }}
                       >
-                        <HiOutlineSparkles size="20" />
+                        <Crown size={20} />
                         <span>
                           {isProcessing
                             ? 'Creating Highlight...'
@@ -403,30 +451,15 @@ export default function ContentCard({
                   })()}
                 </li>
               )}
-              {(type === 'Clip' || type === 'Highlight') &&
-                !content?.fileName?.endsWith('_compressed') && (
-                  <li>
-                    <Button
-                      variant="menu"
-                      onClick={() => {
-                        (document.activeElement as HTMLElement).blur();
-                        sendMessageToBackend('CompressVideo', { FilePath: content!.filePath });
-                      }}
-                    >
-                      <MdOutlineCompress size="20" />
-                      <span>Compress</span>
-                    </Button>
-                  </li>
-                )}
               <li>
                 <Button
                   variant="menu"
                   onClick={() => {
                     (document.activeElement as HTMLElement).blur();
-                    handleRename();
+                    startRenaming();
                   }}
                 >
-                  <MdDriveFileRenameOutline size="20" />
+                  <PenLine size={20} />
                   <span>Rename</span>
                 </Button>
               </li>
@@ -438,10 +471,25 @@ export default function ContentCard({
                     handleOpenFileLocation();
                   }}
                 >
-                  <MdOutlineInsertDriveFile size="20" />
+                  <FolderOpen size={20} />
                   <span>Open File Location</span>
                 </Button>
               </li>
+              {(type === 'Clip' || type === 'Highlight') &&
+                !content?.fileName?.endsWith('_compressed') && (
+                  <li>
+                    <Button
+                      variant="menu"
+                      onClick={() => {
+                        (document.activeElement as HTMLElement).blur();
+                        sendMessageToBackend('CompressVideo', { FilePath: content!.filePath });
+                      }}
+                    >
+                      <Minimize2 size={20} />
+                      <span>Compress</span>
+                    </Button>
+                  </li>
+                )}
               <li>
                 <Button
                   variant="menuDanger"
@@ -450,7 +498,7 @@ export default function ContentCard({
                     handleDelete();
                   }}
                 >
-                  <MdDeleteOutline size="20" />
+                  <Trash2 size={20} />
                   <span>Delete</span>
                 </Button>
               </li>
@@ -469,21 +517,20 @@ export default function ContentCard({
                   e.stopPropagation();
                   const url = `https://segra.tv/video/${content!.uploadId}`;
                   navigator.clipboard.writeText(url);
-
-                  // Show tooltip
-                  const tooltip = e.currentTarget.querySelector('.tooltip');
-                  if (tooltip) {
-                    tooltip.classList.remove('hidden');
-                    setTimeout(() => {
-                      tooltip.classList.add('hidden');
-                    }, 1000);
-                  }
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
                 }}
               >
-                <MdOutlineLink size={22} />
-                <div className="tooltip tooltip-top absolute left-1/2 transform -translate-x-1/2 hidden bg-secondary text-white text-xs px-2 py-1 rounded whitespace-nowrap z-9999">
-                  Copied!
-                </div>
+                <label
+                  className={`swap overflow-hidden justify-center ${copied ? 'swap-active' : ''}`}
+                >
+                  <div className="swap-off">
+                    <Link size={20} />
+                  </div>
+                  <div className="swap-on">
+                    <Check size={20} />
+                  </div>
+                </label>
               </span>
               <span
                 className="btn btn-ghost btn-sm btn-circle hover:bg-white/10 active:bg-white/10"
@@ -492,9 +539,20 @@ export default function ContentCard({
                   sendMessageToBackend('OpenInBrowser', {
                     Url: `https://segra.tv/video/${content!.uploadId}`,
                   });
+                  setOpened(true);
+                  setTimeout(() => setOpened(false), 1500);
                 }}
               >
-                <FiExternalLink size={20} className="p-x-[1px]" />
+                <label
+                  className={`swap overflow-hidden justify-center ${opened ? 'swap-active' : ''}`}
+                >
+                  <div className="swap-off">
+                    <ExternalLink size={20} />
+                  </div>
+                  <div className="swap-on">
+                    <Check size={20} />
+                  </div>
+                </label>
               </span>
             </div>
           )}

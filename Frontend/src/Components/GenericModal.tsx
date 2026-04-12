@@ -1,4 +1,4 @@
-import { MdInfo, MdWarning, MdError } from 'react-icons/md';
+import { Info, TriangleAlert, CircleAlert } from 'lucide-react';
 import Button from './Button';
 
 export interface ModalProps {
@@ -15,22 +15,22 @@ export default function GenericModal({ title, subtitle, description, type, onClo
     switch (type) {
       case 'info':
         return {
-          icon: <MdInfo className="text-blue-500" size={32} />,
+          icon: <Info className="text-blue-500" size={32} />,
           titleColor: 'text-white',
         };
       case 'warning':
         return {
-          icon: <MdWarning className="text-warning" size={32} />,
+          icon: <TriangleAlert className="text-warning" size={32} />,
           titleColor: 'text-warning',
         };
       case 'error':
         return {
-          icon: <MdError className="text-error" size={32} />,
+          icon: <CircleAlert className="text-error" size={32} />,
           titleColor: 'text-error',
         };
       default:
         return {
-          icon: <MdInfo className="text-blue-500" size={32} />,
+          icon: <Info className="text-blue-500" size={32} />,
           titleColor: 'text-white',
         };
     }

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MdWarning, MdClose, MdError, MdVolumeUp } from 'react-icons/md';
-import { LuGamepad2 } from 'react-icons/lu';
-import { FaDiscord } from 'react-icons/fa';
+import { TriangleAlert, X, CircleAlert, Volume2, Gamepad2 } from 'lucide-react';
+import { DiscordIcon } from '../icons/BrandIcons';
 import Button from '../Button';
 import { Settings as SettingsType, AudioDevice, AudioOutputMode } from '../../Models/types';
 
@@ -143,7 +142,7 @@ export default function AudioDevicesSection({
                       className="tooltip tooltip-bottom tooltip-warning ml-1 inline-flex"
                       data-tip="This source will be included in the Full Mix only"
                     >
-                      <MdWarning className="h-4 w-4 text-warning" />
+                      <TriangleAlert className="h-4 w-4 text-warning" />
                     </div>
                   ) : null;
                 })()}
@@ -231,7 +230,7 @@ export default function AudioDevicesSection({
                     className="tooltip tooltip-right tooltip-error absolute left-0 inline-flex"
                     data-tip="This source is unavailable"
                   >
-                    <MdError size={18} />
+                    <CircleAlert size={18} />
                   </div>
                   {deviceSetting.name.replace(' (Default)', '')}
                 </span>
@@ -361,20 +360,20 @@ export default function AudioDevicesSection({
               {
                 value: 'All' as AudioOutputMode,
                 label: 'All PC Audio',
-                icons: <MdVolumeUp className="h-4 w-4" />,
+                icons: <Volume2 className="h-4 w-4" />,
               },
               {
                 value: 'GameOnly' as AudioOutputMode,
                 label: 'Game Audio Only',
-                icons: <LuGamepad2 className="h-4 w-4" />,
+                icons: <Gamepad2 className="h-4 w-4" />,
               },
               {
                 value: 'GameAndDiscord' as AudioOutputMode,
                 label: 'Game + Discord Audio Only',
                 icons: (
                   <span className="flex items-center gap-1.5">
-                    <LuGamepad2 className="h-4 w-4" />
-                    <FaDiscord className="h-4 w-4" />
+                    <Gamepad2 className="h-4 w-4" />
+                    <DiscordIcon className="h-4 w-4" />
                   </span>
                 ),
               },
@@ -416,7 +415,7 @@ export default function AudioDevicesSection({
             className="mt-3 bg-amber-900 bg-opacity-30 border border-amber-500 rounded px-3 text-amber-400 text-sm flex items-center"
           >
             <div className="py-2 flex items-center w-full">
-              <MdWarning className="h-5 w-5 mr-2 shrink-0" />
+              <TriangleAlert className="h-5 w-5 mr-2 shrink-0" />
               <motion.span className="flex-1">
                 You have selected more than 5 audio sources. Only the first 5 will be saved as
                 separate audio tracks. Any additional sources will be recorded in the Full Mix only.
@@ -431,7 +430,7 @@ export default function AudioDevicesSection({
                   localStorage.setItem('segra.trackLimitWarnDismissedSig', selectionSig);
                 }}
               >
-                <MdClose className="h-4 w-4" />
+                <X className="h-4 w-4" />
               </Button>
             </div>
           </motion.div>

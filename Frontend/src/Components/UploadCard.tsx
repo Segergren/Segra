@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useUploads, type UploadProgress } from '../Context/UploadContext';
 import CircularProgress from './CircularProgress';
-import { MdClose } from 'react-icons/md';
+import { X } from 'lucide-react';
 
 interface UploadCardProps {
   upload: UploadProgress;
@@ -58,7 +58,7 @@ export default function UploadCard({ upload }: UploadCardProps) {
                   className="absolute right-0 top-1/2 -translate-y-1/2 p-1 transition-colors cursor-pointer disabled:opacity-50"
                   aria-label="Cancel upload"
                 >
-                  <MdClose size={16} />
+                  <X size={16} />
                 </motion.button>
               )}
             </AnimatePresence>

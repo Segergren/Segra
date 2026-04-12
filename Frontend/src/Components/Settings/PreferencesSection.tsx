@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MdVolumeOff, MdVolumeUp } from 'react-icons/md';
+import { VolumeX, Volume2 } from 'lucide-react';
 import CloudBadge from '../CloudBadge';
 import { Settings as SettingsType } from '../../Models/types';
 
@@ -108,7 +108,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
             {draggingSoundVolume !== null && ` (${Math.round(draggingSoundVolume * 100)}%)`}
           </span>
           <div className="flex items-center gap-3">
-            <MdVolumeOff className="w-4 h-4 text-gray-400 shrink-0" />
+            <VolumeX className="w-4 h-4 text-gray-400 shrink-0" />
             <input
               type="range"
               name="soundEffectsVolume"
@@ -132,7 +132,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
               }}
               className="range range-xs range-primary w-26 [--range-fill:0]"
             />
-            <MdVolumeUp className="w-4 h-4 text-gray-400 shrink-0" />
+            <Volume2 className="w-4 h-4 text-gray-400 shrink-0" />
           </div>
         </div>
       </div>

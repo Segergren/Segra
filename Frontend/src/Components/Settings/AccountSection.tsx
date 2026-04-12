@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { FaDiscord } from 'react-icons/fa';
-import { MdWarning, MdOutlineLogout, MdOutlineMoreHoriz, MdOutlineEmail } from 'react-icons/md';
+import { TriangleAlert, LogOut, Ellipsis, Mail } from 'lucide-react';
+import { DiscordIcon } from '../icons/BrandIcons';
 import CloudBadge from '../CloudBadge';
 import { useAuth } from '../../Hooks/useAuth';
 import { useProfile } from '../../Hooks/useUserProfile';
@@ -78,7 +78,7 @@ export default function AccountSection() {
 
         {displayError && (
           <div className="alert alert-error mb-4" role="alert">
-            <MdWarning className="w-5 h-5" />
+            <TriangleAlert className="w-5 h-5" />
             <span>{displayError}</span>
           </div>
         )}
@@ -96,7 +96,7 @@ export default function AccountSection() {
             onClick={handleDiscordLogin}
             loading={isAuthenticating}
           >
-            <FaDiscord className="w-5 h-5" />
+            <DiscordIcon className="w-5 h-5" />
             {isAuthenticating ? 'Connecting...' : 'Continue with Discord'}
           </Button>
 
@@ -160,8 +160,8 @@ export default function AccountSection() {
                 className="w-full font-semibold text-white border-custom hover:border-custom"
                 loading={isAuthenticating}
               >
-                <MdOutlineEmail size={20} />
-                Sign In With Email
+                <Mail size={20} />
+                Sign In with Email
               </Button>
             </form>
           ) : (
@@ -211,7 +211,7 @@ export default function AccountSection() {
                 className="w-full font-semibold text-white border-custom hover:border-custom"
                 loading={isAuthenticating}
               >
-                <MdOutlineEmail size={20} />
+                <Mail size={20} />
                 Create Account
               </Button>
             </form>
@@ -271,7 +271,7 @@ export default function AccountSection() {
                 tabIndex={0}
                 className="btn btn-ghost btn-sm btn-circle hover:bg-white/10 active:bg-white/10"
               >
-                <MdOutlineMoreHoriz size="28" />
+                <Ellipsis size={24} />
               </label>
               <ul
                 tabIndex={0}
@@ -285,7 +285,7 @@ export default function AccountSection() {
                       handleLogout();
                     }}
                   >
-                    <MdOutlineLogout size="20" />
+                    <LogOut size={20} />
                     <span>Logout</span>
                   </Button>
                 </li>
@@ -297,7 +297,7 @@ export default function AccountSection() {
         {/* Error State */}
         {profileError && (
           <div className="alert alert-error mt-3" role="alert" aria-live="assertive">
-            <MdWarning className="w-5 h-5" />
+            <TriangleAlert className="w-5 h-5" />
             <div>
               <h3 className="font-bold">Profile load failed!</h3>
               <div className="text-xs">{profileError.message || 'Unknown error occurred'}</div>

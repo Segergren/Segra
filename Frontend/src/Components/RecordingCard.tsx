@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { PreRecording, Recording, GameResponse } from '../Models/types';
-import { LuGamepad2 } from 'react-icons/lu';
-import { BsDisplay } from 'react-icons/bs';
+import { Gamepad2, Monitor } from 'lucide-react';
 import { useSettings } from '../Context/SettingsContext';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -162,10 +161,10 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
               <div className={`swap swap-flip cursor-default overflow-hidden justify-center`}>
                 <input type="checkbox" checked={recording?.isUsingGameHook} />
                 <div className={`swap-on`}>
-                  <LuGamepad2 className="h-5 w-5 text-gray-300" />
+                  <Gamepad2 className="h-5 w-5 text-gray-300" />
                 </div>
                 <div className={`swap-off`}>
-                  <BsDisplay className="h-5 w-5 text-gray-300 scale-90" />
+                  <Monitor className="h-5 w-5 text-gray-300 scale-90" />
                 </div>
               </div>
             </div>

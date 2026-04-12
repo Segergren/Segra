@@ -4,8 +4,8 @@ import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { Content, ContentType } from '../Models/types';
 import { useScroll } from '../Context/ScrollContext';
 import { useLayoutEffect, useRef, useState, useMemo, useEffect, useCallback } from 'react';
-import { IconType } from 'react-icons';
-import { MdUploadFile, MdDeleteOutline } from 'react-icons/md';
+import type { LucideIcon } from 'lucide-react';
+import { FileUp, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import ContentFilters, { SortOption } from './ContentFilters';
@@ -16,7 +16,7 @@ interface ContentPageProps {
   contentType: ContentType;
   sectionId: string;
   title: string;
-  Icon: IconType;
+  Icon: LucideIcon;
   progressItems?: Record<string, any>; // For AI highlights or clipping progress
   isProgressVisible?: boolean;
   progressCardElement?: React.ReactNode; // Direct element instead of component
@@ -298,7 +298,7 @@ export default function ContentPage({
               className="no-animation h-8 gap-1"
               onClick={() => sendMessageToBackend('ImportFile', { sectionId })}
             >
-              <MdUploadFile size={16} />
+              <FileUp size={16} />
               Import
             </Button>
           )}
@@ -330,7 +330,7 @@ export default function ContentPage({
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-          <Icon className="text-6xl mb-4" />
+          <Icon size={60} className="mb-4" />
           <p className="text-xl">No {title.toLowerCase()} found</p>
         </div>
       )}
@@ -346,7 +346,7 @@ export default function ContentPage({
           >
             <span className="text-sm text-gray-300">{selectedItems.size} Selected</span>
             <Button variant="danger" size="sm" className="h-8" onClick={handleDeleteSelected}>
-              <MdDeleteOutline size={16} />
+              <Trash2 size={16} />
               Delete
             </Button>
             <Button

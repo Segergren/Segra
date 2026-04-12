@@ -1,8 +1,8 @@
 import { useContext, useEffect, useState } from 'react';
 import { gt } from 'semver';
 import Markdown from 'markdown-to-jsx';
-import { MdCheckCircle, MdClose, MdCalendarToday } from 'react-icons/md';
-import { SiGithub } from 'react-icons/si';
+import { CircleCheck, X, Calendar } from 'lucide-react';
+import { GithubIcon } from './icons/BrandIcons';
 import { ReleaseNote } from '../Models/WebSocketMessages';
 import { ReleaseNotesContext } from '../App';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
@@ -290,7 +290,7 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
           </p>
         </div>
         <Button variant="ghost" icon size="sm" onClick={onClose} aria-label="Close">
-          <MdClose size={18} />
+          <X size={18} />
         </Button>
       </div>
 
@@ -301,7 +301,7 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
         ) : filteredNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-center">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-success/15 text-success border border-success/25 mb-4">
-              <MdCheckCircle size={30} />
+              <CircleCheck size={30} />
             </div>
             <h3 className="text-lg font-semibold text-white mb-1">
               {filterVersion ? "You're up to date!" : 'No release notes available'}
@@ -341,7 +341,7 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
                     className="ml-auto inline-flex items-center gap-1.5 text-xs text-gray-500"
                     title={absolute}
                   >
-                    <MdCalendarToday size={12} />
+                    <Calendar size={12} />
                     {absolute}
                     {relative && <span className="text-gray-600">· {relative}</span>}
                   </span>
@@ -372,7 +372,7 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
             {filteredNotes.length === 1 ? '' : 's'}
           </span>
           <Button variant="primary" size="sm" onClick={handleOpenGithubReleases}>
-            <SiGithub size={14} />
+            <GithubIcon size={14} />
             View on GitHub
           </Button>
         </div>

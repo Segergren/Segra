@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useClipping } from '../Hooks/useClipping';
-import { MdClose } from 'react-icons/md';
+import { X } from 'lucide-react';
 import CircularProgress from './CircularProgress';
 
 import { ClippingProgress } from '../Context/ClippingContext';
@@ -62,7 +62,7 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
                 className="absolute right-0 top-1/2 -translate-y-1/2 p-1 transition-colors cursor-pointer disabled:opacity-50"
                 aria-label="Cancel clip"
               >
-                <MdClose size={16} />
+                <X size={16} />
               </button>
             )}
             <div

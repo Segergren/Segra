@@ -1,5 +1,5 @@
 import { Game } from '../Models/types';
-import { MdClose } from 'react-icons/md';
+import { X } from 'lucide-react';
 import Button from './Button';
 
 interface GameCardProps {
@@ -31,7 +31,7 @@ export default function GameCard({
         className="absolute top-2 right-2"
         onClick={() => onRemove(game)}
       >
-        <MdClose size={14} />
+        <X size={14} />
       </Button>
       <div>
         <div

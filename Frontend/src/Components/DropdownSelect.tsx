@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { MdArrowDropDown } from 'react-icons/md';
+import { ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export interface DropdownItem {
@@ -121,7 +121,7 @@ export default function DropdownSelect({
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 20 }}
         >
-          <MdArrowDropDown size={22} />
+          <ChevronDown size={20} />
         </motion.span>
       </button>
 

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Content } from '../Models/types';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAuth } from '../Hooks/useAuth.tsx';
-import { MdOutlineFileUpload } from 'react-icons/md';
+import { Upload } from 'lucide-react';
 import Button from './Button';
 
 interface UploadModalProps {
@@ -114,7 +114,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
             onClick={handleUpload}
             disabled={session === null}
           >
-            <MdOutlineFileUpload className="w-5 h-5" />
+            <Upload className="w-5 h-5" />
             {session === null ? 'Login to upload' : 'Upload'}
           </Button>
         </div>

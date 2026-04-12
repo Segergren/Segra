@@ -11,35 +11,49 @@ import { useSegments } from '../Context/SegmentsContext';
 import { useUploads } from '../Context/UploadContext';
 import { useModal } from '../Context/ModalContext';
 import UploadModal from '../Components/UploadModal';
-import { IconType } from 'react-icons';
-import { FaGun, FaTrashCan } from 'react-icons/fa6';
+import type { LucideIcon } from 'lucide-react';
+import { Icon } from 'lucide-react';
+import { crosshair2Dot, soccerBall } from '@lucide/lab';
 import {
-  MdAddBox,
-  MdBookmark,
-  MdBookmarkAdd,
-  MdMovieCreation,
-  MdOutlineHandshake,
-  MdPause,
-  MdPlayArrow,
-  MdReplay10,
-  MdForward10,
-  MdOutlineFileUpload,
-  MdVolumeUp,
-  MdVolumeOff,
-  MdVolumeMute,
-  MdVolumeDown,
-  MdFullscreen,
-  MdFullscreenExit,
-  MdArrowBack,
-} from 'react-icons/md';
-import { IoSkull, IoAdd, IoRemove } from 'react-icons/io5';
+  Trash2,
+  SquarePlus,
+  Bookmark as BookmarkIcon,
+  BookmarkPlus,
+  Clapperboard,
+  HeartHandshake,
+  Swords,
+  Pause,
+  Play,
+  RotateCcw,
+  RotateCw,
+  Upload,
+  Volume2,
+  VolumeX,
+  Volume1,
+  Maximize,
+  Minimize,
+  ArrowLeft,
+  Skull,
+  Plus,
+  Minus,
+  ZoomIn,
+  ZoomOut,
+  Headphones,
+  Copy,
+  Check,
+} from 'lucide-react';
 import SegmentCard from '../Components/SegmentCard';
-
-import { TbZoomIn, TbZoomOut, TbHeadphones } from 'react-icons/tb';
 import { useAudioTracks } from '../Hooks/useAudioTracks';
-import { IoIosFootball } from 'react-icons/io';
 import { AnimatePresence, motion } from 'framer-motion';
 import Button from '../Components/Button';
+
+const Crosshair2Dot = React.forwardRef<SVGSVGElement, React.ComponentProps<typeof Icon>>(
+  (props, ref) => <Icon {...props} ref={ref} iconNode={crosshair2Dot} />,
+) as LucideIcon;
+
+const SoccerBall = React.forwardRef<SVGSVGElement, React.ComponentProps<typeof Icon>>(
+  (props, ref) => <Icon {...props} ref={ref} iconNode={soccerBall} />,
+) as LucideIcon;
 
 // Converts time string in format "HH:MM:SS.mmm" to seconds
 const timeStringToSeconds = (timeStr: string): number => {
@@ -106,13 +120,24 @@ function renderWaveformRegion(
 const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 1.5, 2] as const;
 const formatPlaybackRateLabel = (rate: number) => `${rate}x`;
 
-const ICON_MAPPING: Record<BookmarkType, IconType> = {
-  Manual: MdBookmark,
-  Kill: FaGun,
-  Goal: IoIosFootball,
-  Assist: MdOutlineHandshake,
-  Death: IoSkull,
+const DEFAULT_ICON_MAPPING: Record<BookmarkType, LucideIcon> = {
+  Manual: BookmarkIcon,
+  Kill: Crosshair2Dot,
+  Goal: SoccerBall,
+  Assist: HeartHandshake,
+  Death: Skull,
 };
+
+const GAME_ICON_OVERRIDES: Record<number, Partial<Record<BookmarkType, LucideIcon>>> = {
+  115: { Kill: Swords }, // League of Legends
+};
+
+function getIconMapping(igdbId?: number): Record<BookmarkType, LucideIcon> {
+  if (igdbId && GAME_ICON_OVERRIDES[igdbId]) {
+    return { ...DEFAULT_ICON_MAPPING, ...GAME_ICON_OVERRIDES[igdbId] };
+  }
+  return DEFAULT_ICON_MAPPING;
+}
 
 function TopInfoBar({ video }: { video: Content }) {
   const { setSelectedVideo } = useSelectedVideo();
@@ -143,7 +168,7 @@ function TopInfoBar({ video }: { video: Content }) {
         onClick={() => setSelectedVideo(null)}
         aria-label="Back"
       >
-        <MdArrowBack className="w-4 h-4" />
+        <ArrowLeft className="w-4 h-4" />
       </Button>
       <div className="flex items-center gap-2 overflow-hidden">
         <span className="whitespace-nowrap">
@@ -1418,6 +1443,14 @@ export default function VideoComponent({ video }: { video: Content }) {
     );
   };
 
+  const [fileCopied, setFileCopied] = useState(false);
+
+  const handleCopyFile = () => {
+    sendMessageToBackend('CopyFileToClipboard', { FilePath: video.filePath });
+    setFileCopied(true);
+    setTimeout(() => setFileCopied(false), 1500);
+  };
+
   const [selectedBookmarkTypes, setSelectedBookmarkTypes] = useState<Set<BookmarkType>>(
     new Set(Object.values(BookmarkType)),
   );
@@ -1599,7 +1632,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 className="text-white transition-colors cursor-pointer hover:text-accent"
                 aria-label={isPlaying ? 'Pause' : 'Play'}
               >
-                {isPlaying ? <MdPause className="w-6 h-6" /> : <MdPlayArrow className="w-6 h-6" />}
+                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
               </button>
 
               <span className="w-12 text-xs text-right tabular-nums text-white/90">
@@ -1634,13 +1667,13 @@ export default function VideoComponent({ video }: { video: Content }) {
                   aria-label={isMuted ? 'Unmute' : 'Mute'}
                 >
                   {isMuted || volume === 0 ? (
-                    <MdVolumeOff className="w-6 h-6" />
+                    <VolumeX className="w-5 h-5" />
                   ) : volume < 0.2 ? (
-                    <MdVolumeMute className="w-6 h-6" />
+                    <VolumeX className="w-5 h-5" />
                   ) : volume < 0.7 ? (
-                    <MdVolumeDown className="w-6 h-6" />
+                    <Volume1 className="w-5 h-5" />
                   ) : (
-                    <MdVolumeUp className="w-6 h-6" />
+                    <Volume2 className="w-5 h-5" />
                   )}
                 </button>
                 <input
@@ -1665,7 +1698,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     className={`flex items-center justify-center p-1 text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20 ${showAudioTracks ? 'text-accent bg-accent/20' : ''}`}
                     aria-label="Audio tracks"
                   >
-                    <TbHeadphones className="w-4 h-4" />
+                    <Headphones className="w-4 h-4" />
                   </button>
                   {showAudioTracks && (
                     <div className="absolute bottom-full right-0 mb-2 p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-50">
@@ -1728,7 +1761,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   className="flex items-center justify-center p-1 text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Zoom out"
                 >
-                  <TbZoomOut className="w-4 h-4" />
+                  <ZoomOut className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => {
@@ -1739,7 +1772,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   className="flex items-center justify-center p-1 text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Zoom in"
                 >
-                  <TbZoomIn className="w-4 h-4" />
+                  <ZoomIn className="w-4 h-4" />
                 </button>
                 <div className="relative" ref={speedDropdownRef}>
                   <button
@@ -1795,11 +1828,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 className="ml-2 text-white cursor-pointer transition-colors hover:text-accent"
                 aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
               >
-                {isFullscreen ? (
-                  <MdFullscreenExit className="w-6 h-6" />
-                ) : (
-                  <MdFullscreen className="w-6 h-6" />
-                )}
+                {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
               </button>
             </div>
           </div>
@@ -1825,7 +1854,8 @@ export default function VideoComponent({ video }: { video: Content }) {
                   filteredBookmarks.map((bookmark, index) => {
                     const timeInSeconds = timeStringToSeconds(bookmark.time);
                     const leftPos = timeInSeconds * pixelsPerSecond;
-                    const Icon = ICON_MAPPING[bookmark.type as BookmarkType] || IoSkull;
+                    const Icon =
+                      getIconMapping(video.igdbId)[bookmark.type as BookmarkType] || Skull;
 
                     return (
                       <motion.div
@@ -1853,11 +1883,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                         }}
                       >
                         <div className="bg-[#EFAF2B] w-[26px] h-[26px] rounded-full flex items-center justify-center mb-0">
-                          {bookmark.type === 'Goal' || bookmark.type === 'Assist' ? (
-                            <Icon size={20} />
-                          ) : (
-                            <Icon size={16} />
-                          )}
+                          <Icon size={18} strokeWidth={2.5} />
                         </div>
                         <div className="w-[2px] h-[16px] bg-[#EFAF2B]" />
                       </motion.div>
@@ -1957,7 +1983,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                               );
                             }}
                           >
-                            <TbHeadphones className="w-2.5 h-2.5" />
+                            <Headphones className="w-2.5 h-2.5" />
                           </button>
                         )}
 
@@ -2065,41 +2091,57 @@ export default function VideoComponent({ video }: { video: Content }) {
                   onClick={() => skipTime(-10)}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
                 >
-                  <MdReplay10 className="w-6 h-6" />
+                  <RotateCcw className="w-5 h-5" />
                 </button>
                 <button
                   onClick={handlePlayPause}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
                   data-tip={isPlaying ? 'Pause' : 'Play'}
                 >
-                  {isPlaying ? (
-                    <MdPause className="w-6 h-6" />
-                  ) : (
-                    <MdPlayArrow className="w-6 h-6" />
-                  )}
+                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                 </button>
                 <button
                   onClick={() => skipTime(10)}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
                   data-tip="Forward 10s"
                 >
-                  <MdForward10 className="w-6 h-6" />
+                  <RotateCw className="w-5 h-5" />
                 </button>
               </div>
               {(video.type === 'Clip' || video.type === 'Highlight') && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  className="h-10 hover:text-accent"
-                  onClick={handleUpload}
-                  disabled={
-                    uploads[video.fileName + '.mp4']?.status === 'uploading' ||
-                    uploads[video.fileName + '.mp4']?.status === 'processing'
-                  }
-                >
-                  <MdOutlineFileUpload className="w-6 h-6" />
-                  <span>Upload</span>
-                </Button>
+                <>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="h-10 px-5 hover:text-accent"
+                    onClick={handleUpload}
+                    disabled={
+                      uploads[video.fileName + '.mp4']?.status === 'uploading' ||
+                      uploads[video.fileName + '.mp4']?.status === 'processing'
+                    }
+                  >
+                    <Upload className="w-5 h-5" />
+                    <span>Upload</span>
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="h-10 hover:text-accent"
+                    onClick={handleCopyFile}
+                  >
+                    <label
+                      className={`swap overflow-hidden justify-center ${fileCopied ? 'swap-active' : ''}`}
+                    >
+                      <div className="swap-off">
+                        <Copy className="w-5 h-5" />
+                      </div>
+                      <div className="swap-on">
+                        <Check className="w-5 h-5" />
+                      </div>
+                    </label>
+                    <span>Copy</span>
+                  </Button>
+                </>
               )}
               {(video.type === 'Session' || video.type === 'Buffer') && (
                 <>
@@ -2109,7 +2151,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     className="h-10 gap-1 hover:text-accent"
                     onClick={handleCreateClip}
                   >
-                    <MdMovieCreation className="w-6 h-6" />
+                    <Clapperboard className="w-5 h-5" />
                     <span>Create Clip</span>
                   </Button>
                   <div className="indicator">
@@ -2122,7 +2164,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       {showNoSegmentsIndicator && (
                         <span className="indicator-item badge badge-sm badge-primary animate-pulse"></span>
                       )}
-                      <MdAddBox className="w-6 h-6" />
+                      <SquarePlus className="w-5 h-5" />
                       <span>Add Segment</span>
                     </Button>
                   </div>
@@ -2139,10 +2181,10 @@ export default function VideoComponent({ video }: { video: Content }) {
                         <button
                           key={type}
                           onClick={() => toggleBookmarkType(type)}
-                          className={`btn btn-sm btn-secondary border-none transition-colors join-item ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
+                          className={`btn btn-sm btn-secondary border-none transition-colors join-item px-2 ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
                         >
-                          {React.createElement(ICON_MAPPING[type] || IoSkull, {
-                            className: 'w-6 h-6',
+                          {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
+                            className: 'w-5 h-5',
                           })}
                         </button>
                       ))}
@@ -2155,7 +2197,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       className="h-10 hover:text-accent"
                       onClick={handleAddBookmark}
                     >
-                      <MdBookmarkAdd className="w-6 h-6" />
+                      <BookmarkPlus className="w-5 h-5" />
                     </Button>
                   </div>
                 </>
@@ -2167,7 +2209,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   className="btn btn-sm btn-secondary disabled:opacity-100 disabled:bg-base-300"
                   disabled={zoom <= 1}
                 >
-                  <IoRemove className="w-4 h-4" />
+                  <Minus className="w-4 h-4" />
                 </button>
                 <span className="text-sm font-medium text-center text-gray-300">
                   {zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)}x
@@ -2177,7 +2219,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   className="btn btn-sm btn-secondary"
                   disabled={zoom >= 500}
                 >
-                  <IoAdd className="w-4 h-4" />
+                  <Plus className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -2234,7 +2276,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 onClick={clearAllSegments}
                 disabled={segments.length === 0}
               >
-                <FaTrashCan className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" />
                 <span>Clear</span>
               </Button>
             </div>

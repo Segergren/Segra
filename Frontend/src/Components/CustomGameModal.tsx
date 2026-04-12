@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Game } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { isSelectedGameExecutableMessage } from '../Models/WebSocketMessages';
-import { MdFolderOpen, MdAdd } from 'react-icons/md';
+import { FolderOpen, Plus } from 'lucide-react';
 import Button from './Button';
 
 interface CustomGameModalProps {
@@ -98,7 +98,7 @@ export default function CustomGameModal({ onSave, onClose }: CustomGameModalProp
               onClick={handleBrowseExecutable}
               disabled={isSelectingFile}
             >
-              <MdFolderOpen size={18} />
+              <FolderOpen size={18} />
               {isSelectingFile ? 'Selecting...' : 'Browse Executable'}
             </Button>
 
@@ -131,7 +131,7 @@ export default function CustomGameModal({ onSave, onClose }: CustomGameModalProp
             onClick={handleSave}
             disabled={!customGameName.trim() || customGamePaths.length === 0}
           >
-            <MdAdd className="w-5 h-5" />
+            <Plus className="w-5 h-5" />
             Add Game
           </Button>
         </div>

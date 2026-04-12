@@ -1,4 +1,4 @@
-import { MdReplay30 } from 'react-icons/md';
+import { History } from 'lucide-react';
 import ContentPage from '../Components/ContentPage';
 
 export default function ReplayBuffer() {
@@ -7,7 +7,7 @@ export default function ReplayBuffer() {
       contentType="Buffer"
       sectionId="replayBuffer"
       title="Replay Buffer"
-      Icon={MdReplay30}
+      Icon={History}
     />
   );
 }

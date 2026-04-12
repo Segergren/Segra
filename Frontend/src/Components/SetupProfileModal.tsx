@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { MdCameraAlt } from 'react-icons/md';
+import { Camera } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../Hooks/useAuth';
 import Button from './Button';
@@ -143,7 +143,7 @@ export default function SetupProfileModal() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <MdCameraAlt className="text-base-content/40" size={32} />
+                <Camera className="text-base-content/40" size={32} />
               )}
             </div>
             <input

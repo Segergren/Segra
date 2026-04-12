@@ -1,6 +1,5 @@
-import { MdOutlineDescription } from 'react-icons/md';
-import { SiGithub } from 'react-icons/si';
-import { GrUpdate } from 'react-icons/gr';
+import { FileText, RefreshCw } from 'lucide-react';
+import { GithubIcon } from '../icons/BrandIcons';
 import DropdownSelect from '../DropdownSelect';
 import { Settings as SettingsType } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
@@ -51,7 +50,7 @@ export default function AdvancedSection({
                     loading={settings.state.isCheckingForUpdates}
                   >
                     {!settings.state.isCheckingForUpdates && (
-                      <GrUpdate size={16} className="shrink-0" />
+                      <RefreshCw size={16} className="shrink-0" />
                     )}
                     <span className="inline-block">Check for Updates</span>
                   </Button>
@@ -65,7 +64,7 @@ export default function AdvancedSection({
                 className="w-40"
                 onClick={() => openReleaseNotesModal(null)}
               >
-                <SiGithub size={16} aria-hidden="true" />
+                <GithubIcon size={16} aria-hidden="true" />
                 <span className="inline-block">View Release Notes</span>
               </Button>
             </div>
@@ -108,7 +107,7 @@ export default function AdvancedSection({
             size="sm"
             onClick={() => sendMessageToBackend('OpenLogsLocation')}
           >
-            <MdOutlineDescription className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <FileText className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span className="leading-none">View Logs</span>
           </Button>
           <div>

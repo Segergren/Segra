@@ -1,4 +1,4 @@
-import { HiOutlineSparkles } from 'react-icons/hi';
+import { Crown } from 'lucide-react';
 
 type TooltipSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -21,7 +21,7 @@ export default function AiBadge({
       data-tip={tip}
       aria-label={tip}
     >
-      <HiOutlineSparkles className={`w-4 h-4 ml-0.5 text-purple-400 ${iconClassName}`} />
+      <Crown className={`w-4 h-4 ml-0.5 text-purple-400 ${iconClassName}`} />
     </div>
   );
 }

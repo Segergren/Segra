@@ -14,15 +14,7 @@ import ClippingCard from './Components/ClippingCard';
 import UpdateCard from './Components/UpdateCard';
 import UnavailableDeviceCard from './Components/UnavailableDeviceCard';
 import AnimatedCard from './Components/AnimatedCard';
-import {
-  MdOutlineContentCut,
-  MdOutlinePlayCircleOutline,
-  MdOutlineSettings,
-  MdOutlineStopCircle,
-  MdReplay30,
-} from 'react-icons/md';
-import { HiOutlineSparkles } from 'react-icons/hi';
-import { BsDisplay } from 'react-icons/bs';
+import { Clapperboard, OctagonX, Settings, History, Crown, Monitor, Play } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useEffect, useState } from 'react';
 import Button from './Components/Button';
@@ -127,7 +119,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           className={selectedMenu === 'Full Sessions' ? 'text-primary' : ''}
           onMouseDown={() => onSelectMenu('Full Sessions')}
         >
-          <MdOutlinePlayCircleOutline className="w-6 h-6" />
+          <Play className="w-5 h-5" />
           Full Sessions
         </Button>
         <Button
@@ -136,7 +128,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           className={selectedMenu === 'Replay Buffer' ? 'text-primary' : ''}
           onMouseDown={() => onSelectMenu('Replay Buffer')}
         >
-          <MdReplay30 className="w-6 h-6" />
+          <History className="w-5 h-5" />
           Replay Buffer
         </Button>
         <Button
@@ -145,7 +137,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           className={selectedMenu === 'Clips' ? 'text-primary' : ''}
           onMouseDown={() => onSelectMenu('Clips')}
         >
-          <MdOutlineContentCut className="w-6 h-6" />
+          <Clapperboard className="w-5 h-5" />
           Clips
         </Button>
         <Button
@@ -155,7 +147,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           onMouseDown={() => onSelectMenu('Highlights')}
         >
           <span className="flex items-center gap-2">
-            <HiOutlineSparkles className="w-6 h-6" />
+            <Crown className="w-5 h-5" />
             Highlights
           </span>
           <div className="ml-auto flex items-center">
@@ -180,7 +172,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           className={selectedMenu === 'Settings' ? 'text-primary' : ''}
           onMouseDown={() => onSelectMenu('Settings')}
         >
-          <MdOutlineSettings className="w-6 h-6" />
+          <Settings className="w-5 h-5" />
           Settings
         </Button>
       </div>
@@ -292,13 +284,13 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           >
             {settings.state.recording || settings.state.preRecording ? (
               <>
-                <MdOutlineStopCircle className="w-4.5 h-4.5 -mr-0.5" />
+                <OctagonX className="w-4 h-4" />
                 Stop
               </>
             ) : (
               <>
-                <BsDisplay className="w-4 h-4 mr-0.5" />
-                Start Manually
+                <Monitor className="w-4 h-4" />
+                Display Capture
               </>
             )}
           </Button>

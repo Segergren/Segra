@@ -165,6 +165,28 @@ namespace Segra.Backend.App
                             openFileLocationParameterElement.TryGetProperty("FilePath", out JsonElement filePathElement);
                             Process.Start("explorer.exe", $"/select,\"{filePathElement.ToString().Replace("/", "\\")}\"");
                             break;
+                        case "CopyFileToClipboard":
+                            root.TryGetProperty("Parameters", out JsonElement copyFileParams);
+                            if (copyFileParams.TryGetProperty("FilePath", out JsonElement copyFilePath))
+                            {
+                                string clipboardFilePath = copyFilePath.GetString()!;
+                                if (File.Exists(clipboardFilePath))
+                                {
+                                    var thread = new Thread(() =>
+                                    {
+                                        var files = new System.Collections.Specialized.StringCollection();
+                                        files.Add(clipboardFilePath);
+                                        System.Windows.Forms.Clipboard.SetFileDropList(files);
+                                    });
+                                    thread.SetApartmentState(ApartmentState.STA);
+                                    thread.Start();
+                                }
+                                else
+                                {
+                                    Log.Warning($"File not found for clipboard copy: {clipboardFilePath}");
+                                }
+                            }
+                            break;
                         case "OpenInBrowser":
                             root.TryGetProperty("Parameters", out JsonElement openInBrowserParameterElement);
                             if (openInBrowserParameterElement.TryGetProperty("Url", out JsonElement urlElement))

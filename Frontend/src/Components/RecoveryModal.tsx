@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { RecoveryFileData } from '../Models/WebSocketMessages';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings } from '../Context/SettingsContext';
@@ -127,7 +127,7 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
           <h2 className="font-bold text-3xl mb-0 text-warning">Recover Video Files?</h2>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={goToPrevious} disabled={currentIndex === 0}>
-              <MdChevronLeft size={20} />
+              <ChevronLeft size={20} />
             </Button>
             <span className="text-gray-400 text-sm">
               {currentIndex + 1} of {totalCount}
@@ -138,7 +138,7 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
               onClick={goToNext}
               disabled={currentIndex === totalCount - 1}
             >
-              <MdChevronRight size={20} />
+              <ChevronRight size={20} />
             </Button>
           </div>
         </div>

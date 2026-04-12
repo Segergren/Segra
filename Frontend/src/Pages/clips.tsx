@@ -1,4 +1,4 @@
-import { MdOutlineContentCut } from 'react-icons/md';
+import { Clapperboard } from 'lucide-react';
 import { useClipping } from '../Context/ClippingContext';
 import ContentPage from '../Components/ContentPage';
 import ContentCard from '../Components/ContentCard';
@@ -17,7 +17,7 @@ export default function Clips() {
       contentType="Clip"
       sectionId="clips"
       title="Clips"
-      Icon={MdOutlineContentCut}
+      Icon={Clapperboard}
       progressItems={clippingProgress}
       isProgressVisible={Object.keys(clippingProgress).length > 0}
       progressCardElement={progressCardElement}

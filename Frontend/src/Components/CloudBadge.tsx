@@ -1,4 +1,4 @@
-import { MdOutlineCloud } from 'react-icons/md';
+import { Cloud } from 'lucide-react';
 
 type TooltipSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -21,7 +21,7 @@ export default function CloudBadge({
       data-tip={tip}
       aria-label={tip}
     >
-      <MdOutlineCloud className={`w-4 h-4 ml-0.5 opacity-50 ${iconClassName}`} />
+      <Cloud className={`w-4 h-4 ml-0.5 opacity-50 ${iconClassName}`} />
     </div>
   );
 }

@@ -1,12 +1,5 @@
 import { useEffect } from 'react';
-import {
-  MdFilterList,
-  MdSort,
-  MdOutlineAccessTime,
-  MdOutlineStorage,
-  MdOutlineTimer,
-  MdOutlineGamepad,
-} from 'react-icons/md';
+import { ListFilter, ArrowUpDown, Clock, HardDrive, Timer, Gamepad2 } from 'lucide-react';
 
 export type SortOption = 'newest' | 'oldest' | 'size' | 'duration' | 'game';
 
@@ -82,7 +75,7 @@ export default function ContentFilters({
           disabled={uniqueGames.length === 0}
           className={`btn btn-sm no-animation btn-secondary border border-base-400 h-8 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300 ${uniqueGames.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
         >
-          <MdFilterList size={16} />
+          <ListFilter size={16} />
           Filter
           {selectedGames.length > 0 && (
             <span className="badge badge-sm badge-primary text-base-300">
@@ -147,7 +140,7 @@ export default function ContentFilters({
           disabled={uniqueGames.length === 0}
           className={`btn btn-sm no-animation btn-secondary border border-base-400 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300 h-8 ${uniqueGames.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
         >
-          <MdSort size={16} />
+          <ArrowUpDown size={16} />
           {getSortLabel(sortOption)}
         </button>
         <ul
@@ -161,7 +154,7 @@ export default function ContentFilters({
               } hover:bg-white/5 active:text-primary! active:bg-white/5! rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
               onClick={() => handleSortChange('newest')}
             >
-              <MdOutlineAccessTime size="20" />
+              <Clock size={20} />
               <span>Newest</span>
             </a>
           </li>
@@ -172,7 +165,7 @@ export default function ContentFilters({
               } hover:bg-white/5 active:text-primary! active:bg-white/5! rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
               onClick={() => handleSortChange('oldest')}
             >
-              <MdOutlineAccessTime size="20" />
+              <Clock size={20} />
               <span>Oldest</span>
             </a>
           </li>
@@ -183,7 +176,7 @@ export default function ContentFilters({
               } hover:bg-white/5 active:text-primary! active:bg-white/5! rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
               onClick={() => handleSortChange('size')}
             >
-              <MdOutlineStorage size="20" />
+              <HardDrive size={20} />
               <span>Size</span>
             </a>
           </li>
@@ -194,7 +187,7 @@ export default function ContentFilters({
               } hover:bg-white/5 active:text-primary! active:bg-white/5! rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
               onClick={() => handleSortChange('duration')}
             >
-              <MdOutlineTimer size="20" />
+              <Timer size={20} />
               <span>Duration</span>
             </a>
           </li>
@@ -205,7 +198,7 @@ export default function ContentFilters({
               } hover:bg-white/5 active:text-primary! active:bg-white/5! rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
               onClick={() => handleSortChange('game')}
             >
-              <MdOutlineGamepad size="20" />
+              <Gamepad2 size={20} />
               <span>Game A–Z</span>
             </a>
           </li>

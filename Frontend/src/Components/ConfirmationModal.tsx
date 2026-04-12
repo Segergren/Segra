@@ -1,4 +1,4 @@
-import { MdWarning } from 'react-icons/md';
+import { TriangleAlert } from 'lucide-react';
 import Button from './Button';
 
 export interface ConfirmationModalProps {
@@ -24,7 +24,7 @@ export default function ConfirmationModal({
       <div className="modal-header pb-4 border-b border-gray-700">
         <div className="flex items-center">
           <span className="text-3xl mr-3 flex items-center">
-            <MdWarning className="text-warning" size={32} />
+            <TriangleAlert className="text-warning" size={32} />
           </span>
           <h2 className="font-bold text-3xl mb-0 text-warning">{title}</h2>
         </div>

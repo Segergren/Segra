@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useSettings } from '../../Context/SettingsContext';
 import { GameListEntry, Game } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
-import { MdSearch } from 'react-icons/md';
+import { Search } from 'lucide-react';
 import { useModal } from '../../Context/ModalContext';
 import GameCard from '../GameCard';
 import CustomGameModal from '../CustomGameModal';
@@ -130,7 +130,7 @@ export default function GameDetectionSection() {
         <div className="join w-full">
           <div className="relative flex-1 join-item">
             <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <MdSearch className="text-base-content opacity-50 z-10" size={20} />
+              <Search className="text-base-content opacity-50 z-10" size={20} />
             </div>
             <input
               type="text"
