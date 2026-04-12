@@ -248,7 +248,7 @@ namespace Segra.Backend.Api
             long start = 0;
             long end;
 
-            using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 262144,
+            using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 262144,
                 FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
                 long fileLength = fs.Length;
