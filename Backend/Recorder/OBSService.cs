@@ -668,6 +668,28 @@ namespace Segra.Backend.Recorder
                         _mainScene!.AddSource(micSource);
                         _micSources.Add(micSource);
 
+                        if (Settings.Instance.InputNoiseSuppression)
+                        {
+                            try
+                            {
+                                var noiseGate = new Source("noise_gate_filter", $"{sourceName}_NoiseGate");
+                                noiseGate.Update(s =>
+                                {
+                                    s.Set("close_threshold", -48.0);
+                                    s.Set("open_threshold", -42.0);
+                                    s.Set("attack_time", 25L);
+                                    s.Set("hold_time", 200L);
+                                    s.Set("release_time", 150L);
+                                });
+                                micSource.AddFilter(noiseGate);
+                                Log.Information($"Added noise suppression filter to {sourceName}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Warning($"Failed to add noise suppression filter to {sourceName}: {ex.Message}");
+                            }
+                        }
+
                         Log.Information($"Added input device: {deviceSetting.Id} as {sourceName} with volume {deviceSetting.Volume}");
                     }
                 }

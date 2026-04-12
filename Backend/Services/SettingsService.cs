@@ -614,6 +614,14 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update InputNoiseSuppression
+            if (settings.InputNoiseSuppression != updatedSettings.InputNoiseSuppression)
+            {
+                Log.Information($"InputNoiseSuppression changed from '{settings.InputNoiseSuppression}' to '{updatedSettings.InputNoiseSuppression}'");
+                settings.InputNoiseSuppression = updatedSettings.InputNoiseSuppression;
+                hasChanges = true;
+            }
+
             // Update RateControl
             if (settings.RateControl != updatedSettings.RateControl && !hasAutoSelectedRateControl)
             {

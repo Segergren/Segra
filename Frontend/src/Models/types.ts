@@ -220,6 +220,7 @@ export interface Settings {
   inputDevices: DeviceSetting[];
   outputDevices: DeviceSetting[];
   forceMonoInputSources: boolean;
+  inputNoiseSuppression: boolean;
   selectedDisplay: Display | null;
   displayCaptureMethod: DisplayCaptureMethod;
   selectedOBSVersion: string | null; // null means automatic (latest non-beta)
@@ -293,6 +294,7 @@ export const initialSettings: Settings = {
   inputDevices: [],
   outputDevices: [],
   forceMonoInputSources: false,
+  inputNoiseSuppression: true,
   selectedDisplay: null, // Default to null (auto-select)
   displayCaptureMethod: 'Auto',
   selectedOBSVersion: null, // null means automatic (latest non-beta)

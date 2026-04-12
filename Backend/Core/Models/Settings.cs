@@ -68,6 +68,7 @@ namespace Segra.Backend.Core.Models
         private bool _showAudioWaveformInTimeline = true;
         private bool _enableSeparateAudioTracks = false;
         private AudioOutputMode _audioOutputMode = AudioOutputMode.All;
+        private bool _inputNoiseSuppression = true;
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "standard";
         private bool _removeOriginalAfterCompression = false;
@@ -496,6 +497,19 @@ namespace Segra.Backend.Core.Models
                 if (_forceMonoInputSources != value)
                 {
                     _forceMonoInputSources = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("inputNoiseSuppression")]
+        public bool InputNoiseSuppression
+        {
+            get => _inputNoiseSuppression;
+            set
+            {
+                if (_inputNoiseSuppression != value)
+                {
+                    _inputNoiseSuppression = value;
                 }
             }
         }

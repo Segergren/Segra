@@ -317,7 +317,17 @@ export default function AudioDevicesSection({
             {renderDeviceList('input')}
           </div>
 
-          <div className="mt-3">
+          <div className="mt-3 flex flex-col gap-2">
+            <label className="cursor-pointer flex items-center">
+              <input
+                type="checkbox"
+                name="inputNoiseSuppression"
+                checked={settings.inputNoiseSuppression}
+                onChange={(e) => updateSettings({ inputNoiseSuppression: e.target.checked })}
+                className="checkbox checkbox-sm checkbox-accent"
+              />
+              <span className="ml-2">Noise Suppression</span>
+            </label>
             <label className="cursor-pointer flex items-center">
               <input
                 type="checkbox"
