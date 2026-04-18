@@ -943,8 +943,6 @@ namespace Segra.Backend.Recorder
                 Log.Information("Replay buffer started successfully");
             }
 
-            string? gameImage = GameIconUtils.ExtractIconAsBase64(exePath);
-
             Settings.Instance.State.Recording = new Recording()
             {
                 StartTime = startTime ?? DateTime.Now,
@@ -953,7 +951,6 @@ namespace Segra.Backend.Recorder
                 FileName = fileName,
                 Pid = pid,
                 IsUsingGameHook = IsGameCaptureHooked,
-                GameImage = gameImage,
                 ExePath = exePath,
                 CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath),
                 AudioTrackNames = actualAudioTrackNames

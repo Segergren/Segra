@@ -1304,9 +1304,6 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("isUsingGameHook")]
         public bool IsUsingGameHook { get; set; }
 
-        [JsonPropertyName("gameImage")]
-        public string? GameImage { get; set; }
-
         [JsonPropertyName("exePath")]
         public string? ExePath { get; set; }
 

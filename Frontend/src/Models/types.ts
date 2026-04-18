@@ -96,7 +96,6 @@ export interface Recording {
   game: string;
   isUsingGameHook: boolean;
   coverImageId?: string;
-  gameImage?: string; // Base64 encoded image of the game executable icon
 }
 
 export interface PreRecording {
