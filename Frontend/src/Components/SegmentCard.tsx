@@ -18,7 +18,12 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
     onMutedAudioTracksChange,
     onAudioTrackVolumesChange,
   }) => {
-    const [audioMenuPos, setAudioMenuPos] = useState<{ x: number; y: number } | null>(null);
+    const [audioMenuPos, setAudioMenuPos] = useState<{
+      x: number;
+      y: number;
+      flipUp: boolean;
+      visible: boolean;
+    } | null>(null);
 
     const indexRef = useRef(index);
     const moveCardRef = useRef(moveCard);
@@ -91,7 +96,7 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
         onMouseEnter={() => setHoveredSegmentId(segment.id)}
         onMouseLeave={() => {
           setHoveredSegmentId(null);
-          setAudioMenuPos(null);
+          setAudioMenuPos((prev) => (prev ? { ...prev, visible: false } : null));
         }}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -123,21 +128,40 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (audioMenuPos) {
-                  setAudioMenuPos(null);
+                if (audioMenuPos?.visible) {
+                  setAudioMenuPos((prev) => (prev ? { ...prev, visible: false } : null));
                 } else {
                   const rect = e.currentTarget.getBoundingClientRect();
-                  setAudioMenuPos({ x: rect.right, y: rect.bottom + 4 });
+                  const estimatedHeight = 16 + audioTrackNames.length * 24;
+                  const fitsBelow = rect.bottom + 4 + estimatedHeight <= window.innerHeight;
+                  const top = fitsBelow
+                    ? rect.bottom + 4
+                    : Math.max(8, rect.top - 4 - estimatedHeight);
+                  const next = {
+                    x: rect.right,
+                    y: top,
+                    flipUp: !fitsBelow,
+                    visible: false,
+                  };
+                  setAudioMenuPos(next);
+                  requestAnimationFrame(() =>
+                    setAudioMenuPos((prev) => (prev ? { ...prev, visible: true } : null)),
+                  );
                 }
               }}
-              className={`flex items-center justify-center w-6 h-6 rounded transition-all cursor-pointer bg-black/75 text-white/80 hover:text-white hover:bg-black/90 ${isHovered || audioMenuPos ? 'opacity-100' : 'opacity-0'}`}
-              title="Audio tracks"
+              className={`flex items-center justify-center w-6 h-6 rounded transition-all cursor-pointer bg-black/75 text-white/80 hover:text-white hover:bg-black/90 ${isHovered || audioMenuPos?.visible ? 'opacity-100' : 'opacity-0'}`}
             >
               <Headphones className="w-3.5 h-3.5" />
             </button>
             {audioMenuPos && (
               <div
-                className="fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200] cursor-default"
+                className={`fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200] cursor-default transition-all duration-300 ${
+                  audioMenuPos.visible
+                    ? 'opacity-100 translate-y-0 pointer-events-auto'
+                    : audioMenuPos.flipUp
+                      ? 'opacity-0 translate-y-2 pointer-events-none'
+                      : 'opacity-0 -translate-y-2 pointer-events-none'
+                }`}
                 style={{ right: window.innerWidth - audioMenuPos.x, top: audioMenuPos.y }}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -169,7 +193,14 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
                             const newVolumes = { ...trackVolumes, [i]: parseFloat(e.target.value) };
                             onAudioTrackVolumesChange(segment.id, newVolumes);
                           }}
-                          className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-accent"
+                          className={`w-16 h-1 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:border-0 ${
+                            isMuted
+                              ? '[&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0'
+                              : '[&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-accent)] [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-accent)]'
+                          }`}
+                          style={{
+                            backgroundImage: `linear-gradient(to right, var(--color-accent) ${(isMuted ? 0 : vol) * 100}%, #4b5563 ${(isMuted ? 0 : vol) * 100}%)`,
+                          }}
                         />
                         <span className="text-[10px] text-white/50 w-7 text-right tabular-nums">
                           {Math.round(vol * 100)}%
