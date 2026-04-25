@@ -161,6 +161,7 @@ export default function ContentPage({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isModalOpen) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if (e.key === 'Control') {
         setIsCtrlPressed(true);
