@@ -385,34 +385,34 @@ export default function ContentCard({
               className="dropdown-content menu bg-base-300 border border-base-400 rounded-box z-999 w-52 p-2"
             >
               {(type === 'Clip' || type === 'Highlight') && (
-                <>
-                  <li>
-                    <Button
-                      variant="menuPrimary"
-                      onClick={() => {
-                        (document.activeElement as HTMLElement).blur();
-                        handleUpload();
-                      }}
-                    >
-                      <Upload size={20} />
-                      <span>Upload</span>
-                    </Button>
-                  </li>
-                  <li>
-                    <Button
-                      variant="menu"
-                      onClick={() => {
-                        (document.activeElement as HTMLElement).blur();
-                        sendMessageToBackend('CopyFileToClipboard', {
-                          FilePath: content!.filePath,
-                        });
-                      }}
-                    >
-                      <Copy size={20} />
-                      <span>Copy</span>
-                    </Button>
-                  </li>
-                </>
+                <li>
+                  <Button
+                    variant="menuPrimary"
+                    onClick={() => {
+                      (document.activeElement as HTMLElement).blur();
+                      handleUpload();
+                    }}
+                  >
+                    <Upload size={20} />
+                    <span>Upload</span>
+                  </Button>
+                </li>
+              )}
+              {(type === 'Clip' || type === 'Highlight' || type === 'Buffer') && (
+                <li>
+                  <Button
+                    variant="menu"
+                    onClick={() => {
+                      (document.activeElement as HTMLElement).blur();
+                      sendMessageToBackend('CopyFileToClipboard', {
+                        FilePath: content!.filePath,
+                      });
+                    }}
+                  >
+                    <Copy size={20} />
+                    <span>Copy</span>
+                  </Button>
+                </li>
               )}
               {type === 'Session' && enableAi && (
                 <li>

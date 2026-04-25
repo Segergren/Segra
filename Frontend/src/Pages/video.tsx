@@ -2170,6 +2170,26 @@ export default function VideoComponent({ video }: { video: Content }) {
                   </div>
                 </>
               )}
+              {video.type === 'Buffer' && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="h-10 hover:text-accent"
+                  onClick={handleCopyFile}
+                >
+                  <label
+                    className={`swap overflow-hidden justify-center ${fileCopied ? 'swap-active' : ''}`}
+                  >
+                    <div className="swap-off">
+                      <Copy className="w-5 h-5" />
+                    </div>
+                    <div className="swap-on">
+                      <Check className="w-5 h-5" />
+                    </div>
+                  </label>
+                  <span>Copy</span>
+                </Button>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
