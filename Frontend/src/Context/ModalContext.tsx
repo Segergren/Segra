@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useRef, useState, ReactNode } from 'react';
 
+type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
+
 interface ModalOptions {
+  size?: ModalSize;
+  /** @deprecated Use size: '3xl' instead. */
   wide?: boolean;
 }
 
@@ -12,16 +16,27 @@ interface ModalContextType {
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
 
+const SIZE_CLASS: Record<ModalSize, string> = {
+  sm: 'max-w-sm w-full',
+  md: 'max-w-md w-full',
+  lg: 'max-w-lg w-full',
+  xl: 'max-w-xl w-full',
+  '2xl': 'max-w-2xl w-full',
+  '3xl': 'max-w-3xl w-full',
+};
+
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const modalRef = useRef<HTMLDialogElement>(null);
   const [modalContent, setModalContent] = useState<ReactNode>(null);
-  const [isWide, setIsWide] = useState(false);
+  const [sizeClass, setSizeClass] = useState('');
   // Track if the initial mousedown started on the backdrop
   const backdropMouseDownRef = useRef<boolean>(false);
 
   const openModal = (content: ReactNode, options?: ModalOptions) => {
     setModalContent(content);
-    setIsWide(options?.wide ?? false);
+    const resolvedSize: ModalSize | undefined =
+      options?.size ?? (options?.wide ? '3xl' : undefined);
+    setSizeClass(resolvedSize ? SIZE_CLASS[resolvedSize] : '');
     if (modalRef.current) {
       modalRef.current.showModal();
     }
@@ -34,7 +49,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     // Clear content after the close animation finishes
     setTimeout(() => {
       setModalContent(null);
-      setIsWide(false);
+      setSizeClass('');
     }, 150);
   };
 
@@ -61,7 +76,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }}
       >
         <div
-          className={`modal-box max-h-[90vh] bg-base-300 ${isWide ? 'max-w-3xl w-full' : ''}`}
+          className={`modal-box max-h-[90vh] bg-base-300 ${sizeClass}`}
           onClick={(e) => e.stopPropagation()}
         >
           {modalContent}

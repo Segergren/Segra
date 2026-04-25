@@ -110,7 +110,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
 
   const openReleaseNotesModal = (filterVersion: string | null = __APP_VERSION__) => {
     openModal(<ReleaseNotesModal onClose={closeModal} filterVersion={filterVersion} />, {
-      wide: true,
+      size: 'xl',
     });
   };
 

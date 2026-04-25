@@ -12,27 +12,27 @@ import Button from './Button';
 const contentStyles = `
   .release-content {
     color: rgb(170, 176, 188);
-    font-size: 0.95rem;
-    line-height: 1.65;
+    font-size: 0.85rem;
+    line-height: 1.5;
   }
   .release-content ul {
     list-style: none !important;
     padding-left: 0 !important;
-    margin-bottom: 1rem !important;
+    margin-bottom: 0.5rem !important;
   }
   .release-content ul li {
     position: relative;
-    padding-left: 1.25rem;
-    margin-bottom: 0.5rem;
+    padding-left: 1rem;
+    margin-bottom: 0.25rem;
     display: list-item;
   }
   .release-content ul li::before {
     content: '';
     position: absolute;
-    left: 6px;
-    top: calc(0.825em - 3px);
-    width: 6px;
-    height: 6px;
+    left: 4px;
+    top: calc(0.75em - 2px);
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background-color: var(--color-primary);
     opacity: 0.9;
@@ -172,17 +172,17 @@ function getReleaseChannel(version: string): { text: string; className: string }
 }
 
 const markdownOverrides = {
-  p: (props: any) => <p className="mb-3 leading-relaxed" {...props} />,
-  h1: (props: any) => <h1 className="text-xl font-bold mt-5 mb-3 text-white" {...props} />,
+  p: (props: any) => <p className="mb-2 leading-snug" {...props} />,
+  h1: (props: any) => <h1 className="text-lg font-bold mt-4 mb-2 text-white" {...props} />,
   h2: (props: any) => (
     <h2
-      className="text-lg font-bold mt-5 mb-2.5 text-white pb-1.5 border-b border-base-400/60"
+      className="text-base font-bold mt-3 mb-2 text-white pb-1 border-b border-base-400/60"
       {...props}
     />
   ),
-  h3: (props: any) => <h3 className="text-base font-semibold mt-4 mb-2 text-white" {...props} />,
+  h3: (props: any) => <h3 className="text-sm font-semibold mt-3 mb-1.5 text-white" {...props} />,
   h4: (props: any) => (
-    <h4 className="text-sm font-semibold mt-3 mb-2 text-white uppercase tracking-wide" {...props} />
+    <h4 className="text-xs font-semibold mt-2 mb-1 text-white uppercase tracking-wide" {...props} />
   ),
   a: (props: any) => {
     const { href, children } = props;
