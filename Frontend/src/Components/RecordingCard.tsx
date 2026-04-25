@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PreRecording, Recording, GameResponse } from '../Models/types';
-import { Gamepad2, Monitor } from 'lucide-react';
+import { PreRecording, Recording, GameResponse, Game } from '../Models/types';
+import { Gamepad2, Monitor, Ellipsis, Ban } from 'lucide-react';
 import { useSettings } from '../Context/SettingsContext';
+import { sendMessageToBackend } from '../Utils/MessageUtils';
+import Button from './Button';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -14,12 +16,26 @@ interface RecordingCardProps {
 const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }) => {
   const timerRef = useRef<HTMLSpanElement>(null);
   const previewImgRef = useRef<HTMLImageElement>(null);
-  const { showGameBackground } = useSettings();
+  const { showGameBackground, state } = useSettings();
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const lastFetchedGameRef = useRef<string | null>(null);
   const [showShockwave, setShowShockwave] = useState(false);
   const [previewEnabled, setPreviewEnabled] = useState(false);
   const [hasPreviewFrame, setHasPreviewFrame] = useState(false);
+
+  const gameName = preRecording ? preRecording.game : recording?.game;
+  const gameListEntry = state.gameList.find((g) => g.name === gameName);
+  const canBlockGame = !!gameListEntry && gameListEntry.executables.length > 0;
+
+  const handleAddToBlocklist = useCallback(() => {
+    if (!gameListEntry) return;
+    const game: Game = {
+      name: gameListEntry.name,
+      paths: gameListEntry.executables,
+    };
+    sendMessageToBackend('AddToBlacklist', { game });
+    sendMessageToBackend('StopRecording');
+  }, [gameListEntry]);
 
   // Listen for bookmark created, preview state, and preview-frame events
   useEffect(() => {
@@ -151,7 +167,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
 
   return (
     <div className="mb-2 px-2">
-      <div className="bg-base-300 border border-base-400 border-opacity-75 rounded-lg px-3 py-3.5 cursor-default relative">
+      <div className="group bg-base-300 border border-base-400 border-opacity-75 rounded-lg px-3 py-3.5 cursor-default relative">
         {/* Shockwave effect on bookmark creation */}
         {showShockwave && (
           <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden rounded-lg">
@@ -174,7 +190,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
         )}
 
         {/* Recording Indicator */}
-        <div className="flex items-center mb-1 relative z-10">
+        <div className="flex items-center justify-between mb-1 relative z-10">
           <div className="flex items-center">
             <span
               className={`w-3 h-3 shrink-0 mb-0.5 rounded-full mr-1.5 ${preRecording ? 'bg-orange-500' : 'bg-red-500'}`}
@@ -182,20 +198,49 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
             <span className="text-gray-200 text-sm font-medium">
               {preRecording ? preRecording.status : 'Recording'}
             </span>
+            {!preRecording && (
+              <div
+                className={`tooltip tooltip-right ${recording?.isUsingGameHook ? 'tooltip-success' : 'tooltip-warning'} flex items-center ml-1.5 [&::before]:delay-200 [&::after]:delay-200`}
+                data-tip={`${recording?.isUsingGameHook ? 'Game capture (using game hook)' : 'Display capture (not using game hook)'}`}
+              >
+                <div className={`swap swap-flip cursor-default overflow-hidden justify-center`}>
+                  <input type="checkbox" checked={recording?.isUsingGameHook} />
+                  <div className={`swap-on`}>
+                    <Gamepad2 className="h-5 w-5 text-gray-300" />
+                  </div>
+                  <div className={`swap-off`}>
+                    <Monitor className="h-5 w-5 text-gray-300 scale-90" />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-          {!preRecording && (
-            <div
-              className={`tooltip tooltip-right ${recording?.isUsingGameHook ? 'tooltip-success' : 'tooltip-warning'} flex items-center ml-1.5`}
-              data-tip={`${recording?.isUsingGameHook ? 'Game capture (using game hook)' : 'Display capture (not using game hook)'}`}
-            >
-              <div className={`swap swap-flip cursor-default overflow-hidden justify-center`}>
-                <input type="checkbox" checked={recording?.isUsingGameHook} />
-                <div className={`swap-on`}>
-                  <Gamepad2 className="h-5 w-5 text-gray-300" />
-                </div>
-                <div className={`swap-off`}>
-                  <Monitor className="h-5 w-5 text-gray-300 scale-90" />
-                </div>
+          {canBlockGame && (
+            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity delay-200">
+              <div className="dropdown dropdown-top" onClick={(e) => e.stopPropagation()}>
+                <label
+                  tabIndex={0}
+                  className="cursor-pointer rounded-full p-0.5 hover:bg-white/10 active:bg-white/10 flex items-center justify-center"
+                >
+                  <Ellipsis className="h-5 w-5 text-gray-300" />
+                </label>
+                <ul
+                  tabIndex={0}
+                  className="dropdown-content menu bg-base-300 border border-base-400 rounded-box z-[9999] w-52 p-2"
+                >
+                  <li>
+                    <Button
+                      variant="menuDanger"
+                      onClick={() => {
+                        (document.activeElement as HTMLElement).blur();
+                        handleAddToBlocklist();
+                      }}
+                    >
+                      <Ban size={20} />
+                      <span>Add to Block List</span>
+                    </Button>
+                  </li>
+                </ul>
               </div>
             </div>
           )}
