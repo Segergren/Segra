@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { PreRecording, Recording, GameResponse } from '../Models/types';
 import { Gamepad2, Monitor } from 'lucide-react';
 import { useSettings } from '../Context/SettingsContext';
@@ -12,26 +13,55 @@ interface RecordingCardProps {
 
 const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }) => {
   const timerRef = useRef<HTMLSpanElement>(null);
+  const previewImgRef = useRef<HTMLImageElement>(null);
   const { showGameBackground } = useSettings();
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const lastFetchedGameRef = useRef<string | null>(null);
   const [showShockwave, setShowShockwave] = useState(false);
+  const [previewEnabled, setPreviewEnabled] = useState(false);
+  const [hasPreviewFrame, setHasPreviewFrame] = useState(false);
 
-  // Listen for bookmark created events
+  // Listen for bookmark created, preview state, and preview-frame events
   useEffect(() => {
-    const handleBookmarkCreated = (event: CustomEvent) => {
-      if (event.detail?.method === 'BookmarkCreated') {
+    const handleMessage = (event: CustomEvent) => {
+      const method = event.detail?.method;
+      if (method === 'BookmarkCreated') {
         setShowShockwave(true);
         // Reset after animation completes
         setTimeout(() => setShowShockwave(false), 600);
+      } else if (method === 'RecordingPreviewState') {
+        const enabled = !!event.detail?.content?.enabled;
+        setPreviewEnabled((prev) => {
+          // On re-enable, hide the stale frame via opacity so the new one fades in.
+          // (We don't clear src — a blank src would render the broken-image icon.)
+          // On disable, keep hasPreviewFrame so the last frame stays visible through the exit animation.
+          if (enabled && !prev) {
+            setHasPreviewFrame(false);
+          }
+          return enabled;
+        });
+      } else if (method === 'RecordingPreviewFrame') {
+        const img = previewImgRef.current;
+        const b64 = event.detail?.content?.jpegBase64;
+        if (img && typeof b64 === 'string' && b64.length > 0) {
+          img.src = `data:image/jpeg;base64,${b64}`;
+          setHasPreviewFrame(true);
+        }
       }
     };
 
-    window.addEventListener('websocket-message', handleBookmarkCreated as EventListener);
+    window.addEventListener('websocket-message', handleMessage as EventListener);
     return () => {
-      window.removeEventListener('websocket-message', handleBookmarkCreated as EventListener);
+      window.removeEventListener('websocket-message', handleMessage as EventListener);
     };
   }, []);
+
+  // Reset preview-enabled when recording stops; let the exit animation play with the last frame still visible.
+  useEffect(() => {
+    if (!recording) {
+      setPreviewEnabled(false);
+    }
+  }, [recording]);
 
   useEffect(() => {
     if (preRecording) {
@@ -180,6 +210,34 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
             <p className="truncate ml-2">{preRecording ? preRecording.game : recording?.game}</p>
           </div>
         </div>
+
+        {/* Live preview (toggled by hotkey while actively recording) */}
+        <AnimatePresence initial={false}>
+          {recording && previewEnabled && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{
+                opacity: 1,
+                height: 'auto',
+                marginTop: 8,
+                transition: {
+                  duration: 0.25,
+                  height: { type: 'spring', stiffness: 300, damping: 30 },
+                },
+              }}
+              exit={{ opacity: 0, height: 0, marginTop: 0, transition: { duration: 0.2 } }}
+              className="relative z-10 w-full overflow-hidden"
+            >
+              <div className="aspect-video w-full overflow-hidden rounded bg-black">
+                <img
+                  ref={previewImgRef}
+                  alt=""
+                  className={`h-full w-full object-contain transition-opacity duration-200 ${hasPreviewFrame ? 'opacity-100' : 'opacity-0'}`}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

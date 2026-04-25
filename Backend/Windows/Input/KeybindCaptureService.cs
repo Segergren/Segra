@@ -2,6 +2,7 @@ using NAudio.Wave;
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Recorder;
+using Segra.Backend.Services;
 using Serilog;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -106,13 +107,7 @@ namespace Segra.Backend.Windows.Input
                 {
                     if (DoKeysMatch(keybind.Keys, pressedCount))
                     {
-                        var recording = Settings.Instance.State.Recording;
-                        if (recording == null)
-                        {
-                            return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                        }
-
-                        HandleKeybindAction(keybind.Action, recording);
+                        HandleKeybindAction(keybind.Action);
                     }
                 }
             }
@@ -142,8 +137,10 @@ namespace Segra.Backend.Windows.Input
             return true;
         }
 
-        private static void HandleKeybindAction(KeybindAction action, Recording recording)
+        private static void HandleKeybindAction(KeybindAction action)
         {
+            var recording = Settings.Instance.State.Recording;
+            var preRecording = Settings.Instance.State.PreRecording;
             var recordingMode = Settings.Instance.RecordingMode;
 
             switch (action)
@@ -168,6 +165,27 @@ namespace Segra.Backend.Windows.Input
                         Log.Information("Saving replay buffer...");
                         Task.Run(OBSService.SaveReplayBuffer);
                         Task.Run(PlayBookmarkSound);
+                    }
+                    break;
+
+                case KeybindAction.ToggleRecording:
+                    if (recording != null || preRecording != null)
+                    {
+                        Log.Information("Hotkey: stopping recording");
+                        Task.Run(OBSService.StopRecording);
+                    }
+                    else
+                    {
+                        Log.Information("Hotkey: starting display recording");
+                        Task.Run(() => OBSService.StartRecording(startManually: true));
+                    }
+                    break;
+
+                case KeybindAction.TogglePreview:
+                    if (recording != null)
+                    {
+                        Log.Information("Hotkey: toggling recording preview");
+                        RecordingPreviewService.Toggle();
                     }
                     break;
             }

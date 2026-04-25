@@ -6,6 +6,7 @@ using Segra.Backend.Core.Models;
 using Segra.Backend.Recorder;
 using Segra.Backend.Services;
 using Segra.Backend.Utils;
+using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Power;
 using Segra.Backend.Windows.Storage;
 using Serilog;
@@ -237,6 +238,9 @@ namespace Segra.Backend.App
 
                 // Run the OBS Initializer in a separate thread and application to make sure someting on the main thread doesn't block
                 Task.Run(() => Application.Run(new OBSWindow()));
+
+                // Global keybind hook (low-level keyboard hook + message loop) — runs for the lifetime of the app.
+                Task.Run(KeybindCaptureService.Start);
 
                 if (!startMinimized)
                 {

@@ -51,7 +51,18 @@ const getKeyName = (keyCode: number): string => {
 };
 
 const getActionLabel = (action: KeybindAction): string => {
-  return action === KeybindAction.CreateBookmark ? 'Create Bookmark' : 'Save Replay Buffer';
+  switch (action) {
+    case KeybindAction.CreateBookmark:
+      return 'Create Bookmark';
+    case KeybindAction.SaveReplayBuffer:
+      return 'Save Replay Buffer';
+    case KeybindAction.ToggleRecording:
+      return 'Start / Stop Display Recording';
+    case KeybindAction.TogglePreview:
+      return 'Toggle Recording Preview';
+    default:
+      return action;
+  }
 };
 
 export default function KeybindingsSection({ settings, updateSettings }: KeybindingsSectionProps) {

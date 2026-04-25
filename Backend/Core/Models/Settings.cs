@@ -81,7 +81,9 @@ namespace Segra.Backend.Core.Models
             return new List<Keybind>
             {
                 new Keybind(new List<int> { 119 }, KeybindAction.CreateBookmark, true), // 119 is F8
-                new Keybind(new List<int> { 121 }, KeybindAction.SaveReplayBuffer, true) // 121 is F10
+                new Keybind(new List<int> { 120 }, KeybindAction.ToggleRecording, true), // 120 is F9
+                new Keybind(new List<int> { 121 }, KeybindAction.SaveReplayBuffer, true), // 121 is F10
+                new Keybind(new List<int> { 122 }, KeybindAction.TogglePreview, true) // 122 is F11
             };
         }
 

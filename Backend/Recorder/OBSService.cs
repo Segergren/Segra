@@ -958,6 +958,8 @@ namespace Segra.Backend.Recorder
             Settings.Instance.State.PreRecording = null;
             _ = MessageService.SendSettingsToFrontend("OBS Start recording");
 
+            RecordingPreviewService.OnRecordingStarted((uint)Settings.Instance.FrameRate);
+
             NotifyIconService.SetNotifyIconStatus(NotifyIconState.Recording);
 
             Log.Information("Recording started: " + videoOutputPath);
@@ -966,7 +968,6 @@ namespace Segra.Backend.Recorder
             {
                 _ = GameIntegrationService.Start(GameUtils.GetIgdbIdFromExePath(exePath));
             }
-            Task.Run(KeybindCaptureService.Start);
             return true;
         }
 
@@ -1032,6 +1033,8 @@ namespace Segra.Backend.Recorder
 
                 GeneralUtils.SetProcessPriority(ProcessPriorityClass.Normal);
 
+                RecordingPreviewService.OnRecordingStopped();
+
                 StopGameCaptureHookTimeoutTimer();
 
                 bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
@@ -1065,7 +1068,6 @@ namespace Segra.Backend.Recorder
                     Log.Information("Replay buffer stopped and disposed.");
 
                     _ = GameIntegrationService.Shutdown();
-                    KeybindCaptureService.Stop();
 
                     // Reload content list
                     await SettingsService.LoadContentFromFolderIntoState(false);
@@ -1101,7 +1103,6 @@ namespace Segra.Backend.Recorder
                     Log.Information("Recording stopped and disposed.");
 
                     _ = GameIntegrationService.Shutdown();
-                    KeybindCaptureService.Stop();
 
                     // Might be null or empty if the recording failed to start
                     if (Settings.Instance.State.Recording != null && Settings.Instance.State.Recording.FilePath != null)
@@ -1200,7 +1201,6 @@ namespace Segra.Backend.Recorder
                     Log.Information("Hybrid: All outputs stopped and disposed.");
 
                     _ = GameIntegrationService.Shutdown();
-                    KeybindCaptureService.Stop();
 
                     if (Settings.Instance.State.Recording != null && Settings.Instance.State.Recording.FilePath != null)
                     {

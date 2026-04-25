@@ -75,6 +75,8 @@ export enum BookmarkSubtype {
 export enum KeybindAction {
   CreateBookmark = 'CreateBookmark',
   SaveReplayBuffer = 'SaveReplayBuffer',
+  ToggleRecording = 'ToggleRecording',
+  TogglePreview = 'TogglePreview',
 }
 
 export interface Keybind {
@@ -326,7 +328,9 @@ export const initialSettings: Settings = {
   discardSessionsWithoutBookmarks: false,
   keybindings: [
     { keys: [119], action: KeybindAction.CreateBookmark, enabled: true }, // 119 is F8
+    { keys: [120], action: KeybindAction.ToggleRecording, enabled: true }, // 120 is F9
     { keys: [121], action: KeybindAction.SaveReplayBuffer, enabled: true }, // 121 is F10
+    { keys: [122], action: KeybindAction.TogglePreview, enabled: true }, // 122 is F11
   ],
   whitelist: [],
   blacklist: [],

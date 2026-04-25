@@ -60,7 +60,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     onMessage: (event) => {
       try {
         const data: WebSocketMessage = JSON.parse(event.data);
-        console.log('WebSocket message received:', data);
+        if (data.method !== 'RecordingPreviewFrame') {
+          console.log('WebSocket message received:', data);
+        }
 
         // Handle version check
         if (data.method === 'AppVersion' && !versionCheckHandled.current) {

@@ -26,6 +26,8 @@ namespace Segra.Backend.Core.Models
     public enum KeybindAction
     {
         CreateBookmark,
-        SaveReplayBuffer
+        SaveReplayBuffer,
+        ToggleRecording,
+        TogglePreview
     }
 }
