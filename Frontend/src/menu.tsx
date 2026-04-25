@@ -70,7 +70,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         // Calculate relative position to parent with vertical centering
         // Center the 40px indicator with the button
         const buttonCenter = buttonRect.top - parentRect.top + buttonRect.height / 2;
-        const indicatorTop = buttonCenter - 20; // 20px is half of the 40px height
+        const indicatorTop = buttonCenter - 21;
 
         setIndicatorPosition({
           top: indicatorTop,

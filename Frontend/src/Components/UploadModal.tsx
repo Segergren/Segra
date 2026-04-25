@@ -66,6 +66,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
             <input
               ref={titleInputRef}
               type="text"
+              tabIndex={1}
               placeholder="Enter a title"
               value={title}
               onChange={(e) => {
@@ -73,7 +74,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
                 setTitleError(false);
               }}
               onKeyDown={handleKeyPress}
-              className={`input input-bordered bg-base-300 w-full focus:outline-none ${titleError ? 'input-error' : ''}`}
+              className={`input input-bordered bg-base-300 w-full focus:outline focus:outline-1 focus:outline-white focus:outline-offset-0 ${titleError ? 'input-error' : ''}`}
             />
             {titleError && (
               <label className="label mt-1">
@@ -87,10 +88,11 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
               <span className="label-text text-base-content">Description</span>
             </label>
             <textarea
+              tabIndex={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
-              className="textarea textarea-bordered bg-base-300 w-full focus:outline-none resize-none"
+              className="textarea textarea-bordered bg-base-300 w-full focus:outline focus:outline-1 focus:outline-white focus:outline-offset-0 resize-none"
               placeholder="Add a description (optional)"
             />
           </div>
@@ -99,9 +101,16 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
             <label className="label cursor-pointer justify-start gap-2">
               <input
                 type="checkbox"
-                className="checkbox checkbox-primary"
+                tabIndex={3}
+                className="checkbox checkbox-primary focus:!outline focus:!outline-1 focus:!outline-white focus:!outline-offset-2"
                 checked={clipShowInBrowserAfterUpload}
                 onChange={(e) => updateSettings({ clipShowInBrowserAfterUpload: e.target.checked })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    updateSettings({ clipShowInBrowserAfterUpload: !clipShowInBrowserAfterUpload });
+                  }
+                }}
               />
               <span className="label-text text-base-content">Open in Browser After Upload</span>
             </label>
@@ -110,7 +119,8 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
         <div className="modal-action mt-6">
           <Button
             variant="primary"
-            className="w-full"
+            tabIndex={4}
+            className="w-full focus:!outline focus:!outline-1 focus:!outline-white focus:!outline-offset-2"
             onClick={handleUpload}
             disabled={session === null}
           >
