@@ -167,9 +167,13 @@ namespace Segra.Backend.Media
                 string waveformJsonPathTemp = Path.Combine(waveformFolderPath, $"{contentFileName}.peaks.temp.json");
                 string waveformJsonPath = Path.Combine(waveformFolderPath, $"{contentFileName}.peaks.json");
 
-                // Decode audio to raw mono 16-bit PCM at a modest sample rate for efficiency
+                // Decode audio to raw mono 16-bit PCM at a modest sample rate for efficiency.
+                // Probe the file for its audio track count so multi-track recordings can be
+                // mixed together rather than ffmpeg silently picking just one stream.
                 int sampleRate = 11025;
-                await FFmpegService.ExtractPcmAudio(videoFilePath, tempPcmPath, sampleRate);
+                var audioTrackNames = await Mp4BoxReader.ReadAudioTrackNamesAsync(videoFilePath);
+                int audioStreamCount = audioTrackNames?.Count ?? 1;
+                await FFmpegService.ExtractPcmAudio(videoFilePath, tempPcmPath, sampleRate, audioStreamCount);
 
                 if (!File.Exists(tempPcmPath))
                 {

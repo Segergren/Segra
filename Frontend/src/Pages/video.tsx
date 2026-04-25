@@ -62,10 +62,13 @@ const timeStringToSeconds = (timeStr: string): number => {
   return hours * 3600 + minutes * 60 + seconds + (milliseconds ? Number(`0.${milliseconds}`) : 0);
 };
 
-// Render waveform bars onto a canvas for a given pixel range [regionLeft, regionLeft + canvas.width)
+// Render waveform bars onto a canvas for a given pixel range [regionLeft, regionLeft + canvas.width).
+// peaksMax is the loudest absolute peak in the whole clip; bars are scaled against it so
+// the loudest moment fills the canvas height regardless of the recording's overall level.
 function renderWaveformRegion(
   canvas: HTMLCanvasElement,
   peaks: number[],
+  peaksMax: number,
   totalWidth: number,
   regionLeft: number,
 ) {
@@ -78,42 +81,23 @@ function renderWaveformRegion(
   const columns = Math.floor(peaks.length / 2);
   if (columns === 0) return;
   const barWidth = totalWidth / columns;
+  const denom = peaksMax > 0 ? peaksMax : 128;
+  const maxBarHeight = height * 0.8;
 
-  if (barWidth >= 1) {
-    // Zoomed in enough that each column is >= 1px — draw individually
-    const gap = Math.max(0.5, barWidth * 0.15);
-    const drawWidth = Math.max(0.5, barWidth - gap);
+  for (let px = 0; px < width; px++) {
+    const worldX = regionLeft + px;
+    const colStart = Math.max(0, Math.floor(worldX / barWidth));
+    const colEnd = Math.min(columns, Math.ceil((worldX + 1) / barWidth));
 
-    const startCol = Math.max(0, Math.floor(regionLeft / barWidth) - 1);
-    const endCol = Math.min(columns, Math.ceil((regionLeft + width) / barWidth) + 1);
-
-    for (let i = startCol; i < endCol; i++) {
-      const min = peaks[i * 2];
-      const max = peaks[i * 2 + 1];
-      const amplitude = Math.max(Math.abs(min), Math.abs(max)) / 128;
-      const barHeight = Math.max(1, amplitude * height);
-      const x = i * barWidth - regionLeft;
-      const y = height - barHeight;
-      ctx.fillRect(x, y, drawWidth, barHeight);
+    let maxAmp = 0;
+    for (let i = colStart; i < colEnd; i++) {
+      const amp = Math.max(Math.abs(peaks[i * 2]), Math.abs(peaks[i * 2 + 1]));
+      if (amp > maxAmp) maxAmp = amp;
     }
-  } else {
-    // Zoomed out — multiple columns per pixel. Draw one bar per pixel,
-    // using the max amplitude across all columns that map to that pixel.
-    for (let px = 0; px < width; px++) {
-      const worldX = regionLeft + px;
-      const colStart = Math.max(0, Math.floor(worldX / barWidth));
-      const colEnd = Math.min(columns, Math.ceil((worldX + 1) / barWidth));
 
-      let maxAmp = 0;
-      for (let i = colStart; i < colEnd; i++) {
-        const amp = Math.max(Math.abs(peaks[i * 2]), Math.abs(peaks[i * 2 + 1]));
-        if (amp > maxAmp) maxAmp = amp;
-      }
-
-      const amplitude = maxAmp / 128;
-      const barHeight = Math.max(1, amplitude * height);
-      ctx.fillRect(px, height - barHeight, 1, barHeight);
-    }
+    const amplitude = Math.min(1, maxAmp / denom);
+    const barHeight = Math.max(1, amplitude * maxBarHeight);
+    ctx.fillRect(px, height - barHeight, 1, barHeight);
   }
 }
 
@@ -234,6 +218,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const speedDropdownRef = useRef<HTMLDivElement | null>(null);
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const peaksRef = useRef<number[] | null>(null);
+  const peaksMaxRef = useRef<number>(128);
   const waveformStateRef = useRef({ pixelsPerSecond: 0, duration: 0 });
   const waveformBufferRef = useRef({ regionLeft: 0, regionRight: 0 });
 
@@ -1245,7 +1230,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     if (canvas.height !== 49) canvas.height = 49;
 
     canvas.style.left = `${regionLeft}px`;
-    renderWaveformRegion(canvas, peaks, totalWidth, regionLeft);
+    renderWaveformRegion(canvas, peaks, peaksMaxRef.current, totalWidth, regionLeft);
     waveformBufferRef.current = { regionLeft, regionRight };
   }, []);
 
@@ -1280,6 +1265,12 @@ export default function VideoComponent({ video }: { video: Content }) {
         if (cancelled) return;
         const data: number[] = Array.isArray(peaksData?.data) ? peaksData.data : [];
         peaksRef.current = data;
+        let maxAbs = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = data[i] < 0 ? -data[i] : data[i];
+          if (v > maxAbs) maxAbs = v;
+        }
+        peaksMaxRef.current = maxAbs > 0 ? maxAbs : 128;
         const canvas = waveformCanvasRef.current;
         if (canvas) {
           requestAnimationFrame(renderWaveformBuffer);
@@ -1950,7 +1941,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     <div
                       key={seg.id}
                       className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors overflow-hidden rounded-r-sm rounded-l-sm shadow-md
-                                                bg-primary/40 border border-primary/40`}
+                                                bg-primary/20 border border-primary/20`}
                       style={{ left: `${left}px`, width: `${width}px` }}
                       onMouseEnter={() => {
                         setHoveredSegmentId(seg.id);

@@ -464,21 +464,38 @@ namespace Segra.Backend.Media
         }
 
         /// <summary>
-        /// Extracts audio as PCM data for waveform generation
+        /// Extracts audio as PCM data for waveform generation. When the input has
+        /// multiple audio streams, mixes them all together via amix so the waveform
+        /// represents every audio device, not just whichever stream ffmpeg picks
+        /// by default.
         /// </summary>
-        public static async Task ExtractPcmAudio(string inputFilePath, string outputPcmPath, int sampleRate = 11025)
+        public static async Task ExtractPcmAudio(string inputFilePath, string outputPcmPath, int sampleRate = 11025, int audioStreamCount = 1)
         {
-            var arguments = new[]
+            var args = new List<string>
             {
                 "-i", inputFilePath,
                 "-vn",
+            };
+
+            if (audioStreamCount > 1)
+            {
+                var inputs = string.Concat(Enumerable.Range(0, audioStreamCount).Select(i => $"[0:a:{i}]"));
+                args.Add("-filter_complex");
+                args.Add($"{inputs}amix=inputs={audioStreamCount}:normalize=0[aout]");
+                args.Add("-map");
+                args.Add("[aout]");
+            }
+
+            args.AddRange(new[]
+            {
                 "-ac", "1",
                 "-ar", sampleRate.ToString(CultureInfo.InvariantCulture),
                 "-f", "s16le",
                 "-acodec", "pcm_s16le",
                 outputPcmPath
-            };
-            await RunSimple(arguments);
+            });
+
+            await RunSimple(args);
         }
     }
 }
