@@ -178,6 +178,11 @@ export default function ContentPage({
       if (e.key === 'Escape') {
         setSelectedItems(new Set());
       }
+
+      if (e.key === 'Delete' && selectedItems.size > 0) {
+        e.preventDefault();
+        handleDeleteSelected();
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -195,7 +200,7 @@ export default function ContentPage({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedItems, filteredItems, isModalOpen]);
+  }, [selectedItems, filteredItems, isModalOpen, handleDeleteSelected]);
 
   const prevContentFileNamesRef = useRef<string>('');
 

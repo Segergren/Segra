@@ -282,10 +282,11 @@ export default function ContentCard({
         <img
           src={thumbnailPath}
           alt={'thumbnail'}
-          className="w-full h-full object-contain"
+          className="w-full h-full object-contain select-none"
           loading="lazy"
           width={1600}
           height={900}
+          draggable={false}
         />
         <span className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
           {formattedDuration}
@@ -293,7 +294,7 @@ export default function ContentCard({
         {isSelectionMode && (
           <input
             type="checkbox"
-            className="checkbox checkbox-primary checkbox-sm absolute top-2 left-2"
+            className="checkbox checkbox-primary checkbox-sm absolute top-2 left-2 [&:not(:checked)]:bg-black/30"
             checked={isSelected}
             readOnly
           />
