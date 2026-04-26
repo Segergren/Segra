@@ -84,9 +84,22 @@ namespace Segra.Backend.Games.Pubg
                 foreach (var directory in newDirs)
                 {
                     Log.Information($"New PUBG replay: {directory}");
-                    Thread.Sleep(500);
 
                     var infoPath = Path.Combine(directory, "PUBG.replayinfo");
+                    var deadline = DateTime.UtcNow.AddSeconds(10);
+                    Thread.Sleep(500);
+                    while (!File.Exists(infoPath) && DateTime.UtcNow < deadline)
+                        Thread.Sleep(500);
+
+                    if (!File.Exists(infoPath))
+                    {
+                        var foundFiles = Directory.Exists(directory)
+                            ? string.Join(", ", Directory.GetFiles(directory, "*", SearchOption.AllDirectories).Select(Path.GetFileName))
+                            : "(directory missing)";
+                        Log.Warning("PUBG.replayinfo not found after 10s in {Directory}. Found files: {Files}", directory, foundFiles);
+                        continue;
+                    }
+
                     var matchJson = ReadJsonFromFile(infoPath);
                     var matchInfo = JsonSerializer.Deserialize<PubgMatchInfo>(matchJson);
 
