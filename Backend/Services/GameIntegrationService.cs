@@ -17,7 +17,7 @@ namespace Segra.Backend.Services
         private static Integration? _gameIntegration;
         public static Integration? GameIntegration => _gameIntegration;
 
-        public static async Task Start(int? igdbId)
+        public static async Task Start(int? igdbId, string? gameName = null)
         {
             if (_gameIntegration != null)
             {
@@ -25,21 +25,19 @@ namespace Segra.Backend.Services
                 await _gameIntegration.Shutdown();
             }
 
-            _gameIntegration = igdbId switch
-            {
-                PUBG_IGDB_ID => Settings.Instance.GameIntegrations.Pubg.Enabled ? new PubgIntegration() : null,
-                LOL_IGDB_ID => Settings.Instance.GameIntegrations.LeagueOfLegends.Enabled ? new LeagueOfLegendsIntegration() : null,
-                CS2_IGDB_ID => Settings.Instance.GameIntegrations.CounterStrike2.Enabled ? new CounterStrike2Integration() : null,
-                ROCKET_LEAGUE_IGDB_ID => Settings.Instance.GameIntegrations.RocketLeague.Enabled ? new RocketLeagueIntegration() : null,
-                _ => null,
-            };
+            if ((igdbId == PUBG_IGDB_ID || gameName?.Contains("PUBG:", StringComparison.OrdinalIgnoreCase) == true || gameName?.Contains("PLAYERUNKNOWN'S BATTLEGROUNDS", StringComparison.OrdinalIgnoreCase) == true) && Settings.Instance.GameIntegrations.Pubg.Enabled)
+                _gameIntegration = new PubgIntegration();
+            else if ((igdbId == LOL_IGDB_ID || gameName?.Equals("League of Legends", StringComparison.OrdinalIgnoreCase) == true) && Settings.Instance.GameIntegrations.LeagueOfLegends.Enabled)
+                _gameIntegration = new LeagueOfLegendsIntegration();
+            else if ((igdbId == CS2_IGDB_ID || gameName?.Equals("Counter-Strike 2", StringComparison.OrdinalIgnoreCase) == true) && Settings.Instance.GameIntegrations.CounterStrike2.Enabled)
+                _gameIntegration = new CounterStrike2Integration();
+            else if ((igdbId == ROCKET_LEAGUE_IGDB_ID || gameName?.Equals("Rocket League", StringComparison.OrdinalIgnoreCase) == true) && Settings.Instance.GameIntegrations.RocketLeague.Enabled)
+                _gameIntegration = new RocketLeagueIntegration();
 
             if (_gameIntegration == null)
-            {
                 return;
-            }
 
-            Log.Information($"Starting game integration for IGDB ID: {igdbId}");
+            Log.Information($"Starting game integration for IGDB ID: {igdbId}, Game: {gameName}");
             _ = _gameIntegration.Start();
         }
 

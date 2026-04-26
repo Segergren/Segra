@@ -966,7 +966,7 @@ namespace Segra.Backend.Recorder
             GeneralUtils.SetProcessPriority(ProcessPriorityClass.High);
             if (!isReplayBufferMode)
             {
-                _ = GameIntegrationService.Start(GameUtils.GetIgdbIdFromExePath(exePath));
+                _ = GameIntegrationService.Start(GameUtils.GetIgdbIdFromExePath(exePath), GameUtils.GetGameNameFromExePath(exePath));
             }
             return true;
         }
