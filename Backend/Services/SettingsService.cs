@@ -824,6 +824,8 @@ namespace Segra.Backend.Services
                 Log.Error($"Error reading videos: {ex.Message}");
             }
 
+            await ContentService.ReconcileGameNamesByIgdb(content);
+
             Settings.Instance.State.SetContent(content, sendToFrontend);
 
             // Update folder size in state

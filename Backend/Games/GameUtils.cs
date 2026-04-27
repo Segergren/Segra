@@ -1,4 +1,5 @@
 using Segra.Backend.App;
+using Segra.Backend.Media;
 using Serilog;
 using System.Collections.Concurrent;
 using System.Text.Json;
@@ -166,6 +167,19 @@ namespace Segra.Backend.Games
             }).ToList();
         }
 
+        public static IReadOnlyDictionary<int, string> GetIgdbIdToNameMap()
+        {
+            var map = new Dictionary<int, string>();
+            foreach (var entry in _gamesList)
+            {
+                if (entry.Igdb?.Id is int id)
+                {
+                    map[id] = entry.Name;
+                }
+            }
+            return map;
+        }
+
         private static Regex GetWildcardRegex(string pattern, bool anchorToFullString)
         {
             string cacheKey = (anchorToFullString ? "^" : "") + pattern;
@@ -245,6 +259,8 @@ namespace Segra.Backend.Games
             }
 
             _ = MessageService.SendFrontendMessage("GameList", GetGameList());
+
+            _ = Task.Run(ContentService.SyncContentGameNamesByIgdb);
         }
 
         private static async Task DownloadBlacklistJsonIfNeededAsync()

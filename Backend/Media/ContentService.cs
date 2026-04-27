@@ -1,7 +1,9 @@
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
+using Segra.Backend.Games;
 using Segra.Backend.Services;
 using Segra.Backend.Shared;
+using Segra.Backend.Windows.Storage;
 using Serilog;
 using System.Text.Json;
 
@@ -105,6 +107,101 @@ namespace Segra.Backend.Media
                 Log.Error($"Error updating metadata file {metadataFilePath}: {ex.Message}");
                 return null;
             }
+        }
+
+        public static async Task SyncContentGameNamesByIgdb()
+        {
+            var list = Settings.Instance.State.Content;
+            if (list == null || list.Count == 0) return;
+
+            int changed = await ReconcileGameNamesByIgdb(list);
+            if (changed > 0)
+            {
+                Settings.Instance.State.SetContent(list, sendToFrontend: true);
+            }
+        }
+
+        public static async Task<int> ReconcileGameNamesByIgdb(List<Content> contents)
+        {
+            if (contents == null || contents.Count == 0) return 0;
+
+            var idToName = GameUtils.GetIgdbIdToNameMap();
+            if (idToName.Count == 0) return 0;
+
+            int changedCount = 0;
+            int errorCount = 0;
+
+            foreach (var content in contents)
+            {
+                try
+                {
+                    if (content.IgdbId is not int igdbId) continue;
+                    if (!idToName.TryGetValue(igdbId, out string? canonicalName) || string.IsNullOrEmpty(canonicalName)) continue;
+                    if (string.Equals(content.Game, canonicalName, StringComparison.Ordinal)) continue;
+
+                    string newSanitized = StorageService.SanitizeGameNameForFolder(canonicalName);
+
+                    string? newFilePath = null;
+                    bool moved = false;
+
+                    if (!string.IsNullOrEmpty(content.FilePath) && File.Exists(content.FilePath))
+                    {
+                        string? currentDir = Path.GetDirectoryName(content.FilePath);
+                        string? typeFolder = currentDir != null ? Path.GetDirectoryName(currentDir) : null;
+
+                        if (!string.IsNullOrEmpty(typeFolder))
+                        {
+                            string newDir = Path.Combine(typeFolder, newSanitized);
+                            string candidatePath = Path.Combine(newDir, Path.GetFileName(content.FilePath));
+
+                            bool sameAsCurrent = string.Equals(
+                                Path.GetFullPath(candidatePath),
+                                Path.GetFullPath(content.FilePath),
+                                StringComparison.OrdinalIgnoreCase);
+
+                            if (!sameAsCurrent)
+                            {
+                                if (File.Exists(candidatePath))
+                                {
+                                    Log.Warning("Skipping move for {File}: destination already exists at {Dest}", content.FilePath, candidatePath);
+                                }
+                                else
+                                {
+                                    Directory.CreateDirectory(newDir);
+                                    File.Move(content.FilePath, candidatePath);
+                                    newFilePath = candidatePath;
+                                    moved = true;
+                                    Log.Information("Moved content for IGDB {Id}: {Old} -> {New}", igdbId, content.FilePath, candidatePath);
+                                }
+                            }
+                        }
+                    }
+
+                    string sidecar = Path.Combine(FolderNames.GetMetadataFolderPath(content.Type), content.FileName + ".json");
+                    await UpdateMetadataFile(sidecar, c =>
+                    {
+                        c.Game = canonicalName;
+                        if (moved && newFilePath != null) c.FilePath = newFilePath;
+                    });
+
+                    content.Game = canonicalName;
+                    if (moved && newFilePath != null) content.FilePath = newFilePath;
+
+                    changedCount++;
+                }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    Log.Error(ex, "Failed reconciling game name for content {File}", content?.FilePath ?? "(unknown)");
+                }
+            }
+
+            if (changedCount > 0 || errorCount > 0)
+            {
+                Log.Information("ReconcileGameNamesByIgdb: changed={Changed}, errors={Errors}", changedCount, errorCount);
+            }
+
+            return changedCount;
         }
 
         public static async Task CreateThumbnail(string filePath, Content.ContentType type)
