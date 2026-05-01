@@ -37,7 +37,10 @@ namespace Segra.Backend.App
         private static Mutex? singleInstanceMutex;
         private static Thread? pipeServerThread;
         private static string? appUrl;
-        private const long maxFileSizeBytes = 8 * 1024 * 1024; // 8MB
+        private const long maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
+        private const long trimTargetBytes = 8 * 1024 * 1024; // trim down to 8MB when limit is hit
+        private const string LogOutputTemplate =
+            "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}";
 
         [STAThread]
         static void Main(string[] args)
@@ -306,12 +309,7 @@ namespace Segra.Backend.App
                 .MinimumLevel.Debug()
                 .WriteTo.Debug()
                 //.WriteTo.Debug(restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning) // Remove restricted minimum level to show all logs but increase lag while debugging
-                .WriteTo.File(
-                    path: LogFilePath,
-                    fileSizeLimitBytes: maxFileSizeBytes,
-                    rollOnFileSizeLimit: false,
-                    shared: true
-                )
+                .WriteTo.Sink(new TrimmingFileSink(LogFilePath, maxFileSizeBytes, trimTargetBytes, LogOutputTemplate))
                 .CreateLogger();
         }
 
@@ -337,9 +335,8 @@ namespace Segra.Backend.App
                     return;
 
                 var lines = File.ReadAllLines(logFilePath).ToList();
-                var targetSize = (long)(maxFileSizeBytes * 0.9);
                 var avgLineSize = fileInfo.Length / lines.Count;
-                var linesToKeep = (int)(targetSize / avgLineSize);
+                var linesToKeep = (int)(trimTargetBytes / avgLineSize);
 
                 if (linesToKeep < lines.Count)
                 {

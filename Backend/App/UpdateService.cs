@@ -38,10 +38,11 @@ namespace Segra.Backend.App
                 Log.Information("Checking if update is necessary");
                 UpdateInfo? newVersion = await UpdateManager.CheckForUpdatesAsync();
 
+                Core.Models.Settings.Instance.State.IsCheckingForUpdates = false;
+
                 if (newVersion == null)
                 {
                     Log.Information("No update available");
-                    Core.Models.Settings.Instance.State.IsCheckingForUpdates = false;
                     return false;
                 }
 
@@ -79,7 +80,6 @@ namespace Segra.Backend.App
                     message = $"Update to version {targetVersion} is ready to install"
                 });
 
-                Core.Models.Settings.Instance.State.IsCheckingForUpdates = false;
                 return true;
             }
             catch (Exception ex)
