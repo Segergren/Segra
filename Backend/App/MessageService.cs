@@ -577,9 +577,9 @@ namespace Segra.Backend.App
         public static async Task StartWebsocket()
         {
             HttpListener listener = new HttpListener();
-            listener.Prefixes.Add("http://localhost:5000/");
+            listener.Prefixes.Add("http://localhost:44030/");
             listener.Start();
-            Log.Information("WebSocket server started at ws://localhost:5000/");
+            Log.Information("WebSocket server started at ws://localhost:44030/");
 
             try
             {
@@ -618,6 +618,63 @@ namespace Segra.Backend.App
                 if (ex.StackTrace != null)
                 {
                     Log.Information(ex.StackTrace);
+                }
+            }
+        }
+
+        // Old frontends still target ws://localhost:5000/ from the previous port. Pushing AppVersion forces a reload via the version-mismatch path in WebSocketContext.tsx.
+        public static async Task StartLegacyPortFallback()
+        {
+            HttpListener listener = new HttpListener();
+            listener.Prefixes.Add("http://localhost:5000/");
+            try
+            {
+                listener.Start();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Legacy port 5000 fallback could not start: {ex.Message}");
+                return;
+            }
+            Log.Information("Legacy fallback listening on ws://localhost:5000/ (version-mismatch trigger only)");
+
+            while (true)
+            {
+                try
+                {
+                    HttpListenerContext context = await listener.GetContextAsync();
+                    if (!context.Request.IsWebSocketRequest)
+                    {
+                        context.Response.StatusCode = 400;
+                        context.Response.Close();
+                        continue;
+                    }
+
+                    HttpListenerWebSocketContext wsContext = await context.AcceptWebSocketAsync(null);
+                    WebSocket socket = wsContext.WebSocket;
+
+                    string version = UpdateService.UpdateManager.CurrentVersion?.ToString() ?? "0.0.0";
+                    var payload = new { method = "AppVersion", content = new { version } };
+                    byte[] buffer = JsonSerializer.SerializeToUtf8Bytes(payload, jsonOptions);
+
+                    try
+                    {
+                        await socket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
+                        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Port moved - reload", CancellationToken.None);
+                        Log.Information("Legacy port: pushed AppVersion to old frontend and closed.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Legacy port send failed: {ex.Message}");
+                    }
+                    finally
+                    {
+                        socket.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Legacy port loop error: {ex.Message}");
                 }
             }
         }

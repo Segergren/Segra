@@ -225,6 +225,7 @@ namespace Segra.Backend.App
 
                 // Start WebSocket and Load Settings
                 Task.Run(MessageService.StartWebsocket);
+                Task.Run(MessageService.StartLegacyPortFallback);
                 Task.Run(StorageService.EnsureStorageBelowLimit);
 
                 // Check for updates

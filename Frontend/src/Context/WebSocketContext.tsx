@@ -30,7 +30,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   // Configure WebSocket with reconnection and heartbeat
-  const { readyState } = useWebSocket('ws://localhost:5000/', {
+  const { readyState } = useWebSocket('ws://localhost:44030/', {
     onOpen: () => {
       // Check if this is a reconnection
       if (hasConnectedBefore.current) {
