@@ -205,6 +205,7 @@ namespace Segra.Backend.App
                             }
                             break;
                         case "OpenLogsLocation":
+                            _ = Task.Run(() => DiagnosticsService.LogSnapshot());
                             string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
                             string? logFilePath = Directory.GetFiles(logDir, "*.log").FirstOrDefault();
                             if (!string.IsNullOrEmpty(logFilePath))

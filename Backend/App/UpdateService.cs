@@ -35,6 +35,13 @@ namespace Segra.Backend.App
                     Log.Information("Using stable update channel");
                 }
 
+                if (!UpdateManager.IsInstalled)
+                {
+                    Log.Information("Skipping update check: app is not installed (running from dev/portable build)");
+                    Core.Models.Settings.Instance.State.IsCheckingForUpdates = false;
+                    return false;
+                }
+
                 Log.Information("Checking if update is necessary");
                 UpdateInfo? newVersion = await UpdateManager.CheckForUpdatesAsync();
 
