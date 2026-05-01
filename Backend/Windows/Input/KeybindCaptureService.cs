@@ -1,4 +1,6 @@
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Recorder;
@@ -193,25 +195,20 @@ namespace Segra.Backend.Windows.Input
 
         private static void PlayBookmarkSound()
         {
-            var audioStream = new MemoryStream(Properties.Resources.bookmark);
-            var audioReader = new WaveFileReader(audioStream);
-            var waveOut = new WaveOutEvent();
-
-            var volumeStream = new VolumeWaveProvider16(audioReader)
+            using var audioStream = new MemoryStream(Properties.Resources.bookmark);
+            using var audioReader = new WaveFileReader(audioStream);
+            var sampleProvider = audioReader.ToSampleProvider();
+            var volumeProvider = new VolumeSampleProvider(sampleProvider)
             {
-                Volume = 0.5f
+                Volume = Settings.Instance.SoundEffectsVolume
             };
 
-            waveOut.Init(volumeStream);
-
-            waveOut.PlaybackStopped += (sender, args) =>
-            {
-                waveOut.Dispose();
-                audioReader.Dispose();
-                audioStream.Dispose();
-            };
-
+            using var waveOut = new WasapiOut(AudioClientShareMode.Shared, 100);
+            waveOut.Init(volumeProvider);
             waveOut.Play();
+
+            while (waveOut.PlaybackState == PlaybackState.Playing)
+                Thread.Sleep(10);
         }
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]

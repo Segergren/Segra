@@ -1,3 +1,4 @@
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using ObsKit.NET;
@@ -1890,7 +1891,7 @@ namespace Segra.Backend.Recorder
                 Volume = Settings.Instance.SoundEffectsVolume
             };
 
-            using var waveOut = new WaveOutEvent { DesiredLatency = 50 };
+            using var waveOut = new WasapiOut(AudioClientShareMode.Shared, 100);
             waveOut.Init(volumeProvider);
             waveOut.Play();
 
