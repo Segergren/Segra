@@ -220,8 +220,19 @@ namespace Segra.Backend.Media
                     SafeDelete(outputFilePath);
                 }
 
+                string cardError = ex.Message;
+                if (ex is FFmpegException ffEx)
+                {
+                    var (shortMessage, _) = FFmpegErrors.Describe(ffEx.ExitCode);
+                    cardError = shortMessage;
+                    _ = MessageService.ShowModal(
+                        "Clip creation failed",
+                        FFmpegErrors.DescribeForUser(ffEx.ExitCode),
+                        "error");
+                }
+
                 // Notify frontend of failure
-                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = ex.Message });
+                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = cardError });
             }
             finally
             {

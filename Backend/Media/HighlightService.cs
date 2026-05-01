@@ -1,4 +1,5 @@
 using System.Globalization;
+using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
 using Segra.Backend.Shared;
@@ -223,6 +224,15 @@ namespace Segra.Backend.Media
 
                 progressCallback?.Invoke(1.0, "Done");
                 return File.Exists(outputFilePath);
+            }
+            catch (FFmpegException ffEx)
+            {
+                Log.Error(ffEx, "Error extracting and concatenating segments");
+                _ = MessageService.ShowModal(
+                    "Highlight creation failed",
+                    FFmpegErrors.DescribeForUser(ffEx.ExitCode),
+                    "error");
+                return false;
             }
             catch (Exception ex)
             {

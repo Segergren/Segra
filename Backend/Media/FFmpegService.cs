@@ -5,6 +5,114 @@ using Serilog;
 
 namespace Segra.Backend.Media
 {
+    public class FFmpegException : Exception
+    {
+        public int ExitCode { get; }
+
+        public FFmpegException(int exitCode)
+            : base($"FFmpeg process exited with non-zero exit code: {exitCode}")
+        {
+            ExitCode = exitCode;
+        }
+    }
+
+    public static class FFmpegErrors
+    {
+        // FFmpeg-specific AVERROR constants from libavutil/error.h.
+        // FFERRTAG packs four bytes: -(a | b<<8 | c<<16 | d<<24).
+        public const int AVERROR_BSF_NOT_FOUND = -(0xF8 | ('B' << 8) | ('S' << 16) | ('F' << 24));
+        public const int AVERROR_BUG = -('B' | ('U' << 8) | ('G' << 16) | ('!' << 24));
+        public const int AVERROR_BUFFER_TOO_SMALL = -('B' | ('U' << 8) | ('F' << 16) | ('S' << 24));
+        public const int AVERROR_DECODER_NOT_FOUND = -(0xF8 | ('D' << 8) | ('E' << 16) | ('C' << 24));
+        public const int AVERROR_DEMUXER_NOT_FOUND = -(0xF8 | ('D' << 8) | ('E' << 16) | ('M' << 24));
+        public const int AVERROR_ENCODER_NOT_FOUND = -(0xF8 | ('E' << 8) | ('N' << 16) | ('C' << 24));
+        public const int AVERROR_EOF = -('E' | ('O' << 8) | ('F' << 16) | (' ' << 24));
+        public const int AVERROR_EXIT = -('E' | ('X' << 8) | ('I' << 16) | ('T' << 24));
+        public const int AVERROR_EXTERNAL = -('E' | ('X' << 8) | ('T' << 16) | (' ' << 24));
+        public const int AVERROR_FILTER_NOT_FOUND = -(0xF8 | ('F' << 8) | ('I' << 16) | ('L' << 24));
+        public const int AVERROR_INVALIDDATA = -('I' | ('N' << 8) | ('D' << 16) | ('A' << 24));
+        public const int AVERROR_MUXER_NOT_FOUND = -(0xF8 | ('M' << 8) | ('U' << 16) | ('X' << 24));
+        public const int AVERROR_OPTION_NOT_FOUND = -(0xF8 | ('O' << 8) | ('P' << 16) | ('T' << 24));
+        public const int AVERROR_PATCHWELCOME = -('P' | ('A' << 8) | ('W' << 16) | ('E' << 24));
+        public const int AVERROR_PROTOCOL_NOT_FOUND = -(0xF8 | ('P' << 8) | ('R' << 16) | ('O' << 24));
+        public const int AVERROR_STREAM_NOT_FOUND = -(0xF8 | ('S' << 8) | ('T' << 16) | ('R' << 24));
+        public const int AVERROR_BUG2 = -('B' | ('U' << 8) | ('G' << 16) | (' ' << 24));
+        public const int AVERROR_UNKNOWN = -('U' | ('N' << 8) | ('K' << 16) | ('N' << 24));
+        public const int AVERROR_EXPERIMENTAL = -0x2BB2AFA8;
+        public const int AVERROR_INPUT_CHANGED = -0x636E6701;
+        public const int AVERROR_OUTPUT_CHANGED = -0x636E6702;
+        public const int AVERROR_HTTP_BAD_REQUEST = -(0xF8 | ('4' << 8) | ('0' << 16) | ('0' << 24));
+        public const int AVERROR_HTTP_UNAUTHORIZED = -(0xF8 | ('4' << 8) | ('0' << 16) | ('1' << 24));
+        public const int AVERROR_HTTP_FORBIDDEN = -(0xF8 | ('4' << 8) | ('0' << 16) | ('3' << 24));
+        public const int AVERROR_HTTP_NOT_FOUND = -(0xF8 | ('4' << 8) | ('0' << 16) | ('4' << 24));
+        public const int AVERROR_HTTP_TOO_MANY_REQUESTS = -(0xF8 | ('4' << 8) | ('2' << 16) | ('9' << 24));
+        public const int AVERROR_HTTP_OTHER_4XX = -(0xF8 | ('4' << 8) | ('X' << 16) | ('X' << 24));
+        public const int AVERROR_HTTP_SERVER_ERROR = -(0xF8 | ('5' << 8) | ('X' << 16) | ('X' << 24));
+
+        private const string BugReportSuffix =
+            "\n\nThis is likely a bug. Please report it on our Discord or on GitHub:\nhttps://github.com/Segergren/Segra/issues";
+
+        public static (string Message, bool LikelyBug) Describe(int exitCode)
+        {
+            return exitCode switch
+            {
+                // POSIX errno (AVERROR(errno) = -errno)
+                -1 => ("Segra was not permitted to perform the operation.", false),
+                -2 => ("A required file could not be found. It may have been moved or deleted while the operation was running.", false),
+                -5 => ("A read or write error occurred while accessing your drive.", false),
+                -11 => ("The system was temporarily busy. Please try again in a moment.", false),
+                -12 => ("Segra ran out of memory while processing the video.", false),
+                -13 => ("Access to a file was denied. It may be locked by another program (e.g. antivirus or a video player).", false),
+                -16 => ("A file could not be accessed because it is currently in use by another program.", false),
+                -17 => ("An existing file was in the way and could not be replaced.", false),
+                -22 => ("The video could not be processed. The source file may be corrupted or in an unsupported format.", false),
+                -24 => ("Too many files are open. Please restart Segra and try again.", false),
+                -28 => ("Ran out of disk space while writing temporary files. Free up space on your system drive (C:) and try again.", false),
+                -30 => ("The output destination is read-only and cannot be written to.", false),
+                -32 => ("The video processing tool was closed unexpectedly before finishing.", false),
+
+                // FFmpeg-specific
+                AVERROR_INVALIDDATA => ("The source video appears to be corrupted or in an unexpected format.", false),
+                AVERROR_EOF => ("The source video ended sooner than expected.", false),
+                AVERROR_EXIT => ("The operation was cancelled before it could finish.", false),
+                AVERROR_BUG or AVERROR_BUG2 => ("The video processing tool reported an internal bug.", true),
+                AVERROR_UNKNOWN => ("An unknown error occurred while processing the video.", true),
+                AVERROR_EXTERNAL => ("An error occurred in a component used by the video processor.", true),
+                AVERROR_BUFFER_TOO_SMALL => ("The video data did not fit into an internal buffer.", true),
+                AVERROR_BSF_NOT_FOUND => ("A bitstream filter required for this operation is missing.", true),
+                AVERROR_DECODER_NOT_FOUND => ("A video decoder required for this file is missing.", true),
+                AVERROR_ENCODER_NOT_FOUND => ("A video encoder required for the output is missing.", true),
+                AVERROR_MUXER_NOT_FOUND => ("A component required to produce the output format is missing.", true),
+                AVERROR_DEMUXER_NOT_FOUND => ("A component required to read the input format is missing.", true),
+                AVERROR_PROTOCOL_NOT_FOUND => ("A protocol handler required for this operation is missing.", true),
+                AVERROR_FILTER_NOT_FOUND => ("A filter required for this operation is missing.", true),
+                AVERROR_STREAM_NOT_FOUND => ("An expected video or audio stream was missing from the source file.", true),
+                AVERROR_OPTION_NOT_FOUND => ("An invalid option was passed to the video processor.", true),
+                AVERROR_PATCHWELCOME => ("This feature is not yet supported by the video processor.", true),
+                AVERROR_INPUT_CHANGED => ("The input changed unexpectedly during processing.", true),
+                AVERROR_OUTPUT_CHANGED => ("The output changed unexpectedly during processing.", true),
+                AVERROR_EXPERIMENTAL => ("This file needs an experimental codec that is not enabled.", true),
+
+                // HTTP (rare in this app, but cheap to cover)
+                AVERROR_HTTP_BAD_REQUEST => ("The remote server rejected the request (HTTP 400).", false),
+                AVERROR_HTTP_UNAUTHORIZED => ("The remote server requires authentication (HTTP 401).", false),
+                AVERROR_HTTP_FORBIDDEN => ("The remote server denied access (HTTP 403).", false),
+                AVERROR_HTTP_NOT_FOUND => ("The remote resource was not found (HTTP 404).", false),
+                AVERROR_HTTP_TOO_MANY_REQUESTS => ("The remote server is rate-limiting requests (HTTP 429).", false),
+                AVERROR_HTTP_OTHER_4XX => ("The remote server returned a client error (HTTP 4xx).", false),
+                AVERROR_HTTP_SERVER_ERROR => ("The remote server returned a server error (HTTP 5xx).", false),
+
+                _ => ($"Video processing failed unexpectedly (code {exitCode}).", true),
+            };
+        }
+
+        public static string DescribeForUser(int exitCode)
+        {
+            var (message, likelyBug) = Describe(exitCode);
+            return likelyBug ? message + BugReportSuffix : message;
+        }
+    }
+
     public static class FFmpegService
     {
         private const string FFmpegExecutable = "ffmpeg.exe";
@@ -111,7 +219,7 @@ namespace Segra.Backend.Media
 
                     if (process.ExitCode != 0)
                     {
-                        throw new Exception($"FFmpeg process failed with exit code: {process.ExitCode}");
+                        throw new FFmpegException(process.ExitCode);
                     }
                 }
                 catch (Exception ex)
@@ -169,7 +277,7 @@ namespace Segra.Backend.Media
 
                     if (process.ExitCode != 0)
                     {
-                        throw new Exception($"FFmpeg process exited with non-zero exit code: {process.ExitCode}");
+                        throw new FFmpegException(process.ExitCode);
                     }
                 }
                 catch (Exception ex)
