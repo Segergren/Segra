@@ -415,7 +415,7 @@ namespace Segra.Backend.Windows.Display
 
             // Check against standard aspect ratios with a small tolerance
             // so that off-by-a-few-pixel dimensions (e.g. 2560x1441) still match
-            var standardRatios = new double[]
+            var standardRatios = new List<double>
             {
                 32.0 / 9.0,
                 21.0 / 9.0,
@@ -426,6 +426,18 @@ namespace Segra.Backend.Windows.Display
                 4.0 / 3.0,
                 5.0 / 4.0
             };
+
+            // Also accept the user's primary monitor ratio. Some panels (e.g. 2304x1080) run at
+            // a native ratio that isn't in the list above, but games rendering at that ratio
+            // are still "standard" for that user.
+            if (Screen.PrimaryScreen != null)
+            {
+                var bounds = Screen.PrimaryScreen.Bounds;
+                if (bounds.Width > 0 && bounds.Height > 0)
+                {
+                    standardRatios.Add((double)bounds.Width / bounds.Height);
+                }
+            }
 
             const double tolerance = 0.008; // ~0.8% difference
             foreach (double standardRatio in standardRatios)
@@ -449,6 +461,24 @@ namespace Segra.Backend.Windows.Display
             uint? lastHeight = null;
             int stabilityChecks = 0;
             int requiredStabilityChecks = 0;
+
+            // If the owning process has been running for a while, the window is unlikely to still be
+            // resizing (loading splashes, intro cinematics, etc) so we can confirm with far fewer
+            // stability ticks instead of waiting the full 30s.
+            bool processStartedLongAgo = false;
+            try
+            {
+                GetWindowThreadProcessId(windowHandle, out uint windowPid);
+                if (windowPid != 0)
+                {
+                    using var proc = Process.GetProcessById((int)windowPid);
+                    if ((DateTime.Now - proc.StartTime).TotalSeconds > 180)
+                    {
+                        processStartedLongAgo = true;
+                    }
+                }
+            }
+            catch { }
 
             while (stableWindowDimensionsAttempt < maxStableWindowDimensionsAttempts)
             {
@@ -526,12 +556,19 @@ namespace Segra.Backend.Windows.Display
                     return true;
                 }
 
-                // Check if dimensions match a display (fullscreen) - needs fewer stability checks
-                // Allow a small pixel tolerance so off-by-one dimensions (e.g. 2560x1441 vs 2560x1440) still count
+                // Check if dimensions match a display (fullscreen) - needs fewer stability checks.
+                // Allow a small pixel tolerance so off-by-one dimensions (e.g. 2560x1441 vs 2560x1440) still count.
+                // The logical comparison catches apps whose per-window DPI inflates the physical-pixel dims
+                // away from the monitor's physical resolution even when the game renders edge-to-edge.
                 SettingsService.GetPrimaryMonitorResolution(out uint monitorWidth, out uint monitorHeight);
                 const int fullscreenTolerance = 4;
-                bool isFullscreen = Math.Abs((int)width - (int)monitorWidth) <= fullscreenTolerance
-                    && Math.Abs((int)height - (int)monitorHeight) <= fullscreenTolerance;
+                var monitorBounds = Screen.PrimaryScreen?.Bounds;
+                bool isFullscreen =
+                    (Math.Abs((int)width - (int)monitorWidth) <= fullscreenTolerance
+                        && Math.Abs((int)height - (int)monitorHeight) <= fullscreenTolerance)
+                    || (monitorBounds.HasValue
+                        && Math.Abs(logicalWidth - monitorBounds.Value.Width) <= fullscreenTolerance
+                        && Math.Abs(logicalHeight - monitorBounds.Value.Height) <= fullscreenTolerance);
 
                 // Window dimensions are 0x0 or 1x1 when the window is not visible
                 if (width > 1 && height > 1)
@@ -559,10 +596,12 @@ namespace Segra.Backend.Windows.Display
                             lastWidth = width;
                             lastHeight = height;
 
-                            // Low-res windows (height <= 480) need more checks — they often
+                            // Low-res windows (height <= 480) need more checks - they often
                             // briefly match a standard ratio while still loading/resizing
                             int standardRatioChecks = height <= 480 ? 20 : 10;
-                            requiredStabilityChecks = isFullscreen ? 5 : isStandardAspectRatio ? standardRatioChecks : 30;
+                            requiredStabilityChecks = (isFullscreen || processStartedLongAgo)
+                                ? 5
+                                : isStandardAspectRatio ? standardRatioChecks : 30;
                             stabilityChecks = 0;
 
                             Thread.Sleep(1000);
@@ -571,10 +610,12 @@ namespace Segra.Backend.Windows.Display
                     else
                     {
                         // First valid dimensions detected
-                        // Low-res windows (height <= 480) need more checks — they often
+                        // Low-res windows (height <= 480) need more checks - they often
                         // briefly match a standard ratio while still loading/resizing
                         int standardRatioChecks = height <= 480 ? 20 : 10;
-                        requiredStabilityChecks = isFullscreen ? 5 : isStandardAspectRatio ? standardRatioChecks : 30;
+                        requiredStabilityChecks = (isFullscreen || processStartedLongAgo)
+                            ? 5
+                            : isStandardAspectRatio ? standardRatioChecks : 30;
                         stabilityChecks = 0;
 
                         string aspectRatioNote = isStandardAspectRatio ? "standard aspect ratio" : "non-standard aspect ratio";
