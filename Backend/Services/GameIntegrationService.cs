@@ -17,7 +17,7 @@ namespace Segra.Backend.Services
         private static Integration? _gameIntegration;
         public static Integration? GameIntegration => _gameIntegration;
 
-        public static async Task Start(int? igdbId, string? gameName = null)
+        public static async Task Start(int? igdbId, string? gameName = null, string? exePath = null)
         {
             if (_gameIntegration != null)
             {
@@ -37,6 +37,7 @@ namespace Segra.Backend.Services
             if (_gameIntegration == null)
                 return;
 
+            _gameIntegration.ExePath = exePath;
             Log.Information($"Starting game integration for IGDB ID: {igdbId}, Game: {gameName}");
             _ = _gameIntegration.Start();
         }

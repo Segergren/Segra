@@ -278,29 +278,27 @@ namespace Segra.Backend.Games.CounterStrike2
         {
             try
             {
-                string steam = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-                string cfgPath = Path.Combine(steam,
-                    "Steam",
-                    "steamapps",
-                    "common",
-                    "Counter-Strike Global Offensive",
-                    "game",
-                    "csgo",
-                    "cfg",
-                    "gamestate_integration_segra.cfg");
+                string? cfgDir = ResolveCfgDirectory(ExePath);
+                if (cfgDir == null)
+                {
+                    Log.Warning($"Could not derive CS2 cfg directory from exe path '{ExePath}'. Skipping cfg write.");
+                    return;
+                }
+
+                string cfgPath = Path.Combine(cfgDir, "gamestate_integration_segra.cfg");
+                string expectedContent = GenerateCfg();
 
                 if (File.Exists(cfgPath))
                 {
                     string existingContent = File.ReadAllText(cfgPath);
-                    string expectedContent = GenerateCfg();
                     if (existingContent.Equals(expectedContent, StringComparison.Ordinal))
                     {
                         return;
                     }
                 }
 
-                Directory.CreateDirectory(Path.GetDirectoryName(cfgPath)!);
-                File.WriteAllText(cfgPath, GenerateCfg());
+                Directory.CreateDirectory(cfgDir);
+                File.WriteAllText(cfgPath, expectedContent);
                 Log.Information($"Created CS2 gamestate integration config at {cfgPath}");
                 _ = MessageService.ShowModal("Game integration", $"There has been an update to the CS2 integration. Please restart the game to apply the changes.", "warning");
             }
@@ -308,6 +306,20 @@ namespace Segra.Backend.Games.CounterStrike2
             {
                 Log.Warning($"Could not ensure CS2 cfg exists: {ex.Message}");
             }
+        }
+
+        private static string? ResolveCfgDirectory(string? exePath)
+        {
+            // CS2 exe lives at: <install>\Counter-Strike Global Offensive\game\bin\win64\cs2.exe
+            // The cfg dir is:   <install>\Counter-Strike Global Offensive\game\csgo\cfg
+            if (string.IsNullOrEmpty(exePath)) return null;
+
+            string? winDir = Path.GetDirectoryName(exePath);          // ...\game\bin\win64
+            string? binDir = Path.GetDirectoryName(winDir);            // ...\game\bin
+            string? gameDir = Path.GetDirectoryName(binDir);           // ...\game
+            if (string.IsNullOrEmpty(gameDir)) return null;
+
+            return Path.Combine(gameDir, "csgo", "cfg");
         }
 
         private string GenerateCfg()
