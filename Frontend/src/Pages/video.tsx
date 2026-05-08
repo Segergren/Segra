@@ -387,13 +387,16 @@ export default function VideoComponent({ video }: { video: Content }) {
     const saved = localStorage.getItem('segra-playbackRate');
     return saved ? parseFloat(saved) : 1;
   });
-  const [controlsVisible, setControlsVisible] = useState(true);
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const controlsVisibleRef = useRef(false);
+  const cursorHiddenRef = useRef(false);
   const controlsHideTimeoutRef = useRef<number | null>(null);
+  const controlsShowTimeoutRef = useRef<number | null>(null);
   const isPointerOverControlsRef = useRef(false);
-  const [isPointerInPlayer, setIsPointerInPlayer] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
+    controlsVisibleRef.current = controlsVisible;
     if (!controlsVisible) {
       setShowSpeedMenu(false);
       setShowAudioTracks(false);
@@ -727,35 +730,66 @@ export default function VideoComponent({ video }: { video: Content }) {
     wheelZoomRef.current = zoom;
   }, [zoom]);
 
-  // TODO: refactor
-  const showControlsTemporarily = () => {
-    setControlsVisible(true);
+  const hideCursor = () => {
+    cursorHiddenRef.current = true;
+    if (playerContainerRef.current) {
+      playerContainerRef.current.style.cursor = 'none';
+    }
+  };
 
+  const showCursor = () => {
+    if (!cursorHiddenRef.current) return;
+    cursorHiddenRef.current = false;
+    if (playerContainerRef.current) {
+      playerContainerRef.current.style.cursor = '';
+    }
+  };
+
+  // TODO: refactor
+  const scheduleControlsHide = () => {
     if (controlsHideTimeoutRef.current) {
       clearTimeout(controlsHideTimeoutRef.current);
       controlsHideTimeoutRef.current = null;
     }
-
-    if (isPointerOverControlsRef.current) {
-      return;
-    }
-
+    if (isPointerOverControlsRef.current) return;
     controlsHideTimeoutRef.current = window.setTimeout(() => {
       if (!isPointerOverControlsRef.current) {
         setControlsVisible(false);
+        hideCursor();
       }
       controlsHideTimeoutRef.current = null;
     }, 2500);
   };
 
+  const showControlsTemporarily = () => {
+    showCursor();
+
+    if (controlsVisibleRef.current) {
+      scheduleControlsHide();
+      return;
+    }
+
+    if (controlsShowTimeoutRef.current) return;
+    controlsShowTimeoutRef.current = window.setTimeout(() => {
+      controlsShowTimeoutRef.current = null;
+      setControlsVisible(true);
+      scheduleControlsHide();
+    }, 200);
+  };
+
   const handleControlsMouseEnter = () => {
     isPointerOverControlsRef.current = true;
 
+    if (controlsShowTimeoutRef.current) {
+      clearTimeout(controlsShowTimeoutRef.current);
+      controlsShowTimeoutRef.current = null;
+    }
     if (controlsHideTimeoutRef.current) {
       clearTimeout(controlsHideTimeoutRef.current);
       controlsHideTimeoutRef.current = null;
     }
 
+    showCursor();
     setControlsVisible(true);
   };
 
@@ -1577,15 +1611,18 @@ export default function VideoComponent({ video }: { video: Content }) {
         <div className="flex flex-col flex-1 w-full h-full p-4 pb-2 overflow-hidden lg:w-3/4">
           <TopInfoBar video={video} />
           <div
-            className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative flex-1 min-h-0 overflow-hidden'} ${!controlsVisible && isPointerInPlayer ? 'cursor-none' : ''}`}
+            className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative flex-1 min-h-0 overflow-hidden rounded-lg'}`}
             ref={playerContainerRef}
             onMouseMove={() => {
-              setIsPointerInPlayer(true);
               showControlsTemporarily();
             }}
             onMouseLeave={() => {
-              setIsPointerInPlayer(false);
               isPointerOverControlsRef.current = false;
+              showCursor();
+              if (controlsShowTimeoutRef.current) {
+                clearTimeout(controlsShowTimeoutRef.current);
+                controlsShowTimeoutRef.current = null;
+              }
               if (controlsHideTimeoutRef.current) {
                 clearTimeout(controlsHideTimeoutRef.current);
                 controlsHideTimeoutRef.current = null;
@@ -1620,7 +1657,7 @@ export default function VideoComponent({ video }: { video: Content }) {
             </div>
 
             <div
-              className={`absolute left-0 right-0 bottom-0 bg-black/70 pb-2 flex flex-col gap-2 transition-transform duration-300 select-none ${controlsVisible ? 'translate-y-0' : 'translate-y-full'}`}
+              className={`absolute left-0 right-0 bottom-0 bg-black/70 pb-2 flex flex-col gap-2 transition-transform duration-300 select-none ${isFullscreen ? '' : 'rounded-b-lg'} ${controlsVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}`}
               onMouseEnter={handleControlsMouseEnter}
               onMouseLeave={handleControlsMouseLeave}
             >
