@@ -28,6 +28,7 @@ namespace Segra.Backend.Core.Models
         CreateBookmark,
         SaveReplayBuffer,
         ToggleRecording,
-        TogglePreview
+        TogglePreview,
+        ToggleStreaming
     }
 }

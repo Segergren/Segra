@@ -60,6 +60,8 @@ const getActionLabel = (action: KeybindAction): string => {
       return 'Start / Stop Display Recording';
     case KeybindAction.TogglePreview:
       return 'Toggle Recording Preview';
+    case KeybindAction.ToggleStreaming:
+      return 'Toggle Live Streaming';
     default:
       return action;
   }

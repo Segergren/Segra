@@ -232,6 +232,12 @@ namespace Segra.Backend.App
                         case "StopRecording":
                             _ = Task.Run(OBSService.StopRecording);
                             break;
+                        case "StartStreaming":
+                            _ = Task.Run(OBSService.StartStreaming);
+                            break;
+                        case "StopStreaming":
+                            _ = Task.Run(OBSService.StopStreaming);
+                            break;
                         case "NewConnection":
                             Log.Information("NewConnection command received.");
                             await SendSettingsToFrontend("New connection");

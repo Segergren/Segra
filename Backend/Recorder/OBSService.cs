@@ -85,6 +85,7 @@ namespace Segra.Backend.Recorder
         // OBS output resources
         private static RecordingOutput? _output;
         private static ReplayBuffer? _bufferOutput;
+        private static StreamingOutput? _streamOutput;
 
         // OBS source resources
         public static GameCapture? GameCaptureSource { get; set; }
@@ -97,6 +98,10 @@ namespace Segra.Backend.Recorder
         private static VideoEncoder? _videoEncoder;
         private static readonly List<AudioEncoder> _audioEncoders = [];
 
+        // Streaming-specific encoders (independent from recording — own bitrate/encoder for RTMP/WebRTC)
+        private static VideoEncoder? _streamVideoEncoder;
+        private static AudioEncoder? _streamAudioEncoder;
+
         // Game capture state
         private static string? _hookedExecutableFileName;
         private static System.Threading.Timer? _gameCaptureHookTimeoutTimer = null;
@@ -104,8 +109,17 @@ namespace Segra.Backend.Recorder
 
         // Recording/output state
         private static bool _isStoppingOrStopped = false;
+        private static bool _isStoppingStreamOrStopped = false;
         private static uint _currentBaseWidth;
         private static uint _currentBaseHeight;
+
+        // Lifecycle state — recording and streaming each own a complete independent pipeline
+        // (scene, sources, encoders, output). They are mutually exclusive in v1: the second
+        // attempt fails fast. Streaming uses CaptureMode.AnyFullscreen to auto-hook games,
+        // so it doesn't need coordination with GameDetectionService.
+        private static bool IsRecordingActive => _output != null || _bufferOutput != null;
+        private static bool IsStreamingActive => _streamOutput != null;
+        private static readonly SemaphoreSlim _stopStreamingSemaphore = new(1, 1);
 
         // Replay buffer state
         private static bool _replaySaved = false;
@@ -481,6 +495,231 @@ namespace Segra.Backend.Recorder
                 .Fps(customFps ?? 60));
         }
 
+        // === Pipeline lifecycle (shared between recording + streaming) ===
+        // BuildPipeline creates the scene + sources + mixers. Recording and streaming each
+        // call this; whoever runs first builds it, others join. MaybeTeardownPipeline tears
+        // it down only when both consumers have stopped.
+
+        private static bool BuildPipeline(string sceneName, GameCapture.CaptureMode? gameMode, string? windowFilter, bool useGameWindowDimensions)
+        {
+            if (_mainScene != null)
+            {
+                Log.Information("Pipeline already active — joining existing scene");
+                return true;
+            }
+
+            ResetVideoSettings(out _, customFps: (uint)Settings.Instance.FrameRate);
+
+            _mainScene = new Scene(sceneName);
+            Log.Information($"Created scene: {sceneName}");
+
+            AddMonitorCapture();
+            _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+
+            if (gameMode.HasValue)
+            {
+                try
+                {
+                    GameCaptureSource = new GameCapture("gameplay", gameMode.Value);
+                    if (gameMode.Value == GameCapture.CaptureMode.SpecificWindow && !string.IsNullOrEmpty(windowFilter))
+                    {
+                        GameCaptureSource.SetWindow(windowFilter);
+                    }
+
+                    if (Settings.Instance.AudioOutputMode != AudioOutputMode.All)
+                    {
+                        GameCaptureSource.Update(s => s.Set("capture_audio", true));
+                        Log.Information($"Game capture audio enabled (mode: {Settings.Instance.AudioOutputMode})");
+                    }
+
+                    _gameCaptureItem = _mainScene.AddSource(GameCaptureSource);
+
+                    if (gameMode.Value == GameCapture.CaptureMode.SpecificWindow && useGameWindowDimensions &&
+                        WindowUtils.GetWindowDimensionsByPreRecordingExeOrPid(out uint windowWidth, out uint windowHeight))
+                    {
+                        ResetVideoSettings(out bool is4by3, customFps: (uint)Settings.Instance.FrameRate, customOutputWidth: windowWidth, customOutputHeight: windowHeight);
+                        var boundsType = is4by3 ? ObsBoundsType.Stretch : ObsBoundsType.ScaleInner;
+                        _gameCaptureItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+                        _displayItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+                    }
+                    else
+                    {
+                        _gameCaptureItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+                    }
+
+                    if (gameMode.Value == GameCapture.CaptureMode.SpecificWindow)
+                    {
+                        StartGameCaptureHookTimeoutTimer();
+                    }
+
+                    GameCaptureSource.Hooked += OnGameCaptureHookedEvent;
+                    GameCaptureSource.Unhooked += OnGameCaptureUnhookedEvent;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Game Capture source not available: {ex.Message}. Using Display Capture only.");
+                    GameCaptureSource = null;
+                }
+            }
+
+            _mainScene.SetAsProgram();
+
+            // Audio sources (full superset — recording uses per-track encoders, streaming uses track 0 only).
+            AddAudioSourcesToScene();
+            ConfigureAudioMixers();
+
+            return true;
+        }
+
+        private static void AddAudioSourcesToScene()
+        {
+            if (Settings.Instance.InputDevices != null && Settings.Instance.InputDevices.Count > 0)
+            {
+                foreach (var deviceSetting in Settings.Instance.InputDevices)
+                {
+                    if (string.IsNullOrEmpty(deviceSetting.Id)) continue;
+                    string sourceName = $"Microphone_{_micSources.Count + 1}";
+                    var micSource = deviceSetting.Id == "default"
+                        ? AudioInputCapture.FromDefault(sourceName)
+                        : AudioInputCapture.FromDevice(deviceSetting.Id, sourceName);
+
+                    SetForceMono(micSource, Settings.Instance.ForceMonoInputSources);
+                    micSource.Volume = deviceSetting.Volume;
+                    _mainScene!.AddSource(micSource);
+                    _micSources.Add(micSource);
+
+                    if (Settings.Instance.InputNoiseSuppression)
+                    {
+                        try
+                        {
+                            var noiseGate = new Source("noise_gate_filter", $"{sourceName}_NoiseGate");
+                            noiseGate.Update(s =>
+                            {
+                                s.Set("close_threshold", -48.0);
+                                s.Set("open_threshold", -42.0);
+                                s.Set("attack_time", 25L);
+                                s.Set("hold_time", 200L);
+                                s.Set("release_time", 150L);
+                            });
+                            micSource.AddFilter(noiseGate);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning($"Failed to add noise suppression to {sourceName}: {ex.Message}");
+                        }
+                    }
+                    Log.Information($"Added input device: {deviceSetting.Id} as {sourceName}");
+                }
+            }
+
+            if (Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
+            {
+                foreach (var deviceSetting in Settings.Instance.OutputDevices)
+                {
+                    if (string.IsNullOrEmpty(deviceSetting.Id)) continue;
+                    string sourceName = $"DesktopAudio_{_desktopSources.Count + 1}";
+                    var desktopSource = deviceSetting.Id == "default"
+                        ? AudioOutputCapture.FromDefault(sourceName)
+                        : AudioOutputCapture.FromDevice(deviceSetting.Id, sourceName);
+
+                    desktopSource.Volume = deviceSetting.Volume;
+                    _mainScene!.AddSource(desktopSource);
+                    _desktopSources.Add(desktopSource);
+                    Log.Information($"Added output device: {deviceSetting.Name} ({deviceSetting.Id}) as {sourceName}");
+                }
+            }
+
+            if (Settings.Instance.AudioOutputMode == AudioOutputMode.GameAndDiscord && GameCaptureSource != null)
+            {
+                try
+                {
+                    _discordAudioSource = new Source("wasapi_process_output_capture", "Discord Audio");
+                    _discordAudioSource.Update(s =>
+                    {
+                        s.Set("window", "Discord:Chrome_WidgetWin_1:Discord.exe");
+                        s.Set("priority", 2);
+                    });
+                    _discordAudioSource.IsMuted = true;
+                    _mainScene!.AddSource(_discordAudioSource);
+                    Log.Information("Added Discord application audio capture");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to create Discord audio: {ex.Message}");
+                    _discordAudioSource = null;
+                }
+            }
+        }
+
+        private static void ConfigureAudioMixers()
+        {
+            var audioOutputMode = Settings.Instance.AudioOutputMode;
+            var allAudioSources = new List<Source>();
+            allAudioSources.AddRange(_micSources);
+            allAudioSources.AddRange(_desktopSources);
+
+            if (audioOutputMode != AudioOutputMode.All && GameCaptureSource != null)
+            {
+                foreach (var desktopSource in _desktopSources)
+                {
+                    try { desktopSource.AudioMixers = 1u << 0; }
+                    catch (Exception ex) { Log.Warning($"Failed to set mixer for fallback desktop source: {ex.Message}"); }
+                }
+
+                allAudioSources = new List<Source>();
+                allAudioSources.AddRange(_micSources);
+                allAudioSources.Add(GameCaptureSource);
+                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
+                    allAudioSources.Add(_discordAudioSource);
+            }
+
+            bool separateTracks = Settings.Instance.EnableSeparateAudioTracks;
+            int maxTracks = 6;
+            for (int i = 0; i < allAudioSources.Count; i++)
+            {
+                try
+                {
+                    uint mixersMask = 1u << 0;
+                    if (separateTracks && i < (maxTracks - 1))
+                        mixersMask |= (uint)(1 << (i + 1));
+                    allAudioSources[i].AudioMixers = mixersMask;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to set mixers for audio source {i}: {ex.Message}");
+                }
+            }
+        }
+
+        // Builds the per-encoder source list used by recording (counts inform trackCount).
+        // Same logic as ConfigureAudioMixers but returns the list instead of mutating mixers.
+        private static List<Source> BuildAllAudioSourcesForEncoders()
+        {
+            var audioOutputMode = Settings.Instance.AudioOutputMode;
+            var list = new List<Source>();
+            list.AddRange(_micSources);
+            list.AddRange(_desktopSources);
+
+            if (audioOutputMode != AudioOutputMode.All && GameCaptureSource != null)
+            {
+                list = new List<Source>();
+                list.AddRange(_micSources);
+                list.Add(GameCaptureSource);
+                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
+                    list.Add(_discordAudioSource);
+            }
+            return list;
+        }
+
+        private static void MaybeTeardownPipeline()
+        {
+            if (IsRecordingActive || IsStreamingActive) return;
+            DisposeSources();
+            _hookedExecutableFileName = null;
+            CapturedWindowWidth = null;
+            CapturedWindowHeight = null;
+        }
+
         public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null)
         {
             // Wait for pending StopRecording to complete before starting. Prevents race conditions where a new recording starts before cleanup finishes
@@ -516,83 +755,24 @@ namespace Segra.Backend.Recorder
             // Reset the stopping flag when starting a new recording
             _isStoppingOrStopped = false;
 
-            // Configure video settings specifically for this recording/buffer
-            ResetVideoSettings(out _, customFps: (uint)Settings.Instance.FrameRate);
-
-            // Create main scene for this recording
-            _mainScene = new Scene("Recording Scene");
-            Log.Information("Created recording scene");
-
-            // For manual recording, use display capture directly without game hooking
-            if (startManually)
+            // Build pipeline (no-op if streaming already has it). Recording uses SpecificWindow
+            // game capture targeting the detected game, and tries to match canvas dimensions
+            // to the game window.
+            GameCapture.CaptureMode? gameMode = startManually ? null : (GameCapture.CaptureMode?)GameCapture.CaptureMode.SpecificWindow;
+            string? windowFilter = startManually ? null : $"*:*:{fileName}";
+            if (!BuildPipeline("Main Scene", gameMode, windowFilter, useGameWindowDimensions: !startManually))
             {
-                Log.Information("Manual recording started - using display capture");
-                AddMonitorCapture();
-                // Use base dimensions for bounds - scene canvas is at base resolution
-                _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
-            }
-            else
-            {
-                // Add display capture first (bottom layer - fallback)
-                AddMonitorCapture();
-
-                // Create game capture source for automatic game detection
-                try
-                {
-                    GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
-                    GameCaptureSource.SetWindow($"*:*:{fileName}");
-
-                    // Enable capture_audio on game capture when using GameOnly or GameAndDiscord mode
-                    if (Settings.Instance.AudioOutputMode != AudioOutputMode.All)
-                    {
-                        GameCaptureSource.Update(s => s.Set("capture_audio", true));
-                        Log.Information($"Game capture audio enabled (mode: {Settings.Instance.AudioOutputMode})");
-                    }
-
-                    Log.Information($"Game capture configured for: {fileName}");
-
-                    // Add game capture to scene (top layer - visible when hooked)
-                    _gameCaptureItem = _mainScene.AddSource(GameCaptureSource);
-
-                    // Start a timer to check if game capture hooks within 90 seconds
-                    StartGameCaptureHookTimeoutTimer();
-
-                    // Subscribe to GameCapture's hooked/unhooked events (IsHooked is tracked automatically)
-                    GameCaptureSource!.Hooked += OnGameCaptureHookedEvent;
-                    GameCaptureSource.Unhooked += OnGameCaptureUnhookedEvent;
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Game Capture source not available: {ex.Message}. Using Display Capture only.");
-                    GameCaptureSource = null;
-                }
-
-                // Try to get the window dimensions for the game
-                if (WindowUtils.GetWindowDimensionsByPreRecordingExeOrPid(out uint windowWidth, out uint windowHeight))
-                {
-                    ResetVideoSettings(
-                        out bool is4by3,
-                        customFps: (uint)Settings.Instance.FrameRate,
-                        customOutputWidth: windowWidth,
-                        customOutputHeight: windowHeight
-                    );
-
-                    // Scene item bounds must use BASE dimensions (not output) because the scene canvas is at base resolution.
-                    // For 4:3 content: base is 4:3, output is 16:9 - OBS handles the stretch at the output level.
-                    // For non-4:3: base == output, ScaleInner ensures content scales with black bars if window shrinks.
-                    var boundsType = is4by3 ? ObsBoundsType.Stretch : ObsBoundsType.ScaleInner;
-                    _gameCaptureItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
-                    _displayItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
-                }
-                else
-                {
-                    _ = Task.Run(StopRecording);
-                    return false;
-                }
+                Settings.Instance.State.PreRecording = null;
+                _ = Task.Run(StopRecording);
+                return false;
             }
 
-            // Set scene as program output
-            _mainScene.SetAsProgram();
+            // Validate game window dimensions are available when auto-recording (matches old behavior).
+            if (!startManually && !WindowUtils.GetWindowDimensionsByPreRecordingExeOrPid(out _, out _))
+            {
+                _ = Task.Run(StopRecording);
+                return false;
+            }
 
             // Create video encoder
             string encoderId = Settings.Instance.Codec!.InternalEncoderId;
@@ -649,126 +829,11 @@ namespace Segra.Backend.Recorder
 
             _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
 
-            // Create audio sources and add to scene
-            if (Settings.Instance.InputDevices != null && Settings.Instance.InputDevices.Count > 0)
-            {
-                foreach (var deviceSetting in Settings.Instance.InputDevices)
-                {
-                    if (!string.IsNullOrEmpty(deviceSetting.Id))
-                    {
-                        string sourceName = $"Microphone_{_micSources.Count + 1}";
-                        var micSource = deviceSetting.Id == "default"
-                            ? AudioInputCapture.FromDefault(sourceName)
-                            : AudioInputCapture.FromDevice(deviceSetting.Id, sourceName);
-
-                        // Apply Force Mono if enabled
-                        SetForceMono(micSource, Settings.Instance.ForceMonoInputSources);
-
-                        micSource.Volume = deviceSetting.Volume;
-
-                        _mainScene!.AddSource(micSource);
-                        _micSources.Add(micSource);
-
-                        if (Settings.Instance.InputNoiseSuppression)
-                        {
-                            try
-                            {
-                                var noiseGate = new Source("noise_gate_filter", $"{sourceName}_NoiseGate");
-                                noiseGate.Update(s =>
-                                {
-                                    s.Set("close_threshold", -48.0);
-                                    s.Set("open_threshold", -42.0);
-                                    s.Set("attack_time", 25L);
-                                    s.Set("hold_time", 200L);
-                                    s.Set("release_time", 150L);
-                                });
-                                micSource.AddFilter(noiseGate);
-                                Log.Information($"Added noise suppression filter to {sourceName}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Warning($"Failed to add noise suppression filter to {sourceName}: {ex.Message}");
-                            }
-                        }
-
-                        Log.Information($"Added input device: {deviceSetting.Id} as {sourceName} with volume {deviceSetting.Volume}");
-                    }
-                }
-            }
-
+            // Audio sources + mixers were configured by BuildPipeline. Derive what we need
+            // for the recording-specific audio encoders here (track count + per-track names).
             var audioOutputMode = Settings.Instance.AudioOutputMode;
+            var allAudioSources = BuildAllAudioSourcesForEncoders();
 
-            // Always add desktop audio sources - they serve as fallback until game hooks in GameOnly/GameAndDiscord modes
-            if (Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
-            {
-                foreach (var deviceSetting in Settings.Instance.OutputDevices)
-                {
-                    if (!string.IsNullOrEmpty(deviceSetting.Id))
-                    {
-                        string sourceName = $"DesktopAudio_{_desktopSources.Count + 1}";
-                        var desktopSource = deviceSetting.Id == "default"
-                            ? AudioOutputCapture.FromDefault(sourceName)
-                            : AudioOutputCapture.FromDevice(deviceSetting.Id, sourceName);
-
-                        desktopSource.Volume = deviceSetting.Volume;
-
-                        _mainScene!.AddSource(desktopSource);
-                        _desktopSources.Add(desktopSource);
-
-                        Log.Information($"Added output device: {deviceSetting.Name} ({deviceSetting.Id}) as {sourceName} with volume {deviceSetting.Volume}");
-                    }
-                }
-            }
-
-            // In GameAndDiscord mode, also create Discord application audio capture (starts muted until game hooks)
-            if (audioOutputMode == AudioOutputMode.GameAndDiscord && GameCaptureSource != null)
-            {
-                try
-                {
-                    _discordAudioSource = new Source("wasapi_process_output_capture", "Discord Audio");
-                    _discordAudioSource.Update(s =>
-                    {
-                        // Window format: title:class:executable
-                        s.Set("window", "Discord:Chrome_WidgetWin_1:Discord.exe");
-                        s.Set("priority", 2); // WINDOW_PRIORITY_EXE
-                    });
-                    _discordAudioSource.IsMuted = true; // Muted until game hooks (desktop audio covers Discord until then)
-                    _mainScene!.AddSource(_discordAudioSource);
-                    Log.Information("Added Discord application audio capture source (muted until game hooks)");
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to create Discord audio capture source: {ex.Message}");
-                    _discordAudioSource = null;
-                }
-            }
-
-            // Configure mixers and audio encoders based on setting.
-            // If enabled: Track 1 = Full Mix, Tracks 2..6 = per-source isolated (up to 5 sources)
-            // If disabled: Track 1 only (Full Mix)
-            // In GameOnly/GameAndDiscord modes, desktop sources are fallback-only (full mix only).
-            var allAudioSources = new List<Source>();
-            allAudioSources.AddRange(_micSources);
-            allAudioSources.AddRange(_desktopSources);
-
-            if (audioOutputMode != AudioOutputMode.All && GameCaptureSource != null)
-            {
-                // Desktop sources are fallback-only: assign to full mix (Track 1) only, no separate tracks
-                foreach (var desktopSource in _desktopSources)
-                {
-                    try { desktopSource.AudioMixers = 1u << 0; }
-                    catch (Exception ex) { Log.Warning($"Failed to set mixer for fallback desktop source: {ex.Message}"); }
-                }
-
-                // Remove desktop sources from the list that gets separate tracks
-                allAudioSources = new List<Source>();
-                allAudioSources.AddRange(_micSources);
-                allAudioSources.Add(GameCaptureSource);
-                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
-                    allAudioSources.Add(_discordAudioSource);
-            }
-
-            // Build list of device names for encoder naming
             var audioDeviceNames = new List<string>();
             if (Settings.Instance.InputDevices != null)
             {
@@ -791,34 +856,9 @@ namespace Segra.Backend.Recorder
             }
 
             bool separateTracks = Settings.Instance.EnableSeparateAudioTracks;
-            int maxTracks = 6; // OBS supports up to 6 audio tracks
-            int perSourceTracks = separateTracks ? Math.Min(allAudioSources.Count, maxTracks - 1) : 0; // tracks 2..6 for sources
-            int trackCount = 1 + perSourceTracks; // Track 1 is always the full mix
-
-            for (int i = 0; i < allAudioSources.Count; i++)
-            {
-                try
-                {
-                    // Always include Track 1 (bit 0) as a full mix
-                    uint mixersMask = 1u << 0;
-
-                    // If enabled, give first 5 sources their own isolated tracks on 2..6 (bits 1..5)
-                    if (separateTracks && i < (maxTracks - 1))
-                    {
-                        mixersMask |= (uint)(1 << (i + 1));
-                    }
-                    else
-                    {
-                        if (separateTracks && i >= (maxTracks - 1))
-                            Log.Warning($"Audio source index {i} exceeds {maxTracks - 1} dedicated per-source tracks. It will be available in the master mix (Track 1) only.");
-                    }
-                    allAudioSources[i].AudioMixers = mixersMask;
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to set mixers for audio source {i}: {ex.Message}");
-                }
-            }
+            int maxTracks = 6;
+            int perSourceTracks = separateTracks ? Math.Min(allAudioSources.Count, maxTracks - 1) : 0;
+            int trackCount = 1 + perSourceTracks;
 
             // Create one audio encoder per track and bind to corresponding mixer index.
             // Also capture the authoritative track name list so downstream code (metadata,
@@ -972,6 +1012,173 @@ namespace Segra.Backend.Recorder
             return true;
         }
 
+        // Streaming uses an independent pipeline (own scene, sources, encoders, output).
+        // It is mutually exclusive with recording in v1.
+        public static async Task<bool> StartStreaming()
+        {
+            // Prevent overlap with a pending stop.
+            await _stopStreamingSemaphore.WaitAsync();
+            _stopStreamingSemaphore.Release();
+
+            if (!IsOBSInstalled())
+            {
+                Log.Information("OBS is not installed. Skipping streaming.");
+                return false;
+            }
+
+            if (!IsInitialized)
+            {
+                Log.Information("OBS is not initialized. Skipping streaming.");
+                return false;
+            }
+
+            if (IsStreamingActive)
+            {
+                Log.Information("Streaming is already active.");
+                return false;
+            }
+
+            _isStoppingStreamOrStopped = false;
+
+            // Fetch stream credentials (idempotent — caches in Settings).
+            await StreamingService.EnsureStreamKeyAsync();
+            if (string.IsNullOrEmpty(Settings.Instance.StreamKey) ||
+                string.IsNullOrEmpty(Settings.Instance.StreamIngestUrl))
+            {
+                Log.Warning("Stream key or ingest URL is missing. Cannot start streaming.");
+                _ = ShowModal("Streaming", "Could not fetch stream credentials. Are you signed in?", "error");
+                return false;
+            }
+
+            try
+            {
+                // Build pipeline (no-op if recording already has it). Streaming uses AnyFullscreen
+                // game capture so it auto-hooks any game without needing a target executable.
+                if (!BuildPipeline("Main Scene", GameCapture.CaptureMode.AnyFullscreen, null, useGameWindowDimensions: false))
+                {
+                    Log.Warning("Failed to build pipeline for streaming");
+                    _ = ShowModal("Streaming failed", "Failed to start streaming. Check the log for more details.", "error");
+                    await TeardownStreamingPipelineAsync();
+                    return false;
+                }
+
+                // Stream-specific video encoder: H.264 + CBR + bf=0 (WebRTC requirement).
+                string streamEncoderId = PickStreamEncoderId();
+                Log.Information($"Stream encoder: {streamEncoderId}");
+
+                using var streamVideoSettings = new ObsKit.NET.Core.Settings();
+                streamVideoSettings.Set("preset", "Quality");
+                streamVideoSettings.Set("profile", "high");
+                streamVideoSettings.Set("rate_control", "CBR");
+                streamVideoSettings.Set("keyint_sec", 2);
+                streamVideoSettings.Set("bitrate", 6000);
+                streamVideoSettings.Set("max_bitrate", 6000);
+                streamVideoSettings.Set("bufsize", 6000);
+                streamVideoSettings.Set("bf", 0);
+                _streamVideoEncoder = new VideoEncoder(streamEncoderId, "Segra Streamer", streamVideoSettings);
+
+                _streamAudioEncoder = AudioEncoder.CreateAac("Stream Audio", 128, 0);
+
+                _streamOutput = new StreamingOutput("stream");
+                _streamOutput.ToCustomServer(Settings.Instance.StreamIngestUrl, Settings.Instance.StreamKey);
+                _streamOutput.WithVideoEncoder(_streamVideoEncoder);
+                _streamOutput.WithAudioEncoder(_streamAudioEncoder, track: 0);
+
+                if (!_streamOutput.Start())
+                {
+                    string error = _streamOutput.LastError ?? "Unknown error";
+                    Log.Error($"Failed to start stream: {error}");
+                    _ = ShowModal("Streaming failed", $"Could not start the stream: {error}", "error");
+                    await TeardownStreamingPipelineAsync();
+                    return false;
+                }
+
+                Settings.Instance.State.Streaming = new Streaming
+                {
+                    StartTime = DateTime.Now,
+                    IsUsingGameHook = IsGameCaptureHooked
+                };
+
+                _ = SendSettingsToFrontend("Streaming started");
+                _ = Task.Run(() => PlaySound("start"));
+                NotifyIconService.SetNotifyIconStatus(NotifyIconState.Recording);
+
+                Log.Information("Streaming started");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to start streaming");
+                _ = ShowModal("Streaming failed", "Failed to start streaming. Check the log for more details.", "error");
+                await TeardownStreamingPipelineAsync();
+                return false;
+            }
+        }
+
+        public static async Task StopStreaming()
+        {
+            await _stopStreamingSemaphore.WaitAsync();
+            try
+            {
+                if (_isStoppingStreamOrStopped || !IsStreamingActive)
+                {
+                    Log.Information("StopStreaming called but stream is not active.");
+                    return;
+                }
+                _isStoppingStreamOrStopped = true;
+
+                Log.Information("Stopping live stream...");
+                try
+                {
+                    _streamOutput!.Stop(waitForCompletion: true, timeoutMs: 5000);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Stream stop failed; forcing.");
+                    try { _streamOutput!.ForceStop(); } catch { }
+                }
+
+                await TeardownStreamingPipelineAsync();
+                Log.Information("Streaming stopped");
+            }
+            finally
+            {
+                _stopStreamingSemaphore.Release();
+            }
+        }
+
+        private static async Task TeardownStreamingPipelineAsync()
+        {
+            // Encoders are auto-disposed by OBSKit.NET when output stops.
+            _streamOutput = null;
+            _streamVideoEncoder = null;
+            _streamAudioEncoder = null;
+
+            Settings.Instance.State.Streaming = null;
+            // Only tear down shared scene/sources if recording isn't still using them.
+            MaybeTeardownPipeline();
+            if (!IsRecordingActive)
+            {
+                NotifyIconService.SetNotifyIconStatus(NotifyIconState.Idle);
+            }
+            _ = SendSettingsToFrontend("Streaming stopped");
+            await Task.CompletedTask;
+        }
+
+        // Picks a hardware H.264 encoder if available, else falls back to obs_x264.
+        // WebRTC playback requires H.264 — HEVC encoders are excluded.
+        private static string PickStreamEncoderId()
+        {
+            var availableCodecs = Settings.Instance.State.Codecs;
+            string[] preferred = { "jim_nvenc", "obs_nvenc_h264_tex", "h264_texture_amf", "obs_qsv11_v2" };
+            foreach (var id in preferred)
+            {
+                if (availableCodecs.Any(c => c.InternalEncoderId.Equals(id, StringComparison.OrdinalIgnoreCase)))
+                    return id;
+            }
+            return "obs_x264";
+        }
+
         public static void AddMonitorCapture()
         {
             if (_mainScene == null)
@@ -1061,8 +1268,8 @@ namespace Segra.Backend.Recorder
                     }
 
                     DisposeOutput();
-                    DisposeSources();
                     DisposeEncoders();
+                    MaybeTeardownPipeline();
 
                     NotifyIconService.SetNotifyIconStatus(NotifyIconState.Idle);
 
@@ -1096,8 +1303,8 @@ namespace Segra.Backend.Recorder
                     }
 
                     DisposeOutput();
-                    DisposeSources();
                     DisposeEncoders();
+                    MaybeTeardownPipeline();
 
                     NotifyIconService.SetNotifyIconStatus(NotifyIconState.Idle);
 
@@ -1194,8 +1401,8 @@ namespace Segra.Backend.Recorder
                     }
 
                     DisposeOutput();
-                    DisposeSources();
                     DisposeEncoders();
+                    MaybeTeardownPipeline();
 
                     NotifyIconService.SetNotifyIconStatus(NotifyIconState.Idle);
 
@@ -1242,18 +1449,13 @@ namespace Segra.Backend.Recorder
                 else
                 {
                     DisposeOutput();
-                    DisposeSources();
                     DisposeEncoders();
+                    MaybeTeardownPipeline();
                     Settings.Instance.State.Recording = null;
                     Settings.Instance.State.PreRecording = null;
                 }
 
                 await StorageService.EnsureStorageBelowLimit();
-
-                // Reset hooked executable file name and captured dimensions
-                _hookedExecutableFileName = null;
-                CapturedWindowWidth = null;
-                CapturedWindowHeight = null;
 
                 // If the recording ends before it started, don't do anything
                 if (Settings.Instance.State.Recording == null || (!isReplayBufferMode && Settings.Instance.State.Recording.FilePath == null))
@@ -1329,6 +1531,15 @@ namespace Segra.Backend.Recorder
                     Settings.Instance.State.Recording.IsUsingGameHook = true;
                     _ = SendSettingsToFrontend("Updated game hook");
                 }
+
+                // Resolve game name + IGDB cover from the hooked executable for streaming.
+                string? gameName = !string.IsNullOrEmpty(executable)
+                    ? GameUtils.GetGameNameFromExePath(executable) ?? Path.GetFileNameWithoutExtension(executable)
+                    : null;
+                string? coverImageId = !string.IsNullOrEmpty(executable)
+                    ? GameUtils.GetCoverImageIdFromExePath(executable)
+                    : null;
+                Settings.Instance.State.UpdateStreamingHookState(true, gameName, coverImageId);
             }
             catch (Exception ex)
             {
@@ -1363,6 +1574,8 @@ namespace Segra.Backend.Recorder
                     Log.Information("Muted Discord audio source (game unhooked)");
                 }
             }
+
+            Settings.Instance.State.UpdateStreamingHookState(false, null, null);
         }
 
         private static void OnReplaySaved(nint calldata)
@@ -1585,7 +1798,9 @@ namespace Segra.Backend.Recorder
         }
 
         /// <summary>
-        /// Clears output references and signal connections. Outputs are auto-disposed by OBSKit.NET when Stop() is called.
+        /// Clears recording output references and signal connections. Outputs are auto-disposed
+        /// by OBSKit.NET when Stop() is called. Does NOT touch streaming output — that has its
+        /// own lifecycle.
         /// </summary>
         public static void DisposeOutput()
         {

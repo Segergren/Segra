@@ -190,6 +190,19 @@ namespace Segra.Backend.Windows.Input
                         RecordingPreviewService.Toggle();
                     }
                     break;
+
+                case KeybindAction.ToggleStreaming:
+                    if (Settings.Instance.State.Streaming != null)
+                    {
+                        Log.Information("Hotkey: stopping stream");
+                        Task.Run(OBSService.StopStreaming);
+                    }
+                    else
+                    {
+                        Log.Information("Hotkey: starting stream");
+                        Task.Run(OBSService.StartStreaming);
+                    }
+                    break;
             }
         }
 

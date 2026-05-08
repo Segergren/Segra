@@ -1,5 +1,6 @@
 import { useSettings } from './Context/SettingsContext';
 import RecordingCard from './Components/RecordingCard';
+import StreamingCard from './Components/StreamingCard';
 import CircularProgress from './Components/CircularProgress';
 import { sendMessageToBackend } from './Utils/MessageUtils';
 import { useUploads } from './Context/UploadContext';
@@ -14,7 +15,17 @@ import ClippingCard from './Components/ClippingCard';
 import UpdateCard from './Components/UpdateCard';
 import UnavailableDeviceCard from './Components/UnavailableDeviceCard';
 import AnimatedCard from './Components/AnimatedCard';
-import { Clapperboard, OctagonX, Settings, History, Crown, Monitor, Play } from 'lucide-react';
+import {
+  Clapperboard,
+  OctagonX,
+  Settings,
+  History,
+  Crown,
+  Monitor,
+  Play,
+  ChevronDown,
+  Radio,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useEffect, useState } from 'react';
 import Button from './Components/Button';
@@ -26,7 +37,7 @@ interface MenuProps {
 
 export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const settings = useSettings();
-  const { hasLoadedObs, recording, preRecording } = settings.state;
+  const { hasLoadedObs, recording, preRecording, streaming } = settings.state;
   const { updateInfo } = useUpdate();
   const { aiProgress } = useAiHighlights();
   const { obsDownloadProgress } = useObsDownload();
@@ -224,6 +235,14 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         </AnimatePresence>
 
         <AnimatePresence>
+          {streaming && (
+            <AnimatedCard key="streaming-card">
+              <StreamingCard streaming={streaming} />
+            </AnimatedCard>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
           {Object.values(useClipping().clippingProgress).map((clipping) => (
             <AnimatedCard key={clipping.id}>
               <ClippingCard clipping={clipping} />
@@ -264,36 +283,66 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
       {/* Start and Stop Buttons */}
       <div className="mb-4 px-4">
         <div className="flex flex-col items-center z-50">
-          <Button
-            variant="primary"
-            className="w-full h-12"
-            disabled={
-              buttonCooldown ||
-              !settings.state.hasLoadedObs ||
-              (settings.state.recording && recording && recording.endTime !== null)
-            }
-            onClick={() => {
-              setButtonCooldown(true);
-              setTimeout(() => setButtonCooldown(false), 1000);
-              sendMessageToBackend(
-                settings.state.recording || settings.state.preRecording
-                  ? 'StopRecording'
-                  : 'StartRecording',
-              );
-            }}
-          >
-            {settings.state.recording || settings.state.preRecording ? (
-              <>
-                <OctagonX className="w-4 h-4" />
-                Stop
-              </>
-            ) : (
-              <>
-                <Monitor className="w-4 h-4" />
-                Display Capture
-              </>
-            )}
-          </Button>
+          <div className="join w-full">
+            <Button
+              variant="primary"
+              className="join-item flex-1 h-12"
+              disabled={
+                buttonCooldown ||
+                !settings.state.hasLoadedObs ||
+                (settings.state.recording && recording && recording.endTime !== null)
+              }
+              onClick={() => {
+                setButtonCooldown(true);
+                setTimeout(() => setButtonCooldown(false), 1000);
+                sendMessageToBackend(
+                  settings.state.recording || settings.state.preRecording
+                    ? 'StopRecording'
+                    : 'StartRecording',
+                );
+              }}
+            >
+              {settings.state.recording || settings.state.preRecording ? (
+                <>
+                  <OctagonX className="w-4 h-4" />
+                  Stop
+                </>
+              ) : (
+                <>
+                  <Monitor className="w-4 h-4" />
+                  Display Capture
+                </>
+              )}
+            </Button>
+            <div className="dropdown dropdown-top dropdown-end">
+              <label
+                tabIndex={0}
+                className={`btn btn-secondary join-item h-12 px-2 border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 text-gray-300 ${
+                  !settings.state.hasLoadedObs ? 'btn-disabled' : ''
+                }`}
+              >
+                <ChevronDown className="w-4 h-4" />
+              </label>
+              <ul
+                tabIndex={0}
+                className="dropdown-content menu bg-base-300 border border-base-400 rounded-box z-[9999] w-52 p-2 mb-1"
+              >
+                <li>
+                  <Button
+                    variant="menu"
+                    disabled={!!streaming}
+                    onClick={() => {
+                      (document.activeElement as HTMLElement)?.blur();
+                      sendMessageToBackend('StartStreaming');
+                    }}
+                  >
+                    <Radio size={18} />
+                    <span>Start Livestream</span>
+                  </Button>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>

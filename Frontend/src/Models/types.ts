@@ -36,6 +36,7 @@ export interface State {
   gpuVendor: GpuVendor;
   preRecording?: PreRecording;
   recording?: Recording;
+  streaming?: Streaming;
   hasLoadedObs: boolean;
   content: Content[];
   inputDevices: AudioDevice[];
@@ -77,6 +78,7 @@ export enum KeybindAction {
   SaveReplayBuffer = 'SaveReplayBuffer',
   ToggleRecording = 'ToggleRecording',
   TogglePreview = 'TogglePreview',
+  ToggleStreaming = 'ToggleStreaming',
 }
 
 export interface Keybind {
@@ -103,6 +105,13 @@ export interface Recording {
 export interface PreRecording {
   game: string;
   status: string;
+  coverImageId?: string;
+}
+
+export interface Streaming {
+  startTime: Date;
+  isUsingGameHook: boolean;
+  game?: string;
   coverImageId?: string;
 }
 
@@ -331,6 +340,7 @@ export const initialSettings: Settings = {
     { keys: [120], action: KeybindAction.ToggleRecording, enabled: true }, // 120 is F9
     { keys: [121], action: KeybindAction.SaveReplayBuffer, enabled: true }, // 121 is F10
     { keys: [122], action: KeybindAction.TogglePreview, enabled: true }, // 122 is F11
+    { keys: [118], action: KeybindAction.ToggleStreaming, enabled: true }, // 118 is F7
   ],
   whitelist: [],
   blacklist: [],

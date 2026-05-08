@@ -74,6 +74,8 @@ namespace Segra.Backend.Core.Models
         private bool _removeOriginalAfterCompression = false;
         private bool _discardSessionsWithoutBookmarks = false;
         private GameIntegrations _gameIntegrations = new GameIntegrations();
+        private string _streamKey = string.Empty;
+        private string _streamIngestUrl = string.Empty;
 
         // Returns the default keybindings
         private static List<Keybind> GetDefaultKeybindings()
@@ -83,7 +85,8 @@ namespace Segra.Backend.Core.Models
                 new Keybind(new List<int> { 119 }, KeybindAction.CreateBookmark, true), // 119 is F8
                 new Keybind(new List<int> { 120 }, KeybindAction.ToggleRecording, true), // 120 is F9
                 new Keybind(new List<int> { 121 }, KeybindAction.SaveReplayBuffer, true), // 121 is F10
-                new Keybind(new List<int> { 122 }, KeybindAction.TogglePreview, true) // 122 is F11
+                new Keybind(new List<int> { 122 }, KeybindAction.TogglePreview, true), // 122 is F11
+                new Keybind(new List<int> { 118 }, KeybindAction.ToggleStreaming, true) // 118 is F7
             };
         }
 
@@ -383,6 +386,26 @@ namespace Segra.Backend.Core.Models
             set
             {
                 _gameIntegrations = value ?? new GameIntegrations();
+            }
+        }
+
+        [JsonPropertyName("streamKey")]
+        public string StreamKey
+        {
+            get => _streamKey;
+            set
+            {
+                _streamKey = value;
+            }
+        }
+
+        [JsonPropertyName("streamIngestUrl")]
+        public string StreamIngestUrl
+        {
+            get => _streamIngestUrl;
+            set
+            {
+                _streamIngestUrl = value;
             }
         }
 
@@ -920,6 +943,7 @@ namespace Segra.Backend.Core.Models
         private double? _cudaComputeCapability = null;
         private PreRecording? _preRecording = null;
         private Recording? _recording = null;
+        private Streaming? _streaming = null;
         private bool _hasLoadedObs = false;
         private List<Content> _content = [];
 
@@ -1010,6 +1034,42 @@ namespace Segra.Backend.Core.Models
                     SendToFrontend("State update: Recording");
                 }
             }
+        }
+
+        [JsonPropertyName("streaming")]
+        public Streaming? Streaming
+        {
+            get => _streaming;
+            set
+            {
+                if (_streaming != value)
+                {
+                    _streaming = value;
+                    SendToFrontend("State update: Streaming");
+                }
+            }
+        }
+
+        public void UpdateStreamingHookState(bool isUsingGameHook, string? game = null, string? coverImageId = null)
+        {
+            if (_streaming == null) return;
+            bool changed = false;
+            if (_streaming.IsUsingGameHook != isUsingGameHook)
+            {
+                _streaming.IsUsingGameHook = isUsingGameHook;
+                changed = true;
+            }
+            if (_streaming.Game != game)
+            {
+                _streaming.Game = game;
+                changed = true;
+            }
+            if (_streaming.CoverImageId != coverImageId)
+            {
+                _streaming.CoverImageId = coverImageId;
+                changed = true;
+            }
+            if (changed) SendToFrontend("State update: Streaming hook");
         }
 
         [JsonPropertyName("hasLoadedObs")]
@@ -1333,6 +1393,22 @@ namespace Segra.Backend.Core.Models
                 }
             }
         }
+    }
+
+    // Streaming class — parallel to Recording but for live-stream lifecycle.
+    internal class Streaming
+    {
+        [JsonPropertyName("startTime")]
+        public DateTime StartTime { get; set; }
+
+        [JsonPropertyName("isUsingGameHook")]
+        public bool IsUsingGameHook { get; set; }
+
+        [JsonPropertyName("game")]
+        public string? Game { get; set; }
+
+        [JsonPropertyName("coverImageId")]
+        public string? CoverImageId { get; set; }
     }
 
     // Content class
