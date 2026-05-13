@@ -14,7 +14,7 @@ cp -r Frontend/dist/* wwwroot/
 
 echo "=== Publishing Backend ==="
 rm -rf publish
-dotnet publish -c Release --self-contained -r win-x64 -o publish
+dotnet publish Segra.csproj -c Release --self-contained -r win-x64 -o publish
 
 echo ""
 echo "=== Done! ==="

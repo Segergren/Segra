@@ -24,6 +24,16 @@ export default defineConfig({
         entryFileNames: 'assets/[name].[hash].js',
         chunkFileNames: 'assets/[name].[hash].js',
         assetFileNames: 'assets/[name].[hash].[ext]',
+        manualChunks: (id) => {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('framer-motion')) return 'framer-motion';
+          if (id.includes('mp4box')) return 'mp4box';
+          if (id.includes('react-dom')) return 'react-dom';
+          if (id.includes('react-dnd')) return 'react-dnd';
+          if (id.includes('lucide')) return 'lucide';
+          if (id.includes('@tanstack')) return 'tanstack';
+          return 'vendor';
+        },
       },
     },
     // Ensure no caching issues by generating proper cache headers
