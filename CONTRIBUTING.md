@@ -4,7 +4,7 @@ A quick, practical guide to get you developing on both the backend (C#/.NET) and
 
 ## Requirements
 - Windows 10 (build 17763 / 1809) or newer
-- .NET SDK 9.0.x (Windows targeting)
+- .NET SDK 10.0.x (Windows targeting)
 - Git
 - Bun v1.1+ (for frontend tooling and git hooks)
 - Node.js 18+ (only if you want the backend to auto-start the frontend dev server via `npm run dev`)
@@ -24,8 +24,8 @@ A quick, practical guide to get you developing on both the backend (C#/.NET) and
    - `bun run prepare`
 3. Install frontend deps
    - `cd Frontend && bun install && cd ..`
-4. Ensure .NET SDK 9 is on PATH
-   - `dotnet --info` should show `Version: 9.x` and `OS: Windows`
+4. Ensure .NET SDK 10 is on PATH
+   - `dotnet --info` should show `Version: 10.x` and `OS: Windows`
 
 ## Developing
 There are two parts running during development: the backend (Photino.NET desktop app) and the frontend (Vite dev server on port 2882).

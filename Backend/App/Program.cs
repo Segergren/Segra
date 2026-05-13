@@ -1,4 +1,3 @@
-using NuGet.Versioning;
 using Photino.NET;
 using Photino.NET.Server;
 using Segra.Backend.Api;
@@ -117,7 +116,7 @@ namespace Segra.Backend.App
                         Log.Error("UpdateManager is null");
                         return;
                     }
-                    SemanticVersion? currentVersion = UpdateService.UpdateManager.CurrentVersion;
+                    var currentVersion = UpdateService.UpdateManager.CurrentVersion;
                     if (currentVersion == null)
                     {
                         Log.Error("Current version is null");

@@ -8,7 +8,7 @@
     "precommit:lint-staged": "lint-staged"
   },
   "devDependencies": {
-    "husky": "^9.0.11",
-    "lint-staged": "^15.2.10"
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.4"
   }
 }

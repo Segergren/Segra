@@ -14,40 +14,40 @@
   },
   "dependencies": {
     "@lucide/lab": "^0.1.2",
-    "@tailwindcss/vite": "^4.2.2",
-    "@tanstack/react-query": "^5.96.2",
+    "@tailwindcss/vite": "^4.3.0",
+    "@tanstack/react-query": "^5.100.10",
     "@types/semver": "^7.7.1",
-    "autoprefixer": "^10.4.27",
+    "autoprefixer": "^10.5.0",
     "framer-motion": "^12.38.0",
-    "lucide-react": "^1.8.0",
-    "markdown-to-jsx": "^8.0.0",
+    "lucide-react": "^1.14.0",
+    "markdown-to-jsx": "^9.8.0",
     "mp4box": "^2.3.0",
-    "react": "^19.2.4",
+    "react": "^19.2.6",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
-    "react-dom": "^19.2.4",
+    "react-dom": "^19.2.6",
     "react-use-websocket": "^4.13.0",
-    "semver": "^7.7.4",
+    "semver": "^7.8.0",
     "theme-change": "^2.5.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
-    "@tailwindcss/postcss": "^4.2.2",
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/postcss": "^4.3.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.2.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "daisyui": "^5.5.19",
-    "eslint": "^9.39.4",
+    "eslint": "^10.3.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.26",
-    "globals": "^16.5.0",
-    "prettier": "^3.8.1",
-    "tailwindcss": "^4.2.2",
-    "typescript": "~5.9.3",
-    "typescript-eslint": "^8.58.1",
-    "vite": "^7.3.2"
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "tailwindcss": "^4.3.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.59.3",
+    "vite": "^8.0.12"
   },
   "trustedDependencies": [
     "@tailwindcss/oxide"
@@ -55,6 +55,6 @@
   "overrides": {
     "flatted": "^3.4.2",
     "picomatch": "^4.0.4",
-    "brace-expansion": "^2.0.3"
+    "brace-expansion": "^5.0.6"
   }
 }

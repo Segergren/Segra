@@ -433,8 +433,10 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Computed values
   const basePixelsPerSecond = duration > 0 ? containerWidth / duration : 0;
   const pixelsPerSecond = basePixelsPerSecond * zoom;
-  waveformStateRef.current.pixelsPerSecond = pixelsPerSecond;
-  waveformStateRef.current.duration = duration;
+  useEffect(() => {
+    waveformStateRef.current.pixelsPerSecond = pixelsPerSecond;
+    waveformStateRef.current.duration = duration;
+  }, [pixelsPerSecond, duration]);
 
   // Make sure bookmarks are only shown when we have valid duration and zoom
   // Prevents weird positioning on initial load
@@ -1862,9 +1864,9 @@ export default function VideoComponent({ video }: { video: Content }) {
 
                   <button
                     onClick={toggleFullscreen}
-                    onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                    onMouseUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                    onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                    onPointerUp={(e) => e.currentTarget.blur()}
+                    onMouseUp={(e) => e.currentTarget.blur()}
+                    onTouchEnd={(e) => e.currentTarget.blur()}
                     className="text-white cursor-pointer transition-colors hover:text-accent"
                     aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
                   >
