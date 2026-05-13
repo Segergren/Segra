@@ -12,6 +12,7 @@ import GameDetectionSection from '../Components/Settings/GameDetectionSection';
 import GameIntegrationsSection from '../Components/Settings/GameIntegrationsSection';
 import HighlightsSection from '../Components/Settings/HighlightsSection';
 import PreferencesSection from '../Components/Settings/PreferencesSection';
+import MenuCustomizationSection from '../Components/Settings/MenuCustomizationSection';
 import AdvancedSection from '../Components/Settings/AdvancedSection';
 
 type SectionId =
@@ -134,6 +135,7 @@ export default function Settings() {
         {/* PREFERENCES */}
         <SectionHeader id="preferences">Preferences</SectionHeader>
         <PreferencesSection settings={settings} updateSettings={updateSettings} />
+        <MenuCustomizationSection settings={settings} updateSettings={updateSettings} />
 
         {/* ADVANCED */}
         <SectionHeader id="advanced">Advanced</SectionHeader>

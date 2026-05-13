@@ -11,6 +11,8 @@ import { Settings, initialSettings } from '../Models/types';
 import { useWebSocketContext } from './WebSocketContext';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 
+export const SETTINGS_STORAGE_KEY = 'segra.settings.v1';
+
 type SettingsContextType = Settings;
 type SettingsUpdateContextType = (newSettings: Partial<Settings>, fromBackend?: boolean) => void;
 
@@ -30,11 +32,9 @@ interface SettingsProviderProps {
 }
 
 export function SettingsProvider({ children }: SettingsProviderProps) {
-  const STORAGE_KEY = 'segra.settings.v1';
-
   const loadCachedSettings = (): Settings | null => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (!raw) return null;
       const cached = JSON.parse(raw);
       return { ...initialSettings, ...cached };
@@ -45,7 +45,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
   const saveCachedSettings = (value: Settings) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(value));
     } catch {
       // ignore caching errors
     }

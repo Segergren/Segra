@@ -1,4 +1,4 @@
-import { useEffect, useState, createContext } from 'react';
+import { useEffect, useRef, useState, createContext } from 'react';
 import Settings from './Pages/settings';
 import Menu from './menu';
 import Sessions from './Pages/sessions';
@@ -11,6 +11,9 @@ import Video from './Pages/video';
 import { useSelectedVideo } from './Context/SelectedVideoContext';
 import { useSelectedMenu } from './Context/SelectedMenuContext';
 import { themeChange } from 'theme-change';
+import { useSettings } from './Context/SettingsContext';
+import { useAppState } from './Context/AppStateContext';
+import { DEFAULT_MENU_ITEMS, MenuItemId, menuItemHasContent } from './Models/types';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { DndProvider } from 'react-dnd';
 import { SegmentsProvider } from './Context/SegmentsContext';
@@ -51,8 +54,56 @@ function App() {
 
   const { selectedVideo, setSelectedVideo } = useSelectedVideo();
   const { selectedMenu, setSelectedMenu } = useSelectedMenu();
+  const settings = useSettings();
+  const appState = useAppState();
+  const initialMenuApplied = useRef(false);
 
-  const handleMenuSelection = (menu: any) => {
+  // Apply the user's configured default landing menu on first launch in this session.
+  useEffect(() => {
+    if (initialMenuApplied.current) return;
+    initialMenuApplied.current = true;
+
+    const hasUserChosenInSession =
+      typeof window !== 'undefined' &&
+      (window as typeof window & { __selectedMenu?: string }).__selectedMenu !== undefined;
+
+    if (hasUserChosenInSession) return;
+
+    const defaultItem = settings.defaultMenuItem ?? 'Full Sessions';
+    if (defaultItem !== selectedMenu) {
+      setSelectedMenu(defaultItem);
+    }
+  }, [settings.defaultMenuItem, selectedMenu, setSelectedMenu]);
+
+  // If the current menu becomes hidden (and has no content keeping it visible),
+  // fall back to the default (or first reachable item).
+  useEffect(() => {
+    const items =
+      settings.menuItems && settings.menuItems.length > 0 ? settings.menuItems : DEFAULT_MENU_ITEMS;
+
+    const isReachable = (id: MenuItemId) =>
+      id === 'Settings' ||
+      items.find((m) => m.id === id)?.visible === true ||
+      menuItemHasContent(id, appState.content);
+
+    if (isReachable(selectedMenu as MenuItemId)) return;
+
+    const defaultId = (settings.defaultMenuItem ?? 'Full Sessions') as MenuItemId;
+    const fallback =
+      (isReachable(defaultId) ? defaultId : null) ??
+      items.find((m) => isReachable(m.id as MenuItemId))?.id;
+    if (fallback) {
+      setSelectedMenu(fallback);
+    }
+  }, [
+    settings.menuItems,
+    settings.defaultMenuItem,
+    selectedMenu,
+    setSelectedMenu,
+    appState.content,
+  ]);
+
+  const handleMenuSelection = (menu: MenuItemId | string) => {
     setSelectedVideo(null);
     setSelectedMenu(menu);
   };

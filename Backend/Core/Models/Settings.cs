@@ -10,6 +10,17 @@ namespace Segra.Backend.Core.Models
 {
     internal class Settings
     {
+        // Declared before _instance so this list exists by the time `new Settings()` runs
+        // its field initializers (static fields initialize in source order).
+        public static readonly List<string> KnownMenuItemIds = new List<string>
+        {
+            "Full Sessions",
+            "Replay Buffer",
+            "Clips",
+            "Highlights",
+            "Settings"
+        };
+
         private static Settings _instance = new Settings();
         public static Settings Instance => _instance;
         public bool _isBulkUpdating = false;
@@ -68,6 +79,11 @@ namespace Segra.Backend.Core.Models
         private bool _removeOriginalAfterCompression = false;
         private bool _discardSessionsWithoutBookmarks = false;
         private GameIntegrations _gameIntegrations = new GameIntegrations();
+
+        private List<MenuItemPreference> _menuItems = KnownMenuItemIds
+            .Select(id => new MenuItemPreference { Id = id, Visible = true })
+            .ToList();
+        private string _defaultMenuItem = "Full Sessions";
 
         // Returns the default keybindings
         private static List<Keybind> GetDefaultKeybindings()
@@ -791,6 +807,61 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("menuItems")]
+        public List<MenuItemPreference> MenuItems
+        {
+            get => _menuItems;
+            set
+            {
+                var incoming = value ?? new List<MenuItemPreference>();
+
+                // Drop unknown ids and de-duplicate while preserving order
+                var seen = new HashSet<string>();
+                var sanitized = new List<MenuItemPreference>();
+                foreach (var item in incoming)
+                {
+                    if (item == null || string.IsNullOrEmpty(item.Id)) continue;
+                    if (!KnownMenuItemIds.Contains(item.Id)) continue;
+                    if (!seen.Add(item.Id)) continue;
+                    sanitized.Add(new MenuItemPreference
+                    {
+                        Id = item.Id,
+                        Visible = item.Id == "Settings" ? true : item.Visible
+                    });
+                }
+
+                // Append any known ids that were missing (e.g., new menu items added in a later version)
+                foreach (var id in KnownMenuItemIds)
+                {
+                    if (!seen.Contains(id))
+                    {
+                        sanitized.Add(new MenuItemPreference
+                        {
+                            Id = id,
+                            Visible = true
+                        });
+                    }
+                }
+
+                _menuItems = sanitized;
+            }
+        }
+
+        [JsonPropertyName("defaultMenuItem")]
+        public string DefaultMenuItem
+        {
+            get => _defaultMenuItem;
+            set
+            {
+                if (string.IsNullOrEmpty(value) || !KnownMenuItemIds.Contains(value))
+                {
+                    _defaultMenuItem = "Full Sessions";
+                    return;
+                }
+                _defaultMenuItem = value;
+            }
+        }
+
         [JsonPropertyName("keybindings")]
         public List<Keybind> Keybindings
         {
@@ -809,6 +880,15 @@ namespace Segra.Backend.Core.Models
                 }
             }
         }
+    }
+
+    public class MenuItemPreference
+    {
+        [JsonPropertyName("id")]
+        public required string Id { get; set; }
+
+        [JsonPropertyName("visible")]
+        public bool Visible { get; set; } = true;
     }
 
     // Class definition for device settings

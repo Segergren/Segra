@@ -187,6 +187,35 @@ export type ClipPreset =
 export type VideoQualityPreset = 'low' | 'standard' | 'high' | 'custom';
 export type ClipQualityPreset = 'low' | 'standard' | 'high' | 'custom';
 
+export type MenuItemId = 'Full Sessions' | 'Replay Buffer' | 'Clips' | 'Highlights' | 'Settings';
+
+export interface MenuItemPreference {
+  id: MenuItemId;
+  visible: boolean;
+}
+
+export const DEFAULT_MENU_ITEMS: MenuItemPreference[] = [
+  { id: 'Full Sessions', visible: true },
+  { id: 'Replay Buffer', visible: true },
+  { id: 'Clips', visible: true },
+  { id: 'Highlights', visible: true },
+  { id: 'Settings', visible: true },
+];
+
+export const MENU_ITEM_CONTENT_TYPES: Record<MenuItemId, ContentType[]> = {
+  'Full Sessions': ['Session'],
+  'Replay Buffer': ['Buffer'],
+  Clips: ['Clip'],
+  Highlights: ['Highlight'],
+  Settings: [],
+};
+
+export const menuItemHasContent = (id: MenuItemId, content: Content[]): boolean => {
+  const types = MENU_ITEM_CONTENT_TYPES[id];
+  if (types.length === 0) return false;
+  return content.some((c) => types.includes(c.type));
+};
+
 export interface Settings {
   resolution: '720p' | '1080p' | '1440p' | '4K';
   frameRate: number;
@@ -240,6 +269,8 @@ export interface Settings {
   clipQualityPreset: ClipQualityPreset;
   removeOriginalAfterCompression: boolean;
   discardSessionsWithoutBookmarks: boolean;
+  menuItems: MenuItemPreference[];
+  defaultMenuItem: MenuItemId;
 }
 
 export const initialState: State = {
@@ -308,6 +339,8 @@ export const initialSettings: Settings = {
   clipQualityPreset: 'standard',
   removeOriginalAfterCompression: false,
   discardSessionsWithoutBookmarks: false,
+  menuItems: DEFAULT_MENU_ITEMS,
+  defaultMenuItem: 'Full Sessions',
   keybindings: [
     { keys: [119], action: KeybindAction.CreateBookmark, enabled: true }, // 119 is F8
     { keys: [120], action: KeybindAction.ToggleRecording, enabled: true }, // 120 is F9

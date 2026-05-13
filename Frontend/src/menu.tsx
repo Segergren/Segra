@@ -15,15 +15,33 @@ import ClippingCard from './Components/ClippingCard';
 import UpdateCard from './Components/UpdateCard';
 import UnavailableDeviceCard from './Components/UnavailableDeviceCard';
 import AnimatedCard from './Components/AnimatedCard';
-import { Clapperboard, OctagonX, Settings, History, Crown, Monitor, Play } from 'lucide-react';
+import {
+  Clapperboard,
+  OctagonX,
+  Settings,
+  History,
+  Crown,
+  Monitor,
+  Play,
+  LucideIcon,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState, useMemo } from 'react';
 import Button from './Components/Button';
+import { MenuItemId, DEFAULT_MENU_ITEMS, menuItemHasContent } from './Models/types';
 
 interface MenuProps {
   selectedMenu: string;
   onSelectMenu: (menu: string) => void;
 }
+
+const MENU_ICONS: Record<MenuItemId, LucideIcon> = {
+  'Full Sessions': Play,
+  'Replay Buffer': History,
+  Clips: Clapperboard,
+  Highlights: Crown,
+  Settings: Settings,
+};
 
 export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const settings = useSettings();
@@ -34,54 +52,47 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { obsDownloadProgress } = useObsDownload();
   const [buttonCooldown, setButtonCooldown] = useState(false);
 
-  // Create refs for each menu button
-  const sessionsRef = useRef<HTMLButtonElement>(null);
-  const replayRef = useRef<HTMLButtonElement>(null);
-  const clipsRef = useRef<HTMLButtonElement>(null);
-  const highlightsRef = useRef<HTMLButtonElement>(null);
-  const settingsRef = useRef<HTMLButtonElement>(null);
-
-  // State to store the indicator position
+  const buttonRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [indicatorPosition, setIndicatorPosition] = useState({ top: 12 });
+  const [indicatorAnimated, setIndicatorAnimated] = useState(false);
 
-  // Update indicator position when selected menu changes
+  const visibleMenuItems = useMemo(() => {
+    const items =
+      settings.menuItems && settings.menuItems.length > 0 ? settings.menuItems : DEFAULT_MENU_ITEMS;
+    // Force-show items that contain content so the user always has a way to reach their files.
+    return items.filter(
+      (item) =>
+        item.id === 'Settings' || item.visible || menuItemHasContent(item.id, appState.content),
+    );
+  }, [settings.menuItems, appState.content]);
+
+  const computeIndicatorPosition = () => {
+    if (!visibleMenuItems.some((item) => item.id === selectedMenu)) return;
+    const rowEl = buttonRefs.current[selectedMenu];
+    if (!rowEl) return;
+    const buttonEl = rowEl.firstElementChild as HTMLElement | null;
+    const buttonHeight = buttonEl?.offsetHeight || 48;
+    const indicatorTop = rowEl.offsetTop + buttonHeight / 2 - 20;
+    setIndicatorPosition({ top: indicatorTop });
+  };
+
+  useLayoutEffect(() => {
+    // Skip while the active row is mid-exit (App.tsx will redirect selectedMenu to a
+    // fallback on the next tick). Otherwise we'd read a stale layout for one frame.
+    computeIndicatorPosition();
+    // After the row enter/exit animation finishes (200ms), recompute. Showing a row
+    // grows its height over the animation window so rows below settle into their final
+    // offsetTop only at the end — this second pass corrects the indicator to match.
+    const timeoutId = setTimeout(computeIndicatorPosition, 220);
+    return () => clearTimeout(timeoutId);
+  }, [selectedMenu, visibleMenuItems]);
+
+  // Enable the slide transition only after the first paint, so the initial render
+  // snaps the indicator to the correct row without animating from the default top.
   useEffect(() => {
-    const getRefForMenu = () => {
-      switch (selectedMenu) {
-        case 'Full Sessions':
-          return sessionsRef;
-        case 'Replay Buffer':
-          return replayRef;
-        case 'Clips':
-          return clipsRef;
-        case 'Highlights':
-          return highlightsRef;
-        case 'Settings':
-          return settingsRef;
-        default:
-          return sessionsRef;
-      }
-    };
+    setIndicatorAnimated(true);
+  }, []);
 
-    const activeRef = getRefForMenu();
-    if (activeRef.current) {
-      const parentRect = activeRef.current.parentElement?.getBoundingClientRect();
-      const buttonRect = activeRef.current.getBoundingClientRect();
-
-      if (parentRect) {
-        // Calculate relative position to parent with vertical centering
-        // Center the 40px indicator with the button
-        const buttonCenter = buttonRect.top - parentRect.top + buttonRect.height / 2;
-        const indicatorTop = buttonCenter - 21;
-
-        setIndicatorPosition({
-          top: indicatorTop,
-        });
-      }
-    }
-  }, [selectedMenu]);
-
-  // Check if there are any active AI highlight generations and calculate average progress
   const aiProgressValues = Object.values(aiProgress);
   const hasActiveAiHighlights = aiProgressValues.length > 0;
   const averageAiProgress = hasActiveAiHighlights
@@ -105,78 +116,83 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   return (
     <div className="bg-base-300 w-56 h-screen flex flex-col border-r border-base-400">
       {/* Menu Items */}
-      <div className="flex flex-col space-y-2 px-4 text-left py-2 relative mt-2">
+      <div className="flex flex-col px-4 text-left py-2 relative mt-2">
         {/* Selection indicator rectangle */}
         <div
-          className="absolute w-1.5 bg-primary rounded-r transition-all duration-200 ease-in-out"
+          className={`absolute w-1.5 bg-primary rounded-r ${
+            indicatorAnimated ? 'transition-all duration-200 ease-in-out' : ''
+          }`}
           style={{
             left: 0,
             top: `${indicatorPosition.top}px`,
             height: '40px',
           }}
         />
-        <Button
-          ref={sessionsRef}
-          variant="nav"
-          className={selectedMenu === 'Full Sessions' ? 'text-primary' : ''}
-          onMouseDown={() => onSelectMenu('Full Sessions')}
-        >
-          <Play className="w-5 h-5" />
-          Full Sessions
-        </Button>
-        <Button
-          ref={replayRef}
-          variant="nav"
-          className={selectedMenu === 'Replay Buffer' ? 'text-primary' : ''}
-          onMouseDown={() => onSelectMenu('Replay Buffer')}
-        >
-          <History className="w-5 h-5" />
-          Replay Buffer
-        </Button>
-        <Button
-          ref={clipsRef}
-          variant="nav"
-          className={selectedMenu === 'Clips' ? 'text-primary' : ''}
-          onMouseDown={() => onSelectMenu('Clips')}
-        >
-          <Clapperboard className="w-5 h-5" />
-          Clips
-        </Button>
-        <Button
-          ref={highlightsRef}
-          variant="nav"
-          className={`justify-between ${selectedMenu === 'Highlights' ? 'text-primary' : ''}`}
-          onMouseDown={() => onSelectMenu('Highlights')}
-        >
-          <span className="flex items-center gap-2">
-            <Crown className="w-5 h-5" />
-            Highlights
-          </span>
-          <div className="ml-auto flex items-center">
-            <AnimatePresence>
-              {hasActiveAiHighlights && selectedMenu !== 'Highlights' && (
-                <motion.div
-                  className="flex items-center justify-center"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
+        <AnimatePresence initial={false} mode="popLayout">
+          {visibleMenuItems.map(({ id }) => {
+            const Icon = MENU_ICONS[id];
+            const isActive = selectedMenu === id;
+
+            const buttonNode =
+              id === 'Highlights' ? (
+                <Button
+                  variant="nav"
+                  className={`justify-between ${isActive ? 'text-primary' : ''}`}
+                  onMouseDown={() => onSelectMenu(id)}
                 >
-                  <CircularProgress progress={averageAiProgress} size={24} strokeWidth={2} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </Button>
-        <Button
-          ref={settingsRef}
-          variant="nav"
-          className={selectedMenu === 'Settings' ? 'text-primary' : ''}
-          onMouseDown={() => onSelectMenu('Settings')}
-        >
-          <Settings className="w-5 h-5" />
-          Settings
-        </Button>
+                  <span className="flex items-center gap-2">
+                    <Icon className="w-5 h-5" />
+                    {id}
+                  </span>
+                  <div className="ml-auto flex items-center">
+                    <AnimatePresence>
+                      {hasActiveAiHighlights && !isActive && (
+                        <motion.div
+                          className="flex items-center justify-center"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <CircularProgress
+                            progress={averageAiProgress}
+                            size={24}
+                            strokeWidth={2}
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </Button>
+              ) : (
+                <Button
+                  variant="nav"
+                  className={isActive ? 'text-primary' : ''}
+                  onMouseDown={() => onSelectMenu(id)}
+                >
+                  <Icon className="w-5 h-5" />
+                  {id}
+                </Button>
+              );
+
+            return (
+              <motion.div
+                key={id}
+                ref={(el) => {
+                  buttonRefs.current[id] = el;
+                }}
+                layout
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                className="overflow-hidden pb-2 last:pb-0"
+              >
+                {buttonNode}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
 
       {/* Spacer to push content to the bottom */}

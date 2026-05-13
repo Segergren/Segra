@@ -711,6 +711,28 @@ namespace Segra.Backend.Services
                 }
             }
 
+            // Update MenuItems
+            if (updatedSettings.MenuItems != null)
+            {
+                bool menuItemsChanged = settings.MenuItems.Count != updatedSettings.MenuItems.Count ||
+                    settings.MenuItems.Zip(updatedSettings.MenuItems, (a, b) => a.Id == b.Id && a.Visible == b.Visible).Any(eq => !eq);
+
+                if (menuItemsChanged)
+                {
+                    Log.Information("MenuItems changed");
+                    settings.MenuItems = updatedSettings.MenuItems;
+                    hasChanges = true;
+                }
+            }
+
+            // Update DefaultMenuItem
+            if (!string.IsNullOrEmpty(updatedSettings.DefaultMenuItem) && settings.DefaultMenuItem != updatedSettings.DefaultMenuItem)
+            {
+                Log.Information($"DefaultMenuItem changed from '{settings.DefaultMenuItem}' to '{updatedSettings.DefaultMenuItem}'");
+                settings.DefaultMenuItem = updatedSettings.DefaultMenuItem;
+                hasChanges = true;
+            }
+
             // Update Keybindings
             if (updatedSettings.Keybindings != null)
             {

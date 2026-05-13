@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import { SETTINGS_STORAGE_KEY } from './SettingsContext';
 
 interface SelectedMenuContextValue {
   selectedMenu: string;
@@ -9,13 +10,28 @@ const SelectedMenuContext = createContext<SelectedMenuContextValue | undefined>(
 
 const defaultMenu = 'Full Sessions';
 
+const readCachedDefaultMenu = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    const candidate = cached?.defaultMenuItem;
+    return typeof candidate === 'string' && candidate.length > 0 ? candidate : null;
+  } catch {
+    return null;
+  }
+};
+
 const getInitialMenu = () => {
   if (typeof window === 'undefined') {
     return defaultMenu;
   }
 
   const stored = (window as typeof window & { __selectedMenu?: string }).__selectedMenu;
-  return stored ?? defaultMenu;
+  if (stored) return stored;
+
+  return readCachedDefaultMenu() ?? defaultMenu;
 };
 
 export const SelectedMenuProvider = ({ children }: { children: ReactNode }) => {
