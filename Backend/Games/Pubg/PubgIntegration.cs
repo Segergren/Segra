@@ -140,7 +140,7 @@ namespace Segra.Backend.Games.Pubg
                         !string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
                         var downTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                        var bookmarkTime = downTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero;
+                        var bookmarkTime = downTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
 
                         // Skip events that occurred before recording started
                         if (bookmarkTime < TimeSpan.Zero)
@@ -151,7 +151,7 @@ namespace Segra.Backend.Games.Pubg
                             Type = BookmarkType.Kill,
                             Time = bookmarkTime
                         };
-                        Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
+                        AppState.Instance.Recording?.Bookmarks.Add(bookmark);
                     }
                 }
             }
@@ -180,7 +180,7 @@ namespace Segra.Backend.Games.Pubg
                         if (!eventData.IsDBNO)
                         {
                             var killTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                            var bookmarkTime = killTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero;
+                            var bookmarkTime = killTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
 
                             // Skip events that occurred before recording started
                             if (bookmarkTime < TimeSpan.Zero)
@@ -191,7 +191,7 @@ namespace Segra.Backend.Games.Pubg
                                 Type = BookmarkType.Kill,
                                 Time = bookmarkTime
                             };
-                            Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
+                            AppState.Instance.Recording?.Bookmarks.Add(bookmark);
                         }
                     }
                 }
@@ -215,7 +215,7 @@ namespace Segra.Backend.Games.Pubg
                     if (string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
                         var downTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                        var bookmarkTime = downTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero;
+                        var bookmarkTime = downTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
 
                         // Skip events that occurred before recording started
                         if (bookmarkTime < TimeSpan.Zero)
@@ -226,7 +226,7 @@ namespace Segra.Backend.Games.Pubg
                             Type = BookmarkType.Death,
                             Time = bookmarkTime
                         };
-                        Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
+                        AppState.Instance.Recording?.Bookmarks.Add(bookmark);
                     }
                 }
             }
@@ -253,7 +253,7 @@ namespace Segra.Backend.Games.Pubg
                         if (!eventData.IsDBNO)
                         {
                             var deathTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                            var bookmarkTime = deathTime - Settings.Instance.State.Recording?.StartTime ?? TimeSpan.Zero;
+                            var bookmarkTime = deathTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
 
                             // Skip events that occurred before recording started
                             if (bookmarkTime < TimeSpan.Zero)
@@ -264,7 +264,7 @@ namespace Segra.Backend.Games.Pubg
                                 Type = BookmarkType.Death,
                                 Time = bookmarkTime
                             };
-                            Settings.Instance.State.Recording?.Bookmarks.Add(bookmark);
+                            AppState.Instance.Recording?.Bookmarks.Add(bookmark);
                         }
                     }
                 }

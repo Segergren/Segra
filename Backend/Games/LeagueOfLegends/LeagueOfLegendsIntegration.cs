@@ -249,7 +249,7 @@ namespace Segra.Backend.Games.LeagueOfLegends
 
         private void AddBookmark(BookmarkType type)
         {
-            if (Settings.Instance.State.Recording == null)
+            if (AppState.Instance.Recording == null)
             {
                 return;
             }
@@ -257,10 +257,10 @@ namespace Segra.Backend.Games.LeagueOfLegends
             var bookmark = new Bookmark
             {
                 Type = type,
-                Time = DateTime.Now - Settings.Instance.State.Recording.StartTime
+                Time = DateTime.Now - AppState.Instance.Recording.StartTime
             };
 
-            Settings.Instance.State.Recording.Bookmarks.Add(bookmark);
+            AppState.Instance.Recording.Bookmarks.Add(bookmark);
             Log.Information($"Added {type} bookmark at {bookmark.Time}");
         }
 

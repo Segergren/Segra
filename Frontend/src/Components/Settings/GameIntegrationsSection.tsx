@@ -1,4 +1,5 @@
 import { useSettings } from '../../Context/SettingsContext';
+import { useAppState } from '../../Context/AppStateContext';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { GameIntegrations } from '../../Models/types';
 
@@ -120,6 +121,7 @@ function GameIntegrationCard({
 
 export default function GameIntegrationsSection() {
   const settings = useSettings();
+  const appState = useAppState();
 
   const handleToggle = (settingsKey: GameIntegration['settingsKey'], enabled: boolean) => {
     sendMessageToBackend('UpdateSettings', {
@@ -149,7 +151,7 @@ export default function GameIntegrationsSection() {
             integration={integration}
             enabled={settings.gameIntegrations[integration.settingsKey].enabled}
             showBackground={settings.showGameBackground}
-            isRecording={settings.state.recording != null}
+            isRecording={appState.recording != null}
             onToggle={(enabled) => handleToggle(integration.settingsKey, enabled)}
           />
         ))}

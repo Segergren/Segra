@@ -4,6 +4,7 @@ import DropdownSelect from '../DropdownSelect';
 import { Settings as SettingsType } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import Button from '../Button';
+import { useAppState } from '../../Context/AppStateContext';
 
 interface AdvancedSectionProps {
   settings: SettingsType;
@@ -18,6 +19,7 @@ export default function AdvancedSection({
   openReleaseNotesModal,
   checkForUpdates,
 }: AdvancedSectionProps) {
+  const appState = useAppState();
   return (
     <>
       {/* Advanced Settings */}
@@ -47,11 +49,9 @@ export default function AdvancedSection({
                     size="sm"
                     className="gap-2"
                     onClick={() => checkForUpdates()}
-                    loading={settings.state.isCheckingForUpdates}
+                    loading={appState.isCheckingForUpdates}
                   >
-                    {!settings.state.isCheckingForUpdates && (
-                      <RefreshCw size={16} className="shrink-0" />
-                    )}
+                    {!appState.isCheckingForUpdates && <RefreshCw size={16} className="shrink-0" />}
                     <span className="inline-block">Check for Updates</span>
                   </Button>
                 </div>
@@ -81,7 +81,7 @@ export default function AdvancedSection({
                   size="sm"
                   items={[
                     { value: '', label: 'Automatic' },
-                    ...settings.state.availableOBSVersions
+                    ...appState.availableOBSVersions
                       .sort((a, b) => {
                         return b.version.localeCompare(a.version, undefined, { numeric: true });
                       })

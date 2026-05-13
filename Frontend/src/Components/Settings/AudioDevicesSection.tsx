@@ -4,6 +4,7 @@ import { TriangleAlert, X, CircleAlert, Volume2, Gamepad2 } from 'lucide-react';
 import { DiscordIcon } from '../icons/BrandIcons';
 import Button from '../Button';
 import { Settings as SettingsType, AudioDevice, AudioOutputMode } from '../../Models/types';
+import { useAppState } from '../../Context/AppStateContext';
 
 interface AudioDevicesSectionProps {
   settings: SettingsType;
@@ -14,6 +15,7 @@ export default function AudioDevicesSection({
   settings,
   updateSettings,
 }: AudioDevicesSectionProps) {
+  const appState = useAppState();
   const [draggingVolume, setDraggingVolume] = useState<{
     deviceId: string | null;
     deviceType: 'input' | 'output' | null;
@@ -60,7 +62,7 @@ export default function AudioDevicesSection({
   const toggleDevice = (deviceId: string, deviceType: 'input' | 'output') => {
     const isInput = deviceType === 'input';
     const selectedDevices = isInput ? settings.inputDevices : settings.outputDevices;
-    const availableDevices = isInput ? settings.state.inputDevices : settings.state.outputDevices;
+    const availableDevices = isInput ? appState.inputDevices : appState.outputDevices;
 
     const isSelected = selectedDevices.some((d) => d.id === deviceId);
     let updatedDevices;
@@ -111,7 +113,7 @@ export default function AudioDevicesSection({
   const renderDeviceList = (deviceType: 'input' | 'output') => {
     const isInput = deviceType === 'input';
     const selectedDevices = isInput ? settings.inputDevices : settings.outputDevices;
-    const availableDevices = isInput ? settings.state.inputDevices : settings.state.outputDevices;
+    const availableDevices = isInput ? appState.inputDevices : appState.outputDevices;
 
     const defaultDevice: AudioDevice = { id: 'default', name: 'Default Device', isDefault: false };
     const allDevices = [defaultDevice, ...availableDevices];

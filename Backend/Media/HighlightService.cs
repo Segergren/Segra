@@ -23,7 +23,7 @@ namespace Segra.Backend.Media
             {
                 Log.Information($"Starting highlight creation for: {fileName}");
 
-                Content? content = Settings.Instance.State.Content.FirstOrDefault(x => x.FileName == fileName);
+                Content? content = AppState.Instance.Content.FirstOrDefault(x => x.FileName == fileName);
                 if (content == null)
                 {
                     Log.Warning($"No content found matching fileName: {fileName}");

@@ -16,7 +16,7 @@ namespace Segra.Backend.Services
             {
                 Log.Information($"Starting highlight creation for: {fileName}");
 
-                content = Settings.Instance.State.Content.FirstOrDefault(x => x.FileName == fileName);
+                content = AppState.Instance.Content.FirstOrDefault(x => x.FileName == fileName);
                 if (content == null)
                 {
                     Log.Warning($"No content found matching fileName: {fileName}");

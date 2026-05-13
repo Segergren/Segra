@@ -1,4 +1,5 @@
 import { Settings as SettingsType } from '../../Models/types';
+import { useAppState } from '../../Context/AppStateContext';
 
 interface CaptureModeSectionProps {
   settings: SettingsType;
@@ -6,7 +7,8 @@ interface CaptureModeSectionProps {
 }
 
 export default function CaptureModeSection({ settings, updateSettings }: CaptureModeSectionProps) {
-  const isRecording = settings.state.recording || settings.state.preRecording != null;
+  const appState = useAppState();
+  const isRecording = appState.recording || appState.preRecording != null;
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">

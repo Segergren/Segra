@@ -111,13 +111,13 @@ namespace Segra.Backend.Media
 
         public static async Task SyncContentGameNamesByIgdb()
         {
-            var list = Settings.Instance.State.Content;
+            var list = AppState.Instance.Content;
             if (list == null || list.Count == 0) return;
 
             int changed = await ReconcileGameNamesByIgdb(list);
             if (changed > 0)
             {
-                Settings.Instance.State.SetContent(list, sendToFrontend: true);
+                AppState.Instance.SetContent(list, sendToFrontend: true);
             }
         }
 
@@ -587,7 +587,7 @@ namespace Segra.Backend.Media
                     }
 
                     // Update the bookmark in the in-memory content collection
-                    var contentItem = Settings.Instance?.State.Content.FirstOrDefault(c =>
+                    var contentItem = AppState.Instance.Content.FirstOrDefault(c =>
                         c.FilePath == filePath &&
                         c.Type.ToString() == contentTypeStr);
 
@@ -599,7 +599,7 @@ namespace Segra.Backend.Media
 
                     contentItem.Bookmarks.Add(bookmark);
 
-                    await MessageService.SendSettingsToFrontend("Added bookmark");
+                    await MessageService.SendStateToFrontend("Added bookmark");
                     Log.Information($"Added bookmark of type {bookmarkType} at {timeString} to {metadataFilePath}");
                 }
                 else
@@ -659,7 +659,7 @@ namespace Segra.Backend.Media
                     }
 
                     // Update the bookmark in the in-memory content collection
-                    var contentItem = Settings.Instance?.State.Content.FirstOrDefault(c =>
+                    var contentItem = AppState.Instance.Content.FirstOrDefault(c =>
                         c.FilePath == filePath &&
                         c.Type.ToString() == contentTypeStr);
 
@@ -668,7 +668,7 @@ namespace Segra.Backend.Media
                         contentItem.Bookmarks = contentItem.Bookmarks.Where(b => b.Id != bookmarkId).ToList();
                     }
 
-                    await MessageService.SendSettingsToFrontend("Deleted bookmark");
+                    await MessageService.SendStateToFrontend("Deleted bookmark");
                     Log.Information($"Deleted bookmark with id {bookmarkId} from {metadataFilePath}");
                 }
                 else
@@ -725,7 +725,7 @@ namespace Segra.Backend.Media
                     await SettingsService.LoadContentFromFolderIntoState(true);
 
                     // Refresh the content in the frontend
-                    await MessageService.SendSettingsToFrontend("Renamed content");
+                    await MessageService.SendStateToFrontend("Renamed content");
                 }
                 else
                 {

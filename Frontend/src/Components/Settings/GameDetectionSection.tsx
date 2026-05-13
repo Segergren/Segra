@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useSettings } from '../../Context/SettingsContext';
+import { useAppState } from '../../Context/AppStateContext';
 import { GameListEntry, Game } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { Search } from 'lucide-react';
@@ -9,6 +10,7 @@ import CustomGameModal from '../CustomGameModal';
 
 export default function GameDetectionSection() {
   const settings = useSettings();
+  const appState = useAppState();
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingGames, setPendingGames] = useState<Game[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -32,7 +34,7 @@ export default function GameDetectionSection() {
     if (!searchQuery.trim()) return [];
 
     const query = searchQuery.toLowerCase();
-    return settings.state.gameList
+    return appState.gameList
       .filter((game) => {
         const matchesQuery = game.name.toLowerCase().includes(query);
         const hasExeInWhitelist = settings.whitelist.some((g) =>
@@ -47,7 +49,7 @@ export default function GameDetectionSection() {
         return matchesQuery && !hasExeInWhitelist && !hasExeInBlacklist && !hasExeInPending;
       })
       .slice(0, 100);
-  }, [searchQuery, settings.state.gameList, settings.whitelist, settings.blacklist, pendingGames]);
+  }, [searchQuery, appState.gameList, settings.whitelist, settings.blacklist, pendingGames]);
 
   const handleGameSelect = (game: GameListEntry) => {
     const newGame: Game = {

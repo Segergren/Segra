@@ -253,7 +253,6 @@ export interface Settings {
   clipQualityPreset: ClipQualityPreset;
   removeOriginalAfterCompression: boolean;
   discardSessionsWithoutBookmarks: boolean;
-  state: State;
 }
 
 export const initialState: State = {
@@ -337,7 +336,6 @@ export const initialSettings: Settings = {
     pubg: { enabled: true },
     rocketLeague: { enabled: false },
   },
-  state: initialState,
 };
 
 export interface Segment {

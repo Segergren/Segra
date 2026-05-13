@@ -197,16 +197,16 @@ namespace Segra.Backend.App
 
                 IsFirstRun = !SettingsService.LoadSettings();
                 hasLoadedInitialSettings = true;
-                Settings.Instance.State.Initialize();
+                AppState.Instance.Initialize();
                 SettingsService.SaveSettings();
                 if (IsFirstRun)
                 {
                     _ = SettingsService.LoadContentFromFolderIntoState(true);
                     StartupService.SetStartupStatus(true);
-                    Settings.Instance.State.GpuVendor = GeneralUtils.DetectGpuVendor();
-                    if (Settings.Instance.State.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
+                    AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
+                    if (AppState.Instance.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
                     {
-                        Settings.Instance.State.CudaComputeCapability = GeneralUtils.DetectCudaComputeCapability();
+                        AppState.Instance.CudaComputeCapability = GeneralUtils.DetectCudaComputeCapability();
                     }
                     SettingsService.SelectDefaultDevices();
                     _ = PresetsService.ApplyVideoPreset("high");

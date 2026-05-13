@@ -1,4 +1,4 @@
-import { useSettings } from '../Context/SettingsContext';
+import { useAppState } from '../Context/AppStateContext';
 import ContentCard from './ContentCard';
 import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { Content, ContentType } from '../Models/types';
@@ -31,7 +31,7 @@ export default function ContentPage({
   isProgressVisible = false,
   progressCardElement,
 }: ContentPageProps) {
-  const { state } = useSettings();
+  const state = useAppState();
   const { setSelectedVideo } = useSelectedVideo();
   const { scrollPositions, setScrollPosition } = useScroll();
   const { isModalOpen } = useModal();

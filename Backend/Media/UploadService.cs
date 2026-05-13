@@ -156,7 +156,7 @@ namespace Segra.Backend.Media
                                 Log.Information($"Extracted upload ID: {uploadId}");
 
                                 // Update the content with the uploadId
-                                var contentList = Settings.Instance.State.Content.ToList();
+                                var contentList = AppState.Instance.Content.ToList();
                                 Log.Information($"File name: {fileName}, without extension: {fileNameWithoutExtension}");
 
                                 var contentToUpdate = contentList.FirstOrDefault(c =>

@@ -127,9 +127,9 @@ namespace Segra.Backend.Services
 
                 Log.Information($"[OnProcessStarted] Application started: PID {pid}, Path: {exePath}");
 
-                if (Settings.Instance.State.PreRecording != null && GameUtils.IsGameExePath(exePath))
+                if (AppState.Instance.PreRecording != null && GameUtils.IsGameExePath(exePath))
                 {
-                    Settings.Instance.State.PreRecording.Exe = exePath;
+                    AppState.Instance.PreRecording.Exe = exePath;
                     if (OBSService.GameCaptureSource != null)
                     {
                         string fileName = Path.GetFileName(exePath);
@@ -154,7 +154,7 @@ namespace Segra.Backend.Services
 
         private static void OnProcessStopped(object sender, EventArrivedEventArgs e)
         {
-            if (Settings.Instance.State.Recording == null && Settings.Instance.State.PreRecording == null) return;
+            if (AppState.Instance.Recording == null && AppState.Instance.PreRecording == null) return;
 
             try
             {
@@ -170,9 +170,9 @@ namespace Segra.Backend.Services
 
                 Log.Information($"[OnProcessStopped] Application stopped: PID {pid}, Path: {exePath}");
 
-                var recordingPid = Settings.Instance.State.Recording?.Pid;
-                var preRecordingPid = Settings.Instance.State.PreRecording?.Pid;
-                var recordingFileName = Settings.Instance.State.Recording?.FileName;
+                var recordingPid = AppState.Instance.Recording?.Pid;
+                var preRecordingPid = AppState.Instance.PreRecording?.Pid;
+                var recordingFileName = AppState.Instance.Recording?.FileName;
 
                 bool matchesFileName = !string.IsNullOrEmpty(recordingFileName) && fileNameWithExtension == recordingFileName;
                 bool matchesRecordingPid = recordingPid.HasValue && pid == recordingPid.Value;
@@ -192,7 +192,7 @@ namespace Segra.Backend.Services
 
         private static void StartGameRecording(int pid, string exePath)
         {
-            if (Settings.Instance.State.Recording != null || Settings.Instance.State.PreRecording != null)
+            if (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null)
             {
                 Log.Information("[StartGameRecording] Recording already in progress. Skipping...");
                 return;
@@ -203,7 +203,7 @@ namespace Segra.Backend.Services
             string gameName = ExtractGameName(exePath);
             string? coverImageId = GameUtils.GetCoverImageIdFromExePath(exePath);
 
-            Settings.Instance.State.PreRecording = new PreRecording { Game = gameName, Status = "Waiting to start", CoverImageId = coverImageId, Pid = pid, Exe = exePath };
+            AppState.Instance.PreRecording = new PreRecording { Game = gameName, Status = "Waiting to start", CoverImageId = coverImageId, Pid = pid, Exe = exePath };
             OBSService.StartRecording(gameName, exePath, pid: pid);
         }
 
@@ -234,7 +234,7 @@ namespace Segra.Backend.Services
 
         private static bool ShouldRecordGame(string exePath, bool isPeriodicCheck = false)
         {
-            if (string.IsNullOrEmpty(exePath) || Settings.Instance.State.Recording != null || Settings.Instance.State.PreRecording != null) return false;
+            if (string.IsNullOrEmpty(exePath) || AppState.Instance.Recording != null || AppState.Instance.PreRecording != null) return false;
 
             // Normalize path for consistent comparison
             string normalizedExePath = exePath.Replace("\\", "/");
@@ -516,9 +516,9 @@ namespace Segra.Backend.Services
             try
             {
                 // First, check if we're currently recording and if that process is still alive
-                if (Settings.Instance.State.Recording != null)
+                if (AppState.Instance.Recording != null)
                 {
-                    int? recordingPid = Settings.Instance.State.Recording.Pid;
+                    int? recordingPid = AppState.Instance.Recording.Pid;
                     if (recordingPid.HasValue && !IsProcessRunning(recordingPid.Value))
                     {
                         Log.Warning($"[ProcessCheck] Recording process PID {recordingPid} is no longer running. Stopping recording.");
@@ -982,7 +982,7 @@ namespace Segra.Backend.Services
                     // Reset retry recording flag to allow retrying recording if the user has changed foreground window
                     PreventRetryRecording = false;
 
-                    if (Settings.Instance.State.Recording != null) return;
+                    if (AppState.Instance.Recording != null) return;
 
                     _ = GetWindowThreadProcessId(hwnd, out uint pid);
 

@@ -3,6 +3,7 @@ import { Settings as SettingsType } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { useModal } from '../../Context/ModalContext';
 import ConfirmationModal from '../ConfirmationModal';
+import { useAppState } from '../../Context/AppStateContext';
 
 interface StorageSettingsSectionProps {
   settings: SettingsType;
@@ -13,6 +14,7 @@ export default function StorageSettingsSection({
   settings,
   updateSettings,
 }: StorageSettingsSectionProps) {
+  const appState = useAppState();
   const [localStorageLimit, setLocalStorageLimit] = useState<string>(String(settings.storageLimit));
   const { openModal, closeModal } = useModal();
 
@@ -29,7 +31,7 @@ export default function StorageSettingsSection({
   };
 
   const handleStorageLimitBlur = () => {
-    const currentFolderSizeGb = settings.state.currentFolderSizeGb;
+    const currentFolderSizeGb = appState.currentFolderSizeGb;
     const numericLimit = Number(localStorageLimit) || 1; // Default to 1 if empty/invalid
 
     // Update display if empty/invalid

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../Context/SettingsContext';
+import { useAppState } from '../Context/AppStateContext';
 import { Content, includeInHighlight } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { openFileLocation } from '../Utils/FileUtils';
@@ -42,8 +43,8 @@ export default function ContentCard({
   isSelected = false,
   isSelectionMode = false,
 }: VideoCardProps) {
-  const { enableAi, showNewBadgeOnVideos, state } = useSettings();
-  const { cacheFolder } = state;
+  const { enableAi, showNewBadgeOnVideos } = useSettings();
+  const { cacheFolder } = useAppState();
   const { session } = useAuth();
   const { openModal, closeModal } = useModal();
   const { aiProgress } = useAiHighlights();

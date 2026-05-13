@@ -57,7 +57,7 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                Content? originalContent = Settings.Instance.State.Content.FirstOrDefault(c => c.FilePath == filePath);
+                Content? originalContent = AppState.Instance.Content.FirstOrDefault(c => c.FilePath == filePath);
                 if (originalContent == null)
                 {
                     Log.Error($"Content not found in metadata for file: {filePath}");

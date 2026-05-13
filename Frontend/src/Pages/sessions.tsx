@@ -1,11 +1,10 @@
 import { Play } from 'lucide-react';
 import ContentPage from '../Components/ContentPage';
-import { useSettings } from '../Context/SettingsContext';
+import { useAppState } from '../Context/AppStateContext';
 import ContentCard from '../Components/ContentCard';
 
 export default function Sessions() {
-  const { state } = useSettings();
-  const { recording } = state;
+  const { recording } = useAppState();
 
   // Pre-render the progress card element
   const isRecordingFinishing = recording && recording.endTime !== null;

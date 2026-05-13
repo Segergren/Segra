@@ -179,10 +179,10 @@ namespace Segra.Backend.Services
                 }
 
                 Settings.Instance.RunOnStartup = StartupService.GetStartupStatus();
-                Settings.Instance.State.GpuVendor = GeneralUtils.DetectGpuVendor();
-                if (Settings.Instance.State.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
+                AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
+                if (AppState.Instance.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
                 {
-                    Settings.Instance.State.CudaComputeCapability = GeneralUtils.DetectCudaComputeCapability();
+                    AppState.Instance.CudaComputeCapability = GeneralUtils.DetectCudaComputeCapability();
                 }
 
                 Log.Information("Settings loaded from {0}", SettingsFilePath);
@@ -542,7 +542,7 @@ namespace Segra.Backend.Services
                 settings.Encoder = updatedSettings.Encoder;
 
                 // When encoder changes, automatically select an appropriate codec
-                var newCodec = OBSService.SelectDefaultCodec(settings.Encoder, settings.State.Codecs);
+                var newCodec = OBSService.SelectDefaultCodec(settings.Encoder, AppState.Instance.Codecs);
                 if (newCodec != null && (settings.Codec == null || !settings.Codec.Equals(newCodec)))
                 {
                     Log.Information($"Automatically changing codec to '{newCodec.FriendlyName}' based on encoder change");
@@ -655,7 +655,7 @@ namespace Segra.Backend.Services
                 settings.SelectedDisplay = updatedSettings.SelectedDisplay;
 
                 // Update display source if we have a recording and it is not using game hook
-                if (Settings.Instance.State.Recording != null && !Settings.Instance.State.Recording.IsUsingGameHook)
+                if (AppState.Instance.Recording != null && !AppState.Instance.Recording.IsUsingGameHook)
                 {
                     OBSService.DisposeDisplaySource();
                     OBSService.AddMonitorCapture();
@@ -826,7 +826,7 @@ namespace Segra.Backend.Services
 
             await ContentService.ReconcileGameNamesByIgdb(content);
 
-            Settings.Instance.State.SetContent(content, sendToFrontend);
+            AppState.Instance.SetContent(content, sendToFrontend);
 
             // Update folder size in state
             Windows.Storage.StorageService.UpdateFolderSizeInState();
@@ -903,7 +903,7 @@ namespace Segra.Backend.Services
             }
 
             Log.Information($"Setting {versions.Count} available OBS versions");
-            Settings.Instance.State.AvailableOBSVersions = versions;
+            AppState.Instance.AvailableOBSVersions = versions;
 
             // If the selected version is not in the list anymore, reset it to null (automatic)
             if (!string.IsNullOrEmpty(Settings.Instance.SelectedOBSVersion) &&

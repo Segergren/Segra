@@ -1,4 +1,5 @@
 import { useSettings } from './Context/SettingsContext';
+import { useAppState } from './Context/AppStateContext';
 import RecordingCard from './Components/RecordingCard';
 import CircularProgress from './Components/CircularProgress';
 import { sendMessageToBackend } from './Utils/MessageUtils';
@@ -26,7 +27,8 @@ interface MenuProps {
 
 export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const settings = useSettings();
-  const { hasLoadedObs, recording, preRecording } = settings.state;
+  const appState = useAppState();
+  const { hasLoadedObs, recording, preRecording } = appState;
   const { updateInfo } = useUpdate();
   const { aiProgress } = useAiHighlights();
   const { obsDownloadProgress } = useObsDownload();
@@ -90,12 +92,12 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
     const unavailableInput = settings.inputDevices.some(
       (deviceSetting: { id: string }) =>
         deviceSetting.id !== 'default' &&
-        !settings.state.inputDevices.some((d) => d.id === deviceSetting.id),
+        !appState.inputDevices.some((d) => d.id === deviceSetting.id),
     );
     const unavailableOutput = settings.outputDevices.some(
       (deviceSetting: { id: string }) =>
         deviceSetting.id !== 'default' &&
-        !settings.state.outputDevices.some((d) => d.id === deviceSetting.id),
+        !appState.outputDevices.some((d) => d.id === deviceSetting.id),
     );
     return unavailableInput || unavailableOutput;
   };
@@ -269,20 +271,18 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
             className="w-full h-12"
             disabled={
               buttonCooldown ||
-              !settings.state.hasLoadedObs ||
-              (settings.state.recording && recording && recording.endTime !== null)
+              !appState.hasLoadedObs ||
+              (appState.recording && recording && recording.endTime !== null)
             }
             onClick={() => {
               setButtonCooldown(true);
               setTimeout(() => setButtonCooldown(false), 1000);
               sendMessageToBackend(
-                settings.state.recording || settings.state.preRecording
-                  ? 'StopRecording'
-                  : 'StartRecording',
+                appState.recording || appState.preRecording ? 'StopRecording' : 'StartRecording',
               );
             }}
           >
-            {settings.state.recording || settings.state.preRecording ? (
+            {appState.recording || appState.preRecording ? (
               <>
                 <OctagonX className="w-4 h-4" />
                 Stop

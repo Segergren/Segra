@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { RecoveryFileData } from '../Models/WebSocketMessages';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
-import { useSettings } from '../Context/SettingsContext';
+import { useAppState } from '../Context/AppStateContext';
 import Button from './Button';
 
 interface RecoveryModalProps {
@@ -17,7 +17,7 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
   const [inputValue, setInputValue] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const settings = useSettings();
+  const appState = useAppState();
 
   const currentFile = remainingFiles[currentIndex];
   const totalCount = remainingFiles.length;
@@ -27,8 +27,8 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
   };
 
   const allGames = useMemo(() => {
-    return settings.state.gameList.map((game) => game.name).sort();
-  }, [settings.state.gameList]);
+    return appState.gameList.map((game) => game.name).sort();
+  }, [appState.gameList]);
 
   const filteredGames = useMemo(() => {
     const query = inputValue.trim().toLowerCase();

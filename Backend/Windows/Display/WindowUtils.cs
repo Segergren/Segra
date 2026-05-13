@@ -83,7 +83,7 @@ namespace Segra.Backend.Windows.Display
 
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                PreRecording? preRecording = Settings.Instance.State.PreRecording;
+                PreRecording? preRecording = AppState.Instance.PreRecording;
 
                 if (preRecording == null)
                 {
@@ -117,7 +117,7 @@ namespace Segra.Backend.Windows.Display
                 }
             }
 
-            Log.Warning($"Could not find window for executable after {maxAttempts} seconds: {Settings.Instance.State.PreRecording?.Exe}");
+            Log.Warning($"Could not find window for executable after {maxAttempts} seconds: {AppState.Instance.PreRecording?.Exe}");
             return false;
         }
 

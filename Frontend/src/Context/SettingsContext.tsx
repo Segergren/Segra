@@ -7,7 +7,7 @@ import {
   useCallback,
   useRef,
 } from 'react';
-import { Settings, initialSettings, initialState } from '../Models/types';
+import { Settings, initialSettings } from '../Models/types';
 import { useWebSocketContext } from './WebSocketContext';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 
@@ -37,23 +37,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       const cached = JSON.parse(raw);
-
-      // Merge cached settings with defaults
-      const revived: Settings = {
-        ...initialSettings,
-        ...cached,
-        state: {
-          ...initialState,
-          ...cached.state,
-        },
-      };
-
-      // Do not restore ongoing recording/preRecording or hasLoadedObs from cache
-      revived.state.recording = undefined;
-      revived.state.preRecording = undefined;
-      revived.state.hasLoadedObs = false;
-
-      return revived;
+      return { ...initialSettings, ...cached };
     } catch {
       return null;
     }
@@ -70,42 +54,26 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   const [settings, setSettings] = useState<Settings>(() => loadCachedSettings() ?? initialSettings);
   useWebSocketContext();
 
-  // Track pending backend updates
   const pendingBackendUpdateRef = useRef<Settings | null>(null);
 
   const updateSettings = useCallback<SettingsUpdateContextType>(
     (newSettings, fromBackend = false) => {
       setSettings((prev) => {
-        const updatedSettings: Settings = {
-          ...prev,
-          ...newSettings,
-          state: {
-            ...prev.state,
-            ...newSettings.state,
-          },
-        };
-
-        // Persist stable settings for faster startup rendering before backend connects
+        const updatedSettings: Settings = { ...prev, ...newSettings };
         saveCachedSettings(updatedSettings);
-
-        // Queue for backend update if this change originated from frontend
         if (!fromBackend) {
           pendingBackendUpdateRef.current = updatedSettings;
         }
-
         return updatedSettings;
       });
     },
     [],
   );
 
-  // Send pending updates to backend after React finishes state updates
   useEffect(() => {
     if (pendingBackendUpdateRef.current !== null) {
       const settingsToSend = pendingBackendUpdateRef.current;
       pendingBackendUpdateRef.current = null;
-
-      // Send to backend on next tick to ensure state update is complete
       queueMicrotask(() => {
         sendMessageToBackend('UpdateSettings', settingsToSend);
       });
@@ -115,23 +83,12 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   useEffect(() => {
     const handleWebSocketMessage = (event: CustomEvent<any>) => {
       const data = event.detail;
-
       if (data.method === 'Settings') {
         updateSettings(data.content, true);
-      } else if (data.method === 'GameList') {
-        // Update the game list in state
-        setSettings((prev) => ({
-          ...prev,
-          state: {
-            ...prev.state,
-            gameList: data.content,
-          },
-        }));
       }
     };
 
     window.addEventListener('websocket-message', handleWebSocketMessage as EventListener);
-
     return () => {
       window.removeEventListener('websocket-message', handleWebSocketMessage as EventListener);
     };

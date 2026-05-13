@@ -43,7 +43,7 @@ namespace Segra.Backend.Windows.Storage
         public static void UpdateFolderSizeInState()
         {
             double currentSizeGb = GetCurrentFolderSizeGb();
-            Settings.Instance.State.CurrentFolderSizeGb = currentSizeGb;
+            AppState.Instance.CurrentFolderSizeGb = currentSizeGb;
             Log.Information($"Updated folder size in state: {currentSizeGb:F2} GB");
         }
 

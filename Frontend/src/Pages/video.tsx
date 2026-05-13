@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallba
 import { Content, BookmarkType, Segment, Bookmark } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
+import { useAppState } from '../Context/AppStateContext';
 import { openFileLocation } from '../Utils/FileUtils';
 import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { DndProvider } from 'react-dnd';
@@ -193,6 +194,7 @@ const fetchThumbnailAtTime = async (videoPath: string, timeInSeconds: number): P
 export default function VideoComponent({ video }: { video: Content }) {
   // Context hooks
   const settings = useSettings();
+  const appState = useAppState();
   const updateSettings = useSettingsUpdater();
   const { session } = useAuth();
   const { uploads } = useUploads();
@@ -1440,7 +1442,7 @@ export default function VideoComponent({ video }: { video: Content }) {
           : video.type === 'Clip'
             ? 'Clips'
             : 'Highlights';
-    const waveformPath = `${settings.state.cacheFolder}/waveforms/${folderName}/${video.fileName}.peaks.json`;
+    const waveformPath = `${appState.cacheFolder}/waveforms/${folderName}/${video.fileName}.peaks.json`;
     return `http://localhost:2222/api/content?input=${encodeURIComponent(waveformPath)}&type=${video.type.toLowerCase()}`;
   };
 

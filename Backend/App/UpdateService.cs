@@ -21,7 +21,7 @@ namespace Segra.Backend.App
         {
             try
             {
-                Core.Models.Settings.Instance.State.IsCheckingForUpdates = true;
+                Core.Models.AppState.Instance.IsCheckingForUpdates = true;
 
                 bool useBetaChannel = Core.Models.Settings.Instance.ReceiveBetaUpdates;
                 if (useBetaChannel)
@@ -38,14 +38,14 @@ namespace Segra.Backend.App
                 if (!UpdateManager.IsInstalled)
                 {
                     Log.Information("Skipping update check: app is not installed (running from dev/portable build)");
-                    Core.Models.Settings.Instance.State.IsCheckingForUpdates = false;
+                    Core.Models.AppState.Instance.IsCheckingForUpdates = false;
                     return false;
                 }
 
                 Log.Information("Checking if update is necessary");
                 UpdateInfo? newVersion = await UpdateManager.CheckForUpdatesAsync();
 
-                Core.Models.Settings.Instance.State.IsCheckingForUpdates = false;
+                Core.Models.AppState.Instance.IsCheckingForUpdates = false;
 
                 if (newVersion == null)
                 {
@@ -92,7 +92,7 @@ namespace Segra.Backend.App
             catch (Exception ex)
             {
                 Log.Error(ex, "Error during update check/installation");
-                Core.Models.Settings.Instance.State.IsCheckingForUpdates = false;
+                Core.Models.AppState.Instance.IsCheckingForUpdates = false;
                 return false;
             }
         }
@@ -143,7 +143,7 @@ namespace Segra.Backend.App
         {
             try
             {
-                Core.Models.Settings.Instance.State.IsCheckingForUpdates = true;
+                Core.Models.AppState.Instance.IsCheckingForUpdates = true;
 
                 bool useBetaChannel = Core.Models.Settings.Instance.ReceiveBetaUpdates;
                 UpdateManager = new UpdateManager(useBetaChannel ? BetaSource : Source);
@@ -202,7 +202,7 @@ namespace Segra.Backend.App
             }
             finally
             {
-                Core.Models.Settings.Instance.State.IsCheckingForUpdates = false;
+                Core.Models.AppState.Instance.IsCheckingForUpdates = false;
             }
         }
 

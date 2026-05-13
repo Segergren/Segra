@@ -7,6 +7,7 @@ import {
   DisplayCaptureMethod,
 } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
+import { useAppState } from '../../Context/AppStateContext';
 
 interface VideoSettingsSectionProps {
   settings: SettingsType;
@@ -17,6 +18,7 @@ export default function VideoSettingsSection({
   settings,
   updateSettings,
 }: VideoSettingsSectionProps) {
+  const appState = useAppState();
   const [localReplayBufferDuration, setLocalReplayBufferDuration] = useState<string>(
     String(settings.replayBufferDuration),
   );
@@ -41,7 +43,7 @@ export default function VideoSettingsSection({
   useEffect(() => {
     setLocalCqLevel(String(settings.cqLevel));
   }, [settings.cqLevel]);
-  const isRecording = settings.state.recording != null || settings.state.preRecording != null;
+  const isRecording = appState.recording != null || appState.preRecording != null;
 
   const handlePresetChange = (preset: VideoQualityPreset) => {
     sendMessageToBackend('ApplyVideoPreset', { preset });
@@ -80,7 +82,7 @@ export default function VideoSettingsSection({
           >
             <div className="text-sm font-semibold">High Quality</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">
-              {settings.state.maxDisplayHeight >= 1440 ? '1440p' : '1080p'} • 60fps
+              {appState.maxDisplayHeight >= 1440 ? '1440p' : '1080p'} • 60fps
             </div>
           </div>
           <div
@@ -216,12 +218,10 @@ export default function VideoSettingsSection({
                   items={[
                     { value: '720p', label: '720p' },
                     { value: '1080p', label: '1080p' },
-                    ...(settings.state.maxDisplayHeight >= 1440
+                    ...(appState.maxDisplayHeight >= 1440
                       ? [{ value: '1440p', label: '1440p' }]
                       : []),
-                    ...(settings.state.maxDisplayHeight >= 2160
-                      ? [{ value: '4K', label: '4K' }]
-                      : []),
+                    ...(appState.maxDisplayHeight >= 2160 ? [{ value: '4K', label: '4K' }] : []),
                   ]}
                   value={settings.resolution}
                   onChange={(val) =>
@@ -396,7 +396,7 @@ export default function VideoSettingsSection({
                   <span className="label-text text-base-content">Codec</span>
                 </label>
                 <DropdownSelect
-                  items={settings.state.codecs
+                  items={appState.codecs
                     .filter((codec) =>
                       settings.encoder === 'gpu'
                         ? codec.isHardwareEncoder
@@ -416,16 +416,16 @@ export default function VideoSettingsSection({
                       label: codec.friendlyName,
                     }))}
                   value={
-                    settings.state.codecs.find(
+                    appState.codecs.find(
                       (c) => c.internalEncoderId === settings.codec?.internalEncoderId,
                     )?.internalEncoderId
                   }
                   onChange={(val) =>
                     updateSettings({
-                      codec: settings.state.codecs.find((c) => c.internalEncoderId === val),
+                      codec: appState.codecs.find((c) => c.internalEncoderId === val),
                     })
                   }
-                  disabled={settings.state.codecs.length === 0}
+                  disabled={appState.codecs.length === 0}
                 />
               </div>
             </div>
@@ -439,8 +439,8 @@ export default function VideoSettingsSection({
           <DropdownSelect
             items={[
               { value: 'Automatic', label: 'Automatic' },
-              ...settings.state.displays.map((d, i) => {
-                const hasDuplicateName = settings.state.displays.some(
+              ...appState.displays.map((d, i) => {
+                const hasDuplicateName = appState.displays.some(
                   (other, j) => j !== i && other.deviceName === d.deviceName,
                 );
                 const label = hasDuplicateName
@@ -455,7 +455,7 @@ export default function VideoSettingsSection({
                 selectedDisplay:
                   val === 'Automatic'
                     ? undefined
-                    : settings.state.displays.find((d) => d.deviceId === val),
+                    : appState.displays.find((d) => d.deviceId === val),
               })
             }
           />

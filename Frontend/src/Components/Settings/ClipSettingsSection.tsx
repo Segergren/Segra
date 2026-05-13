@@ -8,6 +8,7 @@ import {
   ClipQualityPreset,
 } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
+import { useAppState } from '../../Context/AppStateContext';
 
 interface ClipSettingsSectionProps {
   settings: SettingsType;
@@ -18,6 +19,7 @@ export default function ClipSettingsSection({
   settings,
   updateSettings,
 }: ClipSettingsSectionProps) {
+  const appState = useAppState();
   // Helper function to get available presets based on encoder settings
   const getAvailablePresets = (
     encoder: string,
@@ -164,7 +166,7 @@ export default function ClipSettingsSection({
                 <DropdownSelect
                   items={[
                     { value: 'cpu', label: 'CPU' },
-                    ...(settings.state.gpuVendor !== GpuVendor.Unknown
+                    ...(appState.gpuVendor !== GpuVendor.Unknown
                       ? [{ value: 'gpu', label: 'GPU' }]
                       : []),
                   ]}
@@ -181,7 +183,7 @@ export default function ClipSettingsSection({
                       }
                     } else if (val === 'gpu' && settings.clipEncoder !== 'gpu') {
                       // Set default preset based on GPU vendor
-                      switch (settings.state.gpuVendor) {
+                      switch (appState.gpuVendor) {
                         case GpuVendor.AMD:
                           newSettings.clipPreset = 'transcoding' as ClipPreset;
                           break;
@@ -229,11 +231,11 @@ export default function ClipSettingsSection({
                   <label className="label">
                     <span className="label-text text-base-content">
                       Quality (
-                      {settings.state.gpuVendor === GpuVendor.Nvidia
+                      {appState.gpuVendor === GpuVendor.Nvidia
                         ? 'CQ'
-                        : settings.state.gpuVendor === GpuVendor.AMD
+                        : appState.gpuVendor === GpuVendor.AMD
                           ? 'QP'
-                          : settings.state.gpuVendor === GpuVendor.Intel
+                          : appState.gpuVendor === GpuVendor.Intel
                             ? 'ICQ'
                             : 'CQ'}
                       )
@@ -241,7 +243,7 @@ export default function ClipSettingsSection({
                   </label>
                   <DropdownSelect
                     items={
-                      settings.state.gpuVendor === GpuVendor.Nvidia
+                      appState.gpuVendor === GpuVendor.Nvidia
                         ? [
                             { value: '0', label: '0 (Highest Quality)' },
                             { value: '10', label: '10' },
@@ -255,7 +257,7 @@ export default function ClipSettingsSection({
                             { value: '45', label: '45' },
                             { value: '51', label: '51 (Lowest Quality)' },
                           ]
-                        : settings.state.gpuVendor === GpuVendor.AMD
+                        : appState.gpuVendor === GpuVendor.AMD
                           ? [
                               { value: '0', label: '0 (Highest Quality)' },
                               { value: '10', label: '10' },
@@ -269,7 +271,7 @@ export default function ClipSettingsSection({
                               { value: '45', label: '45' },
                               { value: '51', label: '51 (Lowest Quality)' },
                             ]
-                          : settings.state.gpuVendor === GpuVendor.Intel
+                          : appState.gpuVendor === GpuVendor.Intel
                             ? [
                                 { value: '1', label: '1 (Highest Quality)' },
                                 { value: '10', label: '10' },
@@ -301,7 +303,7 @@ export default function ClipSettingsSection({
                     { value: 'h264', label: 'H.264' },
                     { value: 'h265', label: 'H.265' },
                     ...(settings.clipEncoder === 'gpu' &&
-                    settings.state.codecs.find((c) => c.internalEncoderId.includes('av1'))
+                    appState.codecs.find((c) => c.internalEncoderId.includes('av1'))
                       ? [{ value: 'av1', label: 'AV1' }]
                       : []),
                   ]}
@@ -311,7 +313,7 @@ export default function ClipSettingsSection({
                     const updates: Partial<SettingsType> = { clipCodec: newCodec };
 
                     // Auto-adjust preset when switching to/from AV1 on NVIDIA
-                    if (settings.state.gpuVendor === GpuVendor.Nvidia) {
+                    if (appState.gpuVendor === GpuVendor.Nvidia) {
                       if (
                         newCodec === 'av1' &&
                         !['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'].includes(settings.clipPreset)
@@ -329,7 +331,7 @@ export default function ClipSettingsSection({
 
                     updateSettings(updates);
                   }}
-                  disabled={!settings.state.hasLoadedObs}
+                  disabled={!appState.hasLoadedObs}
                 />
               </div>
 
@@ -383,7 +385,7 @@ export default function ClipSettingsSection({
                   items={getAvailablePresets(
                     settings.clipEncoder,
                     settings.clipCodec,
-                    settings.state.gpuVendor,
+                    appState.gpuVendor,
                   )}
                   value={settings.clipPreset}
                   onChange={(val) => updateSettings({ clipPreset: val as ClipPreset })}

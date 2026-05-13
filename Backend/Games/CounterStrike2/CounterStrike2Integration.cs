@@ -259,7 +259,7 @@ namespace Segra.Backend.Games.CounterStrike2
 
         private static void AddBookmark(BookmarkType type)
         {
-            if (Settings.Instance.State.Recording == null)
+            if (AppState.Instance.Recording == null)
             {
                 Log.Debug($"No recording active, skipping {type} bookmark");
                 return;
@@ -268,9 +268,9 @@ namespace Segra.Backend.Games.CounterStrike2
             var bookmark = new Bookmark
             {
                 Type = type,
-                Time = DateTime.Now - Settings.Instance.State.Recording.StartTime
+                Time = DateTime.Now - AppState.Instance.Recording.StartTime
             };
-            Settings.Instance.State.Recording.Bookmarks.Add(bookmark);
+            AppState.Instance.Recording.Bookmarks.Add(bookmark);
             Log.Information($"Added {type} bookmark at {bookmark.Time}");
         }
 

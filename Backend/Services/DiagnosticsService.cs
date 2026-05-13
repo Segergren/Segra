@@ -357,17 +357,17 @@ namespace Segra.Backend.Services
             Log.Information("--- Recording & encoding ---");
             var s = Settings.Instance;
             Log.Information($"Selected OBS version: {s.SelectedOBSVersion ?? "automatic"}");
-            Log.Information($"Has loaded OBS: {s.State.HasLoadedObs}");
+            Log.Information($"Has loaded OBS: {AppState.Instance.HasLoadedObs}");
             Log.Information($"Pending OBS update: {s.PendingOBSUpdate}");
-            Log.Information($"Available OBS versions: {s.State.AvailableOBSVersions.Count}");
+            Log.Information($"Available OBS versions: {AppState.Instance.AvailableOBSVersions.Count}");
 
-            if (s.State.PreRecording != null)
-                Log.Information($"PreRecording: game={s.State.PreRecording.Game}, status={s.State.PreRecording.Status}, pid={s.State.PreRecording.Pid?.ToString() ?? "<none>"}");
+            if (AppState.Instance.PreRecording != null)
+                Log.Information($"PreRecording: game={AppState.Instance.PreRecording.Game}, status={AppState.Instance.PreRecording.Status}, pid={AppState.Instance.PreRecording.Pid?.ToString() ?? "<none>"}");
             else
                 Log.Information("PreRecording: <none>");
 
-            if (s.State.Recording != null)
-                Log.Information($"Recording: game={s.State.Recording.Game}, startTime={s.State.Recording.StartTime:O}, hook={s.State.Recording.IsUsingGameHook}, pid={s.State.Recording.Pid?.ToString() ?? "<none>"}");
+            if (AppState.Instance.Recording != null)
+                Log.Information($"Recording: game={AppState.Instance.Recording.Game}, startTime={AppState.Instance.Recording.StartTime:O}, hook={AppState.Instance.Recording.IsUsingGameHook}, pid={AppState.Instance.Recording.Pid?.ToString() ?? "<none>"}");
             else
                 Log.Information("Recording: <none>");
 
@@ -383,10 +383,10 @@ namespace Segra.Backend.Services
             Log.Information($"Recording mode: {s.RecordingMode}");
             Log.Information($"Replay buffer: duration={s.ReplayBufferDuration}s, maxSize={s.ReplayBufferMaxSize}MB");
             Log.Information($"Display capture method: {s.DisplayCaptureMethod}");
-            Log.Information($"GPU vendor: {s.State.GpuVendor}");
-            Log.Information($"CUDA compute capability: {s.State.CudaComputeCapability?.ToString() ?? "<none>"}");
-            Log.Information($"Available codecs ({s.State.Codecs.Count}):");
-            foreach (var codec in s.State.Codecs)
+            Log.Information($"GPU vendor: {AppState.Instance.GpuVendor}");
+            Log.Information($"CUDA compute capability: {AppState.Instance.CudaComputeCapability?.ToString() ?? "<none>"}");
+            Log.Information($"Available codecs ({AppState.Instance.Codecs.Count}):");
+            foreach (var codec in AppState.Instance.Codecs)
             {
                 Log.Information($"  - {codec.FriendlyName} (id={codec.InternalEncoderId}, hw={codec.IsHardwareEncoder})");
             }
@@ -402,8 +402,8 @@ namespace Segra.Backend.Services
             Log.Information($"Configured output devices ({s.OutputDevices.Count}):");
             foreach (var d in s.OutputDevices)
                 Log.Information($"  - {d.Name} (id={d.Id}, volume={d.Volume:F2})");
-            Log.Information($"Detected input devices: {s.State.InputDevices.Count}");
-            Log.Information($"Detected output devices: {s.State.OutputDevices.Count}");
+            Log.Information($"Detected input devices: {AppState.Instance.InputDevices.Count}");
+            Log.Information($"Detected output devices: {AppState.Instance.OutputDevices.Count}");
             Log.Information($"Force mono input: {s.ForceMonoInputSources}");
             Log.Information($"Input noise suppression: {s.InputNoiseSuppression}");
             Log.Information($"Separate audio tracks: {s.EnableSeparateAudioTracks}");
@@ -414,14 +414,14 @@ namespace Segra.Backend.Services
         {
             Log.Information("--- Display ---");
             var s = Settings.Instance;
-            Log.Information($"Detected displays ({s.State.Displays.Count}):");
-            foreach (var d in s.State.Displays)
+            Log.Information($"Detected displays ({AppState.Instance.Displays.Count}):");
+            foreach (var d in AppState.Instance.Displays)
                 Log.Information($"  - {d.DeviceName} (id={d.DeviceId}, primary={d.IsPrimary})");
             if (s.SelectedDisplay != null)
                 Log.Information($"Selected display: {s.SelectedDisplay.DeviceName} (primary={s.SelectedDisplay.IsPrimary})");
             else
                 Log.Information("Selected display: <auto>");
-            Log.Information($"Max display height: {s.State.MaxDisplayHeight}");
+            Log.Information($"Max display height: {AppState.Instance.MaxDisplayHeight}");
         }
 
         private static void LogStorage()
@@ -432,14 +432,14 @@ namespace Segra.Backend.Services
             LogDriveInfo("Content folder drive", s.ContentFolder);
             Log.Information($"Cache folder: {s.CacheFolder}");
             LogDriveInfo("Cache folder drive", s.CacheFolder);
-            Log.Information($"Current content size: {s.State.CurrentFolderSizeGb:F2} GB");
+            Log.Information($"Current content size: {AppState.Instance.CurrentFolderSizeGb:F2} GB");
             Log.Information($"Storage limit: {s.StorageLimit} GB");
 
-            var byType = s.State.Content
+            var byType = AppState.Instance.Content
                 .GroupBy(c => c.Type)
                 .OrderBy(g => g.Key.ToString())
                 .Select(g => $"{g.Key}={g.Count()}");
-            Log.Information($"Content count: {s.State.Content.Count} ({string.Join(", ", byType)})");
+            Log.Information($"Content count: {AppState.Instance.Content.Count} ({string.Join(", ", byType)})");
         }
 
         private static void LogDriveInfo(string label, string path)

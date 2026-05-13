@@ -6,6 +6,7 @@ import Clips from './Pages/clips';
 import ReplayBuffer from './Pages/replay-buffer';
 import Highlights from './Pages/highlights';
 import { SettingsProvider } from './Context/SettingsContext';
+import { AppStateProvider } from './Context/AppStateContext';
 import Video from './Pages/video';
 import { useSelectedVideo } from './Context/SelectedVideoContext';
 import { useSelectedMenu } from './Context/SelectedMenuContext';
@@ -100,31 +101,33 @@ export default function AppWrapper() {
       <MigrationOverlay />
       <ScrollProvider>
         <SettingsProvider>
-          <ReleaseNotesContext.Provider value={{ releaseNotes, setReleaseNotes }}>
-            <ModalProvider>
-              <GeneralMessagesProvider>
-                <SegmentsProvider>
-                  <DndProvider backend={HTML5Backend}>
-                    <UploadProvider>
-                      <ImportProvider>
-                        <ClippingProvider>
-                          <AiHighlightsProvider>
-                            <CompressionProvider>
-                              <UpdateProvider>
-                                <ObsDownloadProvider>
-                                  <App />
-                                </ObsDownloadProvider>
-                              </UpdateProvider>
-                            </CompressionProvider>
-                          </AiHighlightsProvider>
-                        </ClippingProvider>
-                      </ImportProvider>
-                    </UploadProvider>
-                  </DndProvider>
-                </SegmentsProvider>
-              </GeneralMessagesProvider>
-            </ModalProvider>
-          </ReleaseNotesContext.Provider>
+          <AppStateProvider>
+            <ReleaseNotesContext.Provider value={{ releaseNotes, setReleaseNotes }}>
+              <ModalProvider>
+                <GeneralMessagesProvider>
+                  <SegmentsProvider>
+                    <DndProvider backend={HTML5Backend}>
+                      <UploadProvider>
+                        <ImportProvider>
+                          <ClippingProvider>
+                            <AiHighlightsProvider>
+                              <CompressionProvider>
+                                <UpdateProvider>
+                                  <ObsDownloadProvider>
+                                    <App />
+                                  </ObsDownloadProvider>
+                                </UpdateProvider>
+                              </CompressionProvider>
+                            </AiHighlightsProvider>
+                          </ClippingProvider>
+                        </ImportProvider>
+                      </UploadProvider>
+                    </DndProvider>
+                  </SegmentsProvider>
+                </GeneralMessagesProvider>
+              </ModalProvider>
+            </ReleaseNotesContext.Provider>
+          </AppStateProvider>
         </SettingsProvider>
       </ScrollProvider>
     </WebSocketProvider>

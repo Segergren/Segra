@@ -35,7 +35,7 @@ namespace Segra.Backend.Services
 
             try
             {
-                var playedGames = Settings.Instance.State.Content
+                var playedGames = AppState.Instance.Content
                     .Where(c => !string.IsNullOrEmpty(c.Game))
                     .Select(c => c.Game)
                     .Distinct()
@@ -284,7 +284,7 @@ namespace Segra.Backend.Services
             string contentFolder = Settings.Instance.ContentFolder;
 
             // Build a lookup from sanitized folder name -> original game name
-            var knownGameNames = Settings.Instance.State.Content
+            var knownGameNames = AppState.Instance.Content
                 .Where(c => !string.IsNullOrEmpty(c.Game))
                 .Select(c => c.Game)
                 .Concat(Settings.Instance.Whitelist.Select(g => g.Name))

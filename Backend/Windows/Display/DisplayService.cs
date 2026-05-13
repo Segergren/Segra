@@ -137,8 +137,8 @@ namespace Segra.Backend.Windows.Display
             isCollectingDisplays = false;
 
             var newMaxHeight = GetMaxDisplayHeight();
-            var currentDisplays = Settings.Instance.State.Displays;
-            var currentMaxHeight = Settings.Instance.State.MaxDisplayHeight;
+            var currentDisplays = AppState.Instance.Displays;
+            var currentMaxHeight = AppState.Instance.MaxDisplayHeight;
 
             // Check if anything changed
             bool displaysChanged = currentDisplays == null || !currentDisplays.SequenceEqual(pendingDisplays);
@@ -161,13 +161,13 @@ namespace Segra.Backend.Windows.Display
                 Log.Information("=== End Monitor List ===");
 
                 displays = new List<Core.Models.Display>(pendingDisplays);
-                Settings.Instance.State.Displays = displays;
+                AppState.Instance.Displays = displays;
             }
 
             if (maxHeightChanged)
             {
                 Log.Information("Max display height changed: {MaxHeight}p", newMaxHeight);
-                Settings.Instance.State.MaxDisplayHeight = newMaxHeight;
+                AppState.Instance.MaxDisplayHeight = newMaxHeight;
             }
 
             return true;

@@ -221,7 +221,7 @@ namespace Segra.Backend.App
                             await HandleSelectGameExecutable();
                             break;
                         case "StartRecording":
-                            if (Settings.Instance.State.Recording != null || Settings.Instance.State.PreRecording != null)
+                            if (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null)
                             {
                                 Log.Information("Recording already in progress. Skipping...");
                                 return;
@@ -235,6 +235,7 @@ namespace Segra.Backend.App
                         case "NewConnection":
                             Log.Information("NewConnection command received.");
                             await SendSettingsToFrontend("New connection");
+                            await SendStateToFrontend("New connection");
 
                             // Send game list to frontend
                             await SendGameList();
@@ -439,7 +440,7 @@ namespace Segra.Backend.App
 
                 if (Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
                 {
-                    Content? content = Settings.Instance.State.Content.FirstOrDefault(c =>
+                    Content? content = AppState.Instance.Content.FirstOrDefault(c =>
                         c.FileName == fileName && c.Type == contentType);
 
                     if (content != null && !string.IsNullOrEmpty(content.FilePath))
@@ -486,7 +487,7 @@ namespace Segra.Backend.App
 
                         if (Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
                         {
-                            Content? content = Settings.Instance.State.Content.FirstOrDefault(c =>
+                            Content? content = AppState.Instance.Content.FirstOrDefault(c =>
                                 c.FileName == fileName && c.Type == contentType);
 
                             if (content != null && !string.IsNullOrEmpty(content.FilePath))
@@ -792,6 +793,15 @@ namespace Segra.Backend.App
 
             Log.Information("Sending settings to frontend ({Cause})", cause);
             await SendFrontendMessage("Settings", Settings.Instance);
+        }
+
+        public static async Task SendStateToFrontend(string cause)
+        {
+            if (!Program.hasLoadedInitialSettings || Settings.Instance._isBulkUpdating)
+                return;
+
+            Log.Information("Sending state to frontend ({Cause})", cause);
+            await SendFrontendMessage("State", AppState.Instance);
         }
 
         public static async Task SendGameList()
