@@ -76,14 +76,6 @@ namespace Segra.Backend.Shared
         }
 
         /// <summary>
-        /// Gets the legacy metadata subfolder name for a content type (e.g., "sessions", "clips").
-        /// </summary>
-        public static string GetLegacyMetadataSubfolderName(Content.ContentType type)
-        {
-            return GetLegacyVideoFolderName(type);
-        }
-
-        /// <summary>
         /// Gets the full path to a video folder for a content type.
         /// </summary>
         public static string GetVideoFolderPath(string contentFolder, Content.ContentType type)
@@ -116,21 +108,6 @@ namespace Segra.Backend.Shared
         public static string GetWaveformsFolderPath(Content.ContentType type)
         {
             return Path.Combine(CacheFolder, Waveforms, GetMetadataSubfolderName(type));
-        }
-
-        /// <summary>
-        /// Checks if a path contains a specific content type folder.
-        /// Useful for determining content type from a file path.
-        /// </summary>
-        public static bool PathContainsContentType(string path, Content.ContentType type)
-        {
-            string normalizedPath = path.Replace("\\", "/");
-            string folderName = GetVideoFolderName(type);
-
-            // Check for both forward slash variants to handle different path formats
-            return normalizedPath.Contains($"/{folderName}/", StringComparison.OrdinalIgnoreCase) ||
-                   normalizedPath.Contains($"/{folderName}", StringComparison.OrdinalIgnoreCase) &&
-                   normalizedPath.EndsWith($"/{folderName}", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

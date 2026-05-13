@@ -26,9 +26,6 @@ export interface Content {
 export interface OBSVersion {
   version: string;
   isBeta: boolean;
-  availableSince?: string;
-  supportsFrom?: string;
-  supportsTo?: string;
   url: string;
 }
 
