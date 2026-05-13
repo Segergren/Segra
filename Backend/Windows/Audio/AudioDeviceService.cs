@@ -9,8 +9,8 @@ namespace Segra.Backend.Windows.Audio
         private static string GetCleanDeviceName(string friendlyName)
         {
 
-            // If it's Voicemeeter, Elgato or GoXLR, return the original name
-            if (friendlyName.Contains("Voicemeeter") || friendlyName.Contains("Elgato") || friendlyName.Contains("GoXLR"))
+            // If it's Voicemeeter, Elgato, GoXLR or BEACN, return the original name
+            if (friendlyName.Contains("Voicemeeter") || friendlyName.Contains("Elgato") || friendlyName.Contains("GoXLR") || friendlyName.Contains("BEACN"))
             {
                 return friendlyName;
             }
