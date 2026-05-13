@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../Context/SettingsContext';
 import { useAppState } from '../Context/AppStateContext';
-import { Content, includeInHighlight } from '../Models/types';
+import { BookmarkType, Content, includeInHighlight } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { openFileLocation } from '../Utils/FileUtils';
 import { useAuth } from '../Hooks/useAuth.tsx';
@@ -19,6 +19,7 @@ import {
   Crown,
   ExternalLink,
   Copy,
+  Bookmark,
 } from 'lucide-react';
 import { useAiHighlights } from '../Context/AiHighlightsContext';
 import { useCompression } from '../Context/CompressionContext';
@@ -178,6 +179,8 @@ export default function ContentCard({
 
   const thumbnailPath = getThumbnailPath();
   const formattedDuration = formatDuration(content!.duration);
+  const manualBookmarkCount =
+    content?.bookmarks?.filter((b) => b.type === BookmarkType.Manual).length ?? 0;
 
   // Check if content was created within the last hour and hasn't been viewed yet
   const isRecent = useMemo((): boolean => {
@@ -292,6 +295,12 @@ export default function ContentCard({
         <span className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
           {formattedDuration}
         </span>
+        {manualBookmarkCount > 0 && (
+          <span className="absolute top-2 right-2 bg-black/75 text-yellow-400 text-xs px-2 py-1 rounded">
+            <Bookmark size={12} fill="currentColor" className="inline align-middle mr-1" />
+            <span className="align-middle">{manualBookmarkCount}</span>
+          </span>
+        )}
         {isSelectionMode && (
           <input
             type="checkbox"
