@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, createContext } from 'react';
+import { useEffect, useState, createContext } from 'react';
 import Settings from './Pages/settings';
 import Menu from './menu';
 import Sessions from './Pages/sessions';
@@ -56,24 +56,6 @@ function App() {
   const { selectedMenu, setSelectedMenu } = useSelectedMenu();
   const settings = useSettings();
   const appState = useAppState();
-  const initialMenuApplied = useRef(false);
-
-  // Apply the user's configured default landing menu on first launch in this session.
-  useEffect(() => {
-    if (initialMenuApplied.current) return;
-    initialMenuApplied.current = true;
-
-    const hasUserChosenInSession =
-      typeof window !== 'undefined' &&
-      (window as typeof window & { __selectedMenu?: string }).__selectedMenu !== undefined;
-
-    if (hasUserChosenInSession) return;
-
-    const defaultItem = settings.defaultMenuItem ?? 'Full Sessions';
-    if (defaultItem !== selectedMenu) {
-      setSelectedMenu(defaultItem);
-    }
-  }, [settings.defaultMenuItem, selectedMenu, setSelectedMenu]);
 
   // If the current menu becomes hidden (and has no content keeping it visible),
   // fall back to the default (or first reachable item).
