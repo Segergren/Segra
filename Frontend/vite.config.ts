@@ -6,6 +6,11 @@ import tailwindcss from '@tailwindcss/vite';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  legacy: {
+    // react-use-websocket exposes its hook via CJS `exports.default`; Rolldown's
+    // stricter interop in Vite 8 returns undefined. Drop when the lib ships ESM.
+    inconsistentCjsInterop: true,
+  },
   server: {
     port: 2882,
   },
