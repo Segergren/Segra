@@ -428,14 +428,6 @@ namespace Segra.Backend.Services
                 }
             }
 
-            // Update Theme
-            if (settings.Theme != updatedSettings.Theme)
-            {
-                Log.Information($"Theme changed from '{settings.Theme}' to '{updatedSettings.Theme}'");
-                settings.Theme = updatedSettings.Theme;
-                hasChanges = true;
-            }
-
             // Update ContentFolder
             if (settings.ContentFolder != updatedSettings.ContentFolder)
             {

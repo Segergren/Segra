@@ -188,19 +188,6 @@ export type VideoQualityPreset = 'low' | 'standard' | 'high' | 'custom';
 export type ClipQualityPreset = 'low' | 'standard' | 'high' | 'custom';
 
 export interface Settings {
-  theme:
-    | 'segra'
-    | 'rich'
-    | 'dark'
-    | 'night'
-    | 'dracula'
-    | 'black'
-    | 'luxury'
-    | 'forest'
-    | 'halloween'
-    | 'coffee'
-    | 'dim'
-    | 'sunset';
   resolution: '720p' | '1080p' | '1440p' | '4K';
   frameRate: number;
   stretch4By3: boolean;
@@ -273,7 +260,6 @@ export const initialState: State = {
 };
 
 export const initialSettings: Settings = {
-  theme: 'segra',
   resolution: '720p',
   frameRate: 30,
   stretch4By3: true,

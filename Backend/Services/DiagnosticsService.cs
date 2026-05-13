@@ -485,7 +485,6 @@ namespace Segra.Backend.Services
             Log.Information($"Receive beta updates: {s.ReceiveBetaUpdates}");
             Log.Information($"Remove original after compression: {s.RemoveOriginalAfterCompression}");
             Log.Information($"Discard sessions without bookmarks: {s.DiscardSessionsWithoutBookmarks}");
-            Log.Information($"Theme: {s.Theme}");
         }
 
         private static void LogClipExport()

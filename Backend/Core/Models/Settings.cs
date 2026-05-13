@@ -16,7 +16,6 @@ namespace Segra.Backend.Core.Models
 
         private string _contentFolder = Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Segra"));
         private string _cacheFolder = Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra"));
-        private string _theme = "segra";
         private string _resolution = "1440p";
         private int _frameRate = 60;
         private bool _stretch4By3 = true;
@@ -168,16 +167,6 @@ namespace Segra.Backend.Core.Models
             set
             {
                 _cacheFolder = Shared.PathUtils.Normalize(value);
-            }
-        }
-
-        [JsonPropertyName("theme")]
-        public string Theme
-        {
-            get => _theme;
-            set
-            {
-                _theme = value;
             }
         }
 
