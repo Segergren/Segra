@@ -14,8 +14,8 @@ namespace Segra.Backend.Core.Models
         public static Settings Instance => _instance;
         public bool _isBulkUpdating = false;
 
-        private string _contentFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Segra").Replace("\\", "/");
-        private string _cacheFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra").Replace("\\", "/");
+        private string _contentFolder = Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Segra"));
+        private string _cacheFolder = Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra"));
         private string _theme = "segra";
         private string _resolution = "1440p";
         private int _frameRate = 60;
@@ -141,10 +141,11 @@ namespace Segra.Backend.Core.Models
             get => _contentFolder;
             set
             {
-                bool hasChanged = Instance._contentFolder != value.Replace("\\", "/");
+                string normalized = Shared.PathUtils.Normalize(value);
+                bool hasChanged = Instance._contentFolder != normalized;
 
-                _contentFolder = value.Replace("\\", "/");
-                Instance._contentFolder = value.Replace("\\", "/");
+                _contentFolder = normalized;
+                Instance._contentFolder = normalized;
 
                 if (hasChanged || AppState.Instance.Content.Count == 0)
                 {
@@ -166,7 +167,7 @@ namespace Segra.Backend.Core.Models
             get => _cacheFolder;
             set
             {
-                _cacheFolder = value.Replace("\\", "/");
+                _cacheFolder = Shared.PathUtils.Normalize(value);
             }
         }
 
@@ -930,8 +931,13 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("endTime")]
         public DateTime? EndTime { get; set; } // Nullable in case recording is ongoing
 
+        private string? _filePath;
         [JsonPropertyName("filePath")]
-        public string? FilePath { get; set; } // Nullable in case recording is buffer
+        public string? FilePath
+        {
+            get => _filePath;
+            set => _filePath = Segra.Backend.Shared.PathUtils.NormalizeOrNull(value);
+        } // Nullable in case recording is buffer
 
         [JsonPropertyName("game")]
         public required string Game { get; set; }
@@ -995,7 +1001,14 @@ namespace Segra.Backend.Core.Models
 
         public string FileName { get; set; } = string.Empty;
 
-        public string FilePath { get; set; } = string.Empty;
+        private string _filePath = string.Empty;
+        // Paths are stored with forward slashes so logs, metadata, and the WebSocket
+        // payload to the frontend stay consistent regardless of how the path was built.
+        public string FilePath
+        {
+            get => _filePath;
+            set => _filePath = Segra.Backend.Shared.PathUtils.Normalize(value ?? string.Empty);
+        }
 
         public string FileSize { get; set; } = string.Empty;
 

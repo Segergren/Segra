@@ -309,7 +309,7 @@ namespace Segra.Backend.Services
 
             foreach (var type in contentTypes)
             {
-                string videoFolder = Path.Combine(contentFolder, FolderNames.GetVideoFolderName(type));
+                string videoFolder = PathUtils.Combine(contentFolder, FolderNames.GetVideoFolderName(type));
                 string metadataFolder = FolderNames.GetMetadataFolderPath(type);
 
                 if (!Directory.Exists(videoFolder))
@@ -407,7 +407,12 @@ namespace Segra.Backend.Services
 
         private class OrphanedFile
         {
-            public required string FilePath { get; set; }
+            private string _filePath = string.Empty;
+            public required string FilePath
+            {
+                get => _filePath;
+                set => _filePath = PathUtils.Normalize(value ?? string.Empty);
+            }
             public required Content.ContentType Type { get; set; }
             public required string FileName { get; set; }
             public string? FolderGame { get; set; }

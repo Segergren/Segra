@@ -84,7 +84,7 @@ namespace Segra.Backend.Windows.Storage
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning($"Error calculating size for file {file}: {ex.Message}");
+                    Log.Warning($"Error calculating size for file {PathUtils.Normalize(file)}: {ex.Message}");
                 }
             }
 
@@ -135,22 +135,23 @@ namespace Segra.Backend.Windows.Storage
                 if (freedSpaceBytes >= spaceToFreeBytes)
                     break;
 
+                string fileFullName = PathUtils.Normalize(file.FullName);
                 long fileSize = file.Length;
                 double fileSizeMB = (double)fileSize / (1024 * 1024);
 
                 try
                 {
                     // Determine content type based on path (handles game subfolders)
-                    Content.ContentType? detectedType = FolderNames.GetContentTypeFromPath(file.FullName);
+                    Content.ContentType? detectedType = FolderNames.GetContentTypeFromPath(fileFullName);
                     if (detectedType == null)
                     {
-                        Log.Warning($"Could not determine content type for file: {file.FullName}");
+                        Log.Warning($"Could not determine content type for file: {fileFullName}");
                         continue;
                     }
                     Content.ContentType contentType = detectedType.Value;
 
-                    Log.Information($"Deleting {contentType} file: {file.FullName} ({fileSizeMB:F2} MB)");
-                    await ContentService.DeleteContent(file.FullName, contentType);
+                    Log.Information($"Deleting {contentType} file: {fileFullName} ({fileSizeMB:F2} MB)");
+                    await ContentService.DeleteContent(fileFullName, contentType);
 
                     freedSpaceBytes += fileSize;
                     deletedCount++;
@@ -160,7 +161,7 @@ namespace Segra.Backend.Windows.Storage
                 }
                 catch (Exception ex)
                 {
-                    Log.Error($"Error deleting file {file.FullName}: {ex.Message}");
+                    Log.Error($"Error deleting file {fileFullName}: {ex.Message}");
                 }
             }
 

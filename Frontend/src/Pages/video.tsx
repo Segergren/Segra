@@ -170,7 +170,7 @@ function TopInfoBar({ video }: { video: Content }) {
             onClick={() => openFileLocation(video.filePath)}
             title={video.filePath}
           >
-            {video.filePath.replace(/\\/g, '/')}
+            {video.filePath}
           </a>
         </span>
       </div>

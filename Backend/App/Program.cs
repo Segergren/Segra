@@ -31,7 +31,7 @@ namespace Segra.Backend.App
         public static bool hasLoadedInitialSettings = false;
         public static PhotinoWindow? Window { get; private set; }
         private static readonly string LogFilePath =
-          Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "logs.log");
+          Segra.Backend.Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "logs.log"));
         private const string PipeName = "Segra_SingleInstance";
         private static Mutex? singleInstanceMutex;
         private static Thread? pipeServerThread;

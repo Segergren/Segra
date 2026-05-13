@@ -62,7 +62,7 @@ namespace Segra.Backend.Media
                 // Input files are organized by game
                 string inputGameFolder = StorageService.SanitizeGameNameForFolder(content.Game ?? "Unknown");
                 string inputFolderName = FolderNames.GetVideoFolderName(content.Type);
-                string inputFilePath = Path.Combine(videoFolder, inputFolderName, inputGameFolder, $"{content.FileName}.mp4");
+                string inputFilePath = PathUtils.Combine(videoFolder, inputFolderName, inputGameFolder, $"{content.FileName}.mp4");
 
                 if (!File.Exists(inputFilePath))
                 {
@@ -73,11 +73,11 @@ namespace Segra.Backend.Media
 
                 // Output highlights are organized by game
                 string outputGameFolder = StorageService.SanitizeGameNameForFolder(content.Game ?? "Unknown");
-                string outputFolder = Path.Combine(videoFolder, FolderNames.Highlights, outputGameFolder);
+                string outputFolder = PathUtils.Combine(videoFolder, FolderNames.Highlights, outputGameFolder);
                 Directory.CreateDirectory(outputFolder);
 
                 string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
-                string outputFilePath = Path.Combine(outputFolder, outputFileName);
+                string outputFilePath = PathUtils.Combine(outputFolder, outputFileName);
 
                 progressCallback?.Invoke(10, "Extracting clips...");
 
@@ -160,7 +160,7 @@ namespace Segra.Backend.Media
                 for (int i = 0; i < segments.Count; i++)
                 {
                     var segment = segments[i];
-                    string tempFile = Path.Combine(Path.GetTempPath(), $"highlight_segment_{Guid.NewGuid()}.mp4");
+                    string tempFile = PathUtils.Combine(Path.GetTempPath(), $"highlight_segment_{Guid.NewGuid()}.mp4");
                     double segmentDuration = segment.EndTime - segment.StartTime;
 
                     progressCallback?.Invoke(processedDuration / totalDuration, $"Extracting clip {i + 1} of {segments.Count}");
@@ -205,7 +205,7 @@ namespace Segra.Backend.Media
                 }
 
                 // Create concat file for multiple segments
-                concatFilePath = Path.Combine(Path.GetTempPath(), $"highlight_concat_{Guid.NewGuid()}.txt");
+                concatFilePath = PathUtils.Combine(Path.GetTempPath(), $"highlight_concat_{Guid.NewGuid()}.txt");
                 var concatLines = tempFiles.Select(f => $"file '{f.Replace("\\", "/").Replace("'", "'\\''")}'");
                 await File.WriteAllLinesAsync(concatFilePath, concatLines);
 

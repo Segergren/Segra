@@ -529,7 +529,7 @@ namespace Segra.Backend.App
                 if (fbd.ShowDialog() == DialogResult.OK)
                 {
                     // Get the selected folder path
-                    string selectedPath = fbd.SelectedPath;
+                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
                     Log.Information($"Selected Folder: {selectedPath}");
 
                     // Check if the new folder would exceed storage limit
@@ -557,7 +557,7 @@ namespace Segra.Backend.App
 
                 if (fbd.ShowDialog() == DialogResult.OK)
                 {
-                    string selectedPath = fbd.SelectedPath;
+                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
                     string oldCacheFolder = Settings.Instance.CacheFolder;
                     Log.Information($"Selected Cache Folder: {selectedPath}");
 
@@ -1046,7 +1046,7 @@ namespace Segra.Backend.App
 
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
-                    string filePath = openFileDialog.FileName;
+                    string filePath = Shared.PathUtils.Normalize(openFileDialog.FileName);
                     string fileName = Path.GetFileNameWithoutExtension(filePath);
 
                     var gameObject = new

@@ -21,10 +21,10 @@ namespace Segra.Backend.Media
                 }
 
                 long originalSize = new FileInfo(filePath).Length;
-                string directory = Path.GetDirectoryName(filePath)!;
+                string directory = PathUtils.Normalize(Path.GetDirectoryName(filePath)!);
                 string fileName = Path.GetFileNameWithoutExtension(filePath);
                 string extension = Path.GetExtension(filePath);
-                string tempOutputPath = Path.Combine(directory, $"{fileName}_temp_compressed{extension}");
+                string tempOutputPath = PathUtils.Combine(directory, $"{fileName}_temp_compressed{extension}");
 
                 TimeSpan durationTs = await FFmpegService.GetVideoDuration(filePath);
                 double? duration = durationTs.TotalSeconds > 0 ? durationTs.TotalSeconds : null;
@@ -71,7 +71,7 @@ namespace Segra.Backend.Media
                 string finalPath;
                 if (Settings.Instance.RemoveOriginalAfterCompression)
                 {
-                    finalPath = Path.Combine(directory, $"{fileName}_compressed{extension}");
+                    finalPath = PathUtils.Combine(directory, $"{fileName}_compressed{extension}");
                     if (File.Exists(finalPath)) File.Delete(finalPath);
                     File.Move(tempOutputPath, finalPath);
 
@@ -85,7 +85,7 @@ namespace Segra.Backend.Media
                 }
                 else
                 {
-                    finalPath = Path.Combine(directory, $"{fileName}_compressed{extension}");
+                    finalPath = PathUtils.Combine(directory, $"{fileName}_compressed{extension}");
                     if (File.Exists(finalPath)) File.Delete(finalPath);
                     File.Move(tempOutputPath, finalPath);
                     Log.Information($"Saved compressed file as: {finalPath}");

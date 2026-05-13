@@ -14,7 +14,7 @@ namespace Segra.Backend.Services
 {
     internal static class SettingsService
     {
-        public static readonly string SettingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "settings.json");
+        public static readonly string SettingsFilePath = PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "settings.json"));
 
         public static void SaveSettings()
         {
@@ -763,7 +763,7 @@ namespace Segra.Backend.Services
 
                     foreach (var metadataFilePath in metadataFiles)
                     {
-                        var serializedMetadataFilePath = metadataFilePath.Replace("\\", "/");
+                        var serializedMetadataFilePath = PathUtils.Normalize(metadataFilePath);
                         try
                         {
                             // Read and parse metadata

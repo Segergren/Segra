@@ -157,6 +157,7 @@ namespace Segra.Backend.Recorder
                 return false;
             }
 
+            savedPath = PathUtils.Normalize(savedPath);
             Log.Information($"Replay buffer saved to: {savedPath}");
             string game = AppState.Instance.Recording?.Game ?? "Unknown";
             string? exePath = AppState.Instance.Recording?.ExePath;
@@ -813,8 +814,8 @@ namespace Segra.Backend.Recorder
 
             // Paths for session recordings and buffer, organized by game
             string sanitizedGameName = StorageService.SanitizeGameNameForFolder(name);
-            string sessionDir = Path.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions, sanitizedGameName);
-            string bufferDir = Path.Combine(Settings.Instance.ContentFolder, FolderNames.Buffers, sanitizedGameName);
+            string sessionDir = PathUtils.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions, sanitizedGameName);
+            string bufferDir = PathUtils.Combine(Settings.Instance.ContentFolder, FolderNames.Buffers, sanitizedGameName);
             if (!Directory.Exists(sessionDir)) Directory.CreateDirectory(sessionDir);
             if (!Directory.Exists(bufferDir)) Directory.CreateDirectory(bufferDir);
 

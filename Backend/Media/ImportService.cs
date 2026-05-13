@@ -135,7 +135,7 @@ namespace Segra.Backend.Media
 
             // Base content folder
             string contentFolder = Settings.Instance.ContentFolder;
-            string baseTypeFolder = Path.Combine(contentFolder, FolderNames.GetVideoFolderName(contentType));
+            string baseTypeFolder = PathUtils.Combine(contentFolder, FolderNames.GetVideoFolderName(contentType));
 
             int importedCount = 0;
             int failedCount = 0;
@@ -157,7 +157,7 @@ namespace Segra.Backend.Media
                 try
                 {
                     // Create target directory with game subfolder
-                    string targetFolder = Path.Combine(baseTypeFolder, "Unknown");
+                    string targetFolder = PathUtils.Combine(baseTypeFolder, "Unknown");
                     Directory.CreateDirectory(targetFolder);
 
                     // Send initial progress for current file
@@ -182,14 +182,14 @@ namespace Segra.Backend.Media
                     // Generate unique filename with timestamp
                     string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
                     string targetFileName = $"{timestamp}_{originalFileName}{fileExtension}";
-                    string targetFilePath = Path.Combine(targetFolder, targetFileName);
+                    string targetFilePath = PathUtils.Combine(targetFolder, targetFileName);
 
                     // Ensure unique filename if file already exists
                     int counter = 1;
                     while (File.Exists(targetFilePath))
                     {
                         targetFileName = $"{timestamp}_{originalFileName}_{counter}{fileExtension}";
-                        targetFilePath = Path.Combine(targetFolder, targetFileName);
+                        targetFilePath = PathUtils.Combine(targetFolder, targetFileName);
                         counter++;
                     }
 

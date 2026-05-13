@@ -2,6 +2,7 @@ using ObsKit.NET.Sources;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Games;
 using Segra.Backend.Recorder;
+using Segra.Backend.Shared;
 using Segra.Backend.Utils;
 using Serilog;
 using System.Diagnostics;
@@ -123,7 +124,7 @@ namespace Segra.Backend.Services
                 string exePath = ResolveProcessPath(pid);
 
                 // We can't resolve the path or it's irrelevant, so it's most likely not a game
-                if (string.IsNullOrEmpty(exePath) || exePath.StartsWith("C:\\Windows\\System32\\") || exePath.StartsWith("C:\\Windows\\SysWOW64\\") || exePath.StartsWith("C:\\Program Files\\Git\\")) return;
+                if (string.IsNullOrEmpty(exePath) || exePath.StartsWith("C:/Windows/System32/") || exePath.StartsWith("C:/Windows/SysWOW64/") || exePath.StartsWith("C:/Program Files/Git/")) return;
 
                 Log.Information($"[OnProcessStarted] Application started: PID {pid}, Path: {exePath}");
 
@@ -166,7 +167,7 @@ namespace Segra.Backend.Services
                 string fileNameWithExtension = Path.GetFileName(exePath);
 
                 // We can't resolve the path or it's irrelevant, so it's most likely not a game
-                if (string.IsNullOrEmpty(exePath) || exePath.StartsWith("C:\\Windows\\System32\\") || exePath.StartsWith("C:\\Windows\\SysWOW64\\") || exePath.StartsWith("C:\\Program Files\\Git\\")) return;
+                if (string.IsNullOrEmpty(exePath) || exePath.StartsWith("C:/Windows/System32/") || exePath.StartsWith("C:/Windows/SysWOW64/") || exePath.StartsWith("C:/Program Files/Git/")) return;
 
                 Log.Information($"[OnProcessStopped] Application stopped: PID {pid}, Path: {exePath}");
 
@@ -407,6 +408,11 @@ namespace Segra.Backend.Services
         }
 
         private static string ResolveProcessPath(int pid)
+        {
+            return PathUtils.Normalize(ResolveProcessPathRaw(pid));
+        }
+
+        private static string ResolveProcessPathRaw(int pid)
         {
             if (pid <= 0) return string.Empty;
 

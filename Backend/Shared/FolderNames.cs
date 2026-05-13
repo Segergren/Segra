@@ -34,7 +34,7 @@ namespace Segra.Backend.Shared
         /// Gets the cache folder path for Segra (metadata, thumbnails, waveforms).
         /// This is configurable via Settings, with default at C:\Users\{user}\AppData\Roaming\Segra
         /// </summary>
-        public static string CacheFolder => Settings.Instance.CacheFolder.Replace("/", "\\");
+        public static string CacheFolder => PathUtils.Normalize(Settings.Instance.CacheFolder);
 
         /// <summary>
         /// Gets the video folder name for a content type.
@@ -80,7 +80,7 @@ namespace Segra.Backend.Shared
         /// </summary>
         public static string GetVideoFolderPath(string contentFolder, Content.ContentType type)
         {
-            return Path.Combine(contentFolder, GetVideoFolderName(type));
+            return PathUtils.Combine(contentFolder, GetVideoFolderName(type));
         }
 
         /// <summary>
@@ -89,7 +89,7 @@ namespace Segra.Backend.Shared
         /// </summary>
         public static string GetMetadataFolderPath(Content.ContentType type)
         {
-            return Path.Combine(CacheFolder, Metadata, GetMetadataSubfolderName(type));
+            return PathUtils.Combine(CacheFolder, Metadata, GetMetadataSubfolderName(type));
         }
 
         /// <summary>
@@ -98,7 +98,7 @@ namespace Segra.Backend.Shared
         /// </summary>
         public static string GetThumbnailsFolderPath(Content.ContentType type)
         {
-            return Path.Combine(CacheFolder, Thumbnails, GetMetadataSubfolderName(type));
+            return PathUtils.Combine(CacheFolder, Thumbnails, GetMetadataSubfolderName(type));
         }
 
         /// <summary>
@@ -107,7 +107,7 @@ namespace Segra.Backend.Shared
         /// </summary>
         public static string GetWaveformsFolderPath(Content.ContentType type)
         {
-            return Path.Combine(CacheFolder, Waveforms, GetMetadataSubfolderName(type));
+            return PathUtils.Combine(CacheFolder, Waveforms, GetMetadataSubfolderName(type));
         }
 
         /// <summary>

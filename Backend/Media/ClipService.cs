@@ -48,7 +48,7 @@ namespace Segra.Backend.Media
                 // Use game from first segment for the output folder
                 var firstSegment = segments.FirstOrDefault();
                 string outputGameFolder = StorageService.SanitizeGameNameForFolder(firstSegment?.Game ?? "Unknown");
-                string outputFolder = Path.Combine(videoFolder, FolderNames.Clips, outputGameFolder);
+                string outputFolder = PathUtils.Combine(videoFolder, FolderNames.Clips, outputGameFolder);
                 Directory.CreateDirectory(outputFolder);
 
                 if (!FFmpegService.FFmpegExists())
@@ -91,7 +91,7 @@ namespace Segra.Backend.Media
                         string inputGameFolder = StorageService.SanitizeGameNameForFolder(segment.Game);
                         var segmentType = Enum.Parse<Content.ContentType>(segment.Type);
                         string inputFolderName = FolderNames.GetVideoFolderName(segmentType);
-                        inputFilePath = Path.Combine(videoFolder, inputFolderName, inputGameFolder, $"{segment.FileName}.mp4");
+                        inputFilePath = PathUtils.Combine(videoFolder, inputFolderName, inputGameFolder, $"{segment.FileName}.mp4");
                     }
                     if (!File.Exists(inputFilePath))
                     {
@@ -100,7 +100,7 @@ namespace Segra.Backend.Media
                         continue;
                     }
 
-                    string tempFileName = Path.Combine(Path.GetTempPath(), $"clip{Guid.NewGuid()}.mp4");
+                    string tempFileName = PathUtils.Combine(Path.GetTempPath(), $"clip{Guid.NewGuid()}.mp4");
                     double clipDuration = segment.EndTime - segment.StartTime;
 
                     List<string>? segmentTrackNames = perSegmentTrackNames[segmentIndex];
@@ -135,7 +135,7 @@ namespace Segra.Backend.Media
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 96, segments });
 
                 string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
-                outputFilePath = Path.Combine(outputFolder, outputFileName);
+                outputFilePath = PathUtils.Combine(outputFolder, outputFileName);
 
                 if (tempClipFiles.Count == 1)
                 {
@@ -144,7 +144,7 @@ namespace Segra.Backend.Media
                 }
                 else
                 {
-                    concatFilePath = Path.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
+                    concatFilePath = PathUtils.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
                     await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(f => $"file '{f.Replace("\\", "\\\\").Replace("'", "\\'")}"));
 
                     try
@@ -658,7 +658,7 @@ namespace Segra.Backend.Media
             {
                 var contentType = Enum.Parse<Content.ContentType>(segment.Type);
                 string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
-                string metadataFilePath = Path.Combine(metadataFolderPath, $"{segment.FileName}.json");
+                string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{segment.FileName}.json");
 
                 if (File.Exists(metadataFilePath))
                 {
