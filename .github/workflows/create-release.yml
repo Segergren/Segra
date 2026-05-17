@@ -117,39 +117,6 @@ jobs:
         run: dotnet publish -c Release --self-contained -r win-x64 -o publish
         shell: pwsh
 
-      - name: Start SignPath auto-approver
-        shell: pwsh
-        env:
-          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          SIGNPATH_APPROVER_TOKEN: ${{ secrets.SIGNPATH_APPROVER_TOKEN }}
-        run: |
-          $script = {
-            param($org, $token)
-            $headers = @{ Authorization = "Bearer $token" }
-            $base = "https://app.signpath.io/api/v1/$org/SigningRequests"
-            $approved = @{}
-            while ($true) {
-              try {
-                $resp = Invoke-RestMethod -Uri "${base}?top=10" -Headers $headers
-                foreach ($req in $resp.signingRequests) {
-                  if ($req.signingPolicySlug -ne 'release-signing') { continue }
-                  if ($approved.ContainsKey($req.signingRequestId)) { continue }
-                  $detail = Invoke-RestMethod -Uri $req.signingRequestDetailsLink -Headers $headers
-                  if ($detail.status -eq 'WaitingForApproval') {
-                    Invoke-RestMethod -Uri "$base/$($req.signingRequestId)/Approve" -Headers $headers -Method POST -ContentType 'application/json' -Body '{}' | Out-Null
-                    Write-Host "auto-approver: approved $($req.signingRequestId) ($($req.artifactConfigurationSlug))"
-                    $approved[$req.signingRequestId] = $true
-                  }
-                }
-              } catch {
-                Write-Host "auto-approver: poll error $_"
-              }
-              Start-Sleep -Seconds 3
-            }
-          }
-          Start-Job -Name signpath-approver -ScriptBlock $script -ArgumentList $env:SIGNPATH_ORGANIZATION_ID, $env:SIGNPATH_APPROVER_TOKEN | Out-Null
-          Write-Host "auto-approver: background job started"
-
       - name: Upload Segra.exe for signing (Pass 1)
         id: upload_unsigned_exe
         uses: actions/upload-artifact@v7
@@ -225,16 +192,6 @@ jobs:
             }
             $winJson | ConvertTo-Json -Depth 10 -Compress | Set-Content -Path $winJsonPath -NoNewline -Encoding utf8
             Write-Host "Rewrote releases.win.json"
-          }
-
-      - name: Stop SignPath auto-approver
-        if: always()
-        shell: pwsh
-        run: |
-          Get-Job -Name signpath-approver -ErrorAction SilentlyContinue | ForEach-Object {
-            Receive-Job $_ -ErrorAction SilentlyContinue
-            Stop-Job $_ -ErrorAction SilentlyContinue
-            Remove-Job $_ -ErrorAction SilentlyContinue
           }
 
       - name: Create Final Git Tag
