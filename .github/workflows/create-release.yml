@@ -196,6 +196,37 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: ./output
 
+      - name: Regenerate Velopack manifests
+        shell: pwsh
+        run: |
+          $nupkg = Get-ChildItem ./output/Segra-*-full.nupkg | Select-Object -First 1
+          if (-not $nupkg) { throw "No nupkg found in ./output" }
+          $size = $nupkg.Length
+          $sha1 = (Get-FileHash $nupkg.FullName -Algorithm SHA1).Hash.ToUpperInvariant()
+          $sha256 = (Get-FileHash $nupkg.FullName -Algorithm SHA256).Hash.ToUpperInvariant()
+          Write-Host "Signed nupkg: $($nupkg.Name) size=$size sha1=$sha1"
+
+          $releasesPath = './output/RELEASES'
+          if (Test-Path $releasesPath) {
+            $newLine = "$sha1 $($nupkg.Name) $size"
+            [System.IO.File]::WriteAllText((Resolve-Path $releasesPath), $newLine, [System.Text.UTF8Encoding]::new($true))
+            Write-Host "Rewrote RELEASES"
+          }
+
+          $winJsonPath = './output/releases.win.json'
+          if (Test-Path $winJsonPath) {
+            $winJson = Get-Content $winJsonPath -Raw | ConvertFrom-Json
+            foreach ($asset in $winJson.Assets) {
+              if ($asset.FileName -eq $nupkg.Name) {
+                $asset.SHA1 = $sha1
+                $asset.SHA256 = $sha256
+                $asset.Size = $size
+              }
+            }
+            $winJson | ConvertTo-Json -Depth 10 -Compress | Set-Content -Path $winJsonPath -NoNewline -Encoding utf8
+            Write-Host "Rewrote releases.win.json"
+          }
+
       - name: Stop SignPath auto-approver
         if: always()
         shell: pwsh
