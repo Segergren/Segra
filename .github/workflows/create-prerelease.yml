@@ -148,9 +148,51 @@ jobs:
         run: dotnet publish -c Release --self-contained -r win-x64 -o publish
         shell: pwsh
 
+      - name: Upload Segra.exe for signing (Pass 1)
+        id: upload_unsigned_exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: Segra-exe-unsigned
+          path: ./publish/Segra.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign Segra.exe (Pass 1)
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Segra
+          signing-policy-slug: test-signing
+          artifact-configuration-slug: publish
+          github-artifact-id: ${{ steps.upload_unsigned_exe.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: ./publish
+
       - name: Package with vpk
         run: vpk pack -u Segra -v ${{ env.new_version }} -p ./publish -e Segra.exe -o ./output --packTitle "Segra" --noPortable
         shell: pwsh
+
+      - name: Upload Velopack output for signing (Pass 2)
+        id: upload_unsigned_output
+        uses: actions/upload-artifact@v7
+        with:
+          name: Segra-output-unsigned
+          path: ./output
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign installer + nupkg (Pass 2)
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Segra
+          signing-policy-slug: test-signing
+          artifact-configuration-slug: output
+          github-artifact-id: ${{ steps.upload_unsigned_output.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: ./output
 
       - name: Create a Git Tag
         run: |
