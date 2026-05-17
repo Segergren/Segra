@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <!--
-    Pass 2: signs the Velopack-generated installer plus the Update.exe stub
-    inside the update nupkg. Segra.exe inside the nupkg is already signed
-    from Pass 1, so it is not re-signed here.
+    Pass 2: signs the Velopack-generated installer plus the two Velopack
+    auxiliary executables inside the update nupkg. Segra.exe inside the
+    nupkg is already signed from Pass 1.
   -->
   <zip-file>
     <pe-file path="Segra-win-Setup.exe">
@@ -11,7 +11,8 @@
     </pe-file>
     <nupkg-file path="Segra-*-full.nupkg">
       <pe-file-set>
-        <include path="lib/**/Update.exe" />
+        <include path="lib/app/Squirrel.exe" />
+        <include path="lib/app/Segra_ExecutionStub.exe" />
         <for-each>
           <authenticode-sign />
         </for-each>
