@@ -3,13 +3,13 @@ import { useAppState } from '../../Context/AppStateContext';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { GameIntegrations } from '../../Models/types';
 
-// Game integration configuration - easy to extend with new games
 interface GameIntegration {
   id: string;
   name: string;
   settingsKey: keyof GameIntegrations;
   bookmarks: string[];
   backgroundImage: string;
+  coverOpacity?: number;
   isBeta?: boolean;
   warningText?: string;
 }
@@ -27,25 +27,60 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     name: 'League of Legends',
     settingsKey: 'leagueOfLegends',
     bookmarks: ['Kills', 'Assists', 'Deaths'],
-    backgroundImage: 'https://segra.tv/api/games/cover/coabh7',
+    backgroundImage: 'https://segra.tv/api/games/cover/ar57ot',
   },
   {
     id: 'pubg',
     name: 'PUBG: Battlegrounds',
     settingsKey: 'pubg',
     bookmarks: ['Kills', 'Knocks', 'Deaths'],
-    backgroundImage: 'https://segra.tv/api/games/cover/coaam4',
+    backgroundImage: 'https://segra.tv/api/games/cover/sc87ll',
   },
   {
     id: 'rocket-league',
     name: 'Rocket League',
     settingsKey: 'rocketLeague',
     bookmarks: ['Goals', 'Assists'],
-    backgroundImage: 'https://segra.tv/api/games/cover/coaiyq',
+    backgroundImage: 'https://segra.tv/api/games/cover/ar5u6d',
+  },
+  {
+    id: 'minecraft',
+    name: 'Minecraft',
+    settingsKey: 'minecraft',
+    bookmarks: ['Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/co8fu7',
+  },
+  {
+    id: 'rust',
+    name: 'Rust',
+    settingsKey: 'rust',
+    bookmarks: ['Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/coajjj',
+    coverOpacity: 45,
+  },
+  {
+    id: 'dota2',
+    name: 'Dota 2',
+    settingsKey: 'dota2',
+    bookmarks: ['Kills', 'Assists', 'Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/q6dxlfgq7e01ktv2zejz',
+  },
+  {
+    id: 'war-thunder',
+    name: 'War Thunder',
+    settingsKey: 'warThunder',
+    bookmarks: ['Kills', 'Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/co1p78',
+  },
+  {
+    id: 'runescape-dragonwilds',
+    name: 'RuneScape: Dragonwilds',
+    settingsKey: 'runescapeDragonwilds',
+    bookmarks: ['Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/ar3en0',
   },
 ];
 
-// Get badge color based on bookmark type
 const getBookmarkBadgeClass = (bookmark: string): string => {
   switch (bookmark) {
     case 'Kills':
@@ -80,20 +115,25 @@ function GameIntegrationCard({
       {/* Background image */}
       {showBackground && (
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-20 pointer-events-none blur-[0px]"
-          style={{ backgroundImage: `url(${integration.backgroundImage})` }}
+          className="absolute inset-0 bg-cover bg-center pointer-events-none"
+          style={{
+            backgroundImage: `url(${integration.backgroundImage})`,
+            opacity: (integration.coverOpacity ?? 25) / 100,
+          }}
         />
       )}
       <div className="relative z-10 flex flex-col h-full">
         <div className="flex items-center gap-2 mb-2">
           <h3 className="text-lg font-semibold">{integration.name}</h3>
-          {integration.isBeta && <span className="badge badge-primary badge-sm">Beta</span>}
+          {integration.isBeta && (
+            <span className="badge badge-primary badge-sm drop-shadow-md">Beta</span>
+          )}
         </div>
         <div className="flex flex-wrap gap-1 mb-4">
           {integration.bookmarks.map((bookmark) => (
             <span
               key={bookmark}
-              className={`badge badge-sm border-0 ${getBookmarkBadgeClass(bookmark)}`}
+              className={`badge badge-sm border-0 drop-shadow-md ${getBookmarkBadgeClass(bookmark)}`}
             >
               {bookmark}
             </span>
@@ -111,7 +151,7 @@ function GameIntegrationCard({
               disabled={isRecording}
               onChange={(e) => onToggle(e.target.checked)}
             />
-            <span className="text-sm">Enable Integration</span>
+            <span className="text-sm">{enabled ? 'Enabled' : 'Disabled'}</span>
           </label>
         </div>
       </div>
@@ -144,7 +184,7 @@ export default function GameIntegrationsSection() {
         bookmark kills, goals, and other events during gameplay.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {GAME_INTEGRATIONS.map((integration) => (
           <GameIntegrationCard
             key={integration.id}

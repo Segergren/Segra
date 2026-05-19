@@ -1260,5 +1260,20 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("rocketLeague")]
         public GameIntegrationSettings RocketLeague { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("dota2")]
+        public GameIntegrationSettings Dota2 { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("rust")]
+        public GameIntegrationSettings Rust { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("minecraft")]
+        public GameIntegrationSettings Minecraft { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("runescapeDragonwilds")]
+        public GameIntegrationSettings RunescapeDragonwilds { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("warThunder")]
+        public GameIntegrationSettings WarThunder { get; set; } = new GameIntegrationSettings(true);
     }
 }

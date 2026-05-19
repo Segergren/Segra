@@ -426,6 +426,36 @@ namespace Segra.Backend.Services
                     current.RocketLeague.Enabled = updated.RocketLeague.Enabled;
                     hasChanges = true;
                 }
+                if (current.Dota2.Enabled != updated.Dota2.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Dota2.Enabled changed from '{current.Dota2.Enabled}' to '{updated.Dota2.Enabled}'");
+                    current.Dota2.Enabled = updated.Dota2.Enabled;
+                    hasChanges = true;
+                }
+                if (current.Rust.Enabled != updated.Rust.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Rust.Enabled changed from '{current.Rust.Enabled}' to '{updated.Rust.Enabled}'");
+                    current.Rust.Enabled = updated.Rust.Enabled;
+                    hasChanges = true;
+                }
+                if (current.Minecraft.Enabled != updated.Minecraft.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Minecraft.Enabled changed from '{current.Minecraft.Enabled}' to '{updated.Minecraft.Enabled}'");
+                    current.Minecraft.Enabled = updated.Minecraft.Enabled;
+                    hasChanges = true;
+                }
+                if (current.RunescapeDragonwilds.Enabled != updated.RunescapeDragonwilds.Enabled)
+                {
+                    Log.Information($"GameIntegrations.RunescapeDragonwilds.Enabled changed from '{current.RunescapeDragonwilds.Enabled}' to '{updated.RunescapeDragonwilds.Enabled}'");
+                    current.RunescapeDragonwilds.Enabled = updated.RunescapeDragonwilds.Enabled;
+                    hasChanges = true;
+                }
+                if (current.WarThunder.Enabled != updated.WarThunder.Enabled)
+                {
+                    Log.Information($"GameIntegrations.WarThunder.Enabled changed from '{current.WarThunder.Enabled}' to '{updated.WarThunder.Enabled}'");
+                    current.WarThunder.Enabled = updated.WarThunder.Enabled;
+                    hasChanges = true;
+                }
             }
 
             // Update ContentFolder
