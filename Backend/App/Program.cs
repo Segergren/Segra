@@ -228,7 +228,7 @@ namespace Segra.Backend.App
                 Task.Run(StorageService.EnsureStorageBelowLimit);
 
                 // Check for updates
-                Task.Run(UpdateService.UpdateAppIfNecessary);
+                Task.Run(() => UpdateService.UpdateAppIfNecessary(forceCheck: true));
 
                 // Check if application was launched from startup
                 bool startMinimized = IsLaunchedFromStartup();

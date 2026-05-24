@@ -715,8 +715,8 @@ namespace Segra.Backend.Services
                 Log.Information($"ReceiveBetaUpdates changed from '{settings.ReceiveBetaUpdates}' to '{updatedSettings.ReceiveBetaUpdates}'");
                 settings.ReceiveBetaUpdates = updatedSettings.ReceiveBetaUpdates;
                 hasChanges = true;
-                _ = Task.Run(UpdateService.UpdateAppIfNecessary);
-                _ = Task.Run(UpdateService.GetReleaseNotes);
+                _ = Task.Run(() => UpdateService.UpdateAppIfNecessary(forceCheck: true));
+                _ = Task.Run(() => UpdateService.GetReleaseNotes(forceCheck: true));
             }
 
             // Update RunOnStartup

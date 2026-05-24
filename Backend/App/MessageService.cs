@@ -119,7 +119,7 @@ namespace Segra.Backend.App
                             break;
                         case "CheckForUpdates":
                             Log.Information("CheckForUpdates command received.");
-                            _ = Task.Run(UpdateService.UpdateAppIfNecessary);
+                            _ = Task.Run(() => UpdateService.UpdateAppIfNecessary(forceCheck: true));
                             break;
                         case "AddToWhitelist":
                             root.TryGetProperty("Parameters", out JsonElement addWhitelistParameterElement);
@@ -252,7 +252,7 @@ namespace Segra.Backend.App
                                 });
                             }
 
-                            _ = Task.Run(UpdateService.GetReleaseNotes);
+                            _ = Task.Run(() => UpdateService.GetReleaseNotes());
                             break;
                         case "SetVideoLocation":
                             await SetVideoLocationAsync();

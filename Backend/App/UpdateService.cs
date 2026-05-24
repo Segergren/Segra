@@ -17,8 +17,20 @@ namespace Segra.Backend.App
         public static GithubSource BetaSource = new GithubSource("https://github.com/Segergren/Segra", null, true);
         public static UpdateManager UpdateManager { get; private set; } = new UpdateManager(Source);
 
-        public static async Task<bool> UpdateAppIfNecessary()
+        // 1-hour cache for automatic update checks. Manual checks and startup pass forceCheck=true to bypass.
+        private static readonly TimeSpan UpdateCheckCacheTtl = TimeSpan.FromHours(1);
+        private static DateTime _lastUpdateCheckUtc = DateTime.MinValue;
+        private static DateTime _lastReleaseNotesFetchUtc = DateTime.MinValue;
+        private static List<object>? _cachedReleaseNotesList = null;
+
+        public static async Task<bool> UpdateAppIfNecessary(bool forceCheck = false)
         {
+            if (!forceCheck && DateTime.UtcNow - _lastUpdateCheckUtc < UpdateCheckCacheTtl)
+            {
+                Log.Information($"Skipping update check: cached result from {_lastUpdateCheckUtc:O} is still valid (TTL {UpdateCheckCacheTtl.TotalHours}h)");
+                return false;
+            }
+
             try
             {
                 Core.Models.AppState.Instance.IsCheckingForUpdates = true;
@@ -44,6 +56,7 @@ namespace Segra.Backend.App
 
                 Log.Information("Checking if update is necessary");
                 UpdateInfo? newVersion = await UpdateManager.CheckForUpdatesAsync();
+                _lastUpdateCheckUtc = DateTime.UtcNow;
 
                 Core.Models.AppState.Instance.IsCheckingForUpdates = false;
 
@@ -57,7 +70,7 @@ namespace Segra.Backend.App
                 LatestUpdateInfo = newVersion;
 
                 // Fetch latest release notes immediately so the UI has fresh data while showing the update
-                _ = Task.Run(GetReleaseNotes);
+                _ = Task.Run(() => GetReleaseNotes(forceCheck: true));
 
                 // Get target version string
                 string targetVersion = newVersion.TargetFullRelease.Version.ToString();
@@ -206,8 +219,18 @@ namespace Segra.Backend.App
             }
         }
 
-        public static async Task GetReleaseNotes()
+        public static async Task GetReleaseNotes(bool forceCheck = false)
         {
+            if (!forceCheck && _cachedReleaseNotesList != null && DateTime.UtcNow - _lastReleaseNotesFetchUtc < UpdateCheckCacheTtl)
+            {
+                Log.Information($"Using cached release notes from {_lastReleaseNotesFetchUtc:O} (TTL {UpdateCheckCacheTtl.TotalHours}h), resending to frontend");
+                await MessageService.SendFrontendMessage("ReleaseNotes", new
+                {
+                    releaseNotesList = _cachedReleaseNotesList
+                });
+                return;
+            }
+
             try
             {
                 Log.Information("Getting release notes from GitHub API");
@@ -327,6 +350,8 @@ namespace Segra.Backend.App
                     releaseNotesList
                 });
 
+                _cachedReleaseNotesList = releaseNotesList;
+                _lastReleaseNotesFetchUtc = DateTime.UtcNow;
                 Log.Information($"Sent {releaseNotesList.Count} release notes to frontend");
             }
             catch (Exception ex)
