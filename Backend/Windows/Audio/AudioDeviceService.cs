@@ -47,7 +47,7 @@ namespace Segra.Backend.Windows.Audio
 
             try
             {
-                var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+                var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
                 if (defaultDevice != null)
                 {
                     // Add default device first with (Default)
@@ -113,7 +113,7 @@ namespace Segra.Backend.Windows.Audio
 
             try
             {
-                var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
                 if (defaultDevice != null)
                 {
                     // Add default device first with (Default)
