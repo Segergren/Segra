@@ -318,6 +318,12 @@ namespace Segra.Backend.Recorder
 
             try
             {
+                // OBS resolves obs.dll, plugins and data via relative paths, and also loads
+                // additional modules dynamically at runtime. Pin the working directory to the
+                // app directory so those lookups resolve correctly when Segra is launched from
+                // a different cwd (e.g. autostart/shortcuts).
+                Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
+
                 // Initialize OBS using ObsKit.NET fluent API
                 _obsContext = Obs.Initialize(config =>
                 {
