@@ -2,6 +2,7 @@ using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
 using Serilog;
+using System.Diagnostics;
 
 namespace Segra.Backend.Windows.Storage
 {
@@ -38,6 +39,56 @@ namespace Segra.Backend.Windows.Storage
             long currentUsageBytes = CalculateFolderSize(contentFolder);
             double currentUsageGb = Math.Round((double)currentUsageBytes / BYTES_PER_GB, 2);
             return currentUsageGb;
+        }
+
+        // A drive considered too full to safely start a recording
+        public sealed record FullDrive(string Label, string Root, double UsedPercent);
+
+        // Drives are considered full at or above this used percentage
+        public const double DriveFullThresholdPercent = 99.0;
+
+        // Checks the system (C:), recording (content folder) and temp drives.
+        // Returns any drive that is at or above DriveFullThresholdPercent, deduplicated by drive root.
+        public static List<FullDrive> GetFullDrives()
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var checks = new (string Label, string Path)[]
+            {
+                ("System drive", Environment.SystemDirectory),
+                ("Recording drive", Settings.Instance.ContentFolder),
+                ("Temp drive", Path.GetTempPath())
+            };
+
+            var fullDrives = new List<FullDrive>();
+            var seenRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var (label, path) in checks)
+            {
+                try
+                {
+                    if (string.IsNullOrEmpty(path)) continue;
+                    string? root = Path.GetPathRoot(path);
+                    if (string.IsNullOrEmpty(root)) continue;
+                    if (!seenRoots.Add(root)) continue; // same physical drive already checked
+
+                    var drive = new DriveInfo(root);
+                    if (!drive.IsReady || drive.TotalSize <= 0) continue;
+
+                    double usedPercent = (drive.TotalSize - drive.AvailableFreeSpace) / (double)drive.TotalSize * 100.0;
+                    if (usedPercent >= DriveFullThresholdPercent)
+                    {
+                        fullDrives.Add(new FullDrive(label, root, usedPercent));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Error checking drive space for {path}: {ex.Message}");
+                }
+            }
+
+            stopwatch.Stop();
+            Log.Information($"Drive space check took {stopwatch.Elapsed.TotalMilliseconds:F2} ms ({fullDrives.Count} full)");
+            return fullDrives;
         }
 
         public static void UpdateFolderSizeInState()
