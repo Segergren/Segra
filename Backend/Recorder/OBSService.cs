@@ -494,6 +494,8 @@ namespace Segra.Backend.Recorder
             {
                 string drivesText = string.Join(", ", fullDrives.Select(d => $"{d.Label} ({d.Root.TrimEnd('\\')}) is {d.UsedPercent:F1}% full"));
                 Log.Error($"Cannot start recording, drive(s) over {StorageService.DriveFullThresholdPercent:F0}% full: {drivesText}");
+                // Stop the game detection polling loop from retrying until the user switches foreground window
+                GameDetectionService.PreventRetryRecording = true;
                 Task.Run(() => ShowModal("Not enough disk space", $"Recording cannot start because {drivesText}. Free up some space and try again.", "error"));
                 Task.Run(() => PlaySound("error"));
                 AppState.Instance.PreRecording = null;
