@@ -318,12 +318,6 @@ namespace Segra.Backend.Recorder
 
             try
             {
-                // OBS resolves obs.dll, plugins and data via relative paths, and also loads
-                // additional modules dynamically at runtime. Pin the working directory to the
-                // app directory so those lookups resolve correctly when Segra is launched from
-                // a different cwd (e.g. autostart/shortcuts).
-                Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
-
                 // Initialize OBS using ObsKit.NET fluent API
                 _obsContext = Obs.Initialize(config =>
                 {
@@ -1584,6 +1578,8 @@ namespace Segra.Backend.Recorder
                 List<Core.Models.OBSVersion>? response = null;
                 using (HttpClient client = new())
                 {
+                    // Fail fast instead of the default 100s timeout when unreachable.
+                    client.Timeout = TimeSpan.FromSeconds(15);
                     try
                     {
                         response = await client.GetFromJsonAsync<List<Core.Models.OBSVersion>>(url);
@@ -1659,9 +1655,6 @@ namespace Segra.Backend.Recorder
         {
             Log.Information("Checking if OBS is installed");
 
-            // Ensure we have the latest available versions
-            await AvailableOBSVersionsAsync();
-
             if (isUpdate)
             {
                 // We need to reinstall the Segra app to apply the update, because all OBS resources are placed in the app directory
@@ -1672,11 +1665,15 @@ namespace Segra.Backend.Recorder
                 return;
             }
 
-            if (IsOBSInstalled() && !isUpdate && !Settings.Instance.PendingOBSUpdate)
+            if (IsOBSInstalled() && !Settings.Instance.PendingOBSUpdate)
             {
                 Log.Information("OBS is installed");
+                // Refresh versions for the UI in the background; don't stall init on this network call.
+                _ = AvailableOBSVersionsAsync();
                 return;
             }
+
+            await AvailableOBSVersionsAsync();
 
             string currentDirectory = AppDomain.CurrentDomain.BaseDirectory;
 
@@ -1846,8 +1843,9 @@ namespace Segra.Backend.Recorder
                 return;
             }
 
-            // If we somehow got here without a version to download, log an error
-            Log.Error("No OBS versions available from API. This should not happen.");
+            // Throw so InitializeAsync shows the recorder-error modal instead of failing silently.
+            Log.Error("No OBS versions available to install the recorder (version server unreachable).");
+            throw new InvalidOperationException("No OBS versions available to install the recorder.");
         }
 
         private class GitHubFileMetadata

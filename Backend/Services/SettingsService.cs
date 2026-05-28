@@ -16,9 +16,9 @@ namespace Segra.Backend.Services
     {
         public static readonly string SettingsFilePath = PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "settings.json"));
 
-        public static void SaveSettings()
+        public static void SaveSettings(bool force = false)
         {
-            if (Program.hasLoadedInitialSettings == false)
+            if (!force && !Program.hasLoadedInitialSettings)
             {
                 Log.Error("Program has not loaded initial settings. Can't save!");
                 return;
@@ -187,7 +187,9 @@ namespace Segra.Backend.Services
 
                 Log.Information("Settings loaded from {0}", SettingsFilePath);
 
-                Settings.Instance.EndBulkUpdateAndSaveSettings();
+                // The file has been read, so forcing this save is safe even though
+                // Program.Main hasn't set hasLoadedInitialSettings yet.
+                Settings.Instance.EndBulkUpdateAndSaveSettings(force: true);
                 return true;
             }
             catch (Exception ex)

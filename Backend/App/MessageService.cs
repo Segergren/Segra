@@ -1041,7 +1041,9 @@ namespace Segra.Backend.App
                     Title = "Select Game Executable",
                     CheckFileExists = true,
                     CheckPathExists = true,
-                    Multiselect = false
+                    Multiselect = false,
+                    // Keep the process working directory pinned to the app directory.
+                    RestoreDirectory = true
                 };
 
                 if (openFileDialog.ShowDialog() == DialogResult.OK)

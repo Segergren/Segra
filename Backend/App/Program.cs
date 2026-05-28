@@ -47,6 +47,10 @@ namespace Segra.Backend.App
             // Set process DPI aware to ensure we capture at physical resolution
             SetProcessDPIAware();
 
+            // Pin the working directory to the app directory so relative-path lookups
+            // (OBS modules, bundled ffmpeg.exe) resolve regardless of how Segra was launched.
+            Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+
             // In debug mode, kill any existing instances before starting
 #if DEBUG
             try

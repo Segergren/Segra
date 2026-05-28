@@ -109,12 +109,12 @@ namespace Segra.Backend.Core.Models
             _isBulkUpdating = true;
         }
 
-        public void EndBulkUpdateAndSaveSettings()
+        public void EndBulkUpdateAndSaveSettings(bool force = false)
         {
             _isBulkUpdating = false;
             Log.Information("End bulk update");
             SendToFrontend("End bulk update");
-            SettingsService.SaveSettings();
+            SettingsService.SaveSettings(force);
         }
 
         private void SendToFrontend(string cause)

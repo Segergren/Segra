@@ -17,6 +17,9 @@ namespace Segra.Backend.App
         public static GithubSource BetaSource = new GithubSource("https://github.com/Segergren/Segra", null, true);
         public static UpdateManager UpdateManager { get; private set; } = new UpdateManager(Source);
 
+        // Serializes Velopack operations that share the on-disk .velopack_lock.
+        private static readonly SemaphoreSlim _updateGate = new(1, 1);
+
         // 1-hour cache for automatic update checks. Manual checks and startup pass forceCheck=true to bypass.
         private static readonly TimeSpan UpdateCheckCacheTtl = TimeSpan.FromHours(1);
         private static DateTime _lastUpdateCheckUtc = DateTime.MinValue;
@@ -31,8 +34,17 @@ namespace Segra.Backend.App
                 return false;
             }
 
+            DateTime waitStartedUtc = DateTime.UtcNow;
+            await _updateGate.WaitAsync();
             try
             {
+                // Reuse the result if another check finished while we were waiting on the gate.
+                if (_lastUpdateCheckUtc >= waitStartedUtc)
+                {
+                    Log.Information("Skipping update check: another check completed while waiting for the update lock");
+                    return false;
+                }
+
                 Core.Models.AppState.Instance.IsCheckingForUpdates = true;
 
                 bool useBetaChannel = Core.Models.Settings.Instance.ReceiveBetaUpdates;
@@ -108,6 +120,10 @@ namespace Segra.Backend.App
                 Core.Models.AppState.Instance.IsCheckingForUpdates = false;
                 return false;
             }
+            finally
+            {
+                _updateGate.Release();
+            }
         }
 
         public static void ApplyUpdate()
@@ -154,6 +170,7 @@ namespace Segra.Backend.App
 
         public static async Task<bool> ForceReinstallCurrentVersionAsync(CancellationToken ct = default)
         {
+            await _updateGate.WaitAsync(ct);
             try
             {
                 Core.Models.AppState.Instance.IsCheckingForUpdates = true;
@@ -216,6 +233,7 @@ namespace Segra.Backend.App
             finally
             {
                 Core.Models.AppState.Instance.IsCheckingForUpdates = false;
+                _updateGate.Release();
             }
         }
 

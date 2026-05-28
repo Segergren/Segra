@@ -57,7 +57,9 @@ namespace Segra.Backend.Media
                             Title = "Import MP4 Video Files",
                             CheckFileExists = true,
                             CheckPathExists = true,
-                            Multiselect = true
+                            Multiselect = true,
+                            // Keep the process working directory pinned to the app directory.
+                            RestoreDirectory = true
                         };
 
                         if (openFileDialog.ShowDialog() == DialogResult.OK)
