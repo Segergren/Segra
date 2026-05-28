@@ -15,6 +15,8 @@ namespace Segra.Backend.Media
     {
         // Dictionary to store active FFmpeg processes
         private static readonly Dictionary<int, List<Process>> ActiveFFmpegProcesses = new Dictionary<int, List<Process>>();
+        // Clip IDs that were explicitly cancelled by the user, so their FFmpeg failures are not surfaced as errors
+        private static readonly HashSet<int> CancelledClipIds = new HashSet<int>();
         // Lock for thread safety
         private static readonly object ProcessLock = new object();
 
@@ -211,8 +213,23 @@ namespace Segra.Backend.Media
             }
             catch (Exception ex)
             {
-                Log.Error($"[Clip {id}] Error creating clip: {ex.Message}");
-                Log.Error($"[Clip {id}] Stack trace: {ex.StackTrace}");
+                // If the user cancelled this clip, the FFmpeg process was killed on purpose.
+                // Don't surface that as an error - CancelClip already cleared the UI.
+                bool wasCancelled;
+                lock (ProcessLock)
+                {
+                    wasCancelled = CancelledClipIds.Remove(id);
+                }
+
+                if (wasCancelled)
+                {
+                    Log.Information($"[Clip {id}] Clip creation stopped due to user cancellation");
+                }
+                else
+                {
+                    Log.Error($"[Clip {id}] Error creating clip: {ex.Message}");
+                    Log.Error($"[Clip {id}] Stack trace: {ex.StackTrace}");
+                }
 
                 // Clean up any partially created output file
                 if (!string.IsNullOrEmpty(outputFilePath))
@@ -220,19 +237,22 @@ namespace Segra.Backend.Media
                     SafeDelete(outputFilePath);
                 }
 
-                string cardError = ex.Message;
-                if (ex is FFmpegException ffEx)
+                if (!wasCancelled)
                 {
-                    var (shortMessage, _) = FFmpegErrors.Describe(ffEx.ExitCode);
-                    cardError = shortMessage;
-                    _ = MessageService.ShowModal(
-                        "Clip creation failed",
-                        FFmpegErrors.DescribeForUser(ffEx.ExitCode),
-                        "error");
-                }
+                    string cardError = ex.Message;
+                    if (ex is FFmpegException ffEx)
+                    {
+                        var (shortMessage, _) = FFmpegErrors.Describe(ffEx.ExitCode);
+                        cardError = shortMessage;
+                        _ = MessageService.ShowModal(
+                            "Clip creation failed",
+                            FFmpegErrors.DescribeForUser(ffEx.ExitCode),
+                            "error");
+                    }
 
-                // Notify frontend of failure
-                await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = cardError });
+                    // Notify frontend of failure
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = cardError });
+                }
             }
             finally
             {
@@ -241,6 +261,12 @@ namespace Segra.Backend.Media
                 if (!string.IsNullOrEmpty(concatFilePath))
                 {
                     SafeDelete(concatFilePath);
+                }
+
+                // Drop any cancellation marker for this clip in case it completed before the kill landed
+                lock (ProcessLock)
+                {
+                    CancelledClipIds.Remove(id);
                 }
             }
         }
@@ -545,14 +571,13 @@ namespace Segra.Backend.Media
                 }
             }
 
-            string verboseFlag = filterArgs.Length > 0 || extraInputArgs.Length > 0 ? "-v verbose " : "";
             // When using the union layout, force a consistent sample rate on every output audio stream.
             // Source tracks may be 44.1 kHz while the anullsrc silence inputs are 48 kHz, so without this
             // each temp clip's per-slot sample rate depends on whether the slot got real audio or silence.
             // The concat demuxer then uses the first clip's stream params for subsequent clips, playing
             // mismatched samples at the wrong rate (the reported "shrunken audio").
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
-            string arguments = $"-y {verboseFlag}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
+            string arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
                              $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
                              $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
@@ -596,6 +621,8 @@ namespace Segra.Backend.Media
             {
                 if (ActiveFFmpegProcesses.TryGetValue(clipId, out var processes))
                 {
+                    // Mark as cancelled so the resulting FFmpeg failure isn't surfaced as an error
+                    CancelledClipIds.Add(clipId);
                     Log.Information($"[Clip {clipId}] Found {processes.Count} active process(es) to cancel");
 
                     foreach (var process in processes.ToList())
