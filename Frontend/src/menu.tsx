@@ -5,12 +5,14 @@ import CircularProgress from './Components/CircularProgress';
 import { sendMessageToBackend } from './Utils/MessageUtils';
 import { useUploads } from './Context/UploadContext';
 import { useImports } from './Context/ImportContext';
+import { useContentMigration } from './Context/ContentMigrationContext';
 import { useClipping } from './Context/ClippingContext';
 import { useUpdate } from './Context/UpdateContext';
 import { useObsDownload } from './Context/ObsDownloadContext';
 import { useAiHighlights } from './Context/AiHighlightsContext';
 import UploadCard from './Components/UploadCard';
 import ImportCard from './Components/ImportCard';
+import ContentMigrationCard from './Components/ContentMigrationCard';
 import ClippingCard from './Components/ClippingCard';
 import UpdateCard from './Components/UpdateCard';
 import UnavailableDeviceCard from './Components/UnavailableDeviceCard';
@@ -50,6 +52,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { updateInfo } = useUpdate();
   const { aiProgress } = useAiHighlights();
   const { obsDownloadProgress } = useObsDownload();
+  const { migrations: contentMigrations, isMigrating } = useContentMigration();
   const [buttonCooldown, setButtonCooldown] = useState(false);
 
   const buttonRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -132,12 +135,16 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           {visibleMenuItems.map(({ id }) => {
             const Icon = MENU_ICONS[id];
             const isActive = selectedMenu === id;
+            // Disable content navigation while a migration is moving files (paths are in flux);
+            // Settings stays enabled so the user can watch progress.
+            const isDisabled = isMigrating && id !== 'Settings';
 
             const buttonNode =
               id === 'Highlights' ? (
                 <Button
                   variant="nav"
                   className={`justify-between ${isActive ? 'text-primary' : ''}`}
+                  disabled={isDisabled}
                   onMouseDown={() => onSelectMenu(id)}
                 >
                   <span className="flex items-center gap-2">
@@ -168,6 +175,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
                 <Button
                   variant="nav"
                   className={isActive ? 'text-primary' : ''}
+                  disabled={isDisabled}
                   onMouseDown={() => onSelectMenu(id)}
                 >
                   <Icon className="w-5 h-5" />
@@ -220,6 +228,14 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           {Object.values(useImports().imports).map((importItem) => (
             <AnimatedCard key={importItem.id}>
               <ImportCard importItem={importItem} />
+            </AnimatedCard>
+          ))}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {Object.values(contentMigrations).map((migration) => (
+            <AnimatedCard key={migration.id}>
+              <ContentMigrationCard migration={migration} />
             </AnimatedCard>
           ))}
         </AnimatePresence>

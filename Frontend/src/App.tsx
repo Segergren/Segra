@@ -19,6 +19,7 @@ import { DndProvider } from 'react-dnd';
 import { SegmentsProvider } from './Context/SegmentsContext';
 import { UploadProvider } from './Context/UploadContext';
 import { ImportProvider } from './Context/ImportContext';
+import { ContentMigrationProvider } from './Context/ContentMigrationContext';
 import { WebSocketProvider } from './Context/WebSocketContext';
 import { ClippingProvider } from './Context/ClippingContext';
 import { AiHighlightsProvider } from './Context/AiHighlightsContext';
@@ -142,17 +143,19 @@ export default function AppWrapper() {
                     <DndProvider backend={HTML5Backend}>
                       <UploadProvider>
                         <ImportProvider>
-                          <ClippingProvider>
-                            <AiHighlightsProvider>
-                              <CompressionProvider>
-                                <UpdateProvider>
-                                  <ObsDownloadProvider>
-                                    <App />
-                                  </ObsDownloadProvider>
-                                </UpdateProvider>
-                              </CompressionProvider>
-                            </AiHighlightsProvider>
-                          </ClippingProvider>
+                          <ContentMigrationProvider>
+                            <ClippingProvider>
+                              <AiHighlightsProvider>
+                                <CompressionProvider>
+                                  <UpdateProvider>
+                                    <ObsDownloadProvider>
+                                      <App />
+                                    </ObsDownloadProvider>
+                                  </UpdateProvider>
+                                </CompressionProvider>
+                              </AiHighlightsProvider>
+                            </ClippingProvider>
+                          </ContentMigrationProvider>
                         </ImportProvider>
                       </UploadProvider>
                     </DndProvider>

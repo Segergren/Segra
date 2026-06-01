@@ -279,6 +279,10 @@ namespace Segra.Backend.App
                             _ = Task.Run(() => ImportService.HandleImportFile(importParameterElement));
                             Log.Information("ImportFile command received.");
                             break;
+                        case "MigrateContent":
+                            _ = Task.Run(ContentMigrationService.HandleMigrateContent);
+                            Log.Information("MigrateContent command received.");
+                            break;
                         case "StorageWarningConfirm":
                             root.TryGetProperty("Parameters", out JsonElement storageWarningParameterElement);
                             _ = Task.Run(() => StorageWarningService.HandleStorageWarningConfirm(storageWarningParameterElement));

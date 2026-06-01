@@ -1,9 +1,10 @@
+import { ReactNode } from 'react';
 import { TriangleAlert } from 'lucide-react';
 import Button from './Button';
 
 export interface ConfirmationModalProps {
   title: string;
-  description: string;
+  description: ReactNode;
   confirmText?: string;
   cancelText?: string;
   onConfirm: () => void;

@@ -29,11 +29,17 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [sizeClass, setSizeClass] = useState('');
   // Track if the initial mousedown started on the backdrop
   const backdropMouseDownRef = useRef<boolean>(false);
+  // Pending content-clear from closeModal, so a quickly-reopened modal isn't wiped by it
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const openModal = (content: ReactNode, options?: ModalOptions) => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
     setModalContent(content);
     setSizeClass(options?.size ? SIZE_CLASS[options.size] : '');
-    if (modalRef.current) {
+    if (modalRef.current && !modalRef.current.open) {
       modalRef.current.showModal();
     }
   };
@@ -43,9 +49,13 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       modalRef.current.close();
     }
     // Clear content after the close animation finishes
-    setTimeout(() => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    closeTimeoutRef.current = setTimeout(() => {
       setModalContent(null);
       setSizeClass('');
+      closeTimeoutRef.current = null;
     }, 150);
   };
 
