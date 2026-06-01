@@ -10,7 +10,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import ContentFilters, { SortOption } from './ContentFilters';
 import { useModal } from '../Context/ModalContext';
+import { useImports } from '../Context/ImportContext';
 import Button from './Button';
+
+// Escape a filename for use inside a CSS attribute-selector string. Windows
+// filenames can't contain " or \, but escape defensively all the same.
+const escapeAttrValue = (value: string) => value.replace(/["\\]/g, '\\$&');
 
 interface ContentPageProps {
   contentType: ContentType;
@@ -35,11 +40,20 @@ export default function ContentPage({
   const { setSelectedVideo } = useSelectedVideo();
   const { scrollPositions, setScrollPosition } = useScroll();
   const { isModalOpen } = useModal();
+  const { imports } = useImports();
   const containerRef = useRef<HTMLDivElement>(null);
   const isSettingScroll = useRef(false);
 
+  // When a single-file import finishes, scroll the freshly imported card into
+  // view. The completed import message doesn't carry the stored filename, so we
+  // snapshot the current items and diff once the reloaded content arrives.
+  const handledImportIdsRef = useRef<Set<string>>(new Set());
+  const importSnapshotRef = useRef<Set<string> | null>(null);
+
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
+  const [highlightedFileName, setHighlightedFileName] = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const contentItems = state.content.filter((video) => video.type === contentType);
   const [selectedGames, setSelectedGames] = useState<string[]>(() => {
@@ -232,6 +246,49 @@ export default function ContentPage({
     });
   }, [contentItems]);
 
+  // Detect a single-file import completing and remember the items that existed
+  // just before its reloaded content arrives.
+  useEffect(() => {
+    for (const importItem of Object.values(imports)) {
+      if (
+        importItem.status === 'done' &&
+        importItem.totalFiles === 1 &&
+        !handledImportIdsRef.current.has(importItem.id)
+      ) {
+        handledImportIdsRef.current.add(importItem.id);
+        importSnapshotRef.current = new Set(contentItems.map((item) => item.fileName));
+      }
+    }
+  }, [imports, contentItems]);
+
+  // Once the reloaded content includes the newly imported item, scroll to it.
+  useEffect(() => {
+    const snapshot = importSnapshotRef.current;
+    if (!snapshot) return;
+
+    const newItem = contentItems.find((item) => item.isImported && !snapshot.has(item.fileName));
+    if (!newItem) return; // Reloaded content hasn't arrived yet
+
+    importSnapshotRef.current = null;
+
+    // Pulse the card border twice to draw the eye to it (0.7s delay + 2x0.9s = 2.5s).
+    setHighlightedFileName(newItem.fileName);
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    highlightTimeoutRef.current = setTimeout(() => setHighlightedFileName(null), 2600);
+
+    requestAnimationFrame(() => {
+      containerRef.current
+        ?.querySelector(`[data-content-filename="${escapeAttrValue(newItem.fileName)}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [contentItems]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    };
+  }, []);
+
   useLayoutEffect(() => {
     const position =
       sectionId === 'clips'
@@ -331,6 +388,7 @@ export default function ContentPage({
               type={contentType}
               isSelected={selectedItems.has(video.fileName)}
               isSelectionMode={isCtrlPressed || selectedItems.size > 0}
+              isHighlighted={video.fileName === highlightedFileName}
             />
           ))}
         </div>
