@@ -33,9 +33,9 @@
       },
       "ObsKit.NET": {
         "type": "Direct",
-        "requested": "[1.1.0, )",
-        "resolved": "1.1.0",
-        "contentHash": "A4XYWosjpcABF2yWx8fHF3lwaDMGCRuPzPe2+SQZx8mVj7IeXaAETmFTbGGw+GeFuHhIe9AjJe3t/hoeWJIN8Q=="
+        "requested": "[1.2.1, )",
+        "resolved": "1.2.1",
+        "contentHash": "qxZUfpzf3WHhhqTQClLzkb7qpJuE/wDSibHKFHIduuHrLSw96hKFhIO/p9d5gKpnz9IRbcA3kWsD7Dt0ZTCnrQ=="
       },
       "Photino.NET": {
         "type": "Direct",
@@ -58,15 +58,6 @@
         "resolved": "4.3.1",
         "contentHash": "savYe7h5yRlkqBVOwP8cIRDOdqKiPmYCU4W87JH38sBmcKD5EBoXvQIw6bNEvZ/pTe1gsiye3VFCzBsoppGkXQ=="
       },
-      "Serilog.Sinks.Console": {
-        "type": "Direct",
-        "requested": "[6.1.1, )",
-        "resolved": "6.1.1",
-        "contentHash": "8jbqgjUyZlfCuSTaJk6lOca465OndqOz3KZP6Cryt/IqZYybyBu7GP0fE/AXBzrrQB3EBmQntBFAvMVz1COvAA==",
-        "dependencies": {
-          "Serilog": "4.0.0"
-        }
-      },
       "Serilog.Sinks.Debug": {
         "type": "Direct",
         "requested": "[3.0.0, )",
@@ -74,15 +65,6 @@
         "contentHash": "4BzXcdrgRX7wde9PmHuYd9U6YqycCC28hhpKonK7hx0wb19eiuRj16fPcPSVp0o/Y1ipJuNLYQ00R3q2Zs8FDA==",
         "dependencies": {
           "Serilog": "4.0.0"
-        }
-      },
-      "Serilog.Sinks.File": {
-        "type": "Direct",
-        "requested": "[7.0.0, )",
-        "resolved": "7.0.0",
-        "contentHash": "fKL7mXv7qaiNBUC71ssvn/dU0k9t0o45+qm2XgKAlSt19xF+ijjxyA3R6HmCgfKEKwfcfkwWjayuQtRueZFkYw==",
-        "dependencies": {
-          "Serilog": "4.2.0"
         }
       },
       "System.Management": {
@@ -93,9 +75,9 @@
       },
       "Velopack": {
         "type": "Direct",
-        "requested": "[0.0.1589-ga2c5a97, )",
-        "resolved": "0.0.1589-ga2c5a97",
-        "contentHash": "PoHi9BgM+siDh0eSQUOy397fix2co66YrupZ1xtAf5RlUQNZYTaro0cGXPh+TIxwV8zHiUQ22Uh2NyAK9T3VEw=="
+        "requested": "[1.1.1, )",
+        "resolved": "1.1.1",
+        "contentHash": "NvPcAHnGj97qFToV4HZIEs05UfWYMXo0BAFUVmsf+/Xb1Bxqvk7H09CXanCqb5Vpd42tN5h7dz/qHLvWnTMpzw=="
       },
       "Vortice.DirectX": {
         "type": "Direct",

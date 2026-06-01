@@ -113,7 +113,7 @@ jobs:
 
       - name: Install vpk as .NET Global Tool
         run: |
-          dotnet tool install -g vpk
+          dotnet tool install -g vpk --version 1.1.1
           $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
         shell: pwsh
 
