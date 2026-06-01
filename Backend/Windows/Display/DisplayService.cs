@@ -8,18 +8,16 @@ namespace Segra.Backend.Windows.Display
 {
     public static class DisplayService
     {
-        private static List<Core.Models.Display> displays = new();
         private static List<Core.Models.Display> pendingDisplays = new();
-        private static bool isCollectingDisplays = false;
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        public static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);
+        private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfoEx lpmi);
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfoEx lpmi);
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        public static extern bool EnumDisplayDevices(string lpDevice, uint iDevNum, ref DisplayDevice lpDisplayDevice, uint dwFlags);
+        private static extern bool EnumDisplayDevices(string lpDevice, uint iDevNum, ref DisplayDevice lpDisplayDevice, uint dwFlags);
 
         [DllImport("user32.dll")]
         private static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
@@ -64,7 +62,7 @@ namespace Segra.Backend.Windows.Display
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct RECT
+        private struct RECT
         {
             public int Left;
             public int Top;
@@ -72,10 +70,10 @@ namespace Segra.Backend.Windows.Display
             public int Bottom;
         }
 
-        public delegate bool MonitorEnumDelegate(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
+        private delegate bool MonitorEnumDelegate(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-        public struct MonitorInfoEx
+        private struct MonitorInfoEx
         {
             public int Size;
             public RECT Monitor;
@@ -86,7 +84,7 @@ namespace Segra.Backend.Windows.Display
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-        public struct DisplayDevice
+        private struct DisplayDevice
         {
             public int Size;
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
@@ -130,11 +128,8 @@ namespace Segra.Backend.Windows.Display
 
         public static bool LoadAvailableMonitorsIntoState()
         {
-            // Collect new displays without logging
             pendingDisplays.Clear();
-            isCollectingDisplays = true;
             EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, MonitorEnumProc, IntPtr.Zero);
-            isCollectingDisplays = false;
 
             var newMaxHeight = GetMaxDisplayHeight();
             var currentDisplays = AppState.Instance.Displays;
@@ -160,8 +155,7 @@ namespace Segra.Backend.Windows.Display
                 }
                 Log.Information("=== End Monitor List ===");
 
-                displays = new List<Core.Models.Display>(pendingDisplays);
-                AppState.Instance.Displays = displays;
+                AppState.Instance.Displays = new List<Core.Models.Display>(pendingDisplays);
             }
 
             if (maxHeightChanged)
@@ -188,14 +182,7 @@ namespace Segra.Backend.Windows.Display
                     string friendlyName = GetFriendlyMonitorName(device.DeviceID, device.DeviceString);
                     var display = new Core.Models.Display { DeviceName = friendlyName, DeviceId = device.DeviceID, IsPrimary = (mi.Flags & 1) != 0 };
 
-                    if (isCollectingDisplays)
-                    {
-                        pendingDisplays.Add(display);
-                    }
-                    else
-                    {
-                        displays.Add(display);
-                    }
+                    pendingDisplays.Add(display);
                 }
             }
 

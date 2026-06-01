@@ -15,7 +15,6 @@ namespace Segra.Backend.Windows.Watchers
             _deviceEnumerator.RegisterEndpointNotificationCallback(this);
         }
 
-        // IMMNotificationClient implementation
         public void OnDeviceStateChanged(string deviceId, DeviceState newState)
         {
             DevicesChanged?.Invoke();
@@ -41,7 +40,6 @@ namespace Segra.Backend.Windows.Watchers
             // Not needed for this purpose
         }
 
-        // IDisposable implementation
         public void Dispose()
         {
             if (_deviceEnumerator != null)

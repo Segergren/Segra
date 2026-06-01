@@ -45,9 +45,6 @@ namespace Segra.Backend.Games.CounterStrike2
         {
             [System.Text.Json.Serialization.JsonPropertyName("phase")]
             public string? Phase { get; set; }
-
-            [System.Text.Json.Serialization.JsonPropertyName("name")]
-            public string? Name { get; set; }
         }
 
         private class MatchStats
@@ -236,13 +233,11 @@ namespace Segra.Backend.Games.CounterStrike2
 
         private static bool IsValidState(GameState gameState)
         {
-            // Check if the game is live
             if (gameState.Map?.Phase != "live" && gameState.Map?.Phase != "gameover")
             {
                 return false;
             }
 
-            // Check if the player has match stats
             if (gameState.Player?.MatchStats == null)
             {
                 return false;
@@ -339,9 +334,6 @@ namespace Segra.Backend.Games.CounterStrike2
                 "}";
         }
 
-        public void Dispose()
-        {
-            throw new NotImplementedException();
-        }
+        public void Dispose() => Shutdown().Wait();
     }
 }

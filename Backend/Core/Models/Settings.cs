@@ -1,9 +1,8 @@
 using Segra.Backend.App;
 using Segra.Backend.Services;
-using Segra.Backend.Utils;
+using Segra.Backend.Shared;
 using Segra.Backend.Windows.Display;
 using Serilog;
-using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Core.Models
@@ -922,57 +921,6 @@ namespace Segra.Backend.Core.Models
         }
     }
 
-    // Enum definitions with JSON converters
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public enum ThemeType
-    {
-        [EnumMember(Value = "night")]
-        Night,
-        [EnumMember(Value = "dark")]
-        Dark
-    }
-
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public enum EncoderType
-    {
-        [EnumMember(Value = "gpu")]
-        GPU,
-        [EnumMember(Value = "cpu")]
-        CPU
-    }
-
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public enum CodecType
-    {
-        [EnumMember(Value = "h264")]
-        H264,
-        [EnumMember(Value = "h265")]
-        H265
-    }
-
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public enum PresetType
-    {
-        [EnumMember(Value = "fast")]
-        Fast,
-        [EnumMember(Value = "medium")]
-        Medium,
-        [EnumMember(Value = "slow")]
-        Slow
-    }
-
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public enum ProfileType
-    {
-        [EnumMember(Value = "baseline")]
-        Baseline,
-        [EnumMember(Value = "main")]
-        Main,
-        [EnumMember(Value = "high")]
-        High
-    }
-
-    // (State class moved to AppState.cs as AppState)
     internal class PreRecording
     {
         [JsonPropertyName("game")]

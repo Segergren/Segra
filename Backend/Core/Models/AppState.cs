@@ -6,7 +6,7 @@ using Segra.Backend.Windows.Display;
 using Segra.Backend.Windows.Watchers;
 using Serilog;
 using System.Text.Json.Serialization;
-using static Segra.Backend.Utils.GeneralUtils;
+using static Segra.Backend.Shared.GeneralUtils;
 
 namespace Segra.Backend.Core.Models
 {

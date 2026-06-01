@@ -1,3 +1,4 @@
+using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Serilog;
 using System.Net;
@@ -301,7 +302,7 @@ namespace Segra.Backend.Games.Dota2
                 Directory.CreateDirectory(cfgDir);
                 File.WriteAllText(cfgPath, expectedContent);
                 Log.Information($"Created Dota 2 gamestate integration config at {cfgPath}");
-                _ = Segra.Backend.App.MessageService.ShowModal("Game integration", $"There has been an update to the Dota 2 integration. Please restart the game to apply the changes.", "warning");
+                _ = MessageService.ShowModal("Game integration", $"There has been an update to the Dota 2 integration. Please restart the game to apply the changes.", "warning");
             }
             catch (Exception ex)
             {

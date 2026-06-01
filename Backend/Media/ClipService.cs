@@ -7,7 +7,7 @@ using Segra.Backend.Services;
 using Segra.Backend.Shared;
 using Segra.Backend.Windows.Storage;
 using Serilog;
-using static Segra.Backend.Utils.GeneralUtils;
+using static Segra.Backend.Shared.GeneralUtils;
 
 namespace Segra.Backend.Media
 {
@@ -147,7 +147,7 @@ namespace Segra.Backend.Media
                 else
                 {
                     concatFilePath = PathUtils.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
-                    await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(f => $"file '{f.Replace("\\", "\\\\").Replace("'", "\\'")}"));
+                    await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(FFmpegService.BuildConcatListLine));
 
                     try
                     {

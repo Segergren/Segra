@@ -1,6 +1,5 @@
 using Segra.Backend.Core.Models;
 using Serilog;
-using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 

@@ -68,15 +68,14 @@ namespace Segra.Backend.Media
                 Content.ContentType contentType = originalContent.Type;
                 string? game = originalContent.Game;
 
-                string finalPath;
+                string finalPath = PathUtils.Combine(directory, $"{fileName}_compressed{extension}");
+                if (File.Exists(finalPath)) File.Delete(finalPath);
+                File.Move(tempOutputPath, finalPath);
+
                 if (Settings.Instance.RemoveOriginalAfterCompression)
                 {
-                    finalPath = PathUtils.Combine(directory, $"{fileName}_compressed{extension}");
-                    if (File.Exists(finalPath)) File.Delete(finalPath);
-                    File.Move(tempOutputPath, finalPath);
-
                     Log.Information($"Replaced original with compressed file: {finalPath}");
-                    await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent?.Bookmarks, originalContent?.Title, originalContent?.CreatedAt, originalContent?.IgdbId);
+                    await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId);
                     await ContentService.CreateThumbnail(finalPath, contentType);
                     await ContentService.CreateWaveformFile(finalPath, contentType);
 
@@ -85,11 +84,7 @@ namespace Segra.Backend.Media
                 }
                 else
                 {
-                    finalPath = PathUtils.Combine(directory, $"{fileName}_compressed{extension}");
-                    if (File.Exists(finalPath)) File.Delete(finalPath);
-                    File.Move(tempOutputPath, finalPath);
                     Log.Information($"Saved compressed file as: {finalPath}");
-
                     await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown");
                     await ContentService.CreateThumbnail(finalPath, contentType);
                     await ContentService.CreateWaveformFile(finalPath, contentType);

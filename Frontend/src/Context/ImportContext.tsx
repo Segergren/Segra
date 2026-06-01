@@ -12,7 +12,6 @@ export interface ImportProgress {
 
 interface ImportContextType {
   imports: Record<string, ImportProgress>;
-  removeImport: (id: string) => void;
 }
 
 const ImportContext = createContext<ImportContextType | undefined>(undefined);
@@ -59,17 +58,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const removeImport = (id: string) => {
-    setImports((prev) => {
-      const newImports = { ...prev };
-      delete newImports[id];
-      return newImports;
-    });
-  };
-
-  return (
-    <ImportContext.Provider value={{ imports, removeImport }}>{children}</ImportContext.Provider>
-  );
+  return <ImportContext.Provider value={{ imports }}>{children}</ImportContext.Provider>;
 }
 
 export function useImports() {

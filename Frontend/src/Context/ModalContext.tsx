@@ -4,8 +4,6 @@ type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 
 interface ModalOptions {
   size?: ModalSize;
-  /** @deprecated Use size: '3xl' instead. */
-  wide?: boolean;
 }
 
 interface ModalContextType {
@@ -34,9 +32,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const openModal = (content: ReactNode, options?: ModalOptions) => {
     setModalContent(content);
-    const resolvedSize: ModalSize | undefined =
-      options?.size ?? (options?.wide ? '3xl' : undefined);
-    setSizeClass(resolvedSize ? SIZE_CLASS[resolvedSize] : '');
+    setSizeClass(options?.size ? SIZE_CLASS[options.size] : '');
     if (modalRef.current) {
       modalRef.current.showModal();
     }

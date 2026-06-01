@@ -319,9 +319,6 @@ namespace Segra.Backend.Games.Pubg
         [System.Text.RegularExpressions.GeneratedRegex(@"\[.*?\]")]
         private static partial System.Text.RegularExpressions.Regex ClanRegex();
 
-        public void Dispose()
-        {
-            throw new NotImplementedException();
-        }
+        public void Dispose() => Shutdown().Wait();
     }
 }

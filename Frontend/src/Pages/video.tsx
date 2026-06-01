@@ -246,7 +246,6 @@ export default function VideoComponent({ video }: { video: Content }) {
   const [isPanning, setIsPanning] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const videoPanStartRef = useRef<{ x: number; y: number } | null>(null);
-  const videoLastPointerRef = useRef<number | null>(null);
   const panMovedRef = useRef(false);
   const videoScaleRef = useRef<number>(videoScale);
 
@@ -604,8 +603,6 @@ export default function VideoComponent({ video }: { video: Content }) {
     const keyOptions: AddEventListenerOptions & EventListenerOptions = { capture: true };
     window.addEventListener('keydown', handleKeyDown, keyOptions);
 
-    // No DOM fullscreen; we manage an overlay + window maximize from backend
-
     return () => {
       vid.removeEventListener('loadedmetadata', onLoadedMetadata);
       vid.removeEventListener('play', onPlay);
@@ -749,7 +746,6 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
   };
 
-  // TODO: refactor
   const scheduleControlsHide = () => {
     if (controlsHideTimeoutRef.current) {
       clearTimeout(controlsHideTimeoutRef.current);
@@ -926,15 +922,22 @@ export default function VideoComponent({ video }: { video: Content }) {
       setVolume(target);
       return;
     }
+    // Track the intended muted state locally; audioTracks.masterMuted is React state that
+    // still holds the pre-update value within this synchronous call, so it can't be read back.
+    let nextMuted: boolean;
     if (audioTracks.isMultiTrack) {
       // Route to master volume -- purely a preview control
       audioTracks.setMasterVolume(target);
       if (target === 0) {
         audioTracks.setMasterMuted(true);
         setIsMuted(true);
-      } else if (audioTracks.masterMuted) {
-        audioTracks.setMasterMuted(false);
-        setIsMuted(false);
+        nextMuted = true;
+      } else {
+        if (audioTracks.masterMuted) {
+          audioTracks.setMasterMuted(false);
+          setIsMuted(false);
+        }
+        nextMuted = false;
       }
     } else {
       el.volume = target;
@@ -945,13 +948,11 @@ export default function VideoComponent({ video }: { video: Content }) {
         el.muted = false;
         setIsMuted(false);
       }
+      nextMuted = el.muted;
     }
     setVolume(target);
     localStorage.setItem('segra-volume', target.toString());
-    localStorage.setItem(
-      'segra-muted',
-      (audioTracks.isMultiTrack ? audioTracks.masterMuted : el.muted).toString(),
-    );
+    localStorage.setItem('segra-muted', nextMuted.toString());
   };
 
   // Pointer handlers for panning the video when zoomed
@@ -962,7 +963,6 @@ export default function VideoComponent({ video }: { video: Content }) {
     // Reset pan-moved flag for this gesture
     panMovedRef.current = false;
     videoPanStartRef.current = { x: e.clientX - videoTranslate.x, y: e.clientY - videoTranslate.y };
-    videoLastPointerRef.current = e.pointerId;
   };
 
   const onVideoPointerMove = (e: React.PointerEvent) => {
@@ -978,13 +978,11 @@ export default function VideoComponent({ video }: { video: Content }) {
   const onVideoPointerUp = (e: React.PointerEvent) => {
     try {
       (e.target as Element).releasePointerCapture?.(e.pointerId);
-    } catch (err) {
+    } catch {
       // ignore pointer release errors
-      // console.debug('pointer release error', err);
     }
     setIsPanning(false);
     videoPanStartRef.current = null;
-    videoLastPointerRef.current = null;
   };
 
   // Click handler for the video element which suppresses clicks that are actually pans
@@ -995,11 +993,6 @@ export default function VideoComponent({ video }: { video: Content }) {
       e.stopPropagation();
       return;
     }
-    togglePlayPause();
-  };
-
-  // Toggle video play/pause state
-  const togglePlayPause = () => {
     handlePlayPause();
   };
 
@@ -1169,8 +1162,6 @@ export default function VideoComponent({ video }: { video: Content }) {
     };
     sendMessageToBackend('CreateClip', params);
   };
-
-  // Handle segment drag and drop operations (drag start removed to allow segment click-through)
 
   const handleSegmentDrag = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!scrollContainerRef.current) return;
@@ -1415,8 +1406,6 @@ export default function VideoComponent({ video }: { video: Content }) {
       void refreshSegmentThumbnail(seg);
     }
   };
-
-  // Right-click to remove segment disabled to keep segments click-through
 
   // Move segment card in the sidebar
   const moveCard = (dragIndex: number, hoverIndex: number) => {
@@ -1688,7 +1677,7 @@ export default function VideoComponent({ video }: { video: Content }) {
               <div className="flex items-center justify-between px-3">
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={togglePlayPause}
+                    onClick={handlePlayPause}
                     className="text-white transition-colors cursor-pointer hover:text-accent"
                     aria-label={isPlaying ? 'Pause' : 'Play'}
                   >
@@ -1701,9 +1690,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       className="text-white transition-colors cursor-pointer hover:text-accent"
                       aria-label={isMuted ? 'Unmute' : 'Mute'}
                     >
-                      {isMuted || volume === 0 ? (
-                        <VolumeX className="w-5 h-5" />
-                      ) : volume < 0.2 ? (
+                      {isMuted || volume < 0.2 ? (
                         <VolumeX className="w-5 h-5" />
                       ) : volume < 0.7 ? (
                         <Volume1 className="w-5 h-5" />
@@ -1996,83 +1983,78 @@ export default function VideoComponent({ video }: { video: Content }) {
                 const width = (seg.endTime - seg.startTime) * pixelsPerSecond;
                 const hidden = seg.fileName !== video.fileName;
                 return (
-                  <>
-                    <div
-                      key={seg.id}
-                      className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors overflow-hidden rounded-r-sm rounded-l-sm shadow-md
+                  <div
+                    key={seg.id}
+                    className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors overflow-hidden rounded-r-sm rounded-l-sm shadow-md
                                                 bg-primary/20 border border-primary/20`}
-                      style={{ left: `${left}px`, width: `${width}px` }}
-                      onMouseEnter={() => {
-                        setHoveredSegmentId(seg.id);
-                      }}
-                      onMouseLeave={() => {
-                        setHoveredSegmentId(null);
-                      }}
-                      onMouseDown={(e) => handleSegmentMouseDown(e, seg.id)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        removeSegment(seg.id);
-                      }}
-                    >
-                      <div className="absolute left-0 top-0 h-full w-[4px] bg-accent/80 rounded-l-sm pointer-events-none" />
-                      <div className="absolute right-0 top-0 h-full w-[4px] bg-accent/80 rounded-r-sm pointer-events-none" />
+                    style={{ left: `${left}px`, width: `${width}px` }}
+                    onMouseEnter={() => {
+                      setHoveredSegmentId(seg.id);
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredSegmentId(null);
+                    }}
+                    onMouseDown={(e) => handleSegmentMouseDown(e, seg.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      removeSegment(seg.id);
+                    }}
+                  >
+                    <div className="absolute left-0 top-0 h-full w-[4px] bg-accent/80 rounded-l-sm pointer-events-none" />
+                    <div className="absolute right-0 top-0 h-full w-[4px] bg-accent/80 rounded-r-sm pointer-events-none" />
 
-                      {audioTracks.isMultiTrack &&
-                        video.audioTrackNames &&
-                        video.audioTrackNames.length > 1 && (
-                          <button
-                            className={`absolute top-[4px] right-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSegmentId === seg.id || (timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible) ? 'opacity-100' : 'opacity-0'}`}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (
-                                timelineAudioMenu?.segId === seg.id &&
-                                timelineAudioMenu.visible
-                              ) {
-                                setTimelineAudioMenu((prev) =>
-                                  prev ? { ...prev, visible: false } : null,
-                                );
-                                return;
-                              }
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const trackCount = video.audioTrackNames?.length ?? 0;
-                              const estimatedHeight = 16 + trackCount * 24;
-                              const fitsBelow =
-                                rect.bottom + 4 + estimatedHeight <= window.innerHeight;
-                              const top = fitsBelow
-                                ? rect.bottom + 4
-                                : Math.max(8, rect.top - 4 - estimatedHeight);
-                              const next = {
-                                segId: seg.id,
-                                x: rect.left,
-                                y: top,
-                                flipUp: !fitsBelow,
-                                visible: false,
-                              };
-                              setTimelineAudioMenu(next);
-                              requestAnimationFrame(() =>
-                                setTimelineAudioMenu((prev) =>
-                                  prev ? { ...prev, visible: true } : null,
-                                ),
+                    {audioTracks.isMultiTrack &&
+                      video.audioTrackNames &&
+                      video.audioTrackNames.length > 1 && (
+                        <button
+                          className={`absolute top-[4px] right-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSegmentId === seg.id || (timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible) ? 'opacity-100' : 'opacity-0'}`}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible) {
+                              setTimelineAudioMenu((prev) =>
+                                prev ? { ...prev, visible: false } : null,
                               );
-                            }}
-                          >
-                            <Headphones className="w-2.5 h-2.5" />
-                          </button>
-                        )}
+                              return;
+                            }
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const trackCount = video.audioTrackNames?.length ?? 0;
+                            const estimatedHeight = 16 + trackCount * 24;
+                            const fitsBelow =
+                              rect.bottom + 4 + estimatedHeight <= window.innerHeight;
+                            const top = fitsBelow
+                              ? rect.bottom + 4
+                              : Math.max(8, rect.top - 4 - estimatedHeight);
+                            const next = {
+                              segId: seg.id,
+                              x: rect.left,
+                              y: top,
+                              flipUp: !fitsBelow,
+                              visible: false,
+                            };
+                            setTimelineAudioMenu(next);
+                            requestAnimationFrame(() =>
+                              setTimelineAudioMenu((prev) =>
+                                prev ? { ...prev, visible: true } : null,
+                              ),
+                            );
+                          }}
+                        >
+                          <Headphones className="w-2.5 h-2.5" />
+                        </button>
+                      )}
 
-                      <div
-                        className="absolute top-0 -left-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
-                        onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
-                        aria-label="Resize segment start"
-                      />
-                      <div
-                        className="absolute top-0 -right-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
-                        onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
-                        aria-label="Resize segment end"
-                      />
-                    </div>
-                  </>
+                    <div
+                      className="absolute top-0 -left-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
+                      onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
+                      aria-label="Resize segment start"
+                    />
+                    <div
+                      className="absolute top-0 -right-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
+                      onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
+                      aria-label="Resize segment end"
+                    />
+                  </div>
                 );
               })}
               {resizingSegmentId == null && (

@@ -1,14 +1,12 @@
 using Segra.Backend.Core.Models;
 using Serilog;
 using System.Text.Json;
-using System.Text.RegularExpressions;
-using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Games.LeagueOfLegends
 {
     internal class LeagueOfLegendsIntegration : Integration, IDisposable
     {
-        private static System.Timers.Timer? _timer;
+        private System.Timers.Timer? _timer;
         private readonly HttpClientHandler _handler;
         private readonly HttpClient _client;
         private PlayerStats _stats;
@@ -46,6 +44,7 @@ namespace Segra.Backend.Games.LeagueOfLegends
                 _timer.Dispose();
                 Log.Information("Stopping League of Legends data integration.");
             }
+            _client.Dispose();
             return Task.CompletedTask;
         }
 
@@ -227,24 +226,6 @@ namespace Segra.Backend.Games.LeagueOfLegends
                 AddBookmark(BookmarkType.Assist);
                 _stats.Assists = currentAssists;
             }
-
-            // Process champion name if available
-            if (currentPlayer.TryGetProperty("championName", out JsonElement championElement))
-            {
-                _stats.Champion = championElement.GetString() ?? "";
-            }
-            else if (currentPlayer.TryGetProperty("rawChampionName", out JsonElement rawChampionElement))
-            {
-                string rawName = rawChampionElement.GetString() ?? "";
-                if (!string.IsNullOrEmpty(rawName))
-                {
-                    _stats.Champion = Regex.Replace(rawName, "game_character_displayname_", "");
-                    if (_stats.Champion == "FiddleSticks")
-                    {
-                        _stats.Champion = "Fiddlesticks";
-                    }
-                }
-            }
         }
 
         private void AddBookmark(BookmarkType type)
@@ -264,10 +245,7 @@ namespace Segra.Backend.Games.LeagueOfLegends
             Log.Information($"Added {type} bookmark at {bookmark.Time}");
         }
 
-        public void Dispose()
-        {
-            throw new NotImplementedException();
-        }
+        public void Dispose() => Shutdown().Wait();
     }
 
     public class PlayerStats
@@ -275,89 +253,5 @@ namespace Segra.Backend.Games.LeagueOfLegends
         public int Kills { get; set; } = 0;
         public int Deaths { get; set; } = 0;
         public int Assists { get; set; } = 0;
-        public string Champion { get; set; } = string.Empty;
-        public bool? Win { get; set; } = null;
-    }
-
-    // Classes to deserialize the League of Legends Live Client Data API responses
-    public class LeagueGameData
-    {
-        [JsonPropertyName("activePlayer")]
-        public ActivePlayer ActivePlayer { get; set; } = new();
-
-        [JsonPropertyName("allPlayers")]
-        public List<Player> AllPlayers { get; set; } = new();
-
-        [JsonPropertyName("events")]
-        public Events Events { get; set; } = new();
-
-        [JsonPropertyName("gameData")]
-        public GameData GameData { get; set; } = new();
-    }
-
-    public class ActivePlayer
-    {
-        [JsonPropertyName("summonerName")]
-        public string SummonerName { get; set; } = string.Empty;
-    }
-
-    public class Player
-    {
-        [JsonPropertyName("championName")]
-        public string ChampionName { get; set; } = string.Empty;
-
-        [JsonPropertyName("rawChampionName")]
-        public string RawChampionName { get; set; } = string.Empty;
-
-        [JsonPropertyName("summonerName")]
-        public string SummonerName { get; set; } = string.Empty;
-
-        [JsonPropertyName("scores")]
-        public Scores Scores { get; set; } = new();
-
-        [JsonPropertyName("team")]
-        public string Team { get; set; } = string.Empty;
-    }
-
-    public class Scores
-    {
-        [JsonPropertyName("assists")]
-        public int Assists { get; set; }
-
-        [JsonPropertyName("deaths")]
-        public int Deaths { get; set; }
-
-        [JsonPropertyName("kills")]
-        public int Kills { get; set; }
-    }
-
-    public class Events
-    {
-        [JsonPropertyName("Events")]
-        public List<Event> EventsList { get; set; } = new();
-    }
-
-    public class Event
-    {
-        [JsonPropertyName("EventID")]
-        public int EventId { get; set; }
-
-        [JsonPropertyName("EventName")]
-        public string EventName { get; set; } = string.Empty;
-
-        [JsonPropertyName("EventTime")]
-        public double EventTime { get; set; }
-
-        [JsonPropertyName("Result")]
-        public string Result { get; set; } = string.Empty;
-    }
-
-    public class GameData
-    {
-        [JsonPropertyName("gameMode")]
-        public string GameMode { get; set; } = string.Empty;
-
-        [JsonPropertyName("gameTime")]
-        public double GameTime { get; set; }
     }
 }

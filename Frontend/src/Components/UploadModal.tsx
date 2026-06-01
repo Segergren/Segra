@@ -17,7 +17,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
   const { session } = useAuth();
   const [title, setTitle] = useState(video.title || '');
   const [description, setDescription] = useState('');
-  const [visibility] = useState<'Public' | 'Unlisted'>('Public');
+  const visibility: 'Public' | 'Unlisted' = 'Public';
   const [titleError, setTitleError] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 

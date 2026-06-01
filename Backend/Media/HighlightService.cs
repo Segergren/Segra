@@ -96,6 +96,9 @@ namespace Segra.Backend.Media
                     return;
                 }
 
+                // Ensure the output is fully flushed (matters for network drives) before reading it back.
+                await GeneralUtils.EnsureFileReady(outputFilePath);
+
                 progressCallback?.Invoke(92, "Creating metadata...");
 
                 // Create metadata, thumbnail, and waveform.
@@ -204,9 +207,8 @@ namespace Segra.Backend.Media
                     return true;
                 }
 
-                // Create concat file for multiple segments
                 concatFilePath = PathUtils.Combine(Path.GetTempPath(), $"highlight_concat_{Guid.NewGuid()}.txt");
-                var concatLines = tempFiles.Select(f => $"file '{f.Replace("\\", "/").Replace("'", "'\\''")}'");
+                var concatLines = tempFiles.Select(FFmpegService.BuildConcatListLine);
                 await File.WriteAllLinesAsync(concatFilePath, concatLines);
 
                 // Concatenate all segments using stream copy

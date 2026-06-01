@@ -50,7 +50,6 @@ namespace Segra.Backend.Services
                         return;
                     }
 
-                    // Remove from pending imports
                     _pendingImports.Remove(warningId);
 
                     if (confirmed)
@@ -71,7 +70,6 @@ namespace Segra.Backend.Services
                         return;
                     }
 
-                    // Remove from pending changes
                     _pendingContentFolderChanges.Remove(warningId);
 
                     if (confirmed)
@@ -104,14 +102,13 @@ namespace Segra.Backend.Services
         {
             try
             {
-                // Calculate the size of the new folder
                 if (!Directory.Exists(newContentFolder))
                 {
                     // New folder doesn't exist yet, no content to check
                     return true;
                 }
 
-                long newFolderSizeBytes = CalculateFolderSize(newContentFolder);
+                long newFolderSizeBytes = StorageService.CalculateFolderSize(newContentFolder);
                 double newFolderSizeGb = (double)newFolderSizeBytes / StorageService.BYTES_PER_GB;
                 int storageLimitGb = Settings.Instance.StorageLimit;
 
@@ -209,30 +206,5 @@ namespace Segra.Backend.Services
             }
         }
 
-        private static long CalculateFolderSize(string folderPath)
-        {
-            long size = 0;
-            try
-            {
-                string[] files = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);
-                foreach (string file in files)
-                {
-                    try
-                    {
-                        FileInfo fileInfo = new FileInfo(file);
-                        size += fileInfo.Length;
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning($"Error calculating size for file {file}: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning($"Error enumerating files in folder {folderPath}: {ex.Message}");
-            }
-            return size;
-        }
     }
 }

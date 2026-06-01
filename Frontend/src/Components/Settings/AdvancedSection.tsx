@@ -22,7 +22,6 @@ export default function AdvancedSection({
   const appState = useAppState();
   return (
     <>
-      {/* Advanced Settings */}
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
         <h2 className="text-xl font-semibold mb-4">Advanced Settings</h2>
         <div className="bg-base-200 p-4 rounded-lg space-y-4 border border-custom">
@@ -81,7 +80,7 @@ export default function AdvancedSection({
                   size="sm"
                   items={[
                     { value: '', label: 'Automatic' },
-                    ...appState.availableOBSVersions
+                    ...[...appState.availableOBSVersions]
                       .sort((a, b) => {
                         return b.version.localeCompare(a.version, undefined, { numeric: true });
                       })

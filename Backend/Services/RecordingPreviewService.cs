@@ -168,11 +168,12 @@ namespace Segra.Backend.Services
                     src.Slice(y * srcStride, rowBytes).CopyTo(buffer.AsSpan(y * rowBytes, rowBytes));
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Warning(ex, "Preview frame copy failed");
                 ArrayPool<byte>.Shared.Return(buffer);
                 Interlocked.Exchange(ref _isEncoding, 0);
-                throw;
+                return;
             }
 
             // Off-thread: encode to JPEG and ship over WebSocket. Free the buffer when done.

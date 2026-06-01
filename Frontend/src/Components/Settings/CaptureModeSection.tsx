@@ -8,7 +8,7 @@ interface CaptureModeSectionProps {
 
 export default function CaptureModeSection({ settings, updateSettings }: CaptureModeSectionProps) {
   const appState = useAppState();
-  const isRecording = appState.recording || appState.preRecording != null;
+  const isRecording = appState.recording != null || appState.preRecording != null;
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">

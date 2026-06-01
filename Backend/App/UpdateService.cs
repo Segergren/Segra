@@ -261,10 +261,8 @@ namespace Segra.Backend.App
                 }
                 else
                 {
-                    // Running in local development, uncomment the line bellow and comment out the return to test
+                    // Fallback for local development builds, which have no installed version.
                     currentVersion = NuGet.Versioning.SemanticVersion.Parse("0.6.6");
-                    //Log.Error("Could not get current version");
-                    //return; 
                 }
 
                 Log.Information($"Current version: {currentVersion}");
@@ -290,14 +288,9 @@ namespace Segra.Backend.App
                     return;
                 }
 
-                // Filter and process releases
                 var releaseNotesList = new List<object>();
-                NuGet.Versioning.SemanticVersion? targetVersion = null;
-
-                // Check if beta releases should be included
                 bool includeBeta = Core.Models.Settings.Instance.ReceiveBetaUpdates;
 
-                // Process releases
                 foreach (var release in releases)
                 {
                     if (!includeBeta && release.Prerelease)
@@ -312,36 +305,17 @@ namespace Segra.Backend.App
                         versionString = versionString.Substring(1);
                     }
 
-                    // Handle prerelease versions (release candidate and beta)
-                    string displayVersion = versionString;
-                    NuGet.Versioning.SemanticVersion? releaseVersion = null;
-
-                    if (versionString.Contains("-rc.") || versionString.Contains("-beta."))
-                    {
-                        // Extract base version without prerelease suffix for comparison
-                        string baseVersionStr = versionString.Split('-')[0];
-                        if (!NuGet.Versioning.SemanticVersion.TryParse(baseVersionStr, out releaseVersion))
-                        {
-                            Log.Warning($"Could not parse version from tag: {release.TagName}");
-                            continue;
-                        }
-                    }
-                    else if (!NuGet.Versioning.SemanticVersion.TryParse(versionString, out releaseVersion))
+                    // Skip releases whose tag is not a parseable version. Prerelease tags
+                    // (release candidate / beta) are validated on their base version.
+                    string versionToValidate = versionString.Contains("-rc.") || versionString.Contains("-beta.")
+                        ? versionString.Split('-')[0]
+                        : versionString;
+                    if (!NuGet.Versioning.SemanticVersion.TryParse(versionToValidate, out _))
                     {
                         Log.Warning($"Could not parse version from tag: {release.TagName}");
                         continue;
                     }
 
-                    // Skip if this version is not what we're looking for based on includeOnlyRecentUpdate
-                    if (targetVersion != null)
-                    {
-                        if (releaseVersion <= currentVersion)
-                        {
-                            continue;
-                        }
-                    }
-
-                    // Include release notes
                     string releaseNotes = !string.IsNullOrEmpty(release.Body)
                         ? release.Body
                         : $"No release notes available for version {versionString}";
@@ -356,7 +330,7 @@ namespace Segra.Backend.App
                     });
 
                     // Limit to 20 releases (80 if beta is enabled)
-                    if (targetVersion == null && releaseNotesList.Count >= (includeBeta ? 80 : 20))
+                    if (releaseNotesList.Count >= (includeBeta ? 80 : 20))
                     {
                         break;
                     }
@@ -378,105 +352,18 @@ namespace Segra.Backend.App
             }
         }
 
-        // GitHub API response model - complete model with JsonPropertyName attributes
+        // GitHub releases API response. Only the fields consumed by GetReleaseNotes are modelled;
+        // deserialization is case-insensitive and ignores the remaining JSON fields.
         private class GitHubRelease
         {
-            public string? Url { get; set; }
-
-            [JsonPropertyName("html_url")]
-            public string? HtmlUrl { get; set; }
-
             [JsonPropertyName("tag_name")]
             public required string TagName { get; set; }
 
-            public string? Name { get; set; }
-            public bool Draft { get; set; }
             public bool Prerelease { get; set; }
             public string? Body { get; set; }
 
-            [JsonPropertyName("created_at")]
-            public DateTime? CreatedAt { get; set; }
-
             [JsonPropertyName("published_at")]
             public DateTime? PublishedAt { get; set; }
-
-            [JsonPropertyName("target_commitish")]
-            public string? TargetCommitish { get; set; }
-
-            [JsonPropertyName("assets_url")]
-            public string? AssetsUrl { get; set; }
-
-            [JsonPropertyName("upload_url")]
-            public string? UploadUrl { get; set; }
-
-            public long Id { get; set; }
-
-            [JsonPropertyName("tarball_url")]
-            public string? TarballUrl { get; set; }
-
-            [JsonPropertyName("zipball_url")]
-            public string? ZipballUrl { get; set; }
-
-            public List<GitHubAsset>? Assets { get; set; }
-
-            public GitHubUser? Author { get; set; }
-
-            [JsonPropertyName("node_id")]
-            public string? NodeId { get; set; }
-        }
-
-        // GitHub asset model
-        private class GitHubAsset
-        {
-            public string? Url { get; set; }
-            public long Id { get; set; }
-
-            [JsonPropertyName("node_id")]
-            public string? NodeId { get; set; }
-
-            public string? Name { get; set; }
-            public string? Label { get; set; }
-
-            [JsonPropertyName("content_type")]
-            public string? ContentType { get; set; }
-
-            public string? State { get; set; }
-            public long Size { get; set; }
-
-            [JsonPropertyName("download_count")]
-            public int DownloadCount { get; set; }
-
-            [JsonPropertyName("created_at")]
-            public DateTime CreatedAt { get; set; }
-
-            [JsonPropertyName("updated_at")]
-            public DateTime UpdatedAt { get; set; }
-
-            [JsonPropertyName("browser_download_url")]
-            public string? BrowserDownloadUrl { get; set; }
-
-            public GitHubUser? Uploader { get; set; }
-        }
-
-        // GitHub user model
-        private class GitHubUser
-        {
-            public string? Login { get; set; }
-            public long Id { get; set; }
-
-            [JsonPropertyName("node_id")]
-            public string? NodeId { get; set; }
-
-            [JsonPropertyName("avatar_url")]
-            public string? AvatarUrl { get; set; }
-
-            [JsonPropertyName("html_url")]
-            public string? HtmlUrl { get; set; }
-
-            public string? Type { get; set; }
-
-            [JsonPropertyName("site_admin")]
-            public bool SiteAdmin { get; set; }
         }
     }
 }

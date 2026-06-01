@@ -15,6 +15,28 @@ interface ClipSettingsSectionProps {
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
 
+// GPU quality (CQ/QP) options. Nvidia and AMD share the 0-51 scale; Intel's ICQ scale starts at 1.
+const GPU_QUALITY_OPTIONS = [
+  { value: '0', label: '0 (Highest Quality)' },
+  { value: '10', label: '10' },
+  { value: '15', label: '15' },
+  { value: '20', label: '20 (High Quality)' },
+  { value: '23', label: '23 (Normal Quality)' },
+  { value: '26', label: '26' },
+  { value: '30', label: '30 (Low Quality)' },
+  { value: '35', label: '35' },
+  { value: '40', label: '40' },
+  { value: '45', label: '45' },
+  { value: '51', label: '51 (Lowest Quality)' },
+];
+
+const INTEL_GPU_QUALITY_OPTIONS = [
+  { value: '1', label: '1 (Highest Quality)' },
+  ...GPU_QUALITY_OPTIONS.slice(1),
+];
+
+const DEFAULT_GPU_QUALITY_OPTIONS = [{ value: '23', label: '23 (Normal Quality)' }];
+
 export default function ClipSettingsSection({
   settings,
   updateSettings,
@@ -243,49 +265,12 @@ export default function ClipSettingsSection({
                   </label>
                   <DropdownSelect
                     items={
-                      appState.gpuVendor === GpuVendor.Nvidia
-                        ? [
-                            { value: '0', label: '0 (Highest Quality)' },
-                            { value: '10', label: '10' },
-                            { value: '15', label: '15' },
-                            { value: '20', label: '20 (High Quality)' },
-                            { value: '23', label: '23 (Normal Quality)' },
-                            { value: '26', label: '26' },
-                            { value: '30', label: '30 (Low Quality)' },
-                            { value: '35', label: '35' },
-                            { value: '40', label: '40' },
-                            { value: '45', label: '45' },
-                            { value: '51', label: '51 (Lowest Quality)' },
-                          ]
-                        : appState.gpuVendor === GpuVendor.AMD
-                          ? [
-                              { value: '0', label: '0 (Highest Quality)' },
-                              { value: '10', label: '10' },
-                              { value: '15', label: '15' },
-                              { value: '20', label: '20 (High Quality)' },
-                              { value: '23', label: '23 (Normal Quality)' },
-                              { value: '26', label: '26' },
-                              { value: '30', label: '30 (Low Quality)' },
-                              { value: '35', label: '35' },
-                              { value: '40', label: '40' },
-                              { value: '45', label: '45' },
-                              { value: '51', label: '51 (Lowest Quality)' },
-                            ]
-                          : appState.gpuVendor === GpuVendor.Intel
-                            ? [
-                                { value: '1', label: '1 (Highest Quality)' },
-                                { value: '10', label: '10' },
-                                { value: '15', label: '15' },
-                                { value: '20', label: '20 (High Quality)' },
-                                { value: '23', label: '23 (Normal Quality)' },
-                                { value: '26', label: '26' },
-                                { value: '30', label: '30 (Low Quality)' },
-                                { value: '35', label: '35' },
-                                { value: '40', label: '40' },
-                                { value: '45', label: '45' },
-                                { value: '51', label: '51 (Lowest Quality)' },
-                              ]
-                            : [{ value: '23', label: '23 (Normal Quality)' }]
+                      appState.gpuVendor === GpuVendor.Nvidia ||
+                      appState.gpuVendor === GpuVendor.AMD
+                        ? GPU_QUALITY_OPTIONS
+                        : appState.gpuVendor === GpuVendor.Intel
+                          ? INTEL_GPU_QUALITY_OPTIONS
+                          : DEFAULT_GPU_QUALITY_OPTIONS
                     }
                     value={String(settings.clipQualityGpu)}
                     onChange={(val) => updateSettings({ clipQualityGpu: Number(val) })}

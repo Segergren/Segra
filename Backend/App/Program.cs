@@ -4,7 +4,7 @@ using Segra.Backend.Api;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Recorder;
 using Segra.Backend.Services;
-using Segra.Backend.Utils;
+using Segra.Backend.Shared;
 using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Power;
 using Segra.Backend.Windows.Storage;
@@ -108,9 +108,6 @@ namespace Segra.Backend.App
             }
 
             ConfigureLogging();
-
-            // Get the current version
-            var currentVersion = Assembly.GetExecutingAssembly().GetName().Version;
 
             VelopackApp.Build()
                 .OnBeforeUpdateFastCallback((v) =>

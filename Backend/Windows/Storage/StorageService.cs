@@ -8,7 +8,7 @@ namespace Segra.Backend.Windows.Storage
 {
     internal class StorageService
     {
-        public const long BYTES_PER_GB = 1073741824; // 1024 * 1024 * 1024
+        public const long BYTES_PER_GB = 1024L * 1024 * 1024;
 
         public static string SanitizeGameNameForFolder(string gameName)
         {
@@ -133,6 +133,12 @@ namespace Segra.Backend.Windows.Storage
             long storageLimit = Settings.Instance.StorageLimit; // This is in GB
             string contentFolder = Settings.Instance.ContentFolder;
 
+            if (string.IsNullOrEmpty(contentFolder) || !Directory.Exists(contentFolder))
+            {
+                Log.Information("Content folder does not exist, skipping storage limit check");
+                return;
+            }
+
             long currentUsageBytes = CalculateFolderSize(contentFolder);
             double currentUsageGB = (double)currentUsageBytes / BYTES_PER_GB;
 
@@ -150,7 +156,7 @@ namespace Segra.Backend.Windows.Storage
             }
         }
 
-        private static long CalculateFolderSize(string folderPath)
+        internal static long CalculateFolderSize(string folderPath)
         {
             long size = 0;
             string[] files = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);

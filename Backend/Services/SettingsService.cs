@@ -3,7 +3,6 @@ using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
 using Segra.Backend.Recorder;
 using Segra.Backend.Shared;
-using Segra.Backend.Utils;
 using Segra.Backend.Windows.Display;
 using Segra.Backend.Windows.Input;
 using Serilog;
@@ -124,29 +123,6 @@ namespace Segra.Backend.Services
                                     }
                                 }
                             }
-                            else if (property.Value.ValueKind == JsonValueKind.Object)
-                            {
-                                var propertyName = char.ToUpper(property.Name[0]) + property.Name.Substring(1);
-                                var targetProperty = typeof(Settings).GetProperty(
-                                    propertyName,
-                                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                                if (targetProperty != null && targetProperty.CanWrite)
-                                {
-                                    try
-                                    {
-                                        var value = JsonSerializer.Deserialize(property.Value.GetRawText(), targetProperty.PropertyType, options);
-                                        if (value != null)
-                                        {
-                                            targetProperty.SetValue(Settings.Instance, value);
-                                        }
-                                    }
-                                    catch (Exception objEx)
-                                    {
-                                        Log.Warning($"Failed to deserialize object property {property.Name}: {objEx.Message}");
-                                    }
-                                }
-                            }
                             else
                             {
                                 var propertyName = char.ToUpper(property.Name[0]) + property.Name.Substring(1);
@@ -164,9 +140,9 @@ namespace Segra.Backend.Services
                                             targetProperty.SetValue(Settings.Instance, value);
                                         }
                                     }
-                                    catch (Exception primEx)
+                                    catch (Exception valEx)
                                     {
-                                        Log.Warning($"Failed to deserialize primitive property {property.Name}: {primEx.Message}");
+                                        Log.Warning($"Failed to deserialize property {property.Name}: {valEx.Message}");
                                     }
                                 }
                             }
@@ -475,12 +451,9 @@ namespace Segra.Backend.Services
                 // If not proceeding, a warning modal was sent to the frontend
             }
 
-            // Update CacheFolder
-            string? oldCacheFolder = null;
             if (settings.CacheFolder != updatedSettings.CacheFolder)
             {
                 Log.Information($"CacheFolder changed from '{settings.CacheFolder}' to '{updatedSettings.CacheFolder}'");
-                oldCacheFolder = settings.CacheFolder;
                 settings.CacheFolder = updatedSettings.CacheFolder;
                 hasChanges = true;
             }

@@ -7,28 +7,12 @@ using System.Diagnostics;
 using Segra.Backend.Services;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
-using Segra.Backend.Utils;
+using Segra.Backend.Shared;
 using Segra.Backend.Recorder;
 using Segra.Backend.Games;
 
 namespace Segra.Backend.App
 {
-    public class Segment
-    {
-        public long Id { get; set; }
-        // TODO (os): make this of type ContentType
-        public required string Type { get; set; }
-        public double StartTime { get; set; }
-        public double EndTime { get; set; }
-        public required string FileName { get; set; }
-        public string? FilePath { get; set; }
-        public required string Game { get; set; }
-        public string Title { get; set; } = string.Empty;
-        public int? IgdbId { get; set; }
-        public List<int>? MutedAudioTracks { get; set; }
-        public Dictionary<int, double>? AudioTrackVolumes { get; set; }
-    }
-
     public static class MessageService
     {
         private static WebSocket? activeWebSocket;
@@ -161,9 +145,17 @@ namespace Segra.Backend.App
                             }
                             break;
                         case "OpenFileLocation":
-                            root.TryGetProperty("Parameters", out JsonElement openFileLocationParameterElement);
-                            openFileLocationParameterElement.TryGetProperty("FilePath", out JsonElement filePathElement);
-                            Process.Start("explorer.exe", $"/select,\"{filePathElement.ToString().Replace("/", "\\")}\"");
+                            if (root.TryGetProperty("Parameters", out JsonElement openFileLocationParameterElement) &&
+                                openFileLocationParameterElement.TryGetProperty("FilePath", out JsonElement filePathElement) &&
+                                filePathElement.ValueKind == JsonValueKind.String)
+                            {
+                                string selectPath = filePathElement.GetString()!.Replace("/", "\\");
+                                Process.Start("explorer.exe", $"/select,\"{selectPath}\"");
+                            }
+                            else
+                            {
+                                Log.Warning("FilePath parameter not found in OpenFileLocation message");
+                            }
                             break;
                         case "CopyFileToClipboard":
                             root.TryGetProperty("Parameters", out JsonElement copyFileParams);
@@ -822,30 +814,62 @@ namespace Segra.Backend.App
             }
         }
 
+        // Returns a copy of the list with the game appended, or null if it is already present.
+        private static List<Game>? AddGameToList(List<Game> list, Game game)
+        {
+            var comparer = new GameEqualityComparer();
+            if (list.Any(g => comparer.Equals(g, game)))
+            {
+                return null;
+            }
+            return new List<Game>(list) { game };
+        }
+
+        // Returns a copy of the list with the game removed, or null if it is not present.
+        private static List<Game>? RemoveGameFromList(List<Game> list, Game game)
+        {
+            var comparer = new GameEqualityComparer();
+            var existing = list.FirstOrDefault(g => comparer.Equals(g, game));
+            if (existing == null)
+            {
+                return null;
+            }
+            var copy = new List<Game>(list);
+            copy.Remove(existing);
+            return copy;
+        }
+
+        private static bool TryDeserializeGame(JsonElement parameters, out Game game)
+        {
+            game = null!;
+            if (!parameters.TryGetProperty("game", out JsonElement gameElement))
+            {
+                return false;
+            }
+            var deserialized = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
+            if (deserialized == null || string.IsNullOrEmpty(deserialized.Name) || deserialized.Paths.Count == 0)
+            {
+                return false;
+            }
+            game = deserialized;
+            return true;
+        }
+
         private static async Task HandleAddToWhitelist(JsonElement parameters)
         {
             try
             {
-                if (parameters.TryGetProperty("game", out JsonElement gameElement))
-                {
-                    var game = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-                    if (game != null && !string.IsNullOrEmpty(game.Name) && game.Paths.Count > 0)
-                    {
-                        var comparer = new GameEqualityComparer();
-                        bool exists = Settings.Instance.Whitelist.Any(g => comparer.Equals(g, game));
+                if (!TryDeserializeGame(parameters, out var game)) return;
 
-                        if (!exists)
-                        {
-                            var whitelist = new List<Game>(Settings.Instance.Whitelist);
-                            whitelist.Add(game);
-                            Settings.Instance.Whitelist = whitelist;
-                            Log.Information($"Added game {game.Name} to whitelist");
-                        }
-                        else
-                        {
-                            Log.Information($"Game {game.Name} already exists in whitelist");
-                        }
-                    }
+                var updated = AddGameToList(Settings.Instance.Whitelist, game);
+                if (updated != null)
+                {
+                    Settings.Instance.Whitelist = updated;
+                    Log.Information($"Added game {game.Name} to whitelist");
+                }
+                else
+                {
+                    Log.Information($"Game {game.Name} already exists in whitelist");
                 }
             }
             catch (Exception ex)
@@ -859,26 +883,17 @@ namespace Segra.Backend.App
         {
             try
             {
-                if (parameters.TryGetProperty("game", out JsonElement gameElement))
-                {
-                    var game = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-                    if (game != null && !string.IsNullOrEmpty(game.Name) && game.Paths.Count > 0)
-                    {
-                        var comparer = new GameEqualityComparer();
-                        var existingGame = Settings.Instance.Whitelist.FirstOrDefault(g => comparer.Equals(g, game));
+                if (!TryDeserializeGame(parameters, out var game)) return;
 
-                        if (existingGame != null)
-                        {
-                            var whitelist = new List<Game>(Settings.Instance.Whitelist);
-                            whitelist.Remove(existingGame);
-                            Settings.Instance.Whitelist = whitelist;
-                            Log.Information($"Removed game {game.Name} from whitelist");
-                        }
-                        else
-                        {
-                            Log.Information($"Game {game.Name} does not exist in whitelist");
-                        }
-                    }
+                var updated = RemoveGameFromList(Settings.Instance.Whitelist, game);
+                if (updated != null)
+                {
+                    Settings.Instance.Whitelist = updated;
+                    Log.Information($"Removed game {game.Name} from whitelist");
+                }
+                else
+                {
+                    Log.Information($"Game {game.Name} does not exist in whitelist");
                 }
             }
             catch (Exception ex)
@@ -892,26 +907,17 @@ namespace Segra.Backend.App
         {
             try
             {
-                if (parameters.TryGetProperty("game", out JsonElement gameElement))
-                {
-                    var game = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-                    if (game != null && !string.IsNullOrEmpty(game.Name) && game.Paths.Count > 0)
-                    {
-                        var comparer = new GameEqualityComparer();
-                        bool exists = Settings.Instance.Blacklist.Any(g => comparer.Equals(g, game));
+                if (!TryDeserializeGame(parameters, out var game)) return;
 
-                        if (!exists)
-                        {
-                            var blacklist = new List<Game>(Settings.Instance.Blacklist);
-                            blacklist.Add(game);
-                            Settings.Instance.Blacklist = blacklist;
-                            Log.Information($"Added game {game.Name} to blacklist");
-                        }
-                        else
-                        {
-                            Log.Information($"Game {game.Name} already exists in blacklist");
-                        }
-                    }
+                var updated = AddGameToList(Settings.Instance.Blacklist, game);
+                if (updated != null)
+                {
+                    Settings.Instance.Blacklist = updated;
+                    Log.Information($"Added game {game.Name} to blacklist");
+                }
+                else
+                {
+                    Log.Information($"Game {game.Name} already exists in blacklist");
                 }
             }
             catch (Exception ex)
@@ -925,26 +931,17 @@ namespace Segra.Backend.App
         {
             try
             {
-                if (parameters.TryGetProperty("game", out JsonElement gameElement))
-                {
-                    var game = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-                    if (game != null && !string.IsNullOrEmpty(game.Name) && game.Paths.Count > 0)
-                    {
-                        var comparer = new GameEqualityComparer();
-                        var existingGame = Settings.Instance.Blacklist.FirstOrDefault(g => comparer.Equals(g, game));
+                if (!TryDeserializeGame(parameters, out var game)) return;
 
-                        if (existingGame != null)
-                        {
-                            var blacklist = new List<Game>(Settings.Instance.Blacklist);
-                            blacklist.Remove(existingGame);
-                            Settings.Instance.Blacklist = blacklist;
-                            Log.Information($"Removed game {game.Name} from blacklist");
-                        }
-                        else
-                        {
-                            Log.Information($"Game {game.Name} does not exist in blacklist");
-                        }
-                    }
+                var updated = RemoveGameFromList(Settings.Instance.Blacklist, game);
+                if (updated != null)
+                {
+                    Settings.Instance.Blacklist = updated;
+                    Log.Information($"Removed game {game.Name} from blacklist");
+                }
+                else
+                {
+                    Log.Information($"Game {game.Name} does not exist in blacklist");
                 }
             }
             catch (Exception ex)
@@ -959,65 +956,32 @@ namespace Segra.Backend.App
             Settings.Instance._isBulkUpdating = true;
             try
             {
-                if (parameters.TryGetProperty("game", out JsonElement gameElement) &&
-                    parameters.TryGetProperty("targetList", out JsonElement targetListElement))
+                var targetList = parameters.TryGetProperty("targetList", out JsonElement targetListElement)
+                    ? targetListElement.GetString()
+                    : null;
+
+                if (TryDeserializeGame(parameters, out var game) &&
+                    (targetList == "whitelist" || targetList == "blacklist"))
                 {
-                    var game = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-                    var targetList = targetListElement.GetString();
+                    bool isMovingToWhitelist = targetList == "whitelist";
 
-                    if (game != null && !string.IsNullOrEmpty(game.Name) && game.Paths.Count > 0 &&
-                        (targetList == "whitelist" || targetList == "blacklist"))
+                    var sourceRemoved = isMovingToWhitelist
+                        ? RemoveGameFromList(Settings.Instance.Blacklist, game)
+                        : RemoveGameFromList(Settings.Instance.Whitelist, game);
+                    if (sourceRemoved != null)
                     {
-                        var comparer = new GameEqualityComparer();
-                        bool isMovingToWhitelist = targetList == "whitelist";
+                        if (isMovingToWhitelist) Settings.Instance.Blacklist = sourceRemoved;
+                        else Settings.Instance.Whitelist = sourceRemoved;
+                    }
 
-                        // Remove from source list
-                        if (isMovingToWhitelist)
-                        {
-                            // Moving to whitelist, remove from blacklist
-                            var existingGame = Settings.Instance.Blacklist.FirstOrDefault(g => comparer.Equals(g, game));
-                            if (existingGame != null)
-                            {
-                                var blacklist = new List<Game>(Settings.Instance.Blacklist);
-                                blacklist.Remove(existingGame);
-                                Settings.Instance.Blacklist = blacklist;
-                            }
-                        }
-                        else
-                        {
-                            // Moving to blacklist, remove from whitelist
-                            var existingGame = Settings.Instance.Whitelist.FirstOrDefault(g => comparer.Equals(g, game));
-                            if (existingGame != null)
-                            {
-                                var whitelist = new List<Game>(Settings.Instance.Whitelist);
-                                whitelist.Remove(existingGame);
-                                Settings.Instance.Whitelist = whitelist;
-                            }
-                        }
-
-                        // Add to target list
-                        if (isMovingToWhitelist)
-                        {
-                            bool exists = Settings.Instance.Whitelist.Any(g => comparer.Equals(g, game));
-                            if (!exists)
-                            {
-                                var whitelist = new List<Game>(Settings.Instance.Whitelist);
-                                whitelist.Add(game);
-                                Settings.Instance.Whitelist = whitelist;
-                                Log.Information($"Moved game {game.Name} to whitelist");
-                            }
-                        }
-                        else
-                        {
-                            bool exists = Settings.Instance.Blacklist.Any(g => comparer.Equals(g, game));
-                            if (!exists)
-                            {
-                                var blacklist = new List<Game>(Settings.Instance.Blacklist);
-                                blacklist.Add(game);
-                                Settings.Instance.Blacklist = blacklist;
-                                Log.Information($"Moved game {game.Name} to blacklist");
-                            }
-                        }
+                    var targetAdded = isMovingToWhitelist
+                        ? AddGameToList(Settings.Instance.Whitelist, game)
+                        : AddGameToList(Settings.Instance.Blacklist, game);
+                    if (targetAdded != null)
+                    {
+                        if (isMovingToWhitelist) Settings.Instance.Whitelist = targetAdded;
+                        else Settings.Instance.Blacklist = targetAdded;
+                        Log.Information($"Moved game {game.Name} to {targetList}");
                     }
                 }
             }

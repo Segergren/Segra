@@ -249,26 +249,21 @@ namespace Segra.Backend.Services
                 }
 
                 _pendingRecoveries.Remove(recoveryId);
+                _detectedGames.TryGetValue(recoveryId, out string? detectedGame);
+                _detectedGames.Remove(recoveryId);
 
                 switch (action)
                 {
                     case "recover":
-                        string? gameName = gameOverride;
-                        if (string.IsNullOrEmpty(gameName))
-                        {
-                            gameName = _detectedGames.TryGetValue(recoveryId, out string? detected) ? detected : null;
-                        }
+                        string? gameName = string.IsNullOrEmpty(gameOverride) ? detectedGame : gameOverride;
                         await RecoverFile(orphanedFile, gameName);
-                        _detectedGames.Remove(recoveryId);
                         await SettingsService.LoadContentFromFolderIntoState(true);
                         break;
                     case "delete":
                         DeleteFile(orphanedFile);
-                        _detectedGames.Remove(recoveryId);
                         break;
                     case "skip":
                         Log.Information($"User skipped recovery for: {orphanedFile.FileName}");
-                        _detectedGames.Remove(recoveryId);
                         break;
                 }
             }

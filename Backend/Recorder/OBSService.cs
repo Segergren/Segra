@@ -11,12 +11,11 @@ using ObsKit.NET.Sources;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Services;
 using Segra.Backend.Shared;
-using Segra.Backend.Utils;
 using Serilog;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
-using static Segra.Backend.Utils.GeneralUtils;
+using static Segra.Backend.Shared.GeneralUtils;
 using static Segra.Backend.App.MessageService;
 using System.Net.Http.Json;
 using Segra.Backend.Media;
@@ -55,7 +54,6 @@ namespace Segra.Backend.Recorder
 
         // Public properties
         public static bool IsInitialized { get; private set; }
-        public static GpuVendor DetectedGpuVendor { get; private set; } = DetectGpuVendor();
         public static uint? CapturedWindowWidth { get; private set; } = null;
         public static uint? CapturedWindowHeight { get; private set; } = null;
         public static string? InstalledOBSVersion { get; private set; } = null;
@@ -384,7 +382,7 @@ namespace Segra.Backend.Recorder
                 Log.Information("OBS initialized successfully!");
 
                 _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
-                GameDetectionService.StartAsync();
+                _ = GameDetectionService.StartAsync();
                 GameDetectionService.ForegroundHook.Start();
             }
             catch (Exception ex)
@@ -881,7 +879,7 @@ namespace Segra.Backend.Recorder
             // Configure outputs depending on mode
             if (isReplayBufferMode || isHybridMode)
             {
-                uint bufferTracksMask = trackCount == 0 ? 0u : (1u << trackCount) - 1u;
+                uint bufferTracksMask = (1u << trackCount) - 1u;
 
                 _bufferOutput = new ReplayBuffer("replay_buffer_output", Settings.Instance.ReplayBufferDuration, Settings.Instance.ReplayBufferMaxSize);
                 _bufferOutput.SetDirectory(bufferDir);
@@ -906,7 +904,7 @@ namespace Segra.Backend.Recorder
             {
                 videoOutputPath = $"{sessionDir}/{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
 
-                uint recordTracksMask = trackCount == 0 ? 0u : (1u << trackCount) - 1u;
+                uint recordTracksMask = (1u << trackCount) - 1u;
 
                 bool useHybridMp4 = SupportsHybridMp4();
                 Log.Information($"Using recording output type: {(useHybridMp4 ? "mp4_output" : "ffmpeg_muxer")} (Hybrid MP4: {useHybridMp4})");

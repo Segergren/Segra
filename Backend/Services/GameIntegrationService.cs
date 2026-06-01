@@ -26,7 +26,6 @@ namespace Segra.Backend.Services
         private const int WAR_THUNDER_IGDB_ID = 2165;
 
         private static Integration? _gameIntegration;
-        public static Integration? GameIntegration => _gameIntegration;
 
         public static async Task Start(int? igdbId, string? gameName = null, string? exePath = null)
         {

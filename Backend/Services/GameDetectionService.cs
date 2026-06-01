@@ -3,7 +3,6 @@ using Segra.Backend.Core.Models;
 using Segra.Backend.Games;
 using Segra.Backend.Recorder;
 using Segra.Backend.Shared;
-using Segra.Backend.Utils;
 using Serilog;
 using System.Diagnostics;
 using System.Management;
@@ -24,14 +23,13 @@ namespace Segra.Backend.Services
         private static ManagementEventWatcher? processStopWatcher;
         private static readonly Dictionary<string, string> deviceToDrive = new();
         private static bool _running;
-        private static CancellationTokenSource? _cts;
         private static System.Threading.Timer? _processCheckTimer;
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
 
         [DllImport("psapi.dll", CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private static extern bool GetProcessImageFileName(IntPtr hprocess, StringBuilder lpExeName, out int size);
+        private static extern int GetProcessImageFileName(IntPtr hprocess, StringBuilder lpExeName, int nSize);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [SuppressUnmanagedCodeSecurity]
@@ -46,39 +44,13 @@ namespace Segra.Backend.Services
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool QueryFullProcessImageName(IntPtr hProcess, int dwFlags, StringBuilder lpExeName, ref int lpdwSize);
 
-        private delegate void WinEventDelegate(
-            IntPtr hWinEventHook,
-            uint eventType,
-            IntPtr hwnd,
-            int idObject,
-            int idChild,
-            uint dwEventThread,
-            uint dwmsEventTime
-        );
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr SetWinEventHook(
-            uint eventMin,
-            uint eventMax,
-            IntPtr hmodWinEventProc,
-            WinEventDelegate lpfnWinEventProc,
-            uint idProcess,
-            uint idThread,
-            uint dwFlags
-        );
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
-
-        public static async void StartAsync()
+        public static async Task StartAsync()
         {
             if (_running)
                 return;
 
             _running = true;
-            _cts = new CancellationTokenSource();
 
-            // Initialize game detection from JSON
             await GameUtils.InitializeAsync();
 
             _ = Task.Run(() =>
@@ -93,6 +65,13 @@ namespace Segra.Backend.Services
                 }
             });
         }
+
+        // Paths that resolve to system locations or known non-game tooling are ignored by the watchers.
+        private static bool IsIrrelevantProcessPath(string exePath) =>
+            string.IsNullOrEmpty(exePath)
+            || exePath.StartsWith("C:/Windows/System32/")
+            || exePath.StartsWith("C:/Windows/SysWOW64/")
+            || exePath.StartsWith("C:/Program Files/Git/");
 
         private static void Start()
         {
@@ -123,8 +102,7 @@ namespace Segra.Backend.Services
                 int pid = Convert.ToInt32(processObj["Handle"]);
                 string exePath = ResolveProcessPath(pid);
 
-                // We can't resolve the path or it's irrelevant, so it's most likely not a game
-                if (string.IsNullOrEmpty(exePath) || exePath.StartsWith("C:/Windows/System32/") || exePath.StartsWith("C:/Windows/SysWOW64/") || exePath.StartsWith("C:/Program Files/Git/")) return;
+                if (IsIrrelevantProcessPath(exePath)) return;
 
                 Log.Information($"[OnProcessStarted] Application started: PID {pid}, Path: {exePath}");
 
@@ -164,10 +142,10 @@ namespace Segra.Backend.Services
 
                 int pid = Convert.ToInt32(processObj["Handle"]);
                 string exePath = ResolveProcessPath(pid);
-                string fileNameWithExtension = Path.GetFileName(exePath);
 
-                // We can't resolve the path or it's irrelevant, so it's most likely not a game
-                if (string.IsNullOrEmpty(exePath) || exePath.StartsWith("C:/Windows/System32/") || exePath.StartsWith("C:/Windows/SysWOW64/") || exePath.StartsWith("C:/Program Files/Git/")) return;
+                if (IsIrrelevantProcessPath(exePath)) return;
+
+                string fileNameWithExtension = Path.GetFileName(exePath);
 
                 Log.Information($"[OnProcessStopped] Application stopped: PID {pid}, Path: {exePath}");
 
@@ -210,12 +188,6 @@ namespace Segra.Backend.Services
 
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 
         private static void InitializeDriveMappings()
         {
@@ -336,10 +308,7 @@ namespace Segra.Backend.Services
             try
             {
                 string fileDescription = string.Empty;
-                string windowTitle = string.Empty;
-                string windowClass = string.Empty;
 
-                // Get blacklisted words from loaded blacklist
                 string[] blacklistedWords = GameUtils.GetBlacklistedWords();
 
                 if (File.Exists(exePath))
@@ -369,34 +338,6 @@ namespace Segra.Backend.Services
                             return true;
                         }
                     }
-                }
-
-                // Log window information etc for improved detection in the future
-                try
-                {
-                    Process[] processes = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exePath));
-                    if (processes.Length > 0)
-                    {
-                        IntPtr mainWindowHandle = processes[0].MainWindowHandle;
-                        if (mainWindowHandle != IntPtr.Zero)
-                        {
-                            StringBuilder titleBuilder = new StringBuilder(256);
-                            if (GetWindowText(mainWindowHandle, titleBuilder, titleBuilder.Capacity) > 0)
-                            {
-                                windowTitle = titleBuilder.ToString();
-                            }
-
-                            StringBuilder classBuilder = new StringBuilder(256);
-                            if (GetClassName(mainWindowHandle, classBuilder, classBuilder.Capacity) > 0)
-                            {
-                                windowClass = classBuilder.ToString();
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to get window information: {ex.Message}");
                 }
             }
             catch (Exception ex)
@@ -499,7 +440,7 @@ namespace Segra.Backend.Services
                 if (hProcess == IntPtr.Zero) return string.Empty;
 
                 var sb = new StringBuilder(1024);
-                if (!GetProcessImageFileName(hProcess, sb, out int _)) return string.Empty;
+                if (GetProcessImageFileName(hProcess, sb, sb.Capacity) == 0) return string.Empty;
                 return DevicePathToDrivePath(sb.ToString());
             }
             finally

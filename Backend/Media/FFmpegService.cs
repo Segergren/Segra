@@ -118,11 +118,22 @@ namespace Segra.Backend.Media
         private const string FFmpegExecutable = "ffmpeg.exe";
 
         /// <summary>
-        /// Gets the path to the ffmpeg executable and verifies it exists
+        /// Gets the path to the ffmpeg executable.
         /// </summary>
         public static string GetFFmpegPath()
         {
             return FFmpegExecutable;
+        }
+
+        /// <summary>
+        /// Builds a single line for an FFmpeg concat-demuxer list file. The demuxer treats text
+        /// inside single quotes literally (backslash is not an escape character there), so paths are
+        /// normalized to forward slashes and embedded single quotes are written as the '\'' sequence.
+        /// </summary>
+        public static string BuildConcatListLine(string filePath)
+        {
+            string escaped = filePath.Replace("\\", "/").Replace("'", "'\\''");
+            return $"file '{escaped}'";
         }
 
         /// <summary>
@@ -555,12 +566,12 @@ namespace Segra.Backend.Media
                 throw new Exception("Video duration is not available.");
             }
 
-            // Calculate the midpoint
             TimeSpan midpoint = TimeSpan.FromTicks(duration.Ticks / 2);
             string midpointTime = midpoint.ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
 
             var arguments = new[]
             {
+                "-y",
                 "-ss", midpointTime,
                 "-i", inputFilePath,
                 "-vf", $"scale={width}:-1",

@@ -27,7 +27,6 @@ export default function DropdownSelect({
   placeholder = 'Select',
   buttonClassName,
   menuClassName,
-  // ✅ use important prefix BEFORE the utility (`!text-primary`)
   itemClassName = 'justify-start text-sm font-medium hover:bg-white/5 rounded-md transition-all duration-200 hover:pl-3.5',
   disabled = false,
   align = 'end',

@@ -24,7 +24,6 @@ export default function UpdateCard() {
   };
 
   const handleInstallClick = () => {
-    // Send a message to the backend to restart the application and install the update
     sendMessageToBackend('ApplyUpdate');
     clearUpdateInfo();
   };

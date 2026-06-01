@@ -191,7 +191,7 @@ export default function GameIntegrationsSection() {
             integration={integration}
             enabled={settings.gameIntegrations[integration.settingsKey].enabled}
             showBackground={settings.showGameBackground}
-            isRecording={appState.recording != null}
+            isRecording={appState.recording != null || appState.preRecording != null}
             onToggle={(enabled) => handleToggle(integration.settingsKey, enabled)}
           />
         ))}

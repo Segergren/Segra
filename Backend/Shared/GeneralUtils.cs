@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Vortice.DXCore;
 
-namespace Segra.Backend.Utils
+namespace Segra.Backend.Shared
 {
     public static class GeneralUtils
     {
