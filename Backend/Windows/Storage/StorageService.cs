@@ -47,6 +47,35 @@ namespace Segra.Backend.Windows.Storage
         // Drives are considered full at or above this used percentage
         public const double DriveFullThresholdPercent = 99.0;
 
+        // Absolute floor for the while-recording low-space stop. The effective threshold scales up
+        // with the configured bitrate (see OBSService), but never drops below this so OBS can always
+        // finalize the file cleanly instead of slamming into a completely full disk.
+        public const long MinimumRecordingFreeSpaceBytes = 250L * 1024 * 1024; // 250 MB
+
+        // Returns the free space (in bytes) on the drive holding the content folder,
+        // or null if it cannot be determined (so callers can choose not to act on errors).
+        public static long? GetContentDriveFreeBytes()
+        {
+            try
+            {
+                string contentFolder = Settings.Instance.ContentFolder;
+                if (string.IsNullOrEmpty(contentFolder)) return null;
+
+                string? root = Path.GetPathRoot(contentFolder);
+                if (string.IsNullOrEmpty(root)) return null;
+
+                var drive = new DriveInfo(root);
+                if (!drive.IsReady) return null;
+
+                return drive.AvailableFreeSpace;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Error checking content drive free space: {ex.Message}");
+                return null;
+            }
+        }
+
         // Checks the system (C:), recording (content folder) and temp drives.
         // Returns any drive that is at or above DriveFullThresholdPercent, deduplicated by drive root.
         public static List<FullDrive> GetFullDrives()

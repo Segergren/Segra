@@ -538,6 +538,9 @@ namespace Segra.Backend.App
                     {
                         // Update settings with the selected folder path
                         Settings.Instance.ContentFolder = selectedPath;
+
+                        // Push the updated path to the frontend so the settings UI reflects the change
+                        await SendSettingsToFrontend("Content folder changed");
                     }
                     // If not proceeding, a warning modal was sent to the frontend
                 }

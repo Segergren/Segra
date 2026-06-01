@@ -79,6 +79,8 @@ namespace Segra.Backend.Services
                         Log.Information($"User confirmed content folder change despite storage warning");
                         // Apply the content folder change
                         Settings.Instance.ContentFolder = newContentFolder;
+                        // Push the updated path to the frontend so the settings UI reflects the change
+                        await MessageService.SendSettingsToFrontend("Content folder changed");
                     }
                     else
                     {

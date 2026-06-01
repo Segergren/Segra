@@ -34,6 +34,18 @@ namespace Segra.Backend.Recorder
         // Constants
         private const uint OBS_SOURCE_FLAG_FORCE_MONO = 1u << 1; // from obs.h
 
+        // OBS output stop codes (from libobs/obs-defs.h), passed as "code" in the output "stop" signal
+        private const int OBS_OUTPUT_SUCCESS = 0;
+        private const int OBS_OUTPUT_BAD_PATH = -1;
+        private const int OBS_OUTPUT_CONNECT_FAILED = -2;
+        private const int OBS_OUTPUT_INVALID_STREAM = -3;
+        private const int OBS_OUTPUT_ERROR = -4;
+        private const int OBS_OUTPUT_DISCONNECTED = -5;
+        private const int OBS_OUTPUT_UNSUPPORTED = -6;
+        private const int OBS_OUTPUT_NO_SPACE = -7;
+        private const int OBS_OUTPUT_ENCODE_ERROR = -8;
+        private const int OBS_OUTPUT_HDR_DISABLED = -9;
+
         // Regex patterns for buffer parsing
         [GeneratedRegex(@"BufferDesc\.Width:\s*(\d+)")]
         private static partial Regex BufferDescWidthRegex();
@@ -76,6 +88,12 @@ namespace Segra.Backend.Recorder
         private static System.Threading.Timer? _gameCaptureHookTimeoutTimer = null;
         private static bool _isStillHookedAfterUnhook = false;
 
+        // Periodic low-disk-space monitor while recording
+        private static System.Threading.Timer? _diskSpaceMonitorTimer = null;
+        private const int DiskSpaceCheckIntervalMs = 60000; // 1 minute
+        // Quality-based rate controls (CRF/CQP) have no bitrate cap, so assume a high worst case when sizing headroom
+        private const int QualityModeAssumedMbps = 150;
+
         // Recording/output state
         private static bool _isStoppingOrStopped = false;
         private static uint _currentBaseWidth;
@@ -86,6 +104,13 @@ namespace Segra.Backend.Recorder
 
         // Signal connection for replay buffer saved event
         private static SignalConnection? _replaySavedConnection;
+
+        // Signal connections for unexpected output stops (disk full, encoder errors, etc.)
+        private static SignalConnection? _outputStoppedConnection;
+        private static SignalConnection? _bufferStoppedConnection;
+
+        // Ensures an unexpected stop is handled once even if multiple outputs stop together (e.g. hybrid mode)
+        private static int _unexpectedStopHandled = 0;
 
         /// <summary>
         /// Gets whether the game capture is currently hooked.
@@ -502,8 +527,26 @@ namespace Segra.Backend.Recorder
                 return false;
             }
 
+            // Prevent starting if the recording drive does not have enough free space to record at the
+            // configured bitrate (same threshold the in-recording monitor would immediately stop at).
+            long? freeBytes = StorageService.GetContentDriveFreeBytes();
+            long freeSpaceThreshold = GetRecordingFreeSpaceThresholdBytes();
+            if (freeBytes != null && freeBytes.Value < freeSpaceThreshold)
+            {
+                double freeMb = freeBytes.Value / (1024.0 * 1024.0);
+                long thresholdMb = freeSpaceThreshold / (1024 * 1024);
+                Log.Error($"Cannot start recording, recording drive low on space ({freeMb:F0} MB free, need {thresholdMb} MB for the configured bitrate).");
+                // Stop the game detection polling loop from retrying until the user switches foreground window
+                GameDetectionService.PreventRetryRecording = true;
+                Task.Run(() => ShowModal("Not enough disk space", $"Recording cannot start because the recording drive only has {freeMb:F0} MB free. Free up some space and try again.", "error"));
+                Task.Run(() => PlaySound("error"));
+                AppState.Instance.PreRecording = null;
+                return false;
+            }
+
             // Reset the stopping flag when starting a new recording
             _isStoppingOrStopped = false;
+            _unexpectedStopHandled = 0;
 
             // Configure video settings specifically for this recording/buffer
             ResetVideoSettings(out _, customFps: (uint)Settings.Instance.FrameRate);
@@ -854,6 +897,9 @@ namespace Segra.Backend.Recorder
 
                 // Connect signal handler for replay saved
                 _replaySavedConnection = _bufferOutput!.ConnectSignal(OutputSignal.Saved, OnReplaySaved);
+
+                // Detect unexpected stops (e.g. disk full mid-recording) so we can notify the user
+                _bufferStoppedConnection = _bufferOutput!.ConnectSignal(OutputSignal.Stop, OnOutputStopped);
             }
 
             if (isSessionMode || isHybridMode)
@@ -882,6 +928,9 @@ namespace Segra.Backend.Recorder
                 {
                     _output.WithAudioEncoder(_audioEncoders[t], track: t);
                 }
+
+                // Detect unexpected stops (e.g. disk full mid-recording) so we can notify the user
+                _outputStoppedConnection = _output.ConnectSignal(OutputSignal.Stop, OnOutputStopped);
             }
 
             // Overwrite the file name with the hooked executable name if using game hook
@@ -897,7 +946,7 @@ namespace Segra.Backend.Recorder
                     string error = _output.LastError ?? "Unknown error";
                     Log.Error($"Failed to start recording: {error}");
                     Task.Run(() => ShowModal("Recording failed", "Failed to start recording. Check the log for more details.", "error"));
-                    Task.Run(() => PlaySound("error", 500));
+                    Task.Run(() => PlaySound("error"));
                     AppState.Instance.PreRecording = null;
                     _ = Task.Run(StopRecording);
                     return false;
@@ -918,7 +967,7 @@ namespace Segra.Backend.Recorder
                     string error = _bufferOutput.LastError ?? "Unknown error";
                     Log.Error($"Failed to start replay buffer: {error}");
                     Task.Run(() => ShowModal("Replay buffer failed", "Failed to start replay buffer. Check the log for more details.", "error"));
-                    Task.Run(() => PlaySound("error", 500));
+                    Task.Run(() => PlaySound("error"));
                     AppState.Instance.PreRecording = null;
                     _ = Task.Run(StopRecording);
                     return false;
@@ -951,6 +1000,8 @@ namespace Segra.Backend.Recorder
             RecordingPreviewService.OnRecordingStarted((uint)Settings.Instance.FrameRate);
 
             NotifyIconService.SetNotifyIconStatus(NotifyIconState.Recording);
+
+            StartDiskSpaceMonitor();
 
             Log.Information("Recording started: " + videoOutputPath);
             GeneralUtils.SetProcessPriority(ProcessPriorityClass.High);
@@ -1026,6 +1077,7 @@ namespace Segra.Backend.Recorder
                 RecordingPreviewService.OnRecordingStopped();
 
                 StopGameCaptureHookTimeoutTimer();
+                StopDiskSpaceMonitor();
 
                 bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
                 bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
@@ -1360,6 +1412,155 @@ namespace Segra.Backend.Recorder
             Log.Information("Replay buffer saved callback received");
         }
 
+        /// <summary>
+        /// Fires whenever an output stops. OBS reports OBS_OUTPUT_SUCCESS (0) for normal stops
+        /// (including ones Segra initiates). Any negative code means OBS stopped the output on its
+        /// own (disk full, encoder error, etc.), so we tear down our state and notify the user.
+        /// Runs on an OBS thread, so heavy work is dispatched off it.
+        /// </summary>
+        private static void OnOutputStopped(nint calldata)
+        {
+            int code = (int)Calldata.GetInt(calldata, "code");
+
+            if (code == OBS_OUTPUT_SUCCESS)
+                return;
+
+            // Segra already initiated the stop; the teardown is running, so don't double-handle.
+            if (_isStoppingOrStopped)
+            {
+                Log.Warning($"Output stopped with code {code} ({GetOutputCodeName(code)}) while already stopping.");
+                return;
+            }
+
+            // In hybrid mode both outputs can stop together (same drive), so only handle the first.
+            if (Interlocked.CompareExchange(ref _unexpectedStopHandled, 1, 0) != 0)
+            {
+                Log.Warning($"Output stopped with code {code} ({GetOutputCodeName(code)}); an unexpected stop is already being handled.");
+                return;
+            }
+
+            // Capture the output's error text while it is still alive (we're on the OBS thread).
+            // OBS only reports a coarse code (e.g. the MP4/ffmpeg muxer reports a full disk as
+            // OBS_OUTPUT_ENCODE_ERROR), so the actual cause - "No space left on device", a path/
+            // permission problem, an encoder error, etc. - lives only in this string. We surface it
+            // directly rather than guessing from the code.
+            string? lastError = _output?.LastError;
+            if (string.IsNullOrEmpty(lastError))
+                lastError = _bufferOutput?.LastError;
+
+            Log.Error($"OBS stopped the recording output unexpectedly (code {code}: {GetOutputCodeName(code)}); last error: {lastError ?? "(none)"}");
+            _ = Task.Run(() => HandleUnexpectedOutputStop(code, lastError));
+        }
+
+        /// <summary>
+        /// Notifies the user about an unexpected output stop with a Segra-friendly message,
+        /// then brings Segra's recording state in line with OBS (which already tore the output down).
+        /// </summary>
+        private static async Task HandleUnexpectedOutputStop(int code, string? lastError)
+        {
+            try
+            {
+                // The game is still in the foreground, so stop the detection loop from immediately
+                // retrying into the same failure until the user switches foreground window.
+                GameDetectionService.PreventRetryRecording = true;
+
+                var (title, description) = MapOutputStopToMessage(code, lastError);
+                await ShowModal(title, description, "error");
+                _ = Task.Run(() => PlaySound("error"));
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error notifying frontend of unexpected output stop: {ex.Message}");
+            }
+            finally
+            {
+                // OBS has already stopped the output; run the normal teardown to clean up sources,
+                // encoders, state and reload the content list.
+                await StopRecording();
+            }
+        }
+
+        /// <summary>
+        /// Maps the failure OBS reports - the coarse stop code plus the raw last-error string OBS
+        /// writes (see obs-ffmpeg-mux.c / ffmpeg-mux.c / obs-nvenc) - to a clean Segra message.
+        /// OBS's own text is never shown to the user; it is only inspected here to pick the message.
+        /// The string is matched first because the code is unreliable (e.g. the MP4 muxer reports a
+        /// full disk as OBS_OUTPUT_ENCODE_ERROR with "No space left on device" only in the string).
+        /// </summary>
+        private static (string Title, string Description) MapOutputStopToMessage(int code, string? lastError)
+        {
+            string e = lastError ?? string.Empty;
+            bool Has(string sub) => e.Contains(sub, StringComparison.OrdinalIgnoreCase);
+
+            // Out of disk space: muxer subprocess stderr "Error writing to '<path>', No space left on device"
+            if (code == OBS_OUTPUT_NO_SPACE || Has("No space left on device") || Has("ENOSPC"))
+            {
+                return ("Recording stopped: out of disk space",
+                    "The drive ran out of space while recording, so the recording was stopped and may be incomplete. Free up some space and try again.");
+            }
+
+            // Recording helper process could not start (HelperProcessFailed) - usually antivirus blocking
+            if (Has("recording helper process"))
+            {
+                return ("Recording stopped: helper process blocked",
+                    "The recording helper process could not run. It may have been blocked or removed by antivirus or security software. Add Segra to your antivirus exclusions and try again.");
+            }
+
+            // Cannot write to the recording folder: "Unable to write to %1", "Couldn't open '<path>', Permission denied"
+            if (code == OBS_OUTPUT_BAD_PATH || Has("Unable to write to") || Has("Couldn't open") ||
+                Has("Permission denied") || Has("Access is denied"))
+            {
+                return ("Recording stopped: cannot write to folder",
+                    "Segra could not write the recording to your selected folder. Make sure the folder still exists and that your account is allowed to write to it.");
+            }
+
+            // Encoder failure: NVENC / CUDA / codec errors (obs-nvenc sets these on the encoder)
+            if (Has("NVENC") || Has("CUDA") || Has("codec"))
+            {
+                return ("Recording stopped: encoder error",
+                    "The video encoder failed while recording, so the recording was stopped. Update your graphics drivers or try a different encoder in settings, then start again.");
+            }
+
+            // Output settings not supported by the selected encoder/format
+            if (code == OBS_OUTPUT_UNSUPPORTED)
+            {
+                return ("Recording stopped: unsupported settings",
+                    "The recording stopped because the current output settings are not supported. Try a different encoder or format in settings, then start again.");
+            }
+
+            // Any other write failure reported by the muxer ("Error writing to '<path>', <reason>")
+            if (Has("Error writing to"))
+            {
+                return ("Recording stopped: write error",
+                    "An error occurred while writing the recording, so it was stopped and may be incomplete. Check the log for more details.");
+            }
+
+            // Remaining encoder failures surface as OBS_OUTPUT_ENCODE_ERROR without a recognizable string
+            if (code == OBS_OUTPUT_ENCODE_ERROR)
+            {
+                return ("Recording stopped: encoder error",
+                    "The video encoder failed while recording, so the recording was stopped. Update your graphics drivers or try a different encoder in settings, then start again.");
+            }
+
+            return ("Recording stopped unexpectedly",
+                "Recording was stopped unexpectedly and the file may be incomplete. Check the log for more details.");
+        }
+
+        private static string GetOutputCodeName(int code) => code switch
+        {
+            OBS_OUTPUT_SUCCESS => "OBS_OUTPUT_SUCCESS",
+            OBS_OUTPUT_BAD_PATH => "OBS_OUTPUT_BAD_PATH",
+            OBS_OUTPUT_CONNECT_FAILED => "OBS_OUTPUT_CONNECT_FAILED",
+            OBS_OUTPUT_INVALID_STREAM => "OBS_OUTPUT_INVALID_STREAM",
+            OBS_OUTPUT_ERROR => "OBS_OUTPUT_ERROR",
+            OBS_OUTPUT_DISCONNECTED => "OBS_OUTPUT_DISCONNECTED",
+            OBS_OUTPUT_UNSUPPORTED => "OBS_OUTPUT_UNSUPPORTED",
+            OBS_OUTPUT_NO_SPACE => "OBS_OUTPUT_NO_SPACE",
+            OBS_OUTPUT_ENCODE_ERROR => "OBS_OUTPUT_ENCODE_ERROR",
+            OBS_OUTPUT_HDR_DISABLED => "OBS_OUTPUT_HDR_DISABLED",
+            _ => $"UNKNOWN ({code})"
+        };
+
         private static void SetForceMono(Source source, bool forceMono)
         {
             try
@@ -1517,6 +1718,111 @@ namespace Segra.Backend.Recorder
             }
         }
 
+        private static void StartDiskSpaceMonitor()
+        {
+            StopDiskSpaceMonitor();
+
+            _diskSpaceMonitorTimer = new System.Threading.Timer(
+                OnDiskSpaceCheck,
+                null,
+                DiskSpaceCheckIntervalMs,
+                DiskSpaceCheckIntervalMs
+            );
+
+            Log.Information($"Started disk space monitor (every {DiskSpaceCheckIntervalMs / 1000}s, stop below {GetRecordingFreeSpaceThresholdBytes() / (1024 * 1024)} MB free)");
+        }
+
+        // Estimates worst-case bytes/sec written to disk based on the configured rate control,
+        // so the low-space threshold can scale with bitrate (a single 60s gap at a high bitrate
+        // can otherwise burn through hundreds of MB before the next check).
+        private static long EstimateRecordingBytesPerSecond()
+        {
+            int videoMbps = Settings.Instance.RateControl switch
+            {
+                "CBR" => Settings.Instance.Bitrate,
+                "VBR" => Settings.Instance.MaxBitrate,
+                // CRF/CQP are quality-based with no explicit cap; assume a high worst case.
+                _ => Math.Max(Settings.Instance.MaxBitrate, QualityModeAssumedMbps)
+            };
+
+            // Add 1 Mbps of headroom for audio tracks (a few AAC tracks at 128 kbps each).
+            long bitsPerSecond = (videoMbps + 1L) * 1_000_000L;
+            return bitsPerSecond / 8L;
+        }
+
+        // Free-space threshold at which we stop recording: enough to cover one check interval of
+        // writing (with margin) plus a finalization buffer, never below the absolute floor.
+        private static long GetRecordingFreeSpaceThresholdBytes()
+        {
+            long intervalSeconds = DiskSpaceCheckIntervalMs / 1000;
+            long perIntervalWithMargin = (long)(EstimateRecordingBytesPerSecond() * intervalSeconds * 1.5);
+            const long finalizationBufferBytes = 128L * 1024 * 1024; // 128 MB to finalize the file
+            long threshold = perIntervalWithMargin + finalizationBufferBytes;
+            return Math.Max(StorageService.MinimumRecordingFreeSpaceBytes, threshold);
+        }
+
+        private static void StopDiskSpaceMonitor()
+        {
+            if (_diskSpaceMonitorTimer != null)
+            {
+                _diskSpaceMonitorTimer.Dispose();
+                _diskSpaceMonitorTimer = null;
+                Log.Information("Stopped disk space monitor");
+            }
+        }
+
+        // Stops the recording when the drive runs low on space, while OBS can still finalize the file
+        // cleanly. Runs on a thread pool thread (System.Threading.Timer).
+        private static void OnDiskSpaceCheck(object? state)
+        {
+            try
+            {
+                long? freeBytes = StorageService.GetContentDriveFreeBytes();
+                if (freeBytes == null || freeBytes.Value >= GetRecordingFreeSpaceThresholdBytes())
+                    return;
+
+                // Only act once, and not if a failure stop (e.g. OBS output stop) is already being handled.
+                if (Interlocked.CompareExchange(ref _unexpectedStopHandled, 1, 0) != 0)
+                    return;
+
+                // Stop the timer so we don't fire again while tearing down.
+                StopDiskSpaceMonitor();
+
+                // The game is still in the foreground and the drive is still low, so stop the detection
+                // loop from immediately retrying until the user switches foreground window.
+                GameDetectionService.PreventRetryRecording = true;
+
+                double freeMb = freeBytes.Value / (1024.0 * 1024.0);
+                long thresholdMb = GetRecordingFreeSpaceThresholdBytes() / (1024 * 1024);
+                Log.Warning($"Recording drive low on space ({freeMb:F0} MB free, threshold {thresholdMb} MB). Stopping recording to finalize the file safely.");
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await ShowModal("Recording stopped: running low on disk space",
+                            $"The recording drive is running low on space ({freeMb:F0} MB free), so recording was stopped to save the file safely. Free up some space before recording again.",
+                            "error");
+                        _ = Task.Run(() => PlaySound("error"));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"Error notifying frontend of low disk space stop: {ex.Message}");
+                    }
+                    finally
+                    {
+                        // Segra-initiated graceful stop: OBS finalizes the file, then the output's
+                        // stop signal fires with OBS_OUTPUT_SUCCESS and is ignored by OnOutputStopped.
+                        await StopRecording();
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Disk space monitor check failed: {ex.Message}");
+            }
+        }
+
         private static void CheckGameCaptureHookStatus(object? state)
         {
             // Check if game capture has hooked
@@ -1580,6 +1886,10 @@ namespace Segra.Backend.Recorder
         {
             _replaySavedConnection?.Dispose();
             _replaySavedConnection = null;
+            _outputStoppedConnection?.Dispose();
+            _outputStoppedConnection = null;
+            _bufferStoppedConnection?.Dispose();
+            _bufferStoppedConnection = null;
             _output = null;
             _bufferOutput = null;
         }
