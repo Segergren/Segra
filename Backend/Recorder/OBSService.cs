@@ -2042,6 +2042,8 @@ namespace Segra.Backend.Recorder
 
                 using (var httpClient = new HttpClient())
                 {
+                    httpClient.Timeout = Timeout.InfiniteTimeSpan;
+
                     // First, fetch the metadata from GitHub
                     httpClient.DefaultRequestHeaders.Add("User-Agent", "Segra");
                     httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3.json");
