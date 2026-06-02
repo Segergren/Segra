@@ -2179,19 +2179,21 @@ export default function VideoComponent({ video }: { video: Content }) {
               </div>
               {(video.type === 'Clip' || video.type === 'Highlight') && (
                 <>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="h-10 px-5 hover:text-accent"
-                    onClick={handleUpload}
-                    disabled={
-                      uploads[video.fileName + '.mp4']?.status === 'uploading' ||
-                      uploads[video.fileName + '.mp4']?.status === 'processing'
-                    }
-                  >
-                    <Upload className="w-5 h-5" />
-                    <span>Upload</span>
-                  </Button>
+                  {!settings.airplaneMode && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="h-10 px-5 hover:text-accent"
+                      onClick={handleUpload}
+                      disabled={
+                        uploads[video.fileName + '.mp4']?.status === 'uploading' ||
+                        uploads[video.fileName + '.mp4']?.status === 'processing'
+                      }
+                    >
+                      <Upload className="w-5 h-5" />
+                      <span>Upload</span>
+                    </Button>
+                  )}
                   <Button
                     variant="primary"
                     size="sm"

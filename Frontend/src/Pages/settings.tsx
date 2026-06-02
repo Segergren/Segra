@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useUpdate } from '../Context/UpdateContext';
 import AccountSection from '../Components/Settings/AccountSection';
@@ -24,7 +24,7 @@ type SectionId =
   | 'preferences'
   | 'advanced';
 
-const NAV_ITEMS: { id: SectionId; label: string }[] = [
+const ALL_NAV_ITEMS: { id: SectionId; label: string }[] = [
   { id: 'account', label: 'Account' },
   { id: 'recording', label: 'Recording' },
   { id: 'clips', label: 'Clips' },
@@ -48,7 +48,13 @@ export default function Settings() {
   const { openReleaseNotesModal, checkForUpdates } = useUpdate();
   const settings = useSettings();
   const updateSettings = useSettingsUpdater();
-  const [activeSection, setActiveSection] = useState<SectionId>('account');
+  // Airplane mode removes the Account section entirely (no login/cloud UI).
+  const navItems = useMemo(
+    () =>
+      settings.airplaneMode ? ALL_NAV_ITEMS.filter((item) => item.id !== 'account') : ALL_NAV_ITEMS,
+    [settings.airplaneMode],
+  );
+  const [activeSection, setActiveSection] = useState<SectionId>(navItems[0].id);
 
   const scrollToSection = (id: SectionId) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -60,26 +66,26 @@ export default function Settings() {
       const viewportCenter = window.innerHeight / 2.3; // Check upper-third of viewport
 
       // Find the last section whose top has passed the check point
-      for (let i = NAV_ITEMS.length - 1; i >= 0; i--) {
-        const element = document.getElementById(NAV_ITEMS[i].id);
+      for (let i = navItems.length - 1; i >= 0; i--) {
+        const element = document.getElementById(navItems[i].id);
         if (element) {
           const rect = element.getBoundingClientRect();
           if (rect.top <= viewportCenter) {
-            setActiveSection(NAV_ITEMS[i].id);
+            setActiveSection(navItems[i].id);
             return;
           }
         }
       }
 
       // Default to first section if none found
-      setActiveSection(NAV_ITEMS[0].id);
+      setActiveSection(navItems[0].id);
     };
 
     window.addEventListener('scroll', handleScroll, true);
     handleScroll(); // Initial check
 
     return () => window.removeEventListener('scroll', handleScroll, true);
-  }, []);
+  }, [navItems]);
 
   return (
     <div className="min-h-full bg-base-200 dark:bg-base-300">
@@ -88,7 +94,7 @@ export default function Settings() {
         <div className="flex items-center gap-6">
           <h1 className="text-2xl font-bold">Settings</h1>
           <nav className="flex gap-1">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => scrollToSection(item.id)}
@@ -108,8 +114,12 @@ export default function Settings() {
       {/* Content */}
       <div className="p-5 space-y-6">
         {/* ACCOUNT */}
-        <SectionHeader id="account">Account</SectionHeader>
-        <AccountSection />
+        {!settings.airplaneMode && (
+          <>
+            <SectionHeader id="account">Account</SectionHeader>
+            <AccountSection />
+          </>
+        )}
 
         {/* RECORDING */}
         <SectionHeader id="recording">Recording</SectionHeader>

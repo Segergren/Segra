@@ -702,6 +702,14 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update AirplaneMode
+            if (settings.AirplaneMode != updatedSettings.AirplaneMode)
+            {
+                Log.Information($"AirplaneMode changed from '{settings.AirplaneMode}' to '{updatedSettings.AirplaneMode}'");
+                settings.AirplaneMode = updatedSettings.AirplaneMode;
+                hasChanges = true;
+            }
+
             // Update SelectedOBSVersion
             if (settings.SelectedOBSVersion != updatedSettings.SelectedOBSVersion)
             {

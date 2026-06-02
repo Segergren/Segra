@@ -49,6 +49,7 @@ namespace Segra.Backend.Core.Models
         private bool _autoGenerateHighlights = true;
         private bool _runOnStartup = false;
         private bool _receiveBetaUpdates = false;
+        private bool _airplaneMode = false;
         private RecordingMode _recordingMode = RecordingMode.Hybrid;
         private int _replayBufferDuration = 30;
         private int _replayBufferMaxSize = 1000;
@@ -409,6 +410,19 @@ namespace Segra.Backend.Core.Models
                 if (_receiveBetaUpdates != value)
                 {
                     _receiveBetaUpdates = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("airplaneMode")]
+        public bool AirplaneMode
+        {
+            get => _airplaneMode;
+            set
+            {
+                if (_airplaneMode != value)
+                {
+                    _airplaneMode = value;
                 }
             }
         }

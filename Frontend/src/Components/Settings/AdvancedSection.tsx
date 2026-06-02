@@ -1,4 +1,6 @@
-import { FileText, RefreshCw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { FileText, RefreshCw, Plane } from 'lucide-react';
 import { GithubIcon } from '../icons/BrandIcons';
 import DropdownSelect from '../DropdownSelect';
 import { Settings as SettingsType } from '../../Models/types';
@@ -20,6 +22,26 @@ export default function AdvancedSection({
   checkForUpdates,
 }: AdvancedSectionProps) {
   const appState = useAppState();
+  const rowRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLSpanElement>(null);
+  const [flyDistance, setFlyDistance] = useState(240);
+
+  // Fly the plane from its spot to the right edge of the Airplane Mode row.
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const measure = () => {
+      const content = contentRef.current;
+      if (!content) return;
+      const distance = row.getBoundingClientRect().right - content.getBoundingClientRect().right;
+      if (distance > 0) setFlyDistance(distance);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
@@ -94,6 +116,43 @@ export default function AdvancedSection({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Airplane Mode */}
+          <div ref={rowRef} className="pt-4 border-t border-custom">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="airplaneMode"
+                checked={settings.airplaneMode}
+                onChange={(e) => updateSettings({ airplaneMode: e.target.checked })}
+                className="toggle toggle-primary toggle-sm"
+              />
+              <span ref={contentRef} className="inline-flex items-center gap-1.5 cursor-pointer">
+                Airplane Mode
+                <AnimatePresence initial={false}>
+                  {settings.airplaneMode && (
+                    <motion.span
+                      className="inline-flex"
+                      initial={{ opacity: 0, x: -8, rotate: 45 }}
+                      animate={{ opacity: 1, x: 0, rotate: 45 }}
+                      exit={{
+                        opacity: 0,
+                        x: flyDistance,
+                        rotate: 45,
+                        transition: {
+                          x: { duration: 1.9, ease: [0.2, 0, 0.8, 0] },
+                          opacity: { duration: 0.9, ease: 'easeIn', delay: 1.0 },
+                        },
+                      }}
+                      transition={{ duration: 0.35, ease: 'easeOut' }}
+                    >
+                      <Plane size={16} />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </span>
+            </label>
           </div>
         </div>
       </div>

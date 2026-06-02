@@ -46,7 +46,7 @@ export default function ContentCard({
   isSelectionMode = false,
   isHighlighted = false,
 }: VideoCardProps) {
-  const { enableAi, showNewBadgeOnVideos } = useSettings();
+  const { enableAi, showNewBadgeOnVideos, airplaneMode } = useSettings();
   const { cacheFolder } = useAppState();
   const { session } = useAuth();
   const { openModal, closeModal } = useModal();
@@ -397,7 +397,7 @@ export default function ContentCard({
               tabIndex={0}
               className="dropdown-content menu bg-base-300 border border-base-400 rounded-box z-999 w-52 p-2"
             >
-              {(type === 'Clip' || type === 'Highlight') && (
+              {!airplaneMode && (type === 'Clip' || type === 'Highlight') && (
                 <li>
                   <Button
                     variant="menuPrimary"
@@ -522,7 +522,7 @@ export default function ContentCard({
           <span>
             {content!.fileSize} &bull; {new Date(content!.createdAt).toLocaleDateString()}
           </span>
-          {content!.uploadId && (
+          {!airplaneMode && content!.uploadId && (
             <div className="flex absolute right-3 gap-0 pr-1">
               <span
                 className="btn btn-ghost btn-sm btn-circle relative group hover:bg-white/10 active:bg-white/10"

@@ -49,14 +49,21 @@ function App() {
     themeChange(false);
   }, []);
 
-  const { session } = useAuth();
+  const { session, signOut } = useAuth();
   const { data: profile } = useProfile();
-  const needsUsername = session && profile?.username?.startsWith('user_');
 
   const { selectedVideo, setSelectedVideo } = useSelectedVideo();
   const { selectedMenu, setSelectedMenu } = useSelectedMenu();
   const settings = useSettings();
   const appState = useAppState();
+  const needsUsername = !settings.airplaneMode && session && profile?.username?.startsWith('user_');
+
+  // Airplane mode hides all cloud features and must not keep a signed-in session.
+  useEffect(() => {
+    if (settings.airplaneMode && session) {
+      signOut();
+    }
+  }, [settings.airplaneMode, session, signOut]);
 
   // If the current menu becomes hidden (and has no content keeping it visible),
   // fall back to the default (or first reachable item).

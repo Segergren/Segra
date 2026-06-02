@@ -247,6 +247,7 @@ export interface Settings {
   autoGenerateHighlights: boolean;
   runOnStartup: boolean;
   receiveBetaUpdates: boolean;
+  airplaneMode: boolean; // Hides cloud account/login/upload features and signs the user out
   recordingMode: RecordingMode;
   replayBufferDuration: number; // in seconds
   replayBufferMaxSize: number; // in MB
@@ -321,6 +322,7 @@ export const initialSettings: Settings = {
   autoGenerateHighlights: true,
   runOnStartup: false,
   receiveBetaUpdates: false,
+  airplaneMode: false,
   recordingMode: 'Hybrid',
   replayBufferDuration: 30,
   replayBufferMaxSize: 1000,
