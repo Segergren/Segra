@@ -411,6 +411,60 @@ namespace Segra.Backend.Media
             return TimeSpan.Zero;
         }
 
+        // HDR transfer as ffmpeg reports it in the stream info: PQ = smpte2084, HLG = arib-std-b67.
+        private static readonly Regex _hdrTransferRegex = new(
+            @"\b(smpte2084|arib-std-b67)\b",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        /// <summary>
+        /// Returns true if ffmpeg metadata reports an HDR transfer (PQ or HLG).
+        /// </summary>
+        public static bool ExtractIsHdr(string ffmpegOutput) =>
+            !string.IsNullOrEmpty(ffmpegOutput) && _hdrTransferRegex.IsMatch(ffmpegOutput);
+
+        // A file's HDR-ness never changes, so cache it to avoid a metadata probe on every call.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _hdrCache = new();
+
+        /// <summary>
+        /// Detects whether a video is HDR by inspecting its transfer characteristics.
+        /// Returns false on any error so callers degrade gracefully to the SDR path.
+        /// </summary>
+        public static async Task<bool> IsHdrVideo(string filePath)
+        {
+            string cacheKey = filePath;
+            try { cacheKey = $"{filePath}|{File.GetLastWriteTimeUtc(filePath).Ticks}"; }
+            catch { /* file may be gone; fall back to a path-only key */ }
+
+            if (_hdrCache.TryGetValue(cacheKey, out bool cached))
+                return cached;
+
+            try
+            {
+                bool isHdr = ExtractIsHdr(await GetMetadata(filePath));
+                _hdrCache[cacheKey] = isHdr;
+                return isHdr;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("Could not determine HDR status for {File}: {Message}", filePath, ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Builds the thumbnail -vf chain. HDR sources are tone-mapped from Rec.2100 (PQ/HLG) down
+        /// to Rec.709 SDR so the JPEG is not washed out; SDR sources are only scaled.
+        /// </summary>
+        private static string BuildThumbnailVideoFilter(int width, bool isHdr)
+        {
+            string scale = $"scale={width}:-1";
+            if (!isHdr)
+                return scale;
+
+            return "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
+                   "tonemap=tonemap=hable,zscale=t=bt709:m=bt709:r=tv,format=yuv420p," + scale;
+        }
+
         private static readonly Regex _streamHeaderRegex = new(
             @"^\s*Stream #\d+:\d+[^\n]*?:\s*(\w+):",
             RegexOptions.Compiled);
@@ -539,13 +593,14 @@ namespace Segra.Backend.Media
         public static async Task<byte[]> GenerateThumbnail(string inputFilePath, double timeSeconds, int width = 320)
         {
             string timeString = timeSeconds.ToString(CultureInfo.InvariantCulture);
+            bool isHdr = await IsHdrVideo(inputFilePath);
             var args = new[]
             {
                 "-y",
                 "-ss", timeString,
                 "-i", inputFilePath,
                 "-frames:v", "1",
-                "-vf", $"scale={width}:-1",
+                "-vf", BuildThumbnailVideoFilter(width, isHdr),
                 "-f", "image2pipe",
                 "-vcodec", "mjpeg",
                 "-q:v", "20",
@@ -569,12 +624,14 @@ namespace Segra.Backend.Media
             TimeSpan midpoint = TimeSpan.FromTicks(duration.Ticks / 2);
             string midpointTime = midpoint.ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
 
+            bool isHdr = await IsHdrVideo(inputFilePath);
+
             var arguments = new[]
             {
                 "-y",
                 "-ss", midpointTime,
                 "-i", inputFilePath,
-                "-vf", $"scale={width}:-1",
+                "-vf", BuildThumbnailVideoFilter(width, isHdr),
                 "-qscale:v", quality.ToString(CultureInfo.InvariantCulture),
                 "-vframes", "1",
                 outputFilePath

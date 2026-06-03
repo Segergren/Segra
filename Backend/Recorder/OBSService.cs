@@ -96,6 +96,28 @@ namespace Segra.Backend.Recorder
         private static bool _isStoppingOrStopped = false;
         private static uint _currentBaseWidth;
         private static uint _currentBaseHeight;
+        private static uint _currentOutputWidth;
+        private static uint _currentOutputHeight;
+
+        // HDR state for the current recording. Decided once at StartRecording from the captured
+        // display's HDR mode, because the OBS canvas color space cannot change while an output is
+        // active. Both the display-capture fallback and the game capture inherit this canvas.
+        private static bool _isHdrRecording = false;
+        private static string? _hdrEncoderId = null;
+
+        // Encoders that can produce 10-bit HDR. H.264/AVC and x264 cannot encode HDR.
+        private static readonly string[] HdrHevcEncoders = { "jim_hevc_nvenc", "obs_nvenc_hevc_tex", "h265_texture_amf", "obs_qsv11_hevc" };
+        private static readonly string[] HdrAv1Encoders = { "jim_av1_nvenc", "obs_nvenc_av1_tex", "av1_texture_amf", "obs_qsv11_av1" };
+
+        // Maps a user-selected H.264 encoder to the same vendor's HDR-capable encoders (HEVC then AV1).
+        private static readonly Dictionary<string, string[]> HdrEncoderSubstitutes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["jim_nvenc"] = new[] { "jim_hevc_nvenc", "jim_av1_nvenc" },
+            ["obs_nvenc_h264_tex"] = new[] { "obs_nvenc_hevc_tex", "obs_nvenc_av1_tex", "jim_hevc_nvenc", "jim_av1_nvenc" },
+            ["h264_texture_amf"] = new[] { "h265_texture_amf", "av1_texture_amf" },
+            ["obs_qsv11_v2"] = new[] { "obs_qsv11_hevc", "obs_qsv11_av1" },
+            ["obs_qsv11"] = new[] { "obs_qsv11_hevc", "obs_qsv11_av1" },
+        };
 
         // Replay buffer state
         private static bool _replaySaved = false;
@@ -472,11 +494,22 @@ namespace Segra.Backend.Recorder
 
             _currentBaseWidth = baseWidth;
             _currentBaseHeight = baseHeight;
+            _currentOutputWidth = outputWidth;
+            _currentOutputHeight = outputHeight;
 
-            Obs.SetVideo(v => v
-                .BaseResolution(baseWidth, baseHeight)
-                .OutputResolution(outputWidth, outputHeight)
-                .Fps(customFps ?? 60));
+            // Must be set on every reset: OBSKit reuses its settings object, so a prior HDR
+            // recording would otherwise leave the next SDR one in P010/PQ.
+            Obs.SetVideo(v =>
+            {
+                v.BaseResolution(baseWidth, baseHeight)
+                 .OutputResolution(outputWidth, outputHeight)
+                 .Fps(customFps ?? 60);
+
+                if (_isHdrRecording)
+                    v.Hdr();
+                else
+                    v.Sdr();
+            });
         }
 
         public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null)
@@ -546,6 +579,45 @@ namespace Segra.Backend.Recorder
             _isStoppingOrStopped = false;
             _unexpectedStopHandled = 0;
 
+            // Decide HDR up front (the canvas color space cannot change once recording starts) and
+            // switch to an HDR-capable encoder when the captured display is in HDR mode.
+            _isHdrRecording = false;
+            _hdrEncoderId = null;
+            try
+            {
+                // Base HDR on the monitor whose content we actually capture: for a game, the monitor
+                // the game window is on (so a game on an SDR monitor is never forced to PQ); for a
+                // manual recording, the selected display. Falls back to the selected display if the
+                // game window can't be located yet.
+                string? hdrTargetDeviceId = startManually
+                    ? GetCaptureTargetDeviceId()
+                    : DisplayService.GetDeviceIdForWindow(WindowUtils.TryGetPreRecordingWindowHandle()) ?? GetCaptureTargetDeviceId();
+
+                if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
+                {
+                    string userEncoderId = Settings.Instance.Codec?.InternalEncoderId ?? string.Empty;
+                    string? hdrEncoderId = ResolveHdrEncoder(userEncoderId, AppState.Instance.Codecs);
+                    if (hdrEncoderId != null)
+                    {
+                        _isHdrRecording = true;
+                        _hdrEncoderId = hdrEncoderId;
+                        if (!string.Equals(hdrEncoderId, userEncoderId, StringComparison.OrdinalIgnoreCase))
+                            Log.Information($"HDR display detected; using HDR-capable encoder '{hdrEncoderId}' instead of '{userEncoderId}'");
+                        Log.Information("Recording in HDR (Rec.2100 PQ, 10-bit P010)");
+                    }
+                    else
+                    {
+                        Log.Warning("HDR display detected but no HDR-capable (HEVC/AV1) encoder is available; recording in SDR.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"HDR detection failed, recording in SDR: {ex.Message}");
+                _isHdrRecording = false;
+                _hdrEncoderId = null;
+            }
+
             // Configure video settings specifically for this recording/buffer
             ResetVideoSettings(out _, customFps: (uint)Settings.Instance.FrameRate);
 
@@ -571,6 +643,14 @@ namespace Segra.Backend.Recorder
                 {
                     GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
                     GameCaptureSource.SetWindow($"*:*:{fileName}");
+
+                    // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
+                    // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
+                    if (_isHdrRecording)
+                    {
+                        GameCaptureSource.Update(s => s.Set("rgb10a2_space", "2100pq"));
+                        Log.Information("Game capture color space set to Rec.2100 PQ (HDR)");
+                    }
 
                     // Enable capture_audio on game capture when using GameOnly or GameAndDiscord mode
                     if (Settings.Instance.AudioOutputMode != AudioOutputMode.All)
@@ -626,11 +706,14 @@ namespace Segra.Backend.Recorder
 
             // Create video encoder
             string encoderId = Settings.Instance.Codec!.InternalEncoderId;
-            Log.Information($"Using encoder: {Settings.Instance.Codec!.FriendlyName} ({encoderId})");
+            if (_isHdrRecording && _hdrEncoderId != null)
+                encoderId = _hdrEncoderId;
+            Log.Information($"Using encoder: {encoderId}{(_isHdrRecording ? " (HDR)" : "")}");
 
             using var videoEncoderSettings = new ObsKit.NET.Core.Settings();
             videoEncoderSettings.Set("preset", "Quality");
-            videoEncoderSettings.Set("profile", "high");
+            // HEVC needs the Main 10 profile for 10-bit HDR; AV1 derives bit depth from the P010 input.
+            videoEncoderSettings.Set("profile", _isHdrRecording && IsHevcEncoder(encoderId) ? "main10" : "high");
             videoEncoderSettings.Set("use_bufsize", true);
             videoEncoderSettings.Set("rate_control", Settings.Instance.RateControl);
             videoEncoderSettings.Set("keyint_sec", 1);
@@ -677,7 +760,27 @@ namespace Segra.Backend.Recorder
                 Log.Information("NVENC b-frames disabled (CUDA compute capability < 7.0)");
             }
 
-            _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
+            try
+            {
+                _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
+            }
+            catch (Exception ex) when (_isHdrRecording)
+            {
+                // Some older GPUs expose an HEVC/AV1 encoder but cannot encode 10-bit; fall back to SDR.
+                Log.Warning($"Failed to create HDR encoder '{encoderId}' ({ex.Message}); falling back to SDR.");
+                _isHdrRecording = false;
+                _hdrEncoderId = null;
+
+                Obs.SetVideo(v => v
+                    .BaseResolution(_currentBaseWidth, _currentBaseHeight)
+                    .OutputResolution(_currentOutputWidth, _currentOutputHeight)
+                    .Fps((uint)Settings.Instance.FrameRate)
+                    .Sdr());
+
+                encoderId = Settings.Instance.Codec!.InternalEncoderId;
+                videoEncoderSettings.Set("profile", "high");
+                _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
+            }
 
             // Create audio sources and add to scene
             if (Settings.Instance.InputDevices != null && Settings.Instance.InputDevices.Count > 0)
@@ -1054,6 +1157,62 @@ namespace Segra.Backend.Recorder
             Log.Information($"Display capture added for monitor {monitorIndex} using {Settings.Instance.DisplayCaptureMethod} method");
         }
 
+        /// <summary>
+        /// Resolves the device id of the display that will be captured, mirroring the selection
+        /// AddMonitorCapture makes (the selected display if found, otherwise the first display).
+        /// Used to decide whether to record in HDR.
+        /// </summary>
+        private static string? GetCaptureTargetDeviceId()
+        {
+            var displays = AppState.Instance.Displays;
+            if (displays == null || displays.Count == 0)
+                return null;
+
+            if (Settings.Instance.SelectedDisplay != null)
+            {
+                var match = displays.FirstOrDefault(d => d.DeviceId == Settings.Instance.SelectedDisplay!.DeviceId);
+                if (match != null)
+                    return match.DeviceId;
+            }
+
+            return displays[0].DeviceId;
+        }
+
+        private static bool IsHevcEncoder(string encoderId) =>
+            HdrHevcEncoders.Contains(encoderId, StringComparer.OrdinalIgnoreCase);
+
+        private static bool IsHdrCapableEncoder(string encoderId) =>
+            HdrHevcEncoders.Contains(encoderId, StringComparer.OrdinalIgnoreCase) ||
+            HdrAv1Encoders.Contains(encoderId, StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Returns an available HDR-capable (10-bit HEVC/AV1) encoder for an HDR recording, or null
+        /// if none is available. Keeps the user's encoder if it already supports HDR; otherwise
+        /// substitutes the same vendor's HEVC (preferred) or AV1 encoder, falling back to any
+        /// available HEVC/AV1 encoder (e.g. for software-encoder users who still have a GPU path).
+        /// </summary>
+        private static string? ResolveHdrEncoder(string userEncoderId, List<Codec> availableCodecs)
+        {
+            bool Available(string id) =>
+                availableCodecs.Any(c => string.Equals(c.InternalEncoderId, id, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrEmpty(userEncoderId) && IsHdrCapableEncoder(userEncoderId) && Available(userEncoderId))
+                return userEncoderId;
+
+            if (!string.IsNullOrEmpty(userEncoderId) && HdrEncoderSubstitutes.TryGetValue(userEncoderId, out var substitutes))
+            {
+                foreach (var candidate in substitutes)
+                    if (Available(candidate)) return candidate;
+            }
+
+            foreach (var candidate in HdrHevcEncoders)
+                if (Available(candidate)) return candidate;
+            foreach (var candidate in HdrAv1Encoders)
+                if (Available(candidate)) return candidate;
+
+            return null;
+        }
+
         public static async Task StopRecording()
         {
             // Prevent race conditions when multiple callers try to stop recording simultaneously
@@ -1293,6 +1452,8 @@ namespace Segra.Backend.Recorder
                 _hookedExecutableFileName = null;
                 CapturedWindowWidth = null;
                 CapturedWindowHeight = null;
+                _isHdrRecording = false;
+                _hdrEncoderId = null;
 
                 // If the recording ends before it started, don't do anything
                 if (AppState.Instance.Recording == null || (!isReplayBufferMode && AppState.Instance.Recording.FilePath == null))
@@ -1517,6 +1678,14 @@ namespace Segra.Backend.Recorder
             {
                 return ("Recording stopped: encoder error",
                     "The video encoder failed while recording, so the recording was stopped. Update your graphics drivers or try a different encoder in settings, then start again.");
+            }
+
+            // HDR enabled but the encoder cannot encode it (OBS reports codec-specific strings).
+            if (code == OBS_OUTPUT_HDR_DISABLED || Has("Rec. 2100") || Has("10bitUnsupported") ||
+                Has("8bitUnsupportedHdr") || Has("HdrUnsupported"))
+            {
+                return ("Recording stopped: HDR not supported by encoder",
+                    "The recording stopped because the selected encoder cannot record HDR. Update your graphics drivers, or switch to an encoder that supports HDR (such as HEVC or AV1), then start again.");
             }
 
             // Output settings not supported by the selected encoder/format

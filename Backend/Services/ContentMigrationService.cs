@@ -360,8 +360,10 @@ namespace Segra.Backend.Services
             return string.Equals(DriveRoot(a), DriveRoot(b), StringComparison.OrdinalIgnoreCase);
         }
 
-        private static bool PathsEqual(string a, string b)
+        private static bool PathsEqual(string? a, string? b)
         {
+            if (a == null || b == null)
+                return false;
             try
             {
                 return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);

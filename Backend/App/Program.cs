@@ -151,12 +151,20 @@ namespace Segra.Backend.App
             {
                 Log.Information("Application starting up...");
 
-                // Set up the PhotinoServer
-                PhotinoServer
-                    .CreateStaticFileServer(args, out string baseUrl)
-                    .RunAsync();
-
+                // VS Code sets SEGRA_VSCODE=1 via launch.json; Visual Studio does not.
+                // In VS Code the Vite dev server runs separately, so PhotinoServer is not needed
+                // and its RunAsync() would otherwise open a spurious browser tab.
+                bool IsVSCodeDebug = Environment.GetEnvironmentVariable("SEGRA_VSCODE") == "1";
                 bool IsDebugMode = Debugger.IsAttached;
+
+                string baseUrl = string.Empty;
+                if (!IsVSCodeDebug)
+                {
+                    PhotinoServer
+                        .CreateStaticFileServer(args, out baseUrl)
+                        .RunAsync();
+                }
+
                 appUrl = IsDebugMode ? "http://localhost:2882" : $"{baseUrl}/index.html";
 
                 if (IsDebugMode)

@@ -22,7 +22,11 @@ namespace Segra.Backend.Windows.Display
         [DllImport("user32.dll")]
         private static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
 
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
         private const int ENUM_CURRENT_SETTINGS = -1;
+        private const uint MONITOR_DEFAULTTONEAREST = 2;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct DEVMODE
@@ -226,6 +230,40 @@ namespace Segra.Backend.Windows.Display
             }
 
             return maxHeight;
+        }
+
+        /// <summary>
+        /// Resolves the monitor a window is on to that monitor's device interface path
+        /// (the same id stored on Display.DeviceId), or null if it cannot be determined.
+        /// </summary>
+        public static string? GetDeviceIdForWindow(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero)
+                return null;
+
+            try
+            {
+                IntPtr hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                if (hMonitor == IntPtr.Zero)
+                    return null;
+
+                MonitorInfoEx mi = new MonitorInfoEx();
+                mi.Size = Marshal.SizeOf(mi);
+                if (!GetMonitorInfo(hMonitor, ref mi))
+                    return null;
+
+                DisplayDevice device = new DisplayDevice();
+                device.Size = Marshal.SizeOf(device);
+                if (!EnumDisplayDevices(mi.DeviceName, 0, ref device, 1))
+                    return null;
+
+                return device.DeviceID;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("Failed to resolve device id for window: {Message}", ex.Message);
+                return null;
+            }
         }
 
         private static string GetFriendlyMonitorName(string deviceId, string fallback)
