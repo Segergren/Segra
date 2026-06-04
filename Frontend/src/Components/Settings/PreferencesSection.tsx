@@ -113,7 +113,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
               type="range"
               name="soundEffectsVolume"
               min="0"
-              max="1"
+              max="2"
               step="0.02"
               value={draggingSoundVolume ?? settings.soundEffectsVolume}
               onChange={(e) => {
@@ -130,7 +130,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
                 });
                 setDraggingSoundVolume(null);
               }}
-              className="range range-xs range-primary w-26 [--range-fill:0]"
+              className="range range-xs range-primary w-48 [--range-fill:0]"
             />
             <Volume2 className="w-4 h-4 text-gray-400 shrink-0" />
           </div>
