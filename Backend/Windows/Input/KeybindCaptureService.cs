@@ -165,6 +165,7 @@ namespace Segra.Backend.Windows.Input
                     if (recording != null && (recordingMode == RecordingMode.Buffer || recordingMode == RecordingMode.Hybrid))
                     {
                         Log.Information("Saving replay buffer...");
+                        _ = MessageService.SendFrontendMessage("ReplayBufferSaved", new { });
                         Task.Run(OBSService.SaveReplayBuffer);
                         Task.Run(PlayBookmarkSound);
                     }
