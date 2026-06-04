@@ -47,6 +47,8 @@ namespace Segra.Backend.Core.Models
         private DisplayCaptureMethod _displayCaptureMethod = DisplayCaptureMethod.Auto;
         private bool _enableAi = true;
         private bool _autoGenerateHighlights = true;
+        private double _highlightPaddingBefore = 4;
+        private double _highlightPaddingAfter = 4;
         private bool _runOnStartup = false;
         private bool _receiveBetaUpdates = false;
         private bool _airplaneMode = false;
@@ -373,6 +375,32 @@ namespace Segra.Backend.Core.Models
                 if (_autoGenerateHighlights != value)
                 {
                     _autoGenerateHighlights = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("highlightPaddingBefore")]
+        public double HighlightPaddingBefore
+        {
+            get => _highlightPaddingBefore;
+            set
+            {
+                if (_highlightPaddingBefore != value)
+                {
+                    _highlightPaddingBefore = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("highlightPaddingAfter")]
+        public double HighlightPaddingAfter
+        {
+            get => _highlightPaddingAfter;
+            set
+            {
+                if (_highlightPaddingAfter != value)
+                {
+                    _highlightPaddingAfter = value;
                 }
             }
         }

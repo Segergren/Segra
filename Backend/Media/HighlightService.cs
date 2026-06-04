@@ -46,11 +46,12 @@ namespace Segra.Backend.Media
                 Log.Information($"Found {highlightBookmarks.Count} bookmarks to include in highlight");
                 progressCallback?.Invoke(5, $"Found {highlightBookmarks.Count} moments");
 
-                // Convert bookmarks to time segments (4 seconds before and after each moment)
+                double paddingBefore = Settings.Instance.HighlightPaddingBefore;
+                double paddingAfter = Settings.Instance.HighlightPaddingAfter;
                 var segments = highlightBookmarks.Select(b => new TimeSegment
                 {
-                    StartTime = Math.Max(0, b.Time.TotalSeconds - 4),
-                    EndTime = b.Time.TotalSeconds + 4
+                    StartTime = Math.Max(0, b.Time.TotalSeconds - paddingBefore),
+                    EndTime = b.Time.TotalSeconds + paddingAfter
                 }).ToList();
 
                 // Merge overlapping segments

@@ -684,6 +684,22 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update HighlightPaddingBefore
+            if (settings.HighlightPaddingBefore != updatedSettings.HighlightPaddingBefore)
+            {
+                Log.Information($"HighlightPaddingBefore changed from '{settings.HighlightPaddingBefore}' to '{updatedSettings.HighlightPaddingBefore}'");
+                settings.HighlightPaddingBefore = updatedSettings.HighlightPaddingBefore;
+                hasChanges = true;
+            }
+
+            // Update HighlightPaddingAfter
+            if (settings.HighlightPaddingAfter != updatedSettings.HighlightPaddingAfter)
+            {
+                Log.Information($"HighlightPaddingAfter changed from '{settings.HighlightPaddingAfter}' to '{updatedSettings.HighlightPaddingAfter}'");
+                settings.HighlightPaddingAfter = updatedSettings.HighlightPaddingAfter;
+                hasChanges = true;
+            }
+
             // Update ReceiveBetaUpdates
             if (settings.ReceiveBetaUpdates != updatedSettings.ReceiveBetaUpdates)
             {

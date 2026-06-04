@@ -251,6 +251,8 @@ export interface Settings {
   recordingMode: RecordingMode;
   replayBufferDuration: number; // in seconds
   replayBufferMaxSize: number; // in MB
+  highlightPaddingBefore: number; // Seconds before a highlight moment
+  highlightPaddingAfter: number; // Seconds after a highlight moment
   clipClearSegmentsAfterCreatingClip: boolean;
   clipShowInBrowserAfterUpload: boolean; // Open browser after upload
   clipEncoder: ClipEncoder;
@@ -326,6 +328,8 @@ export const initialSettings: Settings = {
   recordingMode: 'Hybrid',
   replayBufferDuration: 30,
   replayBufferMaxSize: 1000,
+  highlightPaddingBefore: 4,
+  highlightPaddingAfter: 4,
   clipClearSegmentsAfterCreatingClip: false,
   clipShowInBrowserAfterUpload: false,
   clipEncoder: 'cpu',
