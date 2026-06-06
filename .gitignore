@@ -357,3 +357,4 @@ MigrationBackup/
 .vscode/extensions.json
 .DS_Store
 /Resources/FFmpeg/ffmpeg.exe
+.playwright-mcp/

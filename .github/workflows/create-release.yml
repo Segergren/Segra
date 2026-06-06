@@ -117,9 +117,82 @@ jobs:
         run: dotnet publish -c Release --self-contained -r win-x64 -o publish -p:Version=${{ steps.extract_final_version.outputs.final_version_number }}
         shell: pwsh
 
+      - name: Upload Segra.exe for signing (Pass 1)
+        id: upload_unsigned_exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: Segra-exe-unsigned
+          path: ./publish/Segra.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign Segra.exe (Pass 1)
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Segra
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: publish
+          github-artifact-id: ${{ steps.upload_unsigned_exe.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: ./publish
+
       - name: Package with vpk for Final Release
         run: vpk pack -u Segra -v ${{ steps.extract_final_version.outputs.final_version_number }} -p ./publish -e Segra.exe -o ./output --packTitle "Segra" --noPortable -i ./Resources/icon.ico -s ./Resources/splash.png --splashProgressColor "#fecb00"
         shell: pwsh
+
+      - name: Upload Velopack output for signing (Pass 2)
+        id: upload_unsigned_output
+        uses: actions/upload-artifact@v7
+        with:
+          name: Segra-output-unsigned
+          path: ./output
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign installer + nupkg (Pass 2)
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Segra
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: output
+          github-artifact-id: ${{ steps.upload_unsigned_output.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: ./output
+
+      - name: Regenerate Velopack manifests
+        shell: pwsh
+        run: |
+          $nupkg = Get-ChildItem ./output/Segra-*-full.nupkg | Select-Object -First 1
+          if (-not $nupkg) { throw "No nupkg found in ./output" }
+          $size = $nupkg.Length
+          $sha1 = (Get-FileHash $nupkg.FullName -Algorithm SHA1).Hash.ToUpperInvariant()
+          $sha256 = (Get-FileHash $nupkg.FullName -Algorithm SHA256).Hash.ToUpperInvariant()
+          Write-Host "Signed nupkg: $($nupkg.Name) size=$size sha1=$sha1"
+
+          $releasesPath = './output/RELEASES'
+          if (Test-Path $releasesPath) {
+            $newLine = "$sha1 $($nupkg.Name) $size"
+            [System.IO.File]::WriteAllText((Resolve-Path $releasesPath), $newLine, [System.Text.UTF8Encoding]::new($true))
+            Write-Host "Rewrote RELEASES"
+          }
+
+          $winJsonPath = './output/releases.win.json'
+          if (Test-Path $winJsonPath) {
+            $winJson = Get-Content $winJsonPath -Raw | ConvertFrom-Json
+            foreach ($asset in $winJson.Assets) {
+              if ($asset.FileName -eq $nupkg.Name) {
+                $asset.SHA1 = $sha1
+                $asset.SHA256 = $sha256
+                $asset.Size = $size
+              }
+            }
+            $winJson | ConvertTo-Json -Depth 10 -Compress | Set-Content -Path $winJsonPath -NoNewline -Encoding utf8
+            Write-Host "Rewrote releases.win.json"
+          }
 
       - name: Create Final Git Tag
         id: create_final_tag
