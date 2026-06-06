@@ -145,11 +145,11 @@ jobs:
         shell: pwsh
 
       - name: Publish the App
-        run: dotnet publish -c Release --self-contained -r win-x64 -o publish
+        run: dotnet publish -c Release --self-contained -r win-x64 -o publish -p:Version=${{ env.new_version }}
         shell: pwsh
 
       - name: Package with vpk
-        run: vpk pack -u Segra -v ${{ env.new_version }} -p ./publish -e Segra.exe -o ./output --packTitle "Segra" --noPortable
+        run: vpk pack -u Segra -v ${{ env.new_version }} -p ./publish -e Segra.exe -o ./output --packTitle "Segra" --noPortable -i ./Resources/icon.ico -s ./Resources/splash.png --splashProgressColor "#fecb00"
         shell: pwsh
 
       - name: Create a Git Tag

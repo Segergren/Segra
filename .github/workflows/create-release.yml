@@ -114,11 +114,11 @@ jobs:
         shell: pwsh
 
       - name: Publish the App
-        run: dotnet publish -c Release --self-contained -r win-x64 -o publish
+        run: dotnet publish -c Release --self-contained -r win-x64 -o publish -p:Version=${{ steps.extract_final_version.outputs.final_version_number }}
         shell: pwsh
 
       - name: Package with vpk for Final Release
-        run: vpk pack -u Segra -v ${{ steps.extract_final_version.outputs.final_version_number }} -p ./publish -e Segra.exe -o ./output --packTitle "Segra" --noPortable
+        run: vpk pack -u Segra -v ${{ steps.extract_final_version.outputs.final_version_number }} -p ./publish -e Segra.exe -o ./output --packTitle "Segra" --noPortable -i ./Resources/icon.ico -s ./Resources/splash.png --splashProgressColor "#fecb00"
         shell: pwsh
 
       - name: Create Final Git Tag
