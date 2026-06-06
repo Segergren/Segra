@@ -122,17 +122,20 @@ namespace Segra.Backend.Windows.Display
         }
 
         /// <summary>
-        /// Finds the pre-recording game window with a short bounded retry, returning its handle or
-        /// IntPtr.Zero if it cannot be found yet. Used to decide HDR from the game's actual monitor.
+        /// Finds the pre-recording game window with a bounded retry, returning its handle or
+        /// IntPtr.Zero if it cannot be found within the budget. Used to decide HDR from the game's
+        /// actual monitor. The exe is re-read each attempt so the handle is found even if a launcher
+        /// hands off to the real game exe mid-wait, and the wait stops early if the pending recording
+        /// is cancelled (e.g. the game closes during launch).
         /// </summary>
         public static IntPtr TryGetPreRecordingWindowHandle(int maxAttempts = 3, int delayMs = 100)
         {
-            string? exe = AppState.Instance.PreRecording?.Exe;
-            if (string.IsNullOrEmpty(exe))
-                return IntPtr.Zero;
-
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
+                string? exe = AppState.Instance.PreRecording?.Exe;
+                if (string.IsNullOrEmpty(exe))
+                    return IntPtr.Zero;
+
                 IntPtr hwnd = TryFindWindow(exe, attempt);
                 if (hwnd != IntPtr.Zero)
                     return hwnd;

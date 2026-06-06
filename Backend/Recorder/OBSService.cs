@@ -105,6 +105,13 @@ namespace Segra.Backend.Recorder
         private static bool _isHdrRecording = false;
         private static string? _hdrEncoderId = null;
 
+        // When the connected displays disagree on HDR, an auto-started game's HDR decision depends on
+        // which monitor the game opens on. The game's window doesn't exist the instant the process is
+        // detected, so we wait for it before locking the canvas color space. StartRecording already
+        // blocks waiting for the window to resolve capture dimensions, so this adds no real delay.
+        private const int HdrWindowWaitAttempts = 120;
+        private const int HdrWindowWaitDelayMs = 500; // ~60s, matching StartRecording's dimension-resolution wait
+
         // Encoders that can produce 10-bit HDR. H.264/AVC and x264 cannot encode HDR.
         private static readonly string[] HdrHevcEncoders = { "jim_hevc_nvenc", "obs_nvenc_hevc_tex", "h265_texture_amf", "obs_qsv11_hevc" };
         private static readonly string[] HdrAv1Encoders = { "jim_av1_nvenc", "obs_nvenc_av1_tex", "av1_texture_amf", "obs_qsv11_av1" };
@@ -587,11 +594,10 @@ namespace Segra.Backend.Recorder
             {
                 // Base HDR on the monitor whose content we actually capture: for a game, the monitor
                 // the game window is on (so a game on an SDR monitor is never forced to PQ); for a
-                // manual recording, the selected display. Falls back to the selected display if the
-                // game window can't be located yet.
+                // manual recording, the selected display.
                 string? hdrTargetDeviceId = startManually
                     ? GetCaptureTargetDeviceId()
-                    : DisplayService.GetDeviceIdForWindow(WindowUtils.TryGetPreRecordingWindowHandle()) ?? GetCaptureTargetDeviceId();
+                    : ResolveGameHdrTargetDeviceId();
 
                 if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
                 {
@@ -1176,6 +1182,51 @@ namespace Segra.Backend.Recorder
             }
 
             return displays[0].DeviceId;
+        }
+
+        /// <summary>
+        /// Resolves the display whose HDR state should drive an auto-started game recording. Prefers
+        /// the monitor the game window is on. Because the window doesn't exist the instant the process
+        /// is detected, we wait (bounded) for it - but only when the connected displays disagree on
+        /// HDR, since otherwise the game's monitor can't change the decision and waiting would delay
+        /// the recording for nothing. Falls back to the captured display if the window never appears.
+        /// </summary>
+        private static string? ResolveGameHdrTargetDeviceId()
+        {
+            string? fallbackDeviceId = GetCaptureTargetDeviceId();
+
+            // If every connected display shares the fallback's HDR state (single monitor / all-SDR /
+            // all-HDR), which monitor the game opens on is irrelevant - decide now without waiting.
+            bool needWindow = DisplaysDisagreeOnHdr(fallbackDeviceId);
+            int attempts = needWindow ? HdrWindowWaitAttempts : 3;
+            int delayMs = needWindow ? HdrWindowWaitDelayMs : 100;
+
+            if (needWindow)
+                Log.Information("HDR detection: displays disagree on HDR; waiting up to {TimeoutMs}ms for the game window to determine its monitor.", attempts * delayMs);
+
+            string? windowDeviceId = DisplayService.GetDeviceIdForWindow(
+                WindowUtils.TryGetPreRecordingWindowHandle(maxAttempts: attempts, delayMs: delayMs));
+
+            if (windowDeviceId != null)
+                return windowDeviceId;
+
+            if (needWindow)
+                Log.Information("HDR detection: game window not found within wait budget; using fallback display for the HDR decision.");
+            return fallbackDeviceId;
+        }
+
+        /// <summary>
+        /// True when the connected displays don't all share the fallback display's HDR state, meaning
+        /// the monitor a game opens on actually changes whether the recording should be HDR.
+        /// </summary>
+        private static bool DisplaysDisagreeOnHdr(string? fallbackDeviceId)
+        {
+            var displays = AppState.Instance.Displays;
+            if (displays == null || displays.Count < 2)
+                return false;
+
+            bool fallbackHdr = HdrDetectionService.IsDisplayHdrActive(fallbackDeviceId);
+            return displays.Any(d => HdrDetectionService.IsDisplayHdrActive(d.DeviceId) != fallbackHdr);
         }
 
         private static bool IsHevcEncoder(string encoderId) =>
