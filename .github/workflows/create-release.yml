@@ -126,6 +126,24 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Send Pushover notification (Pass 1)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          try {
+            Invoke-RestMethod -Method POST -TimeoutSec 15 `
+              -Uri "${{ secrets.PUSHOVER_API_URL }}/1/messages.json" `
+              -Body @{
+                token   = '${{ secrets.PUSHOVER_TOKEN }}'
+                user    = '${{ secrets.PUSHOVER_USER }}'
+                title   = 'Segra release'
+                message = 'Packaging v${{ steps.extract_final_version.outputs.final_version_number }}'
+              } | Out-Null
+            Write-Host "Pushover notification sent"
+          } catch {
+            Write-Warning "Pushover notification failed: $_"
+          }
+
       - name: Sign Segra.exe (Pass 1)
         uses: signpath/github-action-submit-signing-request@v2
         with:
@@ -150,6 +168,24 @@ jobs:
           path: ./output
           if-no-files-found: error
           retention-days: 1
+
+      - name: Send Pushover notification (Pass 2)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          try {
+            Invoke-RestMethod -Method POST -TimeoutSec 15 `
+              -Uri "${{ secrets.PUSHOVER_API_URL }}/1/messages.json" `
+              -Body @{
+                token   = '${{ secrets.PUSHOVER_TOKEN }}'
+                user    = '${{ secrets.PUSHOVER_USER }}'
+                title   = 'Segra release'
+                message = 'Finalizing v${{ steps.extract_final_version.outputs.final_version_number }} installer'
+              } | Out-Null
+            Write-Host "Pushover notification sent"
+          } catch {
+            Write-Warning "Pushover notification failed: $_"
+          }
 
       - name: Sign installer + nupkg (Pass 2)
         uses: signpath/github-action-submit-signing-request@v2
