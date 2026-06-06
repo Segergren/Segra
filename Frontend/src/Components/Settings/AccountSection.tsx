@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { TriangleAlert, LogOut, Ellipsis, Mail, History } from 'lucide-react';
 import { DiscordIcon } from '../icons/BrandIcons';
-import CloudBadge from '../CloudBadge';
 import { useAuth } from '../../Hooks/useAuth';
 import { useProfile } from '../../Hooks/useUserProfile';
 import Button from '../Button';
