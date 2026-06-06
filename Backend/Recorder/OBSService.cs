@@ -579,44 +579,18 @@ namespace Segra.Backend.Recorder
             _isStoppingOrStopped = false;
             _unexpectedStopHandled = 0;
 
-            // Decide HDR up front (the canvas color space cannot change once recording starts) and
-            // switch to an HDR-capable encoder when the captured display is in HDR mode.
+            // Decide HDR before the output starts (the canvas color space cannot change once an output
+            // is active) and switch to an HDR-capable encoder when the captured display is in HDR mode.
+            // For a manual recording the captured display is known up front. For a game recording the
+            // game window usually does not exist yet at this point, and even when it does it is often
+            // still a launcher/windowed form on another monitor before the game moves to its fullscreen
+            // HDR display - so resolving HDR now races that move and falls back to the (often SDR)
+            // selected display. The game decision is therefore deferred until the window has settled on
+            // its monitor below. This adds no latency: the output has not started at that point either.
             _isHdrRecording = false;
             _hdrEncoderId = null;
-            try
-            {
-                // Base HDR on the monitor whose content we actually capture: for a game, the monitor
-                // the game window is on (so a game on an SDR monitor is never forced to PQ); for a
-                // manual recording, the selected display. Falls back to the selected display if the
-                // game window can't be located yet.
-                string? hdrTargetDeviceId = startManually
-                    ? GetCaptureTargetDeviceId()
-                    : DisplayService.GetDeviceIdForWindow(WindowUtils.TryGetPreRecordingWindowHandle()) ?? GetCaptureTargetDeviceId();
-
-                if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
-                {
-                    string userEncoderId = Settings.Instance.Codec?.InternalEncoderId ?? string.Empty;
-                    string? hdrEncoderId = ResolveHdrEncoder(userEncoderId, AppState.Instance.Codecs);
-                    if (hdrEncoderId != null)
-                    {
-                        _isHdrRecording = true;
-                        _hdrEncoderId = hdrEncoderId;
-                        if (!string.Equals(hdrEncoderId, userEncoderId, StringComparison.OrdinalIgnoreCase))
-                            Log.Information($"HDR display detected; using HDR-capable encoder '{hdrEncoderId}' instead of '{userEncoderId}'");
-                        Log.Information("Recording in HDR (Rec.2100 PQ, 10-bit P010)");
-                    }
-                    else
-                    {
-                        Log.Warning("HDR display detected but no HDR-capable (HEVC/AV1) encoder is available; recording in SDR.");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning($"HDR detection failed, recording in SDR: {ex.Message}");
-                _isHdrRecording = false;
-                _hdrEncoderId = null;
-            }
+            if (startManually)
+                DecideHdrFromDisplay(GetCaptureTargetDeviceId());
 
             // Configure video settings specifically for this recording/buffer
             ResetVideoSettings(out _, customFps: (uint)Settings.Instance.FrameRate);
@@ -643,14 +617,6 @@ namespace Segra.Backend.Recorder
                 {
                     GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
                     GameCaptureSource.SetWindow($"*:*:{fileName}");
-
-                    // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
-                    // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
-                    if (_isHdrRecording)
-                    {
-                        GameCaptureSource.Update(s => s.Set("rgb10a2_space", "2100pq"));
-                        Log.Information("Game capture color space set to Rec.2100 PQ (HDR)");
-                    }
 
                     // Enable capture_audio on game capture when using GameOnly or GameAndDiscord mode
                     if (Settings.Instance.AudioOutputMode != AudioOutputMode.All)
@@ -680,6 +646,22 @@ namespace Segra.Backend.Recorder
                 // Try to get the window dimensions for the game
                 if (WindowUtils.GetWindowDimensionsByPreRecordingExeOrPid(out uint windowWidth, out uint windowHeight))
                 {
+                    // The game window now exists and has settled on its monitor, so decide HDR from
+                    // that monitor (deciding earlier raced the game's move to its fullscreen display
+                    // and fell back to the selected, often SDR, display). Falls back to the captured
+                    // display only if the window can no longer be located.
+                    DecideHdrFromDisplay(
+                        DisplayService.GetDeviceIdForWindow(WindowUtils.TryGetPreRecordingWindowHandle())
+                        ?? GetCaptureTargetDeviceId());
+
+                    // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
+                    // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
+                    if (_isHdrRecording && GameCaptureSource != null)
+                    {
+                        GameCaptureSource.Update(s => s.Set("rgb10a2_space", "2100pq"));
+                        Log.Information("Game capture color space set to Rec.2100 PQ (HDR)");
+                    }
+
                     ResetVideoSettings(
                         out bool is4by3,
                         customFps: (uint)Settings.Instance.FrameRate,
@@ -1176,6 +1158,44 @@ namespace Segra.Backend.Recorder
             }
 
             return displays[0].DeviceId;
+        }
+
+        /// <summary>
+        /// Decides whether the current recording should be HDR based on the Windows HDR state of the
+        /// display identified by <paramref name="hdrTargetDeviceId"/>, and picks an HDR-capable encoder
+        /// when so. Sets <see cref="_isHdrRecording"/> and <see cref="_hdrEncoderId"/> as a side effect.
+        /// Must be called before the canvas color space is configured and the output starts.
+        /// </summary>
+        private static void DecideHdrFromDisplay(string? hdrTargetDeviceId)
+        {
+            _isHdrRecording = false;
+            _hdrEncoderId = null;
+            try
+            {
+                if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
+                {
+                    string userEncoderId = Settings.Instance.Codec?.InternalEncoderId ?? string.Empty;
+                    string? hdrEncoderId = ResolveHdrEncoder(userEncoderId, AppState.Instance.Codecs);
+                    if (hdrEncoderId != null)
+                    {
+                        _isHdrRecording = true;
+                        _hdrEncoderId = hdrEncoderId;
+                        if (!string.Equals(hdrEncoderId, userEncoderId, StringComparison.OrdinalIgnoreCase))
+                            Log.Information($"HDR display detected; using HDR-capable encoder '{hdrEncoderId}' instead of '{userEncoderId}'");
+                        Log.Information("Recording in HDR (Rec.2100 PQ, 10-bit P010)");
+                    }
+                    else
+                    {
+                        Log.Warning("HDR display detected but no HDR-capable (HEVC/AV1) encoder is available; recording in SDR.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"HDR detection failed, recording in SDR: {ex.Message}");
+                _isHdrRecording = false;
+                _hdrEncoderId = null;
+            }
         }
 
         private static bool IsHevcEncoder(string encoderId) =>
