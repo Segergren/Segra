@@ -44,116 +44,113 @@ export default function AdvancedSection({
 
   return (
     <>
-      <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-        <h2 className="text-xl font-semibold mb-4">Advanced Settings</h2>
-        <div className="bg-base-200 p-4 rounded-lg space-y-4 border border-custom">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <div className="mb-1">
-                  <span className="text-base-content">Update Channel</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-40">
-                    <DropdownSelect
-                      size="sm"
-                      items={[
-                        { value: 'stable', label: 'Stable' },
-                        { value: 'beta', label: 'Beta' },
-                      ]}
-                      value={settings.receiveBetaUpdates ? 'beta' : 'stable'}
-                      onChange={(val) => updateSettings({ receiveBetaUpdates: val === 'beta' })}
-                    />
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => checkForUpdates()}
-                    loading={appState.isCheckingForUpdates}
-                  >
-                    {!appState.isCheckingForUpdates && <RefreshCw size={16} className="shrink-0" />}
-                    <span className="inline-block">Check for Updates</span>
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <Button
-                variant="primary"
-                size="sm"
-                className="w-40"
-                onClick={() => openReleaseNotesModal(null)}
-              >
-                <GithubIcon size={16} aria-hidden="true" />
-                <span className="inline-block">View Release Notes</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* OBS Version Selection */}
+      <div className="bg-base-300 p-4 rounded-lg space-y-4 border border-custom">
+        <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
               <div className="mb-1">
-                <span className="text-base-content">OBS Version</span>
+                <span className="text-base-content">Update Channel</span>
               </div>
-              <div className="w-40">
-                <DropdownSelect
+              <div className="flex items-center gap-3">
+                <div className="w-40">
+                  <DropdownSelect
+                    size="sm"
+                    items={[
+                      { value: 'stable', label: 'Stable' },
+                      { value: 'beta', label: 'Beta' },
+                    ]}
+                    value={settings.receiveBetaUpdates ? 'beta' : 'stable'}
+                    onChange={(val) => updateSettings({ receiveBetaUpdates: val === 'beta' })}
+                  />
+                </div>
+                <Button
+                  variant="primary"
                   size="sm"
-                  items={[
-                    { value: '', label: 'Automatic' },
-                    ...[...appState.availableOBSVersions]
-                      .sort((a, b) => {
-                        return b.version.localeCompare(a.version, undefined, { numeric: true });
-                      })
-                      .map((v) => ({
-                        value: v.version,
-                        label: `${v.version}${v.isBeta ? ' (Beta)' : ''}`,
-                      })),
-                  ]}
-                  value={settings.selectedOBSVersion || ''}
-                  onChange={(val) => updateSettings({ selectedOBSVersion: val || null })}
-                />
+                  className="gap-2 bg-base-200 hover:bg-base-300"
+                  onClick={() => checkForUpdates()}
+                  loading={appState.isCheckingForUpdates}
+                >
+                  {!appState.isCheckingForUpdates && <RefreshCw size={16} className="shrink-0" />}
+                  <span className="inline-block">Check for Updates</span>
+                </Button>
               </div>
             </div>
           </div>
-
-          {/* Airplane Mode */}
-          <div ref={rowRef} className="pt-4 border-t border-custom">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                name="airplaneMode"
-                checked={settings.airplaneMode}
-                onChange={(e) => updateSettings({ airplaneMode: e.target.checked })}
-                className="toggle toggle-primary toggle-sm"
-              />
-              <span ref={contentRef} className="inline-flex items-center gap-1.5 cursor-pointer">
-                Airplane Mode
-                <AnimatePresence initial={false}>
-                  {settings.airplaneMode && (
-                    <motion.span
-                      className="inline-flex"
-                      initial={{ opacity: 0, x: -8, rotate: 45 }}
-                      animate={{ opacity: 1, x: 0, rotate: 45 }}
-                      exit={{
-                        opacity: 0,
-                        x: flyDistance,
-                        rotate: 45,
-                        transition: {
-                          x: { duration: 1.9, ease: [0.2, 0, 0.8, 0] },
-                          opacity: { duration: 0.9, ease: 'easeIn', delay: 1.0 },
-                        },
-                      }}
-                      transition={{ duration: 0.35, ease: 'easeOut' }}
-                    >
-                      <Plane size={16} />
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </span>
-            </label>
+          <div className="flex items-center">
+            <Button
+              variant="primary"
+              size="sm"
+              className="w-40 bg-base-200 hover:bg-base-300"
+              onClick={() => openReleaseNotesModal(null)}
+            >
+              <GithubIcon size={16} aria-hidden="true" />
+              <span className="inline-block">View Release Notes</span>
+            </Button>
           </div>
+        </div>
+
+        {/* OBS Version Selection */}
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col">
+            <div className="mb-1">
+              <span className="text-base-content">OBS Version</span>
+            </div>
+            <div className="w-40">
+              <DropdownSelect
+                size="sm"
+                items={[
+                  { value: '', label: 'Automatic' },
+                  ...[...appState.availableOBSVersions]
+                    .sort((a, b) => {
+                      return b.version.localeCompare(a.version, undefined, { numeric: true });
+                    })
+                    .map((v) => ({
+                      value: v.version,
+                      label: `${v.version}${v.isBeta ? ' (Beta)' : ''}`,
+                    })),
+                ]}
+                value={settings.selectedOBSVersion || ''}
+                onChange={(val) => updateSettings({ selectedOBSVersion: val || null })}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Airplane Mode */}
+        <div ref={rowRef} className="pt-4 border-t border-custom">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="airplaneMode"
+              checked={settings.airplaneMode}
+              onChange={(e) => updateSettings({ airplaneMode: e.target.checked })}
+              className="toggle toggle-primary toggle-sm"
+            />
+            <span ref={contentRef} className="inline-flex items-center gap-1.5 cursor-pointer">
+              Airplane Mode
+              <AnimatePresence initial={false}>
+                {settings.airplaneMode && (
+                  <motion.span
+                    className="inline-flex"
+                    initial={{ opacity: 0, x: -8, rotate: 45 }}
+                    animate={{ opacity: 1, x: 0, rotate: 45 }}
+                    exit={{
+                      opacity: 0,
+                      x: flyDistance,
+                      rotate: 45,
+                      transition: {
+                        x: { duration: 1.9, ease: [0.2, 0, 0.8, 0] },
+                        opacity: { duration: 0.9, ease: 'easeIn', delay: 1.0 },
+                      },
+                    }}
+                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                  >
+                    <Plane size={16} />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </span>
+          </label>
         </div>
       </div>
 

@@ -149,11 +149,6 @@ export default function VideoSettingsSection({
                   disabled={isRecording}
                   className={`input input-bordered bg-base-200 disabled:bg-base-200 disabled:input-bordered disabled:opacity-80 w-full outline-none focus:border-base-400`}
                 />
-                <div className="help-text-container">
-                  <span className="text-xs text-base-content/60 mt-1">
-                    How many seconds of gameplay to keep in memory
-                  </span>
-                </div>
               </div>
 
               {/* Buffer Max Size */}
@@ -208,7 +203,7 @@ export default function VideoSettingsSection({
             }}
             style={{ overflow: 'visible' }}
           >
-            <div className="grid grid-cols-2 gap-4 pb-1">
+            <div className="grid grid-cols-2 gap-4 pb-1 mt-4">
               {/* Resolution */}
               <div className="form-control">
                 <label className="label">
@@ -270,7 +265,7 @@ export default function VideoSettingsSection({
               {settings.rateControl === 'CBR' && (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">Bitrate (Mbps)</span>
+                    <span className="label-text text-base-content">Bitrate</span>
                   </label>
                   <DropdownSelect
                     items={Array.from({ length: 19 }, (_, i) => (i + 2) * 5).map((v) => ({
@@ -288,7 +283,7 @@ export default function VideoSettingsSection({
                 <>
                   <div className="form-control">
                     <label className="label">
-                      <span className="label-text text-base-content">Minimum Bitrate (Mbps)</span>
+                      <span className="label-text text-base-content">Minimum Bitrate</span>
                     </label>
                     <DropdownSelect
                       items={Array.from({ length: 19 }, (_, i) => (i + 2) * 5).map((v) => ({
@@ -305,7 +300,7 @@ export default function VideoSettingsSection({
                   </div>
                   <div className="form-control">
                     <label className="label">
-                      <span className="label-text text-base-content">Maximum Bitrate (Mbps)</span>
+                      <span className="label-text text-base-content">Maximum Bitrate</span>
                     </label>
                     <DropdownSelect
                       items={Array.from({ length: 19 }, (_, i) => (i + 2) * 5).map((v) => ({

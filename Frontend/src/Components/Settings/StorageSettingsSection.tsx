@@ -137,7 +137,6 @@ export default function StorageSettingsSection({
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-      <h2 className="text-xl font-semibold mb-4">Storage Settings</h2>
       <div className="grid grid-cols-2 gap-4">
         {/* Recording Path */}
         <div className="form-control">
