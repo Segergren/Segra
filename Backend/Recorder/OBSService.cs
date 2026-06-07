@@ -757,13 +757,15 @@ namespace Segra.Backend.Recorder
                     throw new Exception("Unsupported Rate Control method.");
             }
 
-            // Disable HEVC b-frames on older NVIDIA GPUs (requires compute capability >= 7.0)
-            if (encoderId.Equals("jim_hevc_nvenc", StringComparison.OrdinalIgnoreCase) &&
-                AppState.Instance.CudaComputeCapability != null &&
-                AppState.Instance.CudaComputeCapability < 7.0)
+            // Automatically disable NVENC b-frames on NVIDIA hardware that doesn't support them
+            // (e.g. the GTX 1650, which reports a Turing-class compute capability but ships a
+            // Volta-generation NVENC). Leaving b-frames enabled there fails with
+            // "B-frames not supported on the current HW".
+            if (encoderId.Contains("nvenc", StringComparison.OrdinalIgnoreCase) &&
+                !NvencSupportsBFrames(AppState.Instance.CudaComputeCapability, GpuName))
             {
                 videoEncoderSettings.Set("bf", 0);
-                Log.Information("NVENC b-frames disabled (CUDA compute capability < 7.0)");
+                Log.Information($"NVENC b-frames disabled (unsupported on '{GpuName ?? "unknown GPU"}', compute capability {AppState.Instance.CudaComputeCapability?.ToString() ?? "unknown"})");
             }
 
             try

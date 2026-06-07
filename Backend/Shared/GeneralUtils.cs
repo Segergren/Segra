@@ -37,6 +37,50 @@ namespace Segra.Backend.Shared
         // Cache the detected GPU vendor to avoid repeated WMI queries
         private static GpuVendor? _cachedGpuVendor = null;
 
+        // Name of the primary detected GPU (e.g. "NVIDIA GeForce GTX 1650"), cached alongside the vendor.
+        private static string? _cachedGpuName = null;
+
+        /// <summary>
+        /// The marketing name of the primary detected GPU, or null if detection has not run / failed.
+        /// Populated as a side effect of <see cref="DetectGpuVendor"/>.
+        /// </summary>
+        public static string? GpuName => _cachedGpuName;
+
+        // Marketing-name fragments for NVIDIA GPUs whose NVENC lacks B-frame support even though
+        // they report a Turing-class CUDA compute capability (7.5). The GTX 1650 (TU117) and the
+        // GTX 1630 ship a Volta-generation NVENC without B-frame support, which produces
+        // "B-frames not supported on the current HW" errors. The GTX 1650 SUPER is a different
+        // chip (TU116) that does support B-frames and is excluded below.
+        private static readonly string[] NvencNoBFrameGpuNames =
+        {
+            "gtx 1650",
+            "gtx 1630"
+        };
+
+        /// <summary>
+        /// Determines whether the active NVIDIA GPU's NVENC encoder supports B-frames.
+        /// B-frame support (H.264 and HEVC) requires Turing or newer, except the TU117 chip
+        /// (e.g. GTX 1650) which reports compute capability 7.5 yet cannot encode B-frames.
+        /// Returns true when support cannot be ruled out, so other vendors are unaffected.
+        /// </summary>
+        public static bool NvencSupportsBFrames(double? computeCapability, string? gpuName)
+        {
+            // Pre-Turing NVENC (Maxwell/Pascal/Volta, compute capability < 7.5) has no B-frame support.
+            if (computeCapability != null && computeCapability < 7.5)
+                return false;
+
+            if (!string.IsNullOrEmpty(gpuName))
+            {
+                string name = gpuName.ToLowerInvariant();
+                // The GTX 1650 SUPER is a TU116 chip that does support B-frames.
+                bool isSuper = name.Contains("super");
+                if (!isSuper && NvencNoBFrameGpuNames.Any(n => name.Contains(n)))
+                    return false;
+            }
+
+            return true;
+        }
+
         // CUDA Driver API delegates
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate int CuInit(uint flags);
@@ -177,6 +221,7 @@ namespace Segra.Backend.Shared
                     {
                         Log.Information($"Detected NVIDIA GPU: {name}");
                         _cachedGpuVendor = GpuVendor.Nvidia;
+                        _cachedGpuName = name;
                         return GpuVendor.Nvidia;
                     }
                     else if (name.Contains("amd", StringComparison.OrdinalIgnoreCase) || name.Contains("radeon", StringComparison.OrdinalIgnoreCase) || name.Contains("ati", StringComparison.OrdinalIgnoreCase))
@@ -240,6 +285,7 @@ namespace Segra.Backend.Shared
                         {
                             Log.Information($"Detected NVIDIA GPU: {gpu["Name"]}");
                             _cachedGpuVendor = GpuVendor.Nvidia;
+                            _cachedGpuName = gpu["Name"]?.ToString();
                             return GpuVendor.Nvidia;
                         }
                         else if (name.Contains("amd") || name.Contains("radeon") || name.Contains("ati"))
@@ -277,6 +323,7 @@ namespace Segra.Backend.Shared
                         {
                             Log.Information($"Detected NVIDIA GPU: {gpu["Name"]}");
                             _cachedGpuVendor = GpuVendor.Nvidia;
+                            _cachedGpuName = gpu["Name"]?.ToString();
                             return GpuVendor.Nvidia;
                         }
                         else if (name.Contains("amd") || name.Contains("radeon") || name.Contains("ati"))
