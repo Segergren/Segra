@@ -10,6 +10,7 @@ import { useClipping } from './Context/ClippingContext';
 import { useUpdate } from './Context/UpdateContext';
 import { useObsDownload } from './Context/ObsDownloadContext';
 import { useAiHighlights } from './Context/AiHighlightsContext';
+import { useAiLowlights } from './Context/AiLowlightsContext';
 import UploadCard from './Components/UploadCard';
 import ImportCard from './Components/ImportCard';
 import ContentMigrationCard from './Components/ContentMigrationCard';
@@ -25,6 +26,7 @@ import {
   Crown,
   Monitor,
   Play,
+  Skull,
   LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -42,6 +44,7 @@ const MENU_ICONS: Record<MenuItemId, LucideIcon> = {
   'Replay Buffer': History,
   Clips: Clapperboard,
   Highlights: Crown,
+  Lowlights: Skull,
   Settings: Settings,
 };
 
@@ -51,6 +54,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { hasLoadedObs, recording, preRecording } = appState;
   const { updateInfo } = useUpdate();
   const { aiProgress } = useAiHighlights();
+  const { aiProgress: aiLowlightProgress } = useAiLowlights();
   const { obsDownloadProgress } = useObsDownload();
   const { migrations: contentMigrations, isMigrating } = useContentMigration();
   const [buttonCooldown, setButtonCooldown] = useState(false);
@@ -65,9 +69,11 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
     // Force-show items that contain content so the user always has a way to reach their files.
     return items.filter(
       (item) =>
-        item.id === 'Settings' || item.visible || menuItemHasContent(item.id, appState.content),
+        item.id === 'Settings' ||
+        (item.id === 'Lowlights' ? settings.enableLowlights : item.visible) ||
+        menuItemHasContent(item.id, appState.content),
     );
-  }, [settings.menuItems, appState.content]);
+  }, [settings.menuItems, appState.content, settings.enableLowlights]);
 
   const computeIndicatorPosition = () => {
     if (!visibleMenuItems.some((item) => item.id === selectedMenu)) return;
@@ -100,6 +106,15 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const hasActiveAiHighlights = aiProgressValues.length > 0;
   const averageAiProgress = hasActiveAiHighlights
     ? Math.round(aiProgressValues.reduce((sum, p) => sum + p.progress, 0) / aiProgressValues.length)
+    : 0;
+
+  const aiLowlightProgressValues = Object.values(aiLowlightProgress);
+  const hasActiveAiLowlights = aiLowlightProgressValues.length > 0;
+  const averageAiLowlightProgress = hasActiveAiLowlights
+    ? Math.round(
+        aiLowlightProgressValues.reduce((sum, p) => sum + p.progress, 0) /
+          aiLowlightProgressValues.length,
+      )
     : 0;
 
   const hasUnavailableDevices = () => {
@@ -163,6 +178,37 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
                         >
                           <CircularProgress
                             progress={averageAiProgress}
+                            size={24}
+                            strokeWidth={2}
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </Button>
+              ) : id === 'Lowlights' ? (
+                <Button
+                  variant="nav"
+                  className={`justify-between ${isActive ? 'text-primary' : ''}`}
+                  disabled={isDisabled}
+                  onMouseDown={() => onSelectMenu(id)}
+                >
+                  <span className="flex items-center gap-2">
+                    <Icon className="w-5 h-5" />
+                    {id}
+                  </span>
+                  <div className="ml-auto flex items-center">
+                    <AnimatePresence>
+                      {hasActiveAiLowlights && !isActive && (
+                        <motion.div
+                          className="flex items-center justify-center"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <CircularProgress
+                            progress={averageAiLowlightProgress}
                             size={24}
                             strokeWidth={2}
                           />

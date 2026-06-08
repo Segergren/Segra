@@ -4,6 +4,7 @@ type ScrollPositions = {
   sessions: number;
   clips: number;
   highlights: number;
+  lowlights: number;
   replayBuffer: number;
 };
 
@@ -19,6 +20,7 @@ export function ScrollProvider({ children }: { children: React.ReactNode }) {
     sessions: 0,
     clips: 0,
     highlights: 0,
+    lowlights: 0,
     replayBuffer: 0,
   });
 

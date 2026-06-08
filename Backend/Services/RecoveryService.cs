@@ -185,6 +185,7 @@ namespace Segra.Backend.Services
                         Content.ContentType.Session => "Session Recording",
                         Content.ContentType.Clip => "Clip",
                         Content.ContentType.Highlight => "Highlight",
+                        Content.ContentType.Lowlight => "Lowlight",
                         Content.ContentType.Buffer => "Replay Buffer",
                         _ => orphanedFile.Type.ToString()
                     };
@@ -299,6 +300,7 @@ namespace Segra.Backend.Services
                 Content.ContentType.Session,
                 Content.ContentType.Clip,
                 Content.ContentType.Highlight,
+                Content.ContentType.Lowlight,
                 Content.ContentType.Buffer
             };
 

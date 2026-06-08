@@ -295,11 +295,13 @@ export default function ContentPage({
         ? scrollPositions.clips
         : sectionId === 'highlights'
           ? scrollPositions.highlights
-          : sectionId === 'replayBuffer'
-            ? scrollPositions.replayBuffer
-            : sectionId === 'sessions'
-              ? scrollPositions.sessions
-              : 0;
+          : sectionId === 'lowlights'
+            ? scrollPositions.lowlights
+            : sectionId === 'replayBuffer'
+              ? scrollPositions.replayBuffer
+              : sectionId === 'sessions'
+                ? scrollPositions.sessions
+                : 0;
 
     if (containerRef.current && position > 0) {
       isSettingScroll.current = true;
@@ -327,11 +329,13 @@ export default function ContentPage({
             ? 'clips'
             : sectionId === 'highlights'
               ? 'highlights'
-              : sectionId === 'replayBuffer'
-                ? 'replayBuffer'
-                : sectionId === 'sessions'
-                  ? 'sessions'
-                  : null;
+              : sectionId === 'lowlights'
+                ? 'lowlights'
+                : sectionId === 'replayBuffer'
+                  ? 'replayBuffer'
+                  : sectionId === 'sessions'
+                    ? 'sessions'
+                    : null;
 
         if (pageKey) {
           setScrollPosition(pageKey, currentPos);

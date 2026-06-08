@@ -22,7 +22,7 @@ namespace Segra.Backend.Core.Models
         [IncludeInHighlight] Kill,
         [IncludeInHighlight] Goal,
         Assist,
-        Death
+        [IncludeInLowlight] Death
     }
 
     /// <summary>
@@ -30,6 +30,12 @@ namespace Segra.Backend.Core.Models
     /// </summary>
     [AttributeUsage(AttributeTargets.Field)]
     public class IncludeInHighlightAttribute : Attribute { }
+
+    /// <summary>
+    /// Marks a BookmarkType as one that should be included in auto-generated lowlights.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Field)]
+    public class IncludeInLowlightAttribute : Attribute { }
 
     public static class BookmarkTypeExtensions
     {
@@ -39,6 +45,13 @@ namespace Segra.Backend.Core.Models
         public static bool IncludeInHighlight(this BookmarkType type) =>
             typeof(BookmarkType).GetField(type.ToString())!
                 .GetCustomAttributes(typeof(IncludeInHighlightAttribute), false).Length > 0;
+
+        /// <summary>
+        /// Returns true if this bookmark type should be included in auto-generated lowlights.
+        /// </summary>
+        public static bool IncludeInLowlight(this BookmarkType type) =>
+            typeof(BookmarkType).GetField(type.ToString())!
+                .GetCustomAttributes(typeof(IncludeInLowlightAttribute), false).Length > 0;
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
