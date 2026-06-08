@@ -9,15 +9,20 @@
     <DefineConstants>TRACE;WINDOWS</DefineConstants>
     <UseWindowsForms>true</UseWindowsForms>
 
-    <!-- Needed to prevent duplicate attributes -->
+    <!-- TargetFramework/Company/Configuration/Product/Title attributes stay suppressed to
+         avoid duplicate-attribute build errors. The version attributes are emitted so the
+         compiled Segra.exe carries a real File/Product version (from -p:Version at build
+         time) instead of 0.0.0.0. -->
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
-    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
-    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    <GenerateAssemblyFileVersionAttribute>true</GenerateAssemblyFileVersionAttribute>
+    <GenerateAssemblyInformationalVersionAttribute>true</GenerateAssemblyInformationalVersionAttribute>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
-    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+    <GenerateAssemblyVersionAttribute>true</GenerateAssemblyVersionAttribute>
+    <!-- Keep the product/informational version clean (no +<commit> suffix). -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
     <!-- Generate embedded file manifest when using the Photino.NET StaticFileServer -->
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
@@ -31,6 +36,11 @@
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <!-- Exclude leftover build output from the removed Inspector sub-project. Its generated
+         AssemblyInfo.cs sits under this project folder and would otherwise be globbed into
+         this compilation, leaking a duplicate AssemblyVersion (and masking the real version). -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Inspector\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
