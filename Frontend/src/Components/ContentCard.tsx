@@ -410,7 +410,7 @@ export default function ContentCard({
               tabIndex={0}
               className="dropdown-content menu bg-base-300 border border-base-400 rounded-box z-999 w-52 p-2"
             >
-              {!airplaneMode && (type === 'Clip' || type === 'Highlight') && (
+              {!airplaneMode && (type === 'Clip' || type === 'Highlight' || type === 'Lowlight') && (
                 <li>
                   <Button
                     variant="menuPrimary"
@@ -424,7 +424,7 @@ export default function ContentCard({
                   </Button>
                 </li>
               )}
-              {(type === 'Clip' || type === 'Highlight' || type === 'Buffer') && (
+              {(type === 'Clip' || type === 'Highlight' || type === 'Buffer' || type === 'Lowlight') && (
                 <li>
                   <Button
                     variant="menu"
