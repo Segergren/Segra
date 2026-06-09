@@ -538,7 +538,7 @@ export default function ContentCard({
                   <span>Open File Location</span>
                 </Button>
               </li>
-              {(type === 'Clip' || type === 'Highlight') &&
+              {(type === 'Clip' || type === 'Highlight' || type === 'Lowlight') &&
                 !content?.fileName?.endsWith('_compressed') && (
                   <li>
                     <Button
