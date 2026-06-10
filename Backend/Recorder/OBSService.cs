@@ -592,28 +592,35 @@ namespace Segra.Backend.Recorder
             _hdrEncoderId = null;
             try
             {
-                // Base HDR on the monitor whose content we actually capture: for a game, the monitor
-                // the game window is on (so a game on an SDR monitor is never forced to PQ); for a
-                // manual recording, the selected display.
-                string? hdrTargetDeviceId = startManually
-                    ? GetCaptureTargetDeviceId()
-                    : ResolveGameHdrTargetDeviceId();
-
-                if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
+                if (!Settings.Instance.EnableHdr)
                 {
-                    string userEncoderId = Settings.Instance.Codec?.InternalEncoderId ?? string.Empty;
-                    string? hdrEncoderId = ResolveHdrEncoder(userEncoderId, AppState.Instance.Codecs);
-                    if (hdrEncoderId != null)
+                    Log.Information("HDR recording is disabled in settings; recording in SDR.");
+                }
+                else
+                {
+                    // Base HDR on the monitor whose content we actually capture: for a game, the monitor
+                    // the game window is on (so a game on an SDR monitor is never forced to PQ); for a
+                    // manual recording, the selected display.
+                    string? hdrTargetDeviceId = startManually
+                        ? GetCaptureTargetDeviceId()
+                        : ResolveGameHdrTargetDeviceId();
+
+                    if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
                     {
-                        _isHdrRecording = true;
-                        _hdrEncoderId = hdrEncoderId;
-                        if (!string.Equals(hdrEncoderId, userEncoderId, StringComparison.OrdinalIgnoreCase))
-                            Log.Information($"HDR display detected; using HDR-capable encoder '{hdrEncoderId}' instead of '{userEncoderId}'");
-                        Log.Information("Recording in HDR (Rec.2100 PQ, 10-bit P010)");
-                    }
-                    else
-                    {
-                        Log.Warning("HDR display detected but no HDR-capable (HEVC/AV1) encoder is available; recording in SDR.");
+                        string userEncoderId = Settings.Instance.Codec?.InternalEncoderId ?? string.Empty;
+                        string? hdrEncoderId = ResolveHdrEncoder(userEncoderId, AppState.Instance.Codecs);
+                        if (hdrEncoderId != null)
+                        {
+                            _isHdrRecording = true;
+                            _hdrEncoderId = hdrEncoderId;
+                            if (!string.Equals(hdrEncoderId, userEncoderId, StringComparison.OrdinalIgnoreCase))
+                                Log.Information($"HDR display detected; using HDR-capable encoder '{hdrEncoderId}' instead of '{userEncoderId}'");
+                            Log.Information("Recording in HDR (Rec.2100 PQ, 10-bit P010)");
+                        }
+                        else
+                        {
+                            Log.Warning("HDR display detected but no HDR-capable (HEVC/AV1) encoder is available; recording in SDR.");
+                        }
                     }
                 }
             }

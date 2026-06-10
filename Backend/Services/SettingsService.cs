@@ -506,6 +506,14 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update EnableHdr
+            if (settings.EnableHdr != updatedSettings.EnableHdr)
+            {
+                Log.Information($"EnableHdr changed from '{settings.EnableHdr}' to '{updatedSettings.EnableHdr}'");
+                settings.EnableHdr = updatedSettings.EnableHdr;
+                hasChanges = true;
+            }
+
             // Update Bitrate
             if (settings.Bitrate != updatedSettings.Bitrate)
             {
