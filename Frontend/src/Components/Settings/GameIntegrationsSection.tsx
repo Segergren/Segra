@@ -44,6 +44,13 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     backgroundImage: 'https://segra.tv/api/games/cover/ar5u6d',
   },
   {
+    id: 'gta',
+    name: 'Grand Theft Auto',
+    settingsKey: 'gta',
+    bookmarks: ['Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/ar4pi5',
+  },
+  {
     id: 'minecraft',
     name: 'Minecraft',
     settingsKey: 'minecraft',

@@ -1277,5 +1277,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("warThunder")]
         public GameIntegrationSettings WarThunder { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("gta")]
+        public GameIntegrationSettings Gta { get; set; } = new GameIntegrationSettings(true);
     }
 }

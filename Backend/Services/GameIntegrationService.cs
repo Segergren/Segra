@@ -2,6 +2,7 @@ using Segra.Backend.Core.Models;
 using Segra.Backend.Games;
 using Segra.Backend.Games.CounterStrike2;
 using Segra.Backend.Games.Dota2;
+using Segra.Backend.Games.GrandTheftAuto;
 using Segra.Backend.Games.LeagueOfLegends;
 using Segra.Backend.Games.Minecraft;
 using Segra.Backend.Games.Pubg;
@@ -24,6 +25,7 @@ namespace Segra.Backend.Services
         private const int MINECRAFT_IGDB_ID = 135400;
         private const int RUNESCAPE_DRAGONWILDS_IGDB_ID = 337712;
         private const int WAR_THUNDER_IGDB_ID = 2165;
+        private const int GTA_V_IGDB_ID = 1020;
 
         private static Integration? _gameIntegration;
 
@@ -55,6 +57,8 @@ namespace Segra.Backend.Services
                 _gameIntegration = new RunescapeDragonwildsIntegration();
             else if ((igdbId == WAR_THUNDER_IGDB_ID || gameName?.Equals("War Thunder", StringComparison.OrdinalIgnoreCase) == true) && integrations.WarThunder.Enabled)
                 _gameIntegration = new WarThunderIntegration();
+            else if ((igdbId == GTA_V_IGDB_ID || gameName?.Contains("Grand Theft Auto", StringComparison.OrdinalIgnoreCase) == true) && integrations.Gta.Enabled)
+                _gameIntegration = new GtaIntegration();
 
             if (_gameIntegration == null)
                 return;

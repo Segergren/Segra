@@ -152,6 +152,7 @@ export interface GameIntegrations {
   minecraft: GameIntegrationSettings;
   runescapeDragonwilds: GameIntegrationSettings;
   warThunder: GameIntegrationSettings;
+  gta: GameIntegrationSettings;
 }
 
 export type ClipEncoder = 'gpu' | 'cpu';
@@ -373,6 +374,7 @@ export const initialSettings: Settings = {
     minecraft: { enabled: true },
     runescapeDragonwilds: { enabled: true },
     warThunder: { enabled: true },
+    gta: { enabled: true },
   },
 };
 
