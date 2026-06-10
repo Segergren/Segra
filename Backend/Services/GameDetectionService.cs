@@ -183,6 +183,11 @@ namespace Segra.Backend.Services
             string? coverImageId = GameUtils.GetCoverImageIdFromExePath(exePath);
 
             AppState.Instance.PreRecording = new PreRecording { Game = gameName, Status = "Waiting to start", CoverImageId = coverImageId, Pid = pid, Exe = exePath };
+
+            // Warn if the game runs elevated (e.g. BattlEye-protected GTA V Enhanced Online), which
+            // blocks Segra's non-elevated low-level keyboard hook from capturing hotkeys for it.
+            _ = Segra.Backend.Windows.Input.HotkeyElevationService.WarnIfHotkeysBlockedAsync(pid, gameName);
+
             OBSService.StartRecording(gameName, exePath, pid: pid);
         }
 
