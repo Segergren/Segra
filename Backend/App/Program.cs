@@ -8,6 +8,7 @@ using Segra.Backend.Shared;
 using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Power;
 using Segra.Backend.Windows.Storage;
+using Segra.Backend.Windows.WebView2;
 using Serilog;
 using System.Diagnostics;
 using System.IO.Pipes;
@@ -150,6 +151,8 @@ namespace Segra.Backend.App
             try
             {
                 Log.Information("Application starting up...");
+
+                WebView2RuntimeService.LogRuntimeVersion();
 
                 // VS Code sets SEGRA_VSCODE=1 via launch.json; Visual Studio does not.
                 // In VS Code the Vite dev server runs separately, so PhotinoServer is not needed

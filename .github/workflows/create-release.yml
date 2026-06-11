@@ -109,7 +109,7 @@ jobs:
 
       - name: Install vpk as .NET Global Tool
         run: |
-          dotnet tool install -g vpk --version 1.1.1
+          dotnet tool install -g vpk --version 1.2.0
           $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
         shell: pwsh
 
@@ -157,7 +157,7 @@ jobs:
           output-artifact-directory: ./publish
 
       - name: Package with vpk for Final Release
-        run: vpk pack -u Segra -v ${{ steps.extract_final_version.outputs.final_version_number }} -p ./publish -e Segra.exe -o ./output --packTitle "Segra" --noPortable -i ./Resources/icon.ico -s ./Resources/splash.png --splashProgressColor "#fecb00"
+        run: vpk pack -u Segra -v ${{ steps.extract_final_version.outputs.final_version_number }} -p ./publish -e Segra.exe -o ./output --packTitle "Segra" --noPortable -i ./Resources/icon.ico -s ./Resources/splash.png --splashProgressColor "#fecb00" --framework webview2
         shell: pwsh
 
       - name: Upload Velopack output for signing (Pass 2)
