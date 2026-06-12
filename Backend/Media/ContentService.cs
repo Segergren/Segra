@@ -678,7 +678,6 @@ namespace Segra.Backend.Media
             {
                 Log.Information($"Handling RenameContent with message: {message}");
 
-                // Extract FileName, ContentType, and NewName from the message
                 if (message.TryGetProperty("FileName", out JsonElement fileNameElement) &&
                     message.TryGetProperty("ContentType", out JsonElement contentTypeElement) &&
                     message.TryGetProperty("Title", out JsonElement titleElement))
@@ -687,7 +686,6 @@ namespace Segra.Backend.Media
                     string contentTypeStr = contentTypeElement.GetString()!;
                     string newTitle = titleElement.GetString()!;
 
-                    // Parse the content type
                     if (!Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
                     {
                         Log.Error($"Invalid ContentType provided: {contentTypeStr}");
@@ -697,22 +695,91 @@ namespace Segra.Backend.Media
                     string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
                     string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{fileName}.json");
 
-                    var content = await UpdateMetadataFile(metadataFilePath, c =>
+                    if (!File.Exists(metadataFilePath))
                     {
-                        c.Title = newTitle;
-                    });
-
-                    if (content == null)
-                    {
+                        Log.Error($"Metadata file not found: {metadataFilePath}");
                         return;
                     }
 
-                    Log.Information($"Updated title for {fileName} to '{newTitle}' in metadata file: {metadataFilePath}");
+                    string metadataJson = await File.ReadAllTextAsync(metadataFilePath);
+                    var currentContent = JsonSerializer.Deserialize<Content>(metadataJson);
+                    if (currentContent == null)
+                    {
+                        Log.Error($"Failed to deserialize metadata: {metadataFilePath}");
+                        return;
+                    }
 
-                    // Reload content from disk to update in-memory state
+                    string newFileName = fileName;
+                    string newFilePath = currentContent.FilePath;
+
+                    string targetFileName = string.IsNullOrWhiteSpace(newTitle)
+                        ? (currentContent.CreatedAt.AddTicks(-(currentContent.CreatedAt.Ticks % TimeSpan.TicksPerSecond)) - currentContent.Duration).ToString("yyyy-MM-dd_HH-mm-ss")
+                        : SanitizeFileName(newTitle);
+
+                    if (!string.IsNullOrWhiteSpace(targetFileName))
+                    {
+                        string currentFilePath = currentContent.FilePath;
+                        string dir = PathUtils.Normalize(Path.GetDirectoryName(currentFilePath) ?? string.Empty);
+                        string ext = Path.GetExtension(currentFilePath);
+                        string candidatePath = PathUtils.Combine(dir, $"{targetFileName}{ext}");
+
+                        if (!string.Equals(candidatePath, PathUtils.Normalize(currentFilePath), StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (File.Exists(candidatePath))
+                            {
+                                int counter = 1;
+                                do
+                                {
+                                    candidatePath = PathUtils.Combine(dir, $"{targetFileName} ({counter}){ext}");
+                                    counter++;
+                                } while (File.Exists(candidatePath));
+                            }
+
+                            if (File.Exists(currentFilePath))
+                            {
+                                File.Move(currentFilePath, candidatePath);
+                                newFilePath = candidatePath;
+                                newFileName = Path.GetFileNameWithoutExtension(candidatePath);
+                                Log.Information($"Renamed video file to {candidatePath}");
+
+                                string thumbnailsFolderPath = FolderNames.GetThumbnailsFolderPath(contentType);
+                                string oldThumbnailPath = PathUtils.Combine(thumbnailsFolderPath, $"{fileName}.jpeg");
+                                if (File.Exists(oldThumbnailPath))
+                                {
+                                    File.Move(oldThumbnailPath, PathUtils.Combine(thumbnailsFolderPath, $"{newFileName}.jpeg"));
+                                    Log.Information($"Renamed thumbnail for {newFileName}");
+                                }
+
+                                string waveformsFolderPath = FolderNames.GetWaveformsFolderPath(contentType);
+                                string oldWaveformPath = PathUtils.Combine(waveformsFolderPath, $"{fileName}.peaks.json");
+                                if (File.Exists(oldWaveformPath))
+                                {
+                                    File.Move(oldWaveformPath, PathUtils.Combine(waveformsFolderPath, $"{newFileName}.peaks.json"));
+                                    Log.Information($"Renamed waveform for {newFileName}");
+                                }
+                            }
+                        }
+                    }
+
+                    currentContent.Title = newTitle;
+                    currentContent.FileName = newFileName;
+                    currentContent.FilePath = newFilePath;
+                    string updatedJson = JsonSerializer.Serialize(currentContent, _jsonOptions);
+
+                    if (newFileName != fileName)
+                    {
+                        File.Delete(metadataFilePath);
+                        string newMetadataFilePath = PathUtils.Combine(metadataFolderPath, $"{newFileName}.json");
+                        await File.WriteAllTextAsync(newMetadataFilePath, updatedJson);
+                        Log.Information($"Renamed metadata file to {newMetadataFilePath}");
+                    }
+                    else
+                    {
+                        await File.WriteAllTextAsync(metadataFilePath, updatedJson);
+                    }
+
+                    Log.Information($"Updated title for {fileName} to '{newTitle}'");
                     await SettingsService.LoadContentFromFolderIntoState(true);
-
-                    // Refresh the content in the frontend
                     await MessageService.SendStateToFrontend("Renamed content");
                 }
                 else
@@ -724,6 +791,18 @@ namespace Segra.Backend.Media
             {
                 Log.Error($"Error handling RenameContent: {ex.Message}");
             }
+        }
+
+        private static string SanitizeFileName(string title)
+        {
+            var invalidChars = new HashSet<char>(Path.GetInvalidFileNameChars());
+            var sb = new System.Text.StringBuilder();
+            foreach (char c in title)
+            {
+                if (!invalidChars.Contains(c))
+                    sb.Append(c);
+            }
+            return sb.ToString().Trim();
         }
     }
 }

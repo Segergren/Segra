@@ -146,7 +146,8 @@ internal static class MigrationService
             new("0006_organize_files_by_game", Apply_0006_OrganizeFilesByGame),
             new("0007_rename_video_folders", Apply_0007_RenameVideoFolders),
             new("0008_move_metadata_to_appdata", Apply_0008_MoveMetadataToAppData),
-            new("0009_rename_clip_clear_selections_setting", Apply_0009_RenameClipClearSelectionsSetting)
+            new("0009_rename_clip_clear_selections_setting", Apply_0009_RenameClipClearSelectionsSetting),
+            new("0010_rename_titled_content_files", Apply_0010_RenameTitledContentFiles)
         };
     }
 
@@ -924,5 +925,92 @@ internal static class MigrationService
         {
             Log.Error(ex, "Failed to move metadata to AppData");
         }
+    }
+
+    // Migration 0010: Rename video/thumbnail/waveform/metadata files to match the user-assigned title
+    // Now that renaming a clip also renames its file on disk, retroactively apply that to existing titled content.
+    private static void Apply_0010_RenameTitledContentFiles()
+    {
+        var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+        var invalidChars = new HashSet<char>(Path.GetInvalidFileNameChars());
+
+        string SanitizeFileName(string title)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (char c in title)
+                if (!invalidChars.Contains(c))
+                    sb.Append(c);
+            return sb.ToString().Trim();
+        }
+
+        foreach (Content.ContentType type in Enum.GetValues<Content.ContentType>())
+        {
+            string metadataFolder = FolderNames.GetMetadataFolderPath(type);
+            if (!Directory.Exists(metadataFolder)) continue;
+
+            foreach (var metadataFilePath in Directory.EnumerateFiles(metadataFolder, "*.json").ToList())
+            {
+                try
+                {
+                    string json = File.ReadAllText(metadataFilePath);
+                    var content = JsonSerializer.Deserialize<Content>(json);
+                    if (content == null || string.IsNullOrWhiteSpace(content.Title)) continue;
+
+                    if (content.Game == "Unknown") continue;
+
+                    string sanitized = SanitizeFileName(content.Title);
+                    if (string.IsNullOrWhiteSpace(sanitized)) continue;
+
+                    string currentFilePath = content.FilePath;
+                    if (!File.Exists(currentFilePath)) continue;
+
+                    string dir = PathUtils.Normalize(Path.GetDirectoryName(currentFilePath) ?? string.Empty);
+                    string ext = Path.GetExtension(currentFilePath);
+                    string candidatePath = PathUtils.Combine(dir, $"{sanitized}{ext}");
+
+                    if (string.Equals(candidatePath, PathUtils.Normalize(currentFilePath), StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (File.Exists(candidatePath))
+                    {
+                        int counter = 1;
+                        do
+                        {
+                            candidatePath = PathUtils.Combine(dir, $"{sanitized} ({counter}){ext}");
+                            counter++;
+                        } while (File.Exists(candidatePath));
+                    }
+
+                    string oldFileName = content.FileName;
+
+                    File.Move(currentFilePath, candidatePath);
+                    string newFileName = Path.GetFileNameWithoutExtension(candidatePath);
+                    Log.Information("Migration 0010: renamed video {Old} -> {New}", currentFilePath, candidatePath);
+
+                    string thumbnailsFolder = FolderNames.GetThumbnailsFolderPath(type);
+                    string oldThumbnail = PathUtils.Combine(thumbnailsFolder, $"{oldFileName}.jpeg");
+                    if (File.Exists(oldThumbnail))
+                        File.Move(oldThumbnail, PathUtils.Combine(thumbnailsFolder, $"{newFileName}.jpeg"));
+
+                    string waveformsFolder = FolderNames.GetWaveformsFolderPath(type);
+                    string oldWaveform = PathUtils.Combine(waveformsFolder, $"{oldFileName}.peaks.json");
+                    if (File.Exists(oldWaveform))
+                        File.Move(oldWaveform, PathUtils.Combine(waveformsFolder, $"{newFileName}.peaks.json"));
+
+                    content.FileName = newFileName;
+                    content.FilePath = candidatePath;
+                    string updatedJson = JsonSerializer.Serialize(content, jsonOptions);
+
+                    File.Delete(metadataFilePath);
+                    File.WriteAllText(PathUtils.Combine(metadataFolder, $"{newFileName}.json"), updatedJson);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Migration 0010: failed for {File}", metadataFilePath);
+                }
+            }
+        }
+
+        SettingsService.LoadContentFromFolderIntoState().GetAwaiter().GetResult();
     }
 }
