@@ -224,10 +224,6 @@ namespace Segra.Backend.App
                     _ = SettingsService.LoadContentFromFolderIntoState(true);
                     StartupService.SetStartupStatus(true);
                     AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
-                    if (AppState.Instance.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
-                    {
-                        AppState.Instance.CudaComputeCapability = GeneralUtils.DetectCudaComputeCapability();
-                    }
                     SettingsService.SelectDefaultDevices();
                     _ = PresetsService.ApplyVideoPreset("high");
                     _ = PresetsService.ApplyClipPreset("standard");

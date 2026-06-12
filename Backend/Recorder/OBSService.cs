@@ -362,6 +362,12 @@ namespace Segra.Backend.Recorder
                 return;
             }
 
+            // Probe NVENC capabilities in the background (cached in AppData until the GPU,
+            // driver or OBS bundle changes) so encoder setup can disable unsupported features
+            // like b-frames. The test exe ships with the OBS bundle, so this must run after
+            // CheckIfExistsOrDownloadAsync.
+            NvencCapsService.StartProbe();
+
             if (Obs.IsInitialized)
                 throw new Exception("Error: OBS is already initialized.");
 
@@ -764,14 +770,7 @@ namespace Segra.Backend.Recorder
                     throw new Exception("Unsupported Rate Control method.");
             }
 
-            // Disable HEVC b-frames on older NVIDIA GPUs (requires compute capability >= 7.0)
-            if (encoderId.Equals("jim_hevc_nvenc", StringComparison.OrdinalIgnoreCase) &&
-                AppState.Instance.CudaComputeCapability != null &&
-                AppState.Instance.CudaComputeCapability < 7.0)
-            {
-                videoEncoderSettings.Set("bf", 0);
-                Log.Information("NVENC b-frames disabled (CUDA compute capability < 7.0)");
-            }
+            ApplyNvencBFrameLimit(videoEncoderSettings, encoderId);
 
             try
             {
@@ -792,6 +791,7 @@ namespace Segra.Backend.Recorder
 
                 encoderId = Settings.Instance.Codec!.InternalEncoderId;
                 videoEncoderSettings.Set("profile", "high");
+                ApplyNvencBFrameLimit(videoEncoderSettings, encoderId);
                 _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
             }
 
@@ -1234,6 +1234,24 @@ namespace Segra.Backend.Recorder
 
             bool fallbackHdr = HdrDetectionService.IsDisplayHdrActive(fallbackDeviceId);
             return displays.Any(d => HdrDetectionService.IsDisplayHdrActive(d.DeviceId) != fallbackHdr);
+        }
+
+        /// <summary>
+        /// Clamps b-frames to what the GPU's NVENC block supports for this codec, based on the
+        /// obs-nvenc-test probe result. OBS defaults to 2 b-frames regardless of hardware, and
+        /// support is per codec: the GTX 1650 (TU117) for example handles H.264 b-frames but not
+        /// HEVC b-frames, making every encode fail with "B-frames not supported on the current HW" (#151).
+        /// </summary>
+        private static void ApplyNvencBFrameLimit(ObsKit.NET.Core.Settings videoEncoderSettings, string encoderId)
+        {
+            int? maxBFrames = NvencCapsService.GetMaxBFrames(encoderId);
+            if (maxBFrames == null)
+                return;
+
+            int bf = Math.Min(2, maxBFrames.Value);
+            videoEncoderSettings.Set("bf", bf);
+            if (bf < 2)
+                Log.Information($"NVENC b-frames limited to {bf} ({encoderId} supports max {maxBFrames} on this GPU)");
         }
 
         private static bool IsHevcEncoder(string encoderId) =>

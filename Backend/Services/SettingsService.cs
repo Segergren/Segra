@@ -156,10 +156,6 @@ namespace Segra.Backend.Services
 
                 Settings.Instance.RunOnStartup = StartupService.GetStartupStatus();
                 AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
-                if (AppState.Instance.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
-                {
-                    AppState.Instance.CudaComputeCapability = GeneralUtils.DetectCudaComputeCapability();
-                }
 
                 Log.Information("Settings loaded from {0}", SettingsFilePath);
 

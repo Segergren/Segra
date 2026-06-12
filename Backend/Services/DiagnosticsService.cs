@@ -1,5 +1,6 @@
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
+using Segra.Backend.Recorder;
 using Segra.Backend.Windows.Storage;
 using Serilog;
 using System.Diagnostics;
@@ -384,7 +385,7 @@ namespace Segra.Backend.Services
             Log.Information($"Replay buffer: duration={s.ReplayBufferDuration}s, maxSize={s.ReplayBufferMaxSize}MB");
             Log.Information($"Display capture method: {s.DisplayCaptureMethod}");
             Log.Information($"GPU vendor: {AppState.Instance.GpuVendor}");
-            Log.Information($"CUDA compute capability: {AppState.Instance.CudaComputeCapability?.ToString() ?? "<none>"}");
+            Log.Information($"NVENC capabilities: {NvencCapsService.GetCapsSummaryOrNull() ?? "<none>"}");
             Log.Information($"Available codecs ({AppState.Instance.Codecs.Count}):");
             foreach (var codec in AppState.Instance.Codecs)
             {
