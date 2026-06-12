@@ -13,7 +13,7 @@ export default function LowlightsSection({ settings, updateSettings }: Lowlights
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <h2 className="text-xl font-semibold mb-4">Lowlights</h2>
-      <div className="bg-base-200 px-4 py-3 rounded-lg space-y-3 border border-custom">
+      <div className="space-y-3">
         <div className="flex items-center">
           <label className="flex items-center gap-2">
             <input
