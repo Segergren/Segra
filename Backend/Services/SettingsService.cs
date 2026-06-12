@@ -404,6 +404,12 @@ namespace Segra.Backend.Services
                     current.RocketLeague.Enabled = updated.RocketLeague.Enabled;
                     hasChanges = true;
                 }
+                if (current.Gta.Enabled != updated.Gta.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Gta.Enabled changed from '{current.Gta.Enabled}' to '{updated.Gta.Enabled}'");
+                    current.Gta.Enabled = updated.Gta.Enabled;
+                    hasChanges = true;
+                }
                 if (current.Dota2.Enabled != updated.Dota2.Enabled)
                 {
                     Log.Information($"GameIntegrations.Dota2.Enabled changed from '{current.Dota2.Enabled}' to '{updated.Dota2.Enabled}'");
