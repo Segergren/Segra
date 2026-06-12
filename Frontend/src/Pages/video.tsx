@@ -2177,7 +2177,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   <RotateCw className="w-5 h-5" />
                 </button>
               </div>
-              {(video.type === 'Clip' || video.type === 'Highlight') && (
+              {(video.type === 'Clip' || video.type === 'Highlight' || video.type === 'Lowlight') && (
                 <>
                   {!settings.airplaneMode && (
                     <Button
