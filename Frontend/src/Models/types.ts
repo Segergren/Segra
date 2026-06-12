@@ -121,6 +121,7 @@ export interface Display {
   deviceId: string;
   deviceName: string;
   isPrimary: boolean;
+  isHdr: boolean; // Display is currently in HDR mode (Windows "Use HDR" enabled)
 }
 
 export interface Codec {
@@ -153,6 +154,7 @@ export interface GameIntegrations {
   minecraft: GameIntegrationSettings;
   runescapeDragonwilds: GameIntegrationSettings;
   warThunder: GameIntegrationSettings;
+  gta: GameIntegrationSettings;
 }
 
 export type ClipEncoder = 'gpu' | 'cpu';
@@ -235,6 +237,7 @@ export interface Settings {
   resolution: '720p' | '1080p' | '1440p' | '4K';
   frameRate: number;
   stretch4By3: boolean;
+  enableHdr: boolean; // When false, recordings are always SDR even on an HDR display
   rateControl: string;
   crfValue: number;
   cqLevel: number;
@@ -316,6 +319,7 @@ export const initialSettings: Settings = {
   resolution: '720p',
   frameRate: 30,
   stretch4By3: true,
+  enableHdr: true,
   rateControl: 'VBR',
   crfValue: 23,
   cqLevel: 20,
@@ -388,6 +392,7 @@ export const initialSettings: Settings = {
     minecraft: { enabled: true },
     runescapeDragonwilds: { enabled: true },
     warThunder: { enabled: true },
+    gta: { enabled: true },
   },
 };
 

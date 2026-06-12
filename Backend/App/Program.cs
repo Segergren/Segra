@@ -8,6 +8,7 @@ using Segra.Backend.Shared;
 using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Power;
 using Segra.Backend.Windows.Storage;
+using Segra.Backend.Windows.WebView2;
 using Serilog;
 using System.Diagnostics;
 using System.IO.Pipes;
@@ -25,7 +26,15 @@ namespace Segra.Backend.App
         [DllImport("user32.dll")]
         static extern bool SetProcessDPIAware();
 
+        [DllImport("user32.dll")]
+        static extern uint GetDpiForSystem();
+
+        [DllImport("user32.dll")]
+        static extern int GetSystemMetrics(int nIndex);
+
         const int SW_HIDE = 0;
+        const int SM_CXFULLSCREEN = 16;
+        const int SM_CYFULLSCREEN = 17;
         public static bool IsFirstRun { get; private set; } = false;
         private static readonly AutoResetEvent ShowWindowEvent = new AutoResetEvent(false);
         public static bool hasLoadedInitialSettings = false;
@@ -151,6 +160,8 @@ namespace Segra.Backend.App
             {
                 Log.Information("Application starting up...");
 
+                WebView2RuntimeService.LogRuntimeVersion();
+
                 // VS Code sets SEGRA_VSCODE=1 via launch.json; Visual Studio does not.
                 // In VS Code the Vite dev server runs separately, so PhotinoServer is not needed
                 // and its RunAsync() would otherwise open a spurious browser tab.
@@ -213,10 +224,6 @@ namespace Segra.Backend.App
                     _ = SettingsService.LoadContentFromFolderIntoState(true);
                     StartupService.SetStartupStatus(true);
                     AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
-                    if (AppState.Instance.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
-                    {
-                        AppState.Instance.CudaComputeCapability = GeneralUtils.DetectCudaComputeCapability();
-                    }
                     SettingsService.SelectDefaultDevices();
                     _ = PresetsService.ApplyVideoPreset("high");
                     _ = PresetsService.ApplyClipPreset("standard");
@@ -447,13 +454,21 @@ namespace Segra.Backend.App
         private static void LoadFrontend()
         {
             Log.Information("Loading frontend, app url is " + appUrl);
+
+            // Photino sizes windows in physical pixels, so scale the default size by the
+            // OS display scale (e.g. 150% on 4K monitors) and clamp it to the usable screen area
+            double displayScale = GetDpiForSystem() / 96.0;
+            var windowSize = new Size(
+                Math.Min((int)(1280 * displayScale), GetSystemMetrics(SM_CXFULLSCREEN)),
+                Math.Min((int)(720 * displayScale), GetSystemMetrics(SM_CYFULLSCREEN)));
+
             // Initialize the PhotinoWindow
             Window = new PhotinoWindow()
                 .SetBrowserControlInitParameters("--enable-blink-features=AudioVideoTracks")
                 .SetNotificationsEnabled(false) // Disabled due to it creating a second start menu entry with incorrect start path. See https://github.com/tryphotino/photino.NET/issues/85
                 .SetUseOsDefaultSize(false)
                 .SetIconFile(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico"))
-                .SetSize(new Size(1280, 720))
+                .SetSize(windowSize)
                 .Center()
                 .SetResizable(true)
                 .RegisterWebMessageReceivedHandler((sender, message) =>

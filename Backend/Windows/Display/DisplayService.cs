@@ -154,8 +154,8 @@ namespace Segra.Backend.Windows.Display
                 Log.Information("=== Available Monitors ===");
                 foreach (var display in pendingDisplays)
                 {
-                    Log.Information("Monitor: {FriendlyName}, DeviceId: {DeviceID}, Primary: {IsPrimary}",
-                        display.DeviceName, display.DeviceId, display.IsPrimary);
+                    Log.Information("Monitor: {FriendlyName}, DeviceId: {DeviceID}, Primary: {IsPrimary}, HDR: {IsHdr}",
+                        display.DeviceName, display.DeviceId, display.IsPrimary, display.IsHdr);
                 }
                 Log.Information("=== End Monitor List ===");
 
@@ -184,7 +184,13 @@ namespace Segra.Backend.Windows.Display
                 if (EnumDisplayDevices(mi.DeviceName, 0, ref device, 1))
                 {
                     string friendlyName = GetFriendlyMonitorName(device.DeviceID, device.DeviceString);
-                    var display = new Core.Models.Display { DeviceName = friendlyName, DeviceId = device.DeviceID, IsPrimary = (mi.Flags & 1) != 0 };
+                    var display = new Core.Models.Display
+                    {
+                        DeviceName = friendlyName,
+                        DeviceId = device.DeviceID,
+                        IsPrimary = (mi.Flags & 1) != 0,
+                        IsHdr = HdrDetectionService.IsDisplayHdrActive(device.DeviceID)
+                    };
 
                     pendingDisplays.Add(display);
                 }

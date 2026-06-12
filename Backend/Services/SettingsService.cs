@@ -156,10 +156,6 @@ namespace Segra.Backend.Services
 
                 Settings.Instance.RunOnStartup = StartupService.GetStartupStatus();
                 AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
-                if (AppState.Instance.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
-                {
-                    AppState.Instance.CudaComputeCapability = GeneralUtils.DetectCudaComputeCapability();
-                }
 
                 Log.Information("Settings loaded from {0}", SettingsFilePath);
 
@@ -404,6 +400,12 @@ namespace Segra.Backend.Services
                     current.RocketLeague.Enabled = updated.RocketLeague.Enabled;
                     hasChanges = true;
                 }
+                if (current.Gta.Enabled != updated.Gta.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Gta.Enabled changed from '{current.Gta.Enabled}' to '{updated.Gta.Enabled}'");
+                    current.Gta.Enabled = updated.Gta.Enabled;
+                    hasChanges = true;
+                }
                 if (current.Dota2.Enabled != updated.Dota2.Enabled)
                 {
                     Log.Information($"GameIntegrations.Dota2.Enabled changed from '{current.Dota2.Enabled}' to '{updated.Dota2.Enabled}'");
@@ -503,6 +505,14 @@ namespace Segra.Backend.Services
             {
                 Log.Information($"Stretch4By3 changed from '{settings.Stretch4By3}' to '{updatedSettings.Stretch4By3}'");
                 settings.Stretch4By3 = updatedSettings.Stretch4By3;
+                hasChanges = true;
+            }
+
+            // Update EnableHdr
+            if (settings.EnableHdr != updatedSettings.EnableHdr)
+            {
+                Log.Information($"EnableHdr changed from '{settings.EnableHdr}' to '{updatedSettings.EnableHdr}'");
+                settings.EnableHdr = updatedSettings.EnableHdr;
                 hasChanges = true;
             }
 

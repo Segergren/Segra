@@ -483,6 +483,21 @@ export default function VideoSettingsSection({
           <span>Stretch 4:3 content to 16:9</span>
         </label>
       </div>
+
+      {/* HDR Option - only shown when at least one display is in HDR mode */}
+      {appState.displays.some((d) => d.isHdr) && (
+        <div className="mt-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.enableHdr}
+              onChange={(e) => updateSettings({ enableHdr: e.target.checked })}
+              className="checkbox checkbox-primary checkbox-sm"
+            />
+            <span>Record in HDR</span>
+          </label>
+        </div>
+      )}
     </div>
   );
 }

@@ -13,13 +13,19 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("isPrimary")]
         public required bool IsPrimary { get; set; }
 
+        // True when the display is currently in HDR mode (Windows "Use HDR" enabled).
+        // Not required so a SelectedDisplay saved by an older version still deserializes.
+        [JsonPropertyName("isHdr")]
+        public bool IsHdr { get; set; }
+
         public bool Equals(Display? other)
         {
             if (other == null) return false;
 
             return DeviceName == other.DeviceName &&
                    DeviceId == other.DeviceId &&
-                   IsPrimary == other.IsPrimary;
+                   IsPrimary == other.IsPrimary &&
+                   IsHdr == other.IsHdr;
         }
 
         public override bool Equals(object? obj)
@@ -33,7 +39,7 @@ namespace Segra.Backend.Core.Models
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(DeviceName, DeviceId, IsPrimary);
+            return HashCode.Combine(DeviceName, DeviceId, IsPrimary, IsHdr);
         }
     }
 }

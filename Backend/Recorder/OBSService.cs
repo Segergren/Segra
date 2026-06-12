@@ -362,6 +362,12 @@ namespace Segra.Backend.Recorder
                 return;
             }
 
+            // Probe NVENC capabilities in the background (cached in AppData until the GPU,
+            // driver or OBS bundle changes) so encoder setup can disable unsupported features
+            // like b-frames. The test exe ships with the OBS bundle, so this must run after
+            // CheckIfExistsOrDownloadAsync.
+            NvencCapsService.StartProbe();
+
             if (Obs.IsInitialized)
                 throw new Exception("Error: OBS is already initialized.");
 
@@ -592,28 +598,35 @@ namespace Segra.Backend.Recorder
             _hdrEncoderId = null;
             try
             {
-                // Base HDR on the monitor whose content we actually capture: for a game, the monitor
-                // the game window is on (so a game on an SDR monitor is never forced to PQ); for a
-                // manual recording, the selected display.
-                string? hdrTargetDeviceId = startManually
-                    ? GetCaptureTargetDeviceId()
-                    : ResolveGameHdrTargetDeviceId();
-
-                if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
+                if (!Settings.Instance.EnableHdr)
                 {
-                    string userEncoderId = Settings.Instance.Codec?.InternalEncoderId ?? string.Empty;
-                    string? hdrEncoderId = ResolveHdrEncoder(userEncoderId, AppState.Instance.Codecs);
-                    if (hdrEncoderId != null)
+                    Log.Information("HDR recording is disabled in settings; recording in SDR.");
+                }
+                else
+                {
+                    // Base HDR on the monitor whose content we actually capture: for a game, the monitor
+                    // the game window is on (so a game on an SDR monitor is never forced to PQ); for a
+                    // manual recording, the selected display.
+                    string? hdrTargetDeviceId = startManually
+                        ? GetCaptureTargetDeviceId()
+                        : ResolveGameHdrTargetDeviceId();
+
+                    if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
                     {
-                        _isHdrRecording = true;
-                        _hdrEncoderId = hdrEncoderId;
-                        if (!string.Equals(hdrEncoderId, userEncoderId, StringComparison.OrdinalIgnoreCase))
-                            Log.Information($"HDR display detected; using HDR-capable encoder '{hdrEncoderId}' instead of '{userEncoderId}'");
-                        Log.Information("Recording in HDR (Rec.2100 PQ, 10-bit P010)");
-                    }
-                    else
-                    {
-                        Log.Warning("HDR display detected but no HDR-capable (HEVC/AV1) encoder is available; recording in SDR.");
+                        string userEncoderId = Settings.Instance.Codec?.InternalEncoderId ?? string.Empty;
+                        string? hdrEncoderId = ResolveHdrEncoder(userEncoderId, AppState.Instance.Codecs);
+                        if (hdrEncoderId != null)
+                        {
+                            _isHdrRecording = true;
+                            _hdrEncoderId = hdrEncoderId;
+                            if (!string.Equals(hdrEncoderId, userEncoderId, StringComparison.OrdinalIgnoreCase))
+                                Log.Information($"HDR display detected; using HDR-capable encoder '{hdrEncoderId}' instead of '{userEncoderId}'");
+                            Log.Information("Recording in HDR (Rec.2100 PQ, 10-bit P010)");
+                        }
+                        else
+                        {
+                            Log.Warning("HDR display detected but no HDR-capable (HEVC/AV1) encoder is available; recording in SDR.");
+                        }
                     }
                 }
             }
@@ -757,14 +770,7 @@ namespace Segra.Backend.Recorder
                     throw new Exception("Unsupported Rate Control method.");
             }
 
-            // Disable HEVC b-frames on older NVIDIA GPUs (requires compute capability >= 7.0)
-            if (encoderId.Equals("jim_hevc_nvenc", StringComparison.OrdinalIgnoreCase) &&
-                AppState.Instance.CudaComputeCapability != null &&
-                AppState.Instance.CudaComputeCapability < 7.0)
-            {
-                videoEncoderSettings.Set("bf", 0);
-                Log.Information("NVENC b-frames disabled (CUDA compute capability < 7.0)");
-            }
+            ApplyNvencBFrameLimit(videoEncoderSettings, encoderId);
 
             try
             {
@@ -785,6 +791,7 @@ namespace Segra.Backend.Recorder
 
                 encoderId = Settings.Instance.Codec!.InternalEncoderId;
                 videoEncoderSettings.Set("profile", "high");
+                ApplyNvencBFrameLimit(videoEncoderSettings, encoderId);
                 _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
             }
 
@@ -1227,6 +1234,24 @@ namespace Segra.Backend.Recorder
 
             bool fallbackHdr = HdrDetectionService.IsDisplayHdrActive(fallbackDeviceId);
             return displays.Any(d => HdrDetectionService.IsDisplayHdrActive(d.DeviceId) != fallbackHdr);
+        }
+
+        /// <summary>
+        /// Clamps b-frames to what the GPU's NVENC block supports for this codec, based on the
+        /// obs-nvenc-test probe result. OBS defaults to 2 b-frames regardless of hardware, and
+        /// support is per codec: the GTX 1650 (TU117) for example handles H.264 b-frames but not
+        /// HEVC b-frames, making every encode fail with "B-frames not supported on the current HW" (#151).
+        /// </summary>
+        private static void ApplyNvencBFrameLimit(ObsKit.NET.Core.Settings videoEncoderSettings, string encoderId)
+        {
+            int? maxBFrames = NvencCapsService.GetMaxBFrames(encoderId);
+            if (maxBFrames == null)
+                return;
+
+            int bf = Math.Min(2, maxBFrames.Value);
+            videoEncoderSettings.Set("bf", bf);
+            if (bf < 2)
+                Log.Information($"NVENC b-frames limited to {bf} ({encoderId} supports max {maxBFrames} on this GPU)");
         }
 
         private static bool IsHevcEncoder(string encoderId) =>

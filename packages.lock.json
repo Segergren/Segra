@@ -75,9 +75,9 @@
       },
       "Velopack": {
         "type": "Direct",
-        "requested": "[1.1.1, )",
-        "resolved": "1.1.1",
-        "contentHash": "NvPcAHnGj97qFToV4HZIEs05UfWYMXo0BAFUVmsf+/Xb1Bxqvk7H09CXanCqb5Vpd42tN5h7dz/qHLvWnTMpzw=="
+        "requested": "[1.2.0, )",
+        "resolved": "1.2.0",
+        "contentHash": "Rz67gJL619fSBS6omaSINUxyDuwhIxkm5mmubf7uLd5Qgi6LLKaKCha+QFP6n+Bw/UjA0vutnH4JQfYzn6ANtw=="
       },
       "Vortice.DirectX": {
         "type": "Direct",

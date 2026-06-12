@@ -30,6 +30,7 @@ namespace Segra.Backend.Core.Models
         private string _resolution = "1440p";
         private int _frameRate = 60;
         private bool _stretch4By3 = true;
+        private bool _enableHdr = true;
         private int _bitrate = 50;
         private int _minBitrate = 35;
         private int _maxBitrate = 70;
@@ -220,6 +221,17 @@ namespace Segra.Backend.Core.Models
             set
             {
                 _stretch4By3 = value;
+            }
+        }
+
+        // When false, recordings are always SDR even if the captured display is in HDR mode
+        [JsonPropertyName("enableHdr")]
+        public bool EnableHdr
+        {
+            get => _enableHdr;
+            set
+            {
+                _enableHdr = value;
             }
         }
 
@@ -1323,5 +1335,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("warThunder")]
         public GameIntegrationSettings WarThunder { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("gta")]
+        public GameIntegrationSettings Gta { get; set; } = new GameIntegrationSettings(true);
     }
 }
