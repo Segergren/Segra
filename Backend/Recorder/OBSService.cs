@@ -75,7 +75,18 @@ namespace Segra.Backend.Recorder
         private static MonitorCapture? _displaySource;
         private static readonly List<AudioInputCapture> _micSources = [];
         private static readonly List<AudioOutputCapture> _desktopSources = [];
-        private static Source? _discordAudioSource;
+        private static readonly List<(string Name, string Window, Source Source)> _voiceChatSources = [];
+
+        // Mixer mask of the shared "Voice Chat" track, so sources created mid-recording land on the same track
+        private static uint _voiceChatMixerMask = 1u << 0;
+
+        private static readonly (string Name, string Window)[] VoiceChatApps =
+        [
+            ("Discord", "Discord:Chrome_WidgetWin_1:Discord.exe"),
+            ("TeamSpeak", "TeamSpeak:Chrome_WidgetWin_1:TeamSpeak.exe"),
+            ("TeamSpeak 3", "TeamSpeak 3:Qt5152QWindowIcon:ts3client_win64.exe"),
+            ("TeamSpeak 3", "TeamSpeak 3:Qt5152QWindowIcon:ts3client_win32.exe"),
+        ];
 
         // OBS encoder resources
         private static VideoEncoder? _videoEncoder;
@@ -866,37 +877,31 @@ namespace Segra.Backend.Recorder
                 }
             }
 
-            // In GameAndDiscord mode, also create Discord application audio capture (starts muted until game hooks)
+            // In GameAndDiscord mode, capture audio from running voice chat apps. Sources start muted
+            // (desktop audio covers voice chat until the game hooks); apps launched mid-recording are
+            // added via OnVoiceChatAppStarted.
             if (audioOutputMode == AudioOutputMode.GameAndDiscord && GameCaptureSource != null)
             {
-                try
+                foreach (var app in VoiceChatApps)
                 {
-                    _discordAudioSource = new Source("wasapi_process_output_capture", "Discord Audio");
-                    _discordAudioSource.Update(s =>
-                    {
-                        // Window format: title:class:executable
-                        s.Set("window", "Discord:Chrome_WidgetWin_1:Discord.exe");
-                        s.Set("priority", 2); // WINDOW_PRIORITY_EXE
-                    });
-                    _discordAudioSource.IsMuted = true; // Muted until game hooks (desktop audio covers Discord until then)
-                    _mainScene!.AddSource(_discordAudioSource);
-                    Log.Information("Added Discord application audio capture source (muted until game hooks)");
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to create Discord audio capture source: {ex.Message}");
-                    _discordAudioSource = null;
+                    string processName = Path.GetFileNameWithoutExtension(app.Window.Split(':')[^1]);
+                    if (IsProcessRunning(processName))
+                        TryAddVoiceChatSource(app, muted: true);
                 }
             }
 
             // Configure mixers and audio encoders based on setting.
-            // If enabled: Track 1 = Full Mix, Tracks 2..6 = per-source isolated (up to 5 sources)
+            // If enabled: Track 1 = Full Mix, Tracks 2..6 = per-group isolated (up to 5 groups)
             // If disabled: Track 1 only (Full Mix)
+            // Each group shares one isolated track; all voice chat apps form a single "Voice Chat" group.
             // In GameOnly/GameAndDiscord modes, desktop sources are fallback-only (full mix only).
-            var allAudioSources = new List<Source>();
-            allAudioSources.AddRange(_micSources);
-            allAudioSources.AddRange(_desktopSources);
+            var trackGroups = new List<List<Source>>();
+            foreach (var micSource in _micSources)
+                trackGroups.Add([micSource]);
+            foreach (var desktopSource in _desktopSources)
+                trackGroups.Add([desktopSource]);
 
+            int voiceChatGroupIndex = -1;
             if (audioOutputMode != AudioOutputMode.All && GameCaptureSource != null)
             {
                 // Desktop sources are fallback-only: assign to full mix (Track 1) only, no separate tracks
@@ -907,11 +912,18 @@ namespace Segra.Backend.Recorder
                 }
 
                 // Remove desktop sources from the list that gets separate tracks
-                allAudioSources = new List<Source>();
-                allAudioSources.AddRange(_micSources);
-                allAudioSources.Add(GameCaptureSource);
-                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
-                    allAudioSources.Add(_discordAudioSource);
+                trackGroups = [];
+                foreach (var micSource in _micSources)
+                    trackGroups.Add([micSource]);
+                trackGroups.Add([GameCaptureSource]);
+
+                // The voice chat group is reserved even when currently empty so apps launched
+                // mid-recording can still join its track (the encoders are fixed once recording starts)
+                if (audioOutputMode == AudioOutputMode.GameAndDiscord)
+                {
+                    voiceChatGroupIndex = trackGroups.Count;
+                    trackGroups.Add(_voiceChatSources.Select(v => v.Source).ToList());
+                }
             }
 
             // Build list of device names for encoder naming
@@ -932,37 +944,44 @@ namespace Segra.Backend.Recorder
             else
             {
                 audioDeviceNames.Add("Game Audio");
-                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
-                    audioDeviceNames.Add("Discord");
+                if (audioOutputMode == AudioOutputMode.GameAndDiscord)
+                    audioDeviceNames.Add("Voice Chat");
             }
 
             bool separateTracks = Settings.Instance.EnableSeparateAudioTracks;
             int maxTracks = 6; // OBS supports up to 6 audio tracks
-            int perSourceTracks = separateTracks ? Math.Min(allAudioSources.Count, maxTracks - 1) : 0; // tracks 2..6 for sources
+            int perSourceTracks = separateTracks ? Math.Min(trackGroups.Count, maxTracks - 1) : 0; // tracks 2..6 for groups
             int trackCount = 1 + perSourceTracks; // Track 1 is always the full mix
 
-            for (int i = 0; i < allAudioSources.Count; i++)
+            _voiceChatMixerMask = 1u << 0;
+            for (int i = 0; i < trackGroups.Count; i++)
             {
-                try
-                {
-                    // Always include Track 1 (bit 0) as a full mix
-                    uint mixersMask = 1u << 0;
+                // Always include Track 1 (bit 0) as a full mix
+                uint mixersMask = 1u << 0;
 
-                    // If enabled, give first 5 sources their own isolated tracks on 2..6 (bits 1..5)
-                    if (separateTracks && i < (maxTracks - 1))
-                    {
-                        mixersMask |= (uint)(1 << (i + 1));
-                    }
-                    else
-                    {
-                        if (separateTracks && i >= (maxTracks - 1))
-                            Log.Warning($"Audio source index {i} exceeds {maxTracks - 1} dedicated per-source tracks. It will be available in the master mix (Track 1) only.");
-                    }
-                    allAudioSources[i].AudioMixers = mixersMask;
-                }
-                catch (Exception ex)
+                // If enabled, give first 5 groups their own isolated tracks on 2..6 (bits 1..5)
+                if (separateTracks && i < (maxTracks - 1))
                 {
-                    Log.Warning($"Failed to set mixers for audio source {i}: {ex.Message}");
+                    mixersMask |= (uint)(1 << (i + 1));
+                }
+                else if (separateTracks)
+                {
+                    Log.Warning($"Audio group index {i} exceeds {maxTracks - 1} dedicated tracks. It will be available in the master mix (Track 1) only.");
+                }
+
+                if (i == voiceChatGroupIndex)
+                    _voiceChatMixerMask = mixersMask;
+
+                foreach (var source in trackGroups[i])
+                {
+                    try
+                    {
+                        source.AudioMixers = mixersMask;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Failed to set mixers for audio source in group {i}: {ex.Message}");
+                    }
                 }
             }
 
@@ -1581,7 +1600,7 @@ namespace Segra.Backend.Recorder
                 // Remove display capture to save resources while game is hooked
                 DisposeDisplaySource();
 
-                // Switch output audio: mute desktop sources and unmute game/discord sources
+                // Switch output audio: mute desktop sources and unmute game/voice chat sources
                 var audioOutputMode = Settings.Instance.AudioOutputMode;
                 if (audioOutputMode != AudioOutputMode.All)
                 {
@@ -1592,11 +1611,10 @@ namespace Segra.Backend.Recorder
                     }
                     Log.Information("Muted desktop audio sources (game hooked, using capture_audio)");
 
-                    if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
+                    foreach (var (voiceName, _, voiceSource) in _voiceChatSources)
                     {
-                        try { _discordAudioSource.IsMuted = false; }
-                        catch (Exception ex) { Log.Warning($"Failed to unmute Discord source: {ex.Message}"); }
-                        Log.Information("Unmuted Discord audio source (game hooked)");
+                        try { voiceSource.IsMuted = false; Log.Information($"Unmuted {voiceName} audio source (game hooked)"); }
+                        catch (Exception ex) { Log.Warning($"Failed to unmute {voiceName} source: {ex.Message}"); }
                     }
                 }
 
@@ -1621,7 +1639,7 @@ namespace Segra.Backend.Recorder
             // IsHooked is now managed by GameCapture automatically
             Log.Information("Game unhooked.");
 
-            // Switch output audio back: unmute desktop sources and mute discord source
+            // Switch output audio back: unmute desktop sources and mute voice chat sources
             var audioOutputMode = Settings.Instance.AudioOutputMode;
             if (audioOutputMode != AudioOutputMode.All)
             {
@@ -1632,11 +1650,10 @@ namespace Segra.Backend.Recorder
                 }
                 Log.Information("Unmuted desktop audio sources (game unhooked, falling back to desktop audio)");
 
-                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
+                foreach (var (voiceName, _, voiceSource) in _voiceChatSources)
                 {
-                    try { _discordAudioSource.IsMuted = true; }
-                    catch (Exception ex) { Log.Warning($"Failed to mute Discord source: {ex.Message}"); }
-                    Log.Information("Muted Discord audio source (game unhooked)");
+                    try { voiceSource.IsMuted = true; Log.Information($"Muted {voiceName} audio source (game unhooked)"); }
+                    catch (Exception ex) { Log.Warning($"Failed to mute {voiceName} source: {ex.Message}"); }
                 }
             }
         }
@@ -1825,6 +1842,62 @@ namespace Segra.Backend.Recorder
             }
         }
 
+        private static Source? TryAddVoiceChatSource((string Name, string Window) app, bool muted)
+        {
+            try
+            {
+                var voiceSource = new Source("wasapi_process_output_capture", $"{app.Name} Audio");
+                voiceSource.Update(s =>
+                {
+                    s.Set("window", app.Window);
+                    s.Set("priority", 2); // WINDOW_PRIORITY_EXE
+                });
+                voiceSource.IsMuted = muted;
+                _mainScene!.AddSource(voiceSource);
+                _voiceChatSources.Add((app.Name, app.Window, voiceSource));
+                Log.Information($"Added {app.Name} application audio capture source{(muted ? " (muted until game hooks)" : "")}");
+                return voiceSource;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to create {app.Name} audio capture source: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Called by GameDetectionService's process watcher. Starts capturing a voice chat app
+        /// that launches while a GameAndDiscord-mode recording is active.
+        /// </summary>
+        public static void OnVoiceChatAppStarted(string exePath)
+        {
+            try
+            {
+                if (Settings.Instance.AudioOutputMode != AudioOutputMode.GameAndDiscord) return;
+                if (_mainScene == null || GameCaptureSource == null || _isStoppingOrStopped) return;
+
+                string fileName = Path.GetFileName(exePath);
+                foreach (var app in VoiceChatApps)
+                {
+                    string appExe = app.Window.Split(':')[^1];
+                    if (!string.Equals(fileName, appExe, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (_voiceChatSources.Any(v => v.Window == app.Window)) return;
+
+                    var voiceSource = TryAddVoiceChatSource(app, muted: !GameCaptureSource.IsHooked);
+                    if (voiceSource != null)
+                    {
+                        try { voiceSource.AudioMixers = _voiceChatMixerMask; }
+                        catch (Exception ex) { Log.Warning($"Failed to set mixer for {app.Name} source: {ex.Message}"); }
+                    }
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to handle voice chat app start for {exePath}: {ex.Message}");
+            }
+        }
+
         public static void DisposeSources()
         {
             // Dispose the scene (automatically clears output channel and disposes scene items)
@@ -1878,19 +1951,19 @@ namespace Segra.Backend.Recorder
             }
             _desktopSources.Clear();
 
-            // Dispose Discord audio source
-            if (_discordAudioSource != null)
+            // Dispose voice chat audio sources
+            foreach (var (voiceName, _, voiceSource) in _voiceChatSources)
             {
                 try
                 {
-                    _discordAudioSource.Dispose();
+                    voiceSource.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning($"Failed to dispose Discord audio source: {ex.Message}");
+                    Log.Warning($"Failed to dispose {voiceName} audio source: {ex.Message}");
                 }
-                _discordAudioSource = null;
             }
+            _voiceChatSources.Clear();
         }
 
         public static void DisposeGameCaptureSource()

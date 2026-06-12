@@ -309,6 +309,22 @@ namespace Segra.Backend.Shared
             return -1; // No matching bracket found
         }
 
+        public static bool IsProcessRunning(string processName)
+        {
+            try
+            {
+                Process[] processes = Process.GetProcessesByName(processName);
+                foreach (var process in processes)
+                    process.Dispose();
+                return processes.Length > 0;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to check if {processName} is running: {ex.Message}");
+                return false;
+            }
+        }
+
         public static void SetProcessPriority(ProcessPriorityClass priority)
         {
             try

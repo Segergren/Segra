@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TriangleAlert, X, CircleAlert, Volume2, Gamepad2 } from 'lucide-react';
-import { DiscordIcon } from '../icons/BrandIcons';
+import { DiscordIcon, TeamSpeakIcon } from '../icons/BrandIcons';
 import Button from '../Button';
 import { Settings as SettingsType, AudioDevice, AudioOutputMode } from '../../Models/types';
 import { useAppState } from '../../Context/AppStateContext';
@@ -30,7 +30,8 @@ export default function AudioDevicesSection({
 
   // Multi-track audio: first 5 selected sources get isolated tracks (Track 1 is Full Mix)
   // In GameOnly/GameAndDiscord modes, output devices serve as fallback audio until a game hooks,
-  // at which point they are muted and replaced by Game Audio (+Discord).
+  // at which point they are muted and replaced by Game Audio (+a single shared Voice Chat track
+  // covering Discord/TeamSpeak).
   const selectedInputIds = settings.inputDevices.map((d) => d.id);
   const implicitOutputCount =
     settings.audioOutputMode === 'GameAndDiscord'
@@ -357,7 +358,7 @@ export default function AudioDevicesSection({
             </div>
           )}
 
-          <div className="flex flex-col gap-1 w-70 mt-2">
+          <div className="flex flex-col gap-1 w-80 mt-2">
             {[
               {
                 value: 'All' as AudioOutputMode,
@@ -371,11 +372,12 @@ export default function AudioDevicesSection({
               },
               {
                 value: 'GameAndDiscord' as AudioOutputMode,
-                label: 'Game + Discord Audio Only',
+                label: 'Game + Voice Chat Audio Only',
                 icons: (
                   <span className="flex items-center gap-1.5">
                     <Gamepad2 className="h-4 w-4" />
                     <DiscordIcon className="h-4 w-4" />
+                    <TeamSpeakIcon className="h-4 w-4" />
                   </span>
                 ),
               },

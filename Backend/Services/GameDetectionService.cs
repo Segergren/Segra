@@ -106,6 +106,8 @@ namespace Segra.Backend.Services
 
                 Log.Information($"[OnProcessStarted] Application started: PID {pid}, Path: {exePath}");
 
+                OBSService.OnVoiceChatAppStarted(exePath);
+
                 if (AppState.Instance.PreRecording != null && GameUtils.IsGameExePath(exePath))
                 {
                     AppState.Instance.PreRecording.Exe = exePath;
