@@ -42,11 +42,14 @@ import {
   Headphones,
   Copy,
   Check,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import SegmentCard from '../Components/SegmentCard';
 import { useAudioTracks } from '../Hooks/useAudioTracks';
 import { AnimatePresence, motion } from 'framer-motion';
 import Button from '../Components/Button';
+import { SECTION_ID_BY_CONTENT_TYPE, filterAndSortForSection } from '../Components/SectionView';
 
 const Crosshair2Dot = React.forwardRef<SVGSVGElement, React.ComponentProps<typeof Icon>>(
   (props, ref) => <Icon {...props} ref={ref} iconNode={crosshair2Dot} />,
@@ -199,6 +202,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const { session } = useAuth();
   const { uploads } = useUploads();
   const { openModal, closeModal } = useModal();
+  const { setSelectedVideo } = useSelectedVideo();
   const {
     segments,
     addSegment,
@@ -487,6 +491,62 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
   };
 
+  // Build the iteration list for prev/next by combining:
+  //   1. the user's filter+sort selection on the content page (persisted per
+  //      section in localStorage), AND
+  //   2. the same-type slice of `appState.content`.
+  // This matches the order/cut the user sees on the content list, so e.g.
+  // pressing Next while sorted by Size steps to the next heaviest video of
+  // the same type — not the next-newest one.
+  const sectionId = SECTION_ID_BY_CONTENT_TYPE[video.type];
+  const sameTypeVideos = useMemo(() => {
+    const sameType = appState.content.filter((v) => v.type === video.type);
+    return filterAndSortForSection(sameType, sectionId);
+  }, [appState.content, video.type, sectionId]);
+
+  const currentVideoIndex = useMemo(
+    () => sameTypeVideos.findIndex((v) => v.fileName === video.fileName),
+    [sameTypeVideos, video.fileName],
+  );
+
+  const hasPrevious = currentVideoIndex > 0;
+  const hasNext = currentVideoIndex >= 0 && currentVideoIndex < sameTypeVideos.length - 1;
+
+  const handlePreviousVideo = () => {
+    if (!hasPrevious) return;
+    setSelectedVideo(sameTypeVideos[currentVideoIndex - 1]);
+  };
+
+  const handleNextVideo = () => {
+    if (!hasNext) return;
+    setSelectedVideo(sameTypeVideos[currentVideoIndex + 1]);
+  };
+
+  // Refs holding the latest navigation state so the window-level keydown handler
+  // (registered once on mount) always reads current values without depending on
+  // a closure. The handlers below use navRef directly, so they're immune to
+  // stale-closure bugs that occur when `video` swaps but a previously attached
+  // listener still captures the old `currentVideoIndex`.
+  const navRef = useRef({
+    sameTypeVideos,
+    currentVideoIndex,
+  });
+  useEffect(() => {
+    navRef.current = { sameTypeVideos, currentVideoIndex };
+  }, [sameTypeVideos, currentVideoIndex]);
+
+  const navigatePrevFromRef = () => {
+    const { sameTypeVideos: list, currentVideoIndex: i } = navRef.current;
+    if (i <= 0) return;
+    setSelectedVideo(list[i - 1]);
+  };
+
+  const navigateNextFromRef = () => {
+    const { sameTypeVideos: list, currentVideoIndex: i } = navRef.current;
+    if (i < 0 || i >= list.length - 1) return;
+    setSelectedVideo(list[i + 1]);
+  };
+
   // Initialize video metadata and setup keyboard controls
   useEffect(() => {
     const vid = videoRef.current;
@@ -592,6 +652,24 @@ export default function VideoComponent({ video }: { video: Content }) {
         e.preventDefault();
         toggleMute();
         showControlsTemporarily();
+        return;
+      }
+
+      // Page Up / Page Down: navigate previous / next video. Reads through
+      // navRef so the handler always sees the current index even after the
+      // video prop changes (handler is registered once on mount).
+      if ((e.key === 'PageUp' || e.code === 'PageUp') && !isTyping) {
+        if (e.repeat) return;
+        e.preventDefault();
+        showControlsTemporarily();
+        navigatePrevFromRef();
+        return;
+      }
+      if ((e.key === 'PageDown' || e.code === 'PageDown') && !isTyping) {
+        if (e.repeat) return;
+        e.preventDefault();
+        showControlsTemporarily();
+        navigateNextFromRef();
         return;
       }
       if (e.key === 'Escape' && isFullscreen) {
@@ -2157,14 +2235,26 @@ export default function VideoComponent({ video }: { video: Content }) {
             <div className="flex items-center gap-3">
               <div className="flex items-center border rounded-lg join bg-base-300 border-base-400">
                 <button
+                  onClick={handlePreviousVideo}
+                  disabled={!hasPrevious}
+                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Previous video"
+                  data-tip="Previous video"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
                   onClick={() => skipTime(-5)}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                  aria-label="Back 5 seconds"
+                  data-tip="Back 5s"
                 >
                   <RotateCcw className="w-5 h-5" />
                 </button>
                 <button
                   onClick={handlePlayPause}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
                   data-tip={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
@@ -2172,9 +2262,19 @@ export default function VideoComponent({ video }: { video: Content }) {
                 <button
                   onClick={() => skipTime(5)}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                  aria-label="Forward 5 seconds"
                   data-tip="Forward 5s"
                 >
                   <RotateCw className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={handleNextVideo}
+                  disabled={!hasNext}
+                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Next video"
+                  data-tip="Next video"
+                >
+                  <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
               {(video.type === 'Clip' || video.type === 'Highlight') && (
