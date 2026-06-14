@@ -9,15 +9,15 @@ using Serilog;
 namespace Segra.Backend.Media
 {
     /// <summary>
-    /// Service for creating highlight videos from bookmarks using fast stream copy.
+    /// Service for creating lowlight videos from bookmarks using fast stream copy.
     /// </summary>
-    public static class HighlightService
+    public static class LowlightService
     {
         /// <summary>
-        /// Creates a highlight video from all highlight-worthy bookmarks (Kill, Goal, etc.).
+        /// Creates a lowlight video from all lowlight-worthy bookmarks (Death, etc.).
         /// Uses stream copy for fast extraction without re-encoding.
         /// </summary>
-        public static async Task CreateHighlightFromBookmarks(string fileName, Action<int, string>? progressCallback = null)
+        public static async Task CreateLowlightFromBookmarks(string fileName, Action<int, string>? progressCallback = null)
         {
             try
             {
@@ -28,25 +28,25 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                // Get all highlight-worthy bookmarks
-                List<Bookmark> highlightBookmarks = content.Bookmarks
-                    .Where(b => b.Type.IncludeInHighlight())
+                // Get all lowlight-worthy bookmarks
+                List<Bookmark> lowlightBookmarks = content.Bookmarks
+                    .Where(b => b.Type.IncludeInLowlight())
                     .OrderBy(b => b.Time)
                     .ToList();
 
-                if (highlightBookmarks.Count == 0)
+                if (lowlightBookmarks.Count == 0)
                 {
-                    Log.Information($"No highlight bookmarks found for: {fileName}");
-                    progressCallback?.Invoke(-1, "No highlight moments found in this session");
+                    Log.Information($"No lowlight bookmarks found for: {fileName}");
+                    progressCallback?.Invoke(-1, "No lowlight moments found in this session");
                     return;
                 }
 
-                Log.Information($"Found {highlightBookmarks.Count} bookmarks to include in highlight");
-                progressCallback?.Invoke(5, $"Found {highlightBookmarks.Count} moments");
+                Log.Information($"Found {lowlightBookmarks.Count} bookmarks to include in lowlight");
+                progressCallback?.Invoke(5, $"Found {lowlightBookmarks.Count} moments");
 
-                double paddingBefore = Settings.Instance.HighlightPaddingBefore;
-                double paddingAfter = Settings.Instance.HighlightPaddingAfter;
-                var segments = highlightBookmarks.Select(b => new TimeSegment
+                double paddingBefore = Settings.Instance.LowlightPaddingBefore;
+                double paddingAfter = Settings.Instance.LowlightPaddingAfter;
+                var segments = lowlightBookmarks.Select(b => new TimeSegment
                 {
                     StartTime = Math.Max(0, b.Time.TotalSeconds - paddingBefore),
                     EndTime = b.Time.TotalSeconds + paddingAfter
@@ -56,7 +56,7 @@ namespace Segra.Backend.Media
                 var mergedSegments = MergeOverlappingSegments(segments);
                 Log.Information($"Merged {segments.Count} segments into {mergedSegments.Count} clips");
 
-                // Create the highlight
+                // Create the lowlight
                 string videoFolder = Settings.Instance.ContentFolder;
                 // Input files are organized by game
                 string inputGameFolder = StorageService.SanitizeGameNameForFolder(content.Game ?? "Unknown");
@@ -70,9 +70,9 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                // Output highlights are organized by game
+                // Output lowlights are organized by game
                 string outputGameFolder = StorageService.SanitizeGameNameForFolder(content.Game ?? "Unknown");
-                string outputFolder = PathUtils.Combine(videoFolder, FolderNames.Highlights, outputGameFolder);
+                string outputFolder = PathUtils.Combine(videoFolder, FolderNames.Lowlights, outputGameFolder);
                 Directory.CreateDirectory(outputFolder);
 
                 string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
@@ -90,8 +90,8 @@ namespace Segra.Backend.Media
 
                 if (!success || !File.Exists(outputFilePath))
                 {
-                    Log.Error("Failed to create highlight video");
-                    progressCallback?.Invoke(-1, "Failed to create highlight");
+                    Log.Error("Failed to create lowlight video");
+                    progressCallback?.Invoke(-1, "Failed to create lowlight");
                     return;
                 }
 
@@ -101,24 +101,24 @@ namespace Segra.Backend.Media
                 progressCallback?.Invoke(92, "Creating metadata...");
 
                 // Create metadata, thumbnail, and waveform.
-                // Highlights use stream-copy extract+concat, so they preserve the source's audio tracks.
-                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Highlight, content.Game!, null, content.Title, igdbId: content.IgdbId, audioTrackNames: content.AudioTrackNames);
+                // Lowlights use stream-copy extract+concat, so they preserve the source's audio tracks.
+                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Lowlight, content.Game!, null, content.Title, igdbId: content.IgdbId, audioTrackNames: content.AudioTrackNames);
 
                 progressCallback?.Invoke(95, "Creating thumbnail...");
-                await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Highlight);
+                await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Lowlight);
 
                 progressCallback?.Invoke(98, "Creating waveform...");
-                await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Highlight);
+                await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Lowlight);
 
                 // Reload content
                 await SettingsService.LoadContentFromFolderIntoState();
 
                 progressCallback?.Invoke(100, "Done");
-                Log.Information($"Highlight created successfully: {outputFilePath}");
+                Log.Information($"Lowlight created successfully: {outputFilePath}");
             }
             catch (Exception ex)
             {
-                Log.Error(ex, $"Error creating highlight for {fileName}");
+                Log.Error(ex, $"Error creating lowlight for {fileName}");
                 progressCallback?.Invoke(-1, $"Error: {ex.Message}");
             }
         }
@@ -162,7 +162,7 @@ namespace Segra.Backend.Media
                 for (int i = 0; i < segments.Count; i++)
                 {
                     var segment = segments[i];
-                    string tempFile = PathUtils.Combine(Path.GetTempPath(), $"highlight_segment_{Guid.NewGuid()}.mp4");
+                    string tempFile = PathUtils.Combine(Path.GetTempPath(), $"lowlight_segment_{Guid.NewGuid()}.mp4");
                     double segmentDuration = segment.EndTime - segment.StartTime;
 
                     progressCallback?.Invoke(processedDuration / totalDuration, $"Extracting clip {i + 1} of {segments.Count}");
@@ -206,7 +206,7 @@ namespace Segra.Backend.Media
                     return true;
                 }
 
-                concatFilePath = PathUtils.Combine(Path.GetTempPath(), $"highlight_concat_{Guid.NewGuid()}.txt");
+                concatFilePath = PathUtils.Combine(Path.GetTempPath(), $"lowlight_concat_{Guid.NewGuid()}.txt");
                 var concatLines = tempFiles.Select(FFmpegService.BuildConcatListLine);
                 await File.WriteAllLinesAsync(concatFilePath, concatLines);
 
@@ -230,7 +230,7 @@ namespace Segra.Backend.Media
             {
                 Log.Error(ffEx, "Error extracting and concatenating segments");
                 _ = MessageService.ShowModal(
-                    "Highlight creation failed",
+                    "Lowlight creation failed",
                     FFmpegErrors.DescribeForUser(ffEx.ExitCode),
                     "error");
                 return false;
@@ -300,12 +300,4 @@ namespace Segra.Backend.Media
         }
     }
 
-    /// <summary>
-    /// Represents a time segment in a video.
-    /// </summary>
-    public class TimeSegment
-    {
-        public double StartTime { get; set; }
-        public double EndTime { get; set; }
     }
-}

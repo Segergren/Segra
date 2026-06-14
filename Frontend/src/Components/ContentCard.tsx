@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../Context/SettingsContext';
 import { useAppState } from '../Context/AppStateContext';
-import { BookmarkType, Content, includeInHighlight } from '../Models/types';
+import { BookmarkType, Content, includeInHighlight, includeInLowlight } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { openFileLocation } from '../Utils/FileUtils';
 import { useAuth } from '../Hooks/useAuth.tsx';
@@ -20,12 +20,14 @@ import {
   ExternalLink,
   Copy,
   Bookmark,
+  Skull,
 } from 'lucide-react';
 import { useAiHighlights } from '../Context/AiHighlightsContext';
+import { useAiLowlights } from '../Context/AiLowlightsContext';
 import { useCompression } from '../Context/CompressionContext';
 import Button from './Button';
 
-type VideoType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
+type VideoType = 'Session' | 'Buffer' | 'Clip' | 'Highlight' | 'Lowlight';
 
 interface VideoCardProps {
   content?: Content; // Optional for skeleton cards
@@ -46,11 +48,12 @@ export default function ContentCard({
   isSelectionMode = false,
   isHighlighted = false,
 }: VideoCardProps) {
-  const { enableAi, showNewBadgeOnVideos, airplaneMode } = useSettings();
+  const { enableAi, enableLowlights, showNewBadgeOnVideos, airplaneMode } = useSettings();
   const { cacheFolder } = useAppState();
   const { session } = useAuth();
   const { openModal, closeModal } = useModal();
-  const { aiProgress } = useAiHighlights();
+  const { aiProgress: highlightAiProgress } = useAiHighlights();
+  const { aiProgress: lowlightAiProgress } = useAiLowlights();
   const { compressionProgress, isCompressing } = useCompression();
 
   const isBeingCompressed = content?.filePath ? isCompressing(content.filePath) : false;
@@ -159,7 +162,9 @@ export default function ContentCard({
           ? 'Replay Buffers'
           : type === 'Clip'
             ? 'Clips'
-            : 'Highlights';
+            : type === 'Lowlight'
+              ? 'Lowlights'
+              : 'Highlights';
     const thumbnailPath = `${cacheFolder}/thumbnails/${folderName}/${content?.fileName}.jpeg`;
     return `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(thumbnailPath)}`;
   };
@@ -239,6 +244,14 @@ export default function ContentCard({
     };
 
     sendMessageToBackend('CreateAiClip', parameters);
+  };
+
+  const handleCreateLowlight = () => {
+    const parameters: any = {
+      FileName: content!.fileName,
+    };
+
+    sendMessageToBackend('CreateLowlight', parameters);
   };
 
   const handleDelete = () => {
@@ -397,7 +410,7 @@ export default function ContentCard({
               tabIndex={0}
               className="dropdown-content menu bg-base-300 border border-base-400 rounded-box z-999 w-52 p-2"
             >
-              {!airplaneMode && (type === 'Clip' || type === 'Highlight') && (
+              {!airplaneMode && (type === 'Clip' || type === 'Highlight' || type === 'Lowlight') && (
                 <li>
                   <Button
                     variant="menuPrimary"
@@ -411,7 +424,7 @@ export default function ContentCard({
                   </Button>
                 </li>
               )}
-              {(type === 'Clip' || type === 'Highlight' || type === 'Buffer') && (
+              {(type === 'Clip' || type === 'Highlight' || type === 'Buffer' || type === 'Lowlight') && (
                 <li>
                   <Button
                     variant="menu"
@@ -433,7 +446,7 @@ export default function ContentCard({
                     const hasHighlightBookmarks = content?.bookmarks?.some((b) =>
                       includeInHighlight(b.type),
                     );
-                    const isProcessing = Object.values(aiProgress).some(
+                    const isProcessing = Object.values(highlightAiProgress).some(
                       (progress) =>
                         progress.content.fileName === content?.fileName &&
                         progress.status === 'processing',
@@ -464,6 +477,43 @@ export default function ContentCard({
                   })()}
                 </li>
               )}
+              {type === 'Session' && enableLowlights && (
+                <li>
+                  {(() => {
+                    const hasLowlightBookmarks = content?.bookmarks?.some((b) =>
+                      includeInLowlight(b.type),
+                    );
+                    const isProcessing = Object.values(lowlightAiProgress).some(
+                      (progress) =>
+                        progress.content.fileName === content?.fileName &&
+                        progress.status === 'processing',
+                    );
+                    const isDisabled = !hasLowlightBookmarks || isProcessing;
+
+                    return (
+                      <Button
+                        variant="menuPurple"
+                        disabled={isDisabled}
+                        onClick={() => {
+                          if (hasLowlightBookmarks && !isProcessing) {
+                            (document.activeElement as HTMLElement).blur();
+                            handleCreateLowlight();
+                          }
+                        }}
+                      >
+                        <Skull size={20} />
+                        <span>
+                          {isProcessing
+                            ? 'Creating Lowlight...'
+                            : hasLowlightBookmarks
+                              ? 'Create Lowlight'
+                              : 'No Lowlights'}
+                        </span>
+                      </Button>
+                    );
+                  })()}
+                </li>
+              )}
               <li>
                 <Button
                   variant="menu"
@@ -488,7 +538,7 @@ export default function ContentCard({
                   <span>Open File Location</span>
                 </Button>
               </li>
-              {(type === 'Clip' || type === 'Highlight') &&
+              {(type === 'Clip' || type === 'Highlight' || type === 'Lowlight') &&
                 !content?.fileName?.endsWith('_compressed') && (
                   <li>
                     <Button

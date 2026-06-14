@@ -11,6 +11,7 @@ import KeybindingsSection from '../Components/Settings/KeybindingsSection';
 import GameDetectionSection from '../Components/Settings/GameDetectionSection';
 import GameIntegrationsSection from '../Components/Settings/GameIntegrationsSection';
 import HighlightsSection from '../Components/Settings/HighlightsSection';
+import LowlightsSection from '../Components/Settings/LowlightsSection';
 import PreferencesSection from '../Components/Settings/PreferencesSection';
 import MenuCustomizationSection from '../Components/Settings/MenuCustomizationSection';
 import AdvancedSection from '../Components/Settings/AdvancedSection';
@@ -132,6 +133,7 @@ export default function Settings() {
         <SectionHeader id="clips">Clips</SectionHeader>
         <ClipSettingsSection settings={settings} updateSettings={updateSettings} />
         <HighlightsSection settings={settings} updateSettings={updateSettings} />
+        <LowlightsSection settings={settings} updateSettings={updateSettings} />
 
         {/* STORAGE */}
         <SectionHeader id="storage">Storage</SectionHeader>

@@ -1,4 +1,4 @@
-export type ContentType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
+export type ContentType = 'Session' | 'Buffer' | 'Clip' | 'Highlight' | 'Lowlight';
 
 export type RecordingMode = 'Session' | 'Buffer' | 'Hybrid';
 
@@ -64,6 +64,8 @@ export enum BookmarkType {
 
 export const includeInHighlight = (type: BookmarkType): boolean =>
   type === BookmarkType.Kill || type === BookmarkType.Goal;
+
+export const includeInLowlight = (type: BookmarkType): boolean => type === BookmarkType.Death;
 
 export enum BookmarkSubtype {
   Headshot = 'Headshot',
@@ -194,7 +196,13 @@ export type ClipPreset =
 export type VideoQualityPreset = 'low' | 'standard' | 'high' | 'custom';
 export type ClipQualityPreset = 'low' | 'standard' | 'high' | 'custom';
 
-export type MenuItemId = 'Full Sessions' | 'Replay Buffer' | 'Clips' | 'Highlights' | 'Settings';
+export type MenuItemId =
+  | 'Full Sessions'
+  | 'Replay Buffer'
+  | 'Clips'
+  | 'Highlights'
+  | 'Lowlights'
+  | 'Settings';
 
 export interface MenuItemPreference {
   id: MenuItemId;
@@ -206,6 +214,7 @@ export const DEFAULT_MENU_ITEMS: MenuItemPreference[] = [
   { id: 'Replay Buffer', visible: true },
   { id: 'Clips', visible: true },
   { id: 'Highlights', visible: true },
+  { id: 'Lowlights', visible: true },
   { id: 'Settings', visible: true },
 ];
 
@@ -214,6 +223,7 @@ export const MENU_ITEM_CONTENT_TYPES: Record<MenuItemId, ContentType[]> = {
   'Replay Buffer': ['Buffer'],
   Clips: ['Clip'],
   Highlights: ['Highlight'],
+  Lowlights: ['Lowlight'],
   Settings: [],
 };
 
@@ -247,7 +257,9 @@ export interface Settings {
   displayCaptureMethod: DisplayCaptureMethod;
   selectedOBSVersion: string | null; // null means automatic (latest non-beta)
   enableAi: boolean;
+  enableLowlights: boolean;
   autoGenerateHighlights: boolean;
+  autoGenerateLowlights: boolean;
   runOnStartup: boolean;
   receiveBetaUpdates: boolean;
   airplaneMode: boolean; // Hides cloud account/login/upload features and signs the user out
@@ -256,6 +268,8 @@ export interface Settings {
   replayBufferMaxSize: number; // in MB
   highlightPaddingBefore: number; // Seconds before a highlight moment
   highlightPaddingAfter: number; // Seconds after a highlight moment
+  lowlightPaddingBefore: number; // Seconds before a lowlight moment
+  lowlightPaddingAfter: number; // Seconds after a lowlight moment
   clipClearSegmentsAfterCreatingClip: boolean;
   clipShowInBrowserAfterUpload: boolean; // Open browser after upload
   clipEncoder: ClipEncoder;
@@ -325,7 +339,9 @@ export const initialSettings: Settings = {
   displayCaptureMethod: 'Auto',
   selectedOBSVersion: null, // null means automatic (latest non-beta)
   enableAi: true,
+  enableLowlights: false,
   autoGenerateHighlights: true,
+  autoGenerateLowlights: true,
   runOnStartup: false,
   receiveBetaUpdates: false,
   airplaneMode: false,
@@ -334,6 +350,8 @@ export const initialSettings: Settings = {
   replayBufferMaxSize: 1000,
   highlightPaddingBefore: 4,
   highlightPaddingAfter: 4,
+  lowlightPaddingBefore: 4,
+  lowlightPaddingAfter: 4,
   clipClearSegmentsAfterCreatingClip: false,
   clipShowInBrowserAfterUpload: false,
   clipEncoder: 'cpu',
@@ -413,6 +431,7 @@ export interface AiProgress {
   status: 'processing' | 'done';
   message: string;
   content: Content;
+  messageType: string;
 }
 
 export interface MigrationStatus {
