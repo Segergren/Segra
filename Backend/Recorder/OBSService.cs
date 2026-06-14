@@ -731,8 +731,8 @@ namespace Segra.Backend.Recorder
                 }
             }
 
-            // Set scene as program output
-            _mainScene.SetAsProgram();
+            // Set scene as program output (channel 0)
+            Obs.SetOutputSource(_mainScene);
 
             // Create video encoder
             string encoderId = Settings.Instance.Codec!.InternalEncoderId;
