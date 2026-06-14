@@ -151,11 +151,12 @@ namespace Segra.Backend.Windows.Input
                     if (recording != null && (recordingMode == RecordingMode.Session || recordingMode == RecordingMode.Hybrid))
                     {
                         Log.Information("Saving bookmark...");
-                        recording.Bookmarks.Add(new Bookmark
+                        var bookmark = new Bookmark
                         {
                             Type = BookmarkType.Manual,
                             Time = DateTime.Now - recording.StartTime
-                        });
+                        };
+                        recording.AddBookmark(bookmark);
                         Task.Run(PlayBookmarkSound);
                         _ = MessageService.SendFrontendMessage("BookmarkCreated", new { });
                     }

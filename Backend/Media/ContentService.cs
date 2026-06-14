@@ -568,7 +568,7 @@ namespace Segra.Backend.Media
                         {
                             c.Bookmarks = [];
                         }
-                        c.Bookmarks.Add(bookmark);
+                        c.AddBookmark(bookmark);
                     });
 
                     if (content == null)
@@ -587,7 +587,7 @@ namespace Segra.Backend.Media
                         return;
                     }
 
-                    contentItem.Bookmarks.Add(bookmark);
+                    contentItem.AddBookmark(bookmark);
 
                     await MessageService.SendStateToFrontend("Added bookmark");
                     Log.Information($"Added bookmark of type {bookmarkType} at {timeString} to {metadataFilePath}");

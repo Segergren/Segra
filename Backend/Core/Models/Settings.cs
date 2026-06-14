@@ -996,6 +996,8 @@ namespace Segra.Backend.Core.Models
     // Recording class
     internal class Recording
     {
+        private readonly object _bookmarksLock = new();
+
         [JsonPropertyName("startTime")]
         public DateTime StartTime { get; set; }
 
@@ -1034,6 +1036,15 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("audioTrackNames")]
         public List<string>? AudioTrackNames { get; set; }
 
+        public void AddBookmark(Bookmark bookmark)
+        {
+            lock (_bookmarksLock)
+            {
+                Bookmarks.Add(bookmark);
+            }
+            AppState.Instance.NotifyRecordingUpdated();
+        }
+
         [JsonPropertyName("duration")]
         public TimeSpan? Duration
         {
@@ -1054,6 +1065,8 @@ namespace Segra.Backend.Core.Models
     // Content class
     public class Content
     {
+        private readonly object _bookmarksLock = new();
+
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public enum ContentType
         {
@@ -1069,6 +1082,15 @@ namespace Segra.Backend.Core.Models
 
         public string Game { get; set; } = string.Empty;
         public List<Bookmark> Bookmarks { get; set; } = new List<Bookmark>();
+
+        public void AddBookmark(Bookmark bookmark)
+        {
+            lock (_bookmarksLock)
+            {
+                Bookmarks.Add(bookmark);
+            }
+            AppState.Instance.NotifyContentUpdated();
+        }
 
         public string FileName { get; set; } = string.Empty;
 

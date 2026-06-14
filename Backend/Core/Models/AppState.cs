@@ -327,6 +327,16 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        public void NotifyRecordingUpdated()
+        {
+            SendToFrontend("State update: Recording updated");
+        }
+
+        public void NotifyContentUpdated()
+        {
+            SendToFrontend("State update: Content updated");
+        }
+
         public void SetContent(List<Content> contents, bool sendToFrontend)
         {
             _content = contents;

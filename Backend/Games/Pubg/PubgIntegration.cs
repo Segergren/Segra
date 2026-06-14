@@ -140,10 +140,11 @@ namespace Segra.Backend.Games.Pubg
                         !string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
                         var downTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                        var bookmarkTime = downTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
+                        var recording = AppState.Instance.Recording;
+                        var bookmarkTime = downTime - recording?.StartTime ?? TimeSpan.Zero;
 
                         // Skip events that occurred before recording started
-                        if (bookmarkTime < TimeSpan.Zero)
+                        if (bookmarkTime < TimeSpan.Zero || recording == null)
                             continue;
 
                         var bookmark = new Bookmark
@@ -151,7 +152,7 @@ namespace Segra.Backend.Games.Pubg
                             Type = BookmarkType.Kill,
                             Time = bookmarkTime
                         };
-                        AppState.Instance.Recording?.Bookmarks.Add(bookmark);
+                        recording.AddBookmark(bookmark);
                     }
                 }
             }
@@ -180,10 +181,11 @@ namespace Segra.Backend.Games.Pubg
                         if (!eventData.IsDBNO)
                         {
                             var killTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                            var bookmarkTime = killTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
+                            var recording = AppState.Instance.Recording;
+                            var bookmarkTime = killTime - recording?.StartTime ?? TimeSpan.Zero;
 
                             // Skip events that occurred before recording started
-                            if (bookmarkTime < TimeSpan.Zero)
+                            if (bookmarkTime < TimeSpan.Zero || recording == null)
                                 continue;
 
                             var bookmark = new Bookmark
@@ -191,7 +193,7 @@ namespace Segra.Backend.Games.Pubg
                                 Type = BookmarkType.Kill,
                                 Time = bookmarkTime
                             };
-                            AppState.Instance.Recording?.Bookmarks.Add(bookmark);
+                            recording.AddBookmark(bookmark);
                         }
                     }
                 }
@@ -215,10 +217,11 @@ namespace Segra.Backend.Games.Pubg
                     if (string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
                         var downTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                        var bookmarkTime = downTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
+                        var recording = AppState.Instance.Recording;
+                        var bookmarkTime = downTime - recording?.StartTime ?? TimeSpan.Zero;
 
                         // Skip events that occurred before recording started
-                        if (bookmarkTime < TimeSpan.Zero)
+                        if (bookmarkTime < TimeSpan.Zero || recording == null)
                             continue;
 
                         var bookmark = new Bookmark
@@ -226,7 +229,7 @@ namespace Segra.Backend.Games.Pubg
                             Type = BookmarkType.Death,
                             Time = bookmarkTime
                         };
-                        AppState.Instance.Recording?.Bookmarks.Add(bookmark);
+                        recording.AddBookmark(bookmark);
                     }
                 }
             }
@@ -253,10 +256,11 @@ namespace Segra.Backend.Games.Pubg
                         if (!eventData.IsDBNO)
                         {
                             var deathTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                            var bookmarkTime = deathTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
+                            var recording = AppState.Instance.Recording;
+                            var bookmarkTime = deathTime - recording?.StartTime ?? TimeSpan.Zero;
 
                             // Skip events that occurred before recording started
-                            if (bookmarkTime < TimeSpan.Zero)
+                            if (bookmarkTime < TimeSpan.Zero || recording == null)
                                 continue;
 
                             var bookmark = new Bookmark
@@ -264,7 +268,7 @@ namespace Segra.Backend.Games.Pubg
                                 Type = BookmarkType.Death,
                                 Time = bookmarkTime
                             };
-                            AppState.Instance.Recording?.Bookmarks.Add(bookmark);
+                            recording.AddBookmark(bookmark);
                         }
                     }
                 }

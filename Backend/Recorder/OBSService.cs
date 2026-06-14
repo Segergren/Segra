@@ -456,7 +456,12 @@ namespace Segra.Backend.Recorder
             {
                 Log.Information("Shutting down OBS...");
 
-                // Dispose the OBS context to properly clean up OBS resources
+                // Manually clean up all resources since AutoDispose is false
+                DisposeOutput();
+                DisposeSources();
+                DisposeEncoders();
+
+                // Dispose the OBS context last
                 _obsContext?.Dispose();
                 _obsContext = null;
 
@@ -2211,26 +2216,38 @@ namespace Segra.Backend.Recorder
         }
 
         /// <summary>
-        /// Clears encoder references. Encoders are auto-disposed by OBSKit.NET when outputs stop.
+        /// Clears encoder references. Encoders are manually disposed since AutoDispose is false.
         /// </summary>
         public static void DisposeEncoders()
         {
+            try { _videoEncoder?.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing video encoder: {ex.Message}"); }
             _videoEncoder = null;
+
+            foreach (var audioEncoder in _audioEncoders)
+            {
+                try { audioEncoder.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing audio encoder: {ex.Message}"); }
+            }
             _audioEncoders.Clear();
         }
 
         /// <summary>
-        /// Clears output references and signal connections. Outputs are auto-disposed by OBSKit.NET when Stop() is called.
+        /// Clears output references and signal connections. Outputs are manually disposed since AutoDispose is false.
         /// </summary>
         public static void DisposeOutput()
         {
             _replaySavedConnection?.Dispose();
             _replaySavedConnection = null;
+
             _outputStoppedConnection?.Dispose();
             _outputStoppedConnection = null;
+
             _bufferStoppedConnection?.Dispose();
             _bufferStoppedConnection = null;
+
+            try { _output?.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing output: {ex.Message}"); }
             _output = null;
+
+            try { _bufferOutput?.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing buffer output: {ex.Message}"); }
             _bufferOutput = null;
         }
 
