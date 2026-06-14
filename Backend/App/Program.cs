@@ -293,6 +293,21 @@ namespace Segra.Backend.App
         {
             Log.Information("Application shutting down.");
 
+            // Stop any active recording first so OBS finalizes the file cleanly. Task.Run + block keeps
+            // the awaits off the tray thread, whose WinForms SynchronizationContext would otherwise deadlock.
+            if (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null)
+            {
+                Log.Information("Active recording detected during shutdown; stopping it before exit.");
+                try
+                {
+                    Task.Run(() => OBSService.StopRecording()).GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error stopping recording during shutdown");
+                }
+            }
+
             // Shutdown OBS if it was initialized
             OBSService.Shutdown();
 

@@ -208,7 +208,10 @@ namespace Segra.Backend.Media
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, segments });
 
-                await SettingsService.LoadContentFromFolderIntoState();
+                // Load silently then await the state send before progress=100 removes the loading card,
+                // so the clip is on screen first (avoids a skeleton-removed-before-content flicker).
+                await SettingsService.LoadContentFromFolderIntoState(sendToFrontend: false);
+                await MessageService.SendStateToFrontend("Clip created");
                 await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, segments });
             }
             catch (Exception ex)

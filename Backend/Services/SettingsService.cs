@@ -661,11 +661,10 @@ namespace Segra.Backend.Services
                 Log.Information($"SelectedDisplay changed from '{settings.SelectedDisplay}' to '{updatedSettings.SelectedDisplay}'");
                 settings.SelectedDisplay = updatedSettings.SelectedDisplay;
 
-                // Update display source if we have a recording and it is not using game hook
+                // Update the live display capture in place; only meaningful while recording without a game hook.
                 if (AppState.Instance.Recording != null && !AppState.Instance.Recording.IsUsingGameHook)
                 {
-                    OBSService.DisposeDisplaySource();
-                    OBSService.AddMonitorCapture();
+                    OBSService.UpdateMonitorCapture();
                 }
                 hasChanges = true;
             }
@@ -881,8 +880,8 @@ namespace Segra.Backend.Services
 
             AppState.Instance.SetContent(content, sendToFrontend);
 
-            // Update folder size in state
-            Windows.Storage.StorageService.UpdateFolderSizeInState();
+            // Honor sendToFrontend so a silent reload doesn't leak a state send via the folder size.
+            Windows.Storage.StorageService.UpdateFolderSizeInState(sendToFrontend);
         }
 
         public static void GetPrimaryMonitorResolution(out uint boundsWidth, out uint boundsHeight)

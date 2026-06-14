@@ -228,11 +228,18 @@ namespace Segra.Backend.Core.Models
         public double CurrentFolderSizeGb
         {
             get => _currentFolderSizeGb;
-            set
+            set => SetCurrentFolderSizeGb(value, sendToFrontend: true);
+        }
+
+        // sendToFrontend: false lets a silent content reload stay silent, so the new content and the
+        // cleared recording arrive in one state message instead of a stray send causing a flicker.
+        public void SetCurrentFolderSizeGb(double value, bool sendToFrontend)
+        {
+            if (Math.Abs(_currentFolderSizeGb - value) > 0.001)
             {
-                if (Math.Abs(_currentFolderSizeGb - value) > 0.001)
+                _currentFolderSizeGb = value;
+                if (sendToFrontend)
                 {
-                    _currentFolderSizeGb = value;
                     SendToFrontend("State update: CurrentFolderSizeGb");
                 }
             }

@@ -112,8 +112,10 @@ namespace Segra.Backend.Media
                 progressCallback?.Invoke(98, "Creating waveform...");
                 await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Highlight);
 
-                // Reload content
-                await SettingsService.LoadContentFromFolderIntoState();
+                // Load silently then await the state send before "Done" removes the loading card, so the
+                // highlight is on screen first (avoids a skeleton-removed-before-content flicker).
+                await SettingsService.LoadContentFromFolderIntoState(sendToFrontend: false);
+                await MessageService.SendStateToFrontend("Highlight created");
 
                 progressCallback?.Invoke(100, "Done");
                 Log.Information($"Highlight created successfully: {outputFilePath}");

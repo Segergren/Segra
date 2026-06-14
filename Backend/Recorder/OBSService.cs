@@ -1153,25 +1153,7 @@ namespace Segra.Backend.Recorder
                 return;
             }
 
-            int monitorIndex = 0;
-
-            if (Settings.Instance.SelectedDisplay != null)
-            {
-                int? foundIndex = AppState.Instance.Displays
-                    .Select((d, i) => new { Display = d, Index = i })
-                    .Where(x => x.Display.DeviceId == Settings.Instance.SelectedDisplay?.DeviceId)
-                    .Select(x => (int?)x.Index)
-                    .FirstOrDefault();
-
-                if (foundIndex.HasValue)
-                {
-                    monitorIndex = foundIndex.Value;
-                }
-                else
-                {
-                    _ = MessageService.ShowModal("Display recording", $"Could not find selected display. Defaulting to first automatically detected display.", "warning");
-                }
-            }
+            int monitorIndex = ResolveSelectedMonitorIndex(warnIfNotFound: true);
 
             var captureMethod = Settings.Instance.DisplayCaptureMethod switch
             {
@@ -1187,6 +1169,48 @@ namespace Segra.Backend.Recorder
             _displayItem = _mainScene.AddSource(_displaySource);
 
             Log.Information($"Display capture added for monitor {monitorIndex} using {Settings.Instance.DisplayCaptureMethod} method");
+        }
+
+        /// <summary>
+        /// Switches the live display capture to the selected monitor in place (keeping the source and its
+        /// scene-item bounds), so a mid-recording monitor change has no gap. No-op if no display source is
+        /// active (e.g. a game is hooked); the new monitor then applies on the next recording.
+        /// </summary>
+        public static void UpdateMonitorCapture()
+        {
+            if (_displaySource == null)
+            {
+                Log.Information("Monitor selection changed but no active display capture to update; it will apply on the next recording.");
+                return;
+            }
+
+            int monitorIndex = ResolveSelectedMonitorIndex(warnIfNotFound: true);
+            _displaySource.SetMonitor(monitorIndex);
+            Log.Information($"Updated live display capture to monitor {monitorIndex}");
+        }
+
+        /// <summary>
+        /// Resolves the monitor index to capture from the selected display setting, falling back to the
+        /// first monitor when no display is selected or the selected one can't be found.
+        /// </summary>
+        private static int ResolveSelectedMonitorIndex(bool warnIfNotFound)
+        {
+            if (Settings.Instance.SelectedDisplay == null)
+                return 0;
+
+            int? foundIndex = AppState.Instance.Displays
+                .Select((d, i) => new { Display = d, Index = i })
+                .Where(x => x.Display.DeviceId == Settings.Instance.SelectedDisplay?.DeviceId)
+                .Select(x => (int?)x.Index)
+                .FirstOrDefault();
+
+            if (foundIndex.HasValue)
+                return foundIndex.Value;
+
+            if (warnIfNotFound)
+                _ = MessageService.ShowModal("Display recording", "Could not find selected display. Defaulting to first automatically detected display.", "warning");
+
+            return 0;
         }
 
         /// <summary>

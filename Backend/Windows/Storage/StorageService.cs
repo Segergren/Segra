@@ -120,10 +120,10 @@ namespace Segra.Backend.Windows.Storage
             return fullDrives;
         }
 
-        public static void UpdateFolderSizeInState()
+        public static void UpdateFolderSizeInState(bool sendToFrontend = true)
         {
             double currentSizeGb = GetCurrentFolderSizeGb();
-            AppState.Instance.CurrentFolderSizeGb = currentSizeGb;
+            AppState.Instance.SetCurrentFolderSizeGb(currentSizeGb, sendToFrontend);
             Log.Information($"Updated folder size in state: {currentSizeGb:F2} GB");
         }
 
