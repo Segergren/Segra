@@ -62,7 +62,33 @@ export default function Settings() {
 
   // Scroll spy to track which section is currently visible
   useEffect(() => {
+    // The settings page scrolls inside an ancestor container; find it so we can detect the very top.
+    let scroller: HTMLElement | null = null;
+    const getScroller = (): HTMLElement | null => {
+      if (scroller?.isConnected) return scroller;
+      let node = document.getElementById(navItems[0].id)?.parentElement ?? null;
+      while (node) {
+        const overflowY = getComputedStyle(node).overflowY;
+        if (
+          (overflowY === 'auto' || overflowY === 'scroll') &&
+          node.scrollHeight > node.clientHeight
+        ) {
+          scroller = node;
+          return node;
+        }
+        node = node.parentElement;
+      }
+      return null;
+    };
+
     const handleScroll = () => {
+      // At the very top, always select the first section (Account); the upper-third check below
+      // otherwise picks whichever later heading already sits above the line.
+      if ((getScroller()?.scrollTop ?? 0) <= 0) {
+        setActiveSection(navItems[0].id);
+        return;
+      }
+
       const viewportCenter = window.innerHeight / 2.3; // Check upper-third of viewport
 
       // Find the last section whose top has passed the check point
