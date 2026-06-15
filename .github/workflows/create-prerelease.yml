@@ -148,12 +148,14 @@ jobs:
         run: dotnet publish -c Release --self-contained -r win-x64 -o publish -p:Version=${{ env.new_version }}
         shell: pwsh
 
-      - name: Upload Segra.exe for signing (Pass 1)
+      - name: Upload Segra binaries for signing (Pass 1)
         id: upload_unsigned_exe
         uses: actions/upload-artifact@v7
         with:
           name: Segra-exe-unsigned
-          path: ./publish/Segra.exe
+          path: |
+            ./publish/Segra.exe
+            ./publish/Segra.dll
           if-no-files-found: error
           retention-days: 1
 
@@ -298,3 +300,49 @@ jobs:
             ./releases.win.json
             ./assets.win.json
             ./Segra-${{ needs.build.outputs.new_version }}-full.nupkg
+
+  # Decoupled from the release: runs after the pre-release is published so the
+  # release job goes green immediately. continue-on-error keeps a VirusTotal
+  # hiccup from ever failing the overall workflow run.
+  virustotal:
+    needs: pre-release
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Segra
+
+      - name: Upload installer to VirusTotal
+        shell: bash
+        env:
+          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          FILE="./Segra-win-Setup.exe"
+          if [ -z "${VT_API_KEY:-}" ]; then
+            echo "::warning::VIRUSTOTAL_API_KEY secret not set; skipping VirusTotal upload"
+            exit 0
+          fi
+          if [ ! -f "$FILE" ]; then
+            echo "::warning::$FILE not found; skipping VirusTotal upload"
+            exit 0
+          fi
+          # The /files endpoint caps at 32MB, so request a one-time large-file
+          # upload URL (valid up to 650MB) and POST the installer there.
+          echo "Requesting VirusTotal upload URL..."
+          UPLOAD_URL=$(curl -sS --fail -H "x-apikey: $VT_API_KEY" \
+            https://www.virustotal.com/api/v3/files/upload_url | jq -r '.data')
+          echo "Uploading $FILE to VirusTotal..."
+          ANALYSIS_ID=$(curl -sS --fail -H "x-apikey: $VT_API_KEY" \
+            -F "file=@${FILE}" "$UPLOAD_URL" | jq -r '.data.id')
+          REPORT_URL="https://www.virustotal.com/gui/file-analysis/$ANALYSIS_ID"
+          echo "VirusTotal analysis id: $ANALYSIS_ID"
+          echo "Report: $REPORT_URL"
+          {
+            echo "## VirusTotal"
+            echo "Pre-release installer submitted for scanning."
+            echo ""
+            echo "[View analysis]($REPORT_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
