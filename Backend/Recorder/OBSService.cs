@@ -1929,9 +1929,18 @@ namespace Segra.Backend.Recorder
 
         public static void DisposeSources()
         {
-            // Dispose the scene (automatically clears output channel and disposes scene items)
             if (_mainScene != null)
             {
+                try
+                {
+                    if (Obs.IsInitialized)
+                        Obs.ClearOutputSource(0);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to clear output channel: {ex.Message}");
+                }
+
                 try
                 {
                     _mainScene.Dispose();
