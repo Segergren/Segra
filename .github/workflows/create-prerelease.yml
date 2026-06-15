@@ -36,24 +36,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@v5
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('Frontend/bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
-          restore-keys: nuget-${{ runner.os }}-
-
       - name: Determine Version
         id: get_version
         shell: pwsh
@@ -129,11 +111,11 @@ jobs:
 
       - name: Install Frontend dependencies
         working-directory: ./Frontend
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Build Frontend
         working-directory: ./Frontend
-        run: bun run build
+        run: npm run build
 
       - name: Move Frontend Build to Resources/wwwroot
         run: |
