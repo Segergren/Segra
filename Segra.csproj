@@ -4,15 +4,12 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <Platforms>x64</Platforms>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <DefineConstants>TRACE;WINDOWS</DefineConstants>
     <UseWindowsForms>true</UseWindowsForms>
 
-    <!-- TargetFramework/Company/Configuration/Product/Title attributes stay suppressed to
-         avoid duplicate-attribute build errors. The version attributes are emitted so the
-         compiled Segra.exe carries a real File/Product version (from -p:Version at build
-         time) instead of 0.0.0.0. -->
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
@@ -21,7 +18,6 @@
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
     <GenerateAssemblyVersionAttribute>true</GenerateAssemblyVersionAttribute>
-    <!-- Keep the product/informational version clean (no +<commit> suffix). -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
     <!-- Generate embedded file manifest when using the Photino.NET StaticFileServer -->

@@ -93,12 +93,6 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
         shell: pwsh
 
-      - name: Install vpk as .NET Global Tool
-        run: |
-          dotnet tool install -g vpk --version 1.2.0
-          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
-        shell: pwsh
-
       - name: Update Frontend version
         working-directory: ./Frontend
         shell: pwsh
@@ -109,25 +103,49 @@ jobs:
           $packageJson | ConvertTo-Json -Depth 100 | Set-Content package.json -NoNewline
           Write-Host "Updated version: $(Select-String -Path package.json -Pattern 'version')"
 
-      - name: Install Frontend dependencies
-        working-directory: ./Frontend
-        run: npm ci
-
-      - name: Build Frontend
-        working-directory: ./Frontend
-        run: npm run build
-
-      - name: Move Frontend Build to Resources/wwwroot
-        run: |
-          $source = "./Frontend/dist"
-          $destination = "./Resources/wwwroot"
-          if (-Not (Test-Path -Path $destination)) { New-Item -ItemType Directory -Path $destination -Force }
-          Remove-Item -Path "$destination\*" -Recurse -Force
-          Copy-Item -Path "$source\*" -Destination $destination -Recurse -Force
+      - name: Build frontend; restore backend and install vpk in parallel
         shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # vpk install and the NuGet restore don't depend on the frontend, so run them
+          # in the background while the frontend builds; both are awaited before publish.
+          $vpkJob = Start-Job {
+            dotnet tool install -g vpk --version 1.2.0
+            if ($LASTEXITCODE -ne 0) { throw "vpk install exited $LASTEXITCODE" }
+          }
+          $restoreJob = Start-Job -ArgumentList $PWD.Path {
+            param($root)
+            Set-Location $root
+            dotnet restore -r win-x64
+            if ($LASTEXITCODE -ne 0) { throw "dotnet restore exited $LASTEXITCODE" }
+          }
+
+          Push-Location Frontend
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw "npm ci exited $LASTEXITCODE" }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw "npm run build exited $LASTEXITCODE" }
+          Pop-Location
+
+          # Copy the frontend build into Resources/wwwroot so dotnet publish embeds it.
+          $destination = "./Resources/wwwroot"
+          if (-Not (Test-Path -Path $destination)) { New-Item -ItemType Directory -Path $destination -Force | Out-Null }
+          Remove-Item -Path "$destination\*" -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item -Path "./Frontend/dist/*" -Destination $destination -Recurse -Force
+
+          # Native stderr from a job surfaces as error records, so relax ErrorAction and
+          # merge it into output; gate success on each job's State (jobs throw on failure).
+          $ErrorActionPreference = 'Continue'
+          Write-Host "=== vpk tool install ==="
+          Receive-Job $vpkJob -Wait 2>&1 | ForEach-Object { Write-Host $_ }
+          Write-Host "=== dotnet restore -r win-x64 ==="
+          Receive-Job $restoreJob -Wait 2>&1 | ForEach-Object { Write-Host $_ }
+          if ($vpkJob.State -ne 'Completed') { throw "vpk install job failed (state: $($vpkJob.State))" }
+          if ($restoreJob.State -ne 'Completed') { throw "dotnet restore job failed (state: $($restoreJob.State))" }
 
       - name: Publish the App
-        run: dotnet publish -c Release --self-contained -r win-x64 -o publish -p:Version=${{ env.new_version }}
+        run: dotnet publish -c Release --self-contained -r win-x64 -o publish --no-restore -p:Version=${{ env.new_version }}
         shell: pwsh
 
       - name: Upload Segra binaries for signing (Pass 1)
@@ -283,9 +301,7 @@ jobs:
             ./assets.win.json
             ./Segra-${{ needs.build.outputs.new_version }}-full.nupkg
 
-  # Decoupled from the release: runs after the pre-release is published so the
-  # release job goes green immediately. continue-on-error keeps a VirusTotal
-  # hiccup from ever failing the overall workflow run.
+  # Separate, non-blocking job so the release job goes green without waiting on VirusTotal.
   virustotal:
     needs: pre-release
     runs-on: ubuntu-latest
@@ -311,8 +327,7 @@ jobs:
             echo "::warning::$FILE not found; skipping VirusTotal upload"
             exit 0
           fi
-          # The /files endpoint caps at 32MB, so request a one-time large-file
-          # upload URL (valid up to 650MB) and POST the installer there.
+          # /files caps at 32MB, so request a one-time large-file upload URL instead.
           echo "Requesting VirusTotal upload URL..."
           UPLOAD_URL=$(curl -sS --fail -H "x-apikey: $VT_API_KEY" \
             https://www.virustotal.com/api/v3/files/upload_url | jq -r '.data')
