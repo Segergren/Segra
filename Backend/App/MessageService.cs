@@ -24,7 +24,6 @@ namespace Segra.Backend.App
 
         public static async Task HandleMessage(string message)
         {
-            Log.Information("Websocket message received: " + GeneralUtils.RedactSensitiveInfo(message));
             if (string.IsNullOrEmpty(message))
             {
                 Log.Information("Received empty message.");
@@ -37,6 +36,8 @@ namespace Segra.Backend.App
                 await SendFrontendMessage("pong", new { });
                 return;
             }
+
+            Log.Information("Websocket message received: " + GeneralUtils.RedactSensitiveInfo(message));
 
             try
             {
@@ -697,7 +698,6 @@ namespace Segra.Backend.App
                     else
                     {
                         string receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        Log.Information($"Received message: {receivedMessage}");
                         await HandleMessage(receivedMessage);
                     }
                 }

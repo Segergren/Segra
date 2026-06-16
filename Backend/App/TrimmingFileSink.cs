@@ -1,3 +1,4 @@
+using Segra.Backend.Shared;
 using Serilog.Core;
 using Serilog.Events;
 using Serilog.Formatting;
@@ -39,7 +40,7 @@ namespace Segra.Backend.App
             {
                 using var sw = new StringWriter();
                 _formatter.Format(logEvent, sw);
-                var text = sw.ToString();
+                var text = GeneralUtils.RedactUsername(sw.ToString());
 
                 _writer.Write(text);
                 _writer.Flush();

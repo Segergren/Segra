@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { VolumeX, Volume2 } from 'lucide-react';
 import CloudBadge from '../CloudBadge';
-import { Settings as SettingsType } from '../../Models/types';
+import DropdownSelect from '../DropdownSelect';
+import { Settings as SettingsType, StartupWindowMode } from '../../Models/types';
 
 interface PreferencesSectionProps {
   settings: SettingsType;
@@ -10,10 +12,18 @@ interface PreferencesSectionProps {
 
 export default function PreferencesSection({ settings, updateSettings }: PreferencesSectionProps) {
   const [draggingSoundVolume, setDraggingSoundVolume] = useState<number | null>(null);
+  // The dropdown's collapse animation needs overflow hidden, but once expanded the dropdown
+  // menu must be able to overflow the row, so only reveal overflow after the animation settles.
+  // Initialize from the current value: when the page loads with Run on Startup already enabled,
+  // the entrance animation is skipped, so onAnimationComplete never fires to reveal overflow.
+  const [startupModeOverflowVisible, setStartupModeOverflowVisible] = useState(
+    settings.runOnStartup,
+  );
 
   return (
     <div className="bg-base-300 px-4 py-3 rounded-lg space-y-3 border border-custom">
-      <div className="flex items-center">
+      {/* Enabled-by-default toggles */}
+      <div className="flex flex-col">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -24,6 +34,34 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
           />
           <span className="cursor-pointer">Run on Startup</span>
         </label>
+        <AnimatePresence initial={false}>
+          {settings.runOnStartup && (
+            <motion.div
+              key="startupWindowMode"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              onAnimationStart={() => setStartupModeOverflowVisible(false)}
+              onAnimationComplete={() => setStartupModeOverflowVisible(true)}
+              style={{ overflow: startupModeOverflowVisible ? 'visible' : 'hidden' }}
+            >
+              <div className="w-40 pt-2">
+                <DropdownSelect
+                  size="sm"
+                  items={[
+                    { value: 'Minimized', label: 'Minimized' },
+                    { value: 'Normal', label: 'Normal Window' },
+                  ]}
+                  value={settings.startupWindowMode}
+                  onChange={(val) =>
+                    updateSettings({ startupWindowMode: val as StartupWindowMode })
+                  }
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="flex items-center">
@@ -45,12 +83,12 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            name="removeOriginalAfterCompression"
-            checked={settings.removeOriginalAfterCompression}
-            onChange={(e) => updateSettings({ removeOriginalAfterCompression: e.target.checked })}
+            name="showAudioWaveformInTimeline"
+            checked={settings.showAudioWaveformInTimeline}
+            onChange={(e) => updateSettings({ showAudioWaveformInTimeline: e.target.checked })}
             className="checkbox checkbox-primary checkbox-sm"
           />
-          <span className="cursor-pointer">Delete Original File After Compression</span>
+          <span className="cursor-pointer">Show Audio Waveform in Video Timeline</span>
         </label>
       </div>
 
@@ -58,12 +96,26 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            name="showAudioWaveformInTimeline"
-            checked={settings.showAudioWaveformInTimeline}
-            onChange={(e) => updateSettings({ showAudioWaveformInTimeline: e.target.checked })}
+            name="disableWindowsGameMode"
+            checked={settings.disableWindowsGameMode}
+            onChange={(e) => updateSettings({ disableWindowsGameMode: e.target.checked })}
             className="checkbox checkbox-primary checkbox-sm"
           />
-          <span className="cursor-pointer">Show Audio Waveform in Video Timeline</span>
+          <span className="cursor-pointer">Disable Windows Game Mode</span>
+        </label>
+      </div>
+
+      {/* Disabled-by-default toggles */}
+      <div className="flex items-center">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            name="removeOriginalAfterCompression"
+            checked={settings.removeOriginalAfterCompression}
+            onChange={(e) => updateSettings({ removeOriginalAfterCompression: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <span className="cursor-pointer">Delete Original File After Compression</span>
         </label>
       </div>
 

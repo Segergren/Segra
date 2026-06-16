@@ -20,6 +20,11 @@ namespace Segra.Backend.Services
                 return;
             }
 
+            // Ignore duplicate logins with unchanged credentials (the frontend re-sends Login on every
+            // websocket (re)connect) so we don't persist or log redundantly.
+            if (jwt == Auth.Jwt && refreshToken == Auth.RefreshToken)
+                return;
+
             Auth.Jwt = jwt;
             Auth.RefreshToken = refreshToken;
             Log.Information("Login successful");

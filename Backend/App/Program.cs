@@ -5,6 +5,7 @@ using Segra.Backend.Core.Models;
 using Segra.Backend.Recorder;
 using Segra.Backend.Services;
 using Segra.Backend.Shared;
+using Segra.Backend.Windows.GameMode;
 using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Power;
 using Segra.Backend.Windows.Storage;
@@ -223,6 +224,7 @@ namespace Segra.Backend.App
                 {
                     _ = SettingsService.LoadContentFromFolderIntoState(true);
                     StartupService.SetStartupStatus(true);
+                    Settings.Instance.DisableWindowsGameMode = true;
                     AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
                     SettingsService.SelectDefaultDevices();
                     _ = PresetsService.ApplyVideoPreset("high");
@@ -246,14 +248,19 @@ namespace Segra.Backend.App
                 // Check for updates
                 Task.Run(() => UpdateService.UpdateAppIfNecessary(forceCheck: true));
 
-                // Check if application was launched from startup
-                bool startMinimized = IsLaunchedFromStartup();
+                // Check if application was launched from startup. Only minimize to tray when the
+                // user has chosen the Minimized startup window mode; otherwise open normally.
+                bool startMinimized = IsLaunchedFromStartup() &&
+                    Settings.Instance.StartupWindowMode == StartupWindowMode.Minimized;
                 Log.Information($"Starting application{(startMinimized ? " minimized from startup" : "")}");
 
                 AddNotifyIcon();
 
                 // Start monitoring system power state changes (sleep/wake)
                 Task.Run(PowerModeMonitor.StartMonitoring);
+
+                // Ensure Windows Game Mode is off when the user has opted in (no-op otherwise)
+                Task.Run(GameModeService.EnforceDisabledIfEnabled);
 
                 // Run the OBS Initializer in a separate thread and application to make sure someting on the main thread doesn't block
                 Task.Run(() => Application.Run(new OBSWindow()));

@@ -4,6 +4,7 @@ using Segra.Backend.Media;
 using Segra.Backend.Recorder;
 using Segra.Backend.Shared;
 using Segra.Backend.Windows.Display;
+using Segra.Backend.Windows.GameMode;
 using Segra.Backend.Windows.Input;
 using Serilog;
 using System.Text.Json;
@@ -370,6 +371,19 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
+            // Update DisableWindowsGameMode
+            if (settings.DisableWindowsGameMode != updatedSettings.DisableWindowsGameMode)
+            {
+                Log.Information($"DisableWindowsGameMode changed from '{settings.DisableWindowsGameMode}' to '{updatedSettings.DisableWindowsGameMode}'");
+                settings.DisableWindowsGameMode = updatedSettings.DisableWindowsGameMode;
+                // Enabling the option proactively disables Game Mode; disabling it leaves Game Mode untouched.
+                if (settings.DisableWindowsGameMode)
+                {
+                    GameModeService.EnforceDisabledIfEnabled();
+                }
+                hasChanges = true;
+            }
+
             // Update GameIntegrations
             if (updatedSettings.GameIntegrations != null)
             {
@@ -724,6 +738,14 @@ namespace Segra.Backend.Services
             {
                 Log.Information($"RunOnStartup changed from '{settings.RunOnStartup}' to '{updatedSettings.RunOnStartup}'");
                 settings.RunOnStartup = updatedSettings.RunOnStartup;
+                hasChanges = true;
+            }
+
+            // Update StartupWindowMode
+            if (settings.StartupWindowMode != updatedSettings.StartupWindowMode)
+            {
+                Log.Information($"StartupWindowMode changed from '{settings.StartupWindowMode}' to '{updatedSettings.StartupWindowMode}'");
+                settings.StartupWindowMode = updatedSettings.StartupWindowMode;
                 hasChanges = true;
             }
 

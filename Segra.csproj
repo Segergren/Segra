@@ -117,4 +117,6 @@
     </Content>
   </ItemGroup>
 
+  <Target Name="EnsureResourcesBeforeCompile" BeforeTargets="_GenerateCompileInputs" DependsOnTargets="PrepareResources" />
+
 </Project>

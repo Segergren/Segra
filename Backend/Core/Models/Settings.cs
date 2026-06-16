@@ -51,6 +51,7 @@ namespace Segra.Backend.Core.Models
         private double _highlightPaddingBefore = 4;
         private double _highlightPaddingAfter = 4;
         private bool _runOnStartup = false;
+        private StartupWindowMode _startupWindowMode = StartupWindowMode.Minimized;
         private bool _receiveBetaUpdates = false;
         private bool _airplaneMode = false;
         private RecordingMode _recordingMode = RecordingMode.Hybrid;
@@ -81,6 +82,7 @@ namespace Segra.Backend.Core.Models
         private string _clipQualityPreset = "standard";
         private bool _removeOriginalAfterCompression = false;
         private bool _discardSessionsWithoutBookmarks = false;
+        private bool _disableWindowsGameMode = false;
         private GameIntegrations _gameIntegrations = new GameIntegrations();
 
         private List<MenuItemPreference> _menuItems = KnownMenuItemIds
@@ -437,6 +439,20 @@ namespace Segra.Backend.Core.Models
                 {
                     _runOnStartup = value;
                     StartupService.SetStartupStatus(value);
+                }
+            }
+        }
+
+        // Whether the window opens normally or stays minimized to tray when launched from startup.
+        [JsonPropertyName("startupWindowMode")]
+        public StartupWindowMode StartupWindowMode
+        {
+            get => _startupWindowMode;
+            set
+            {
+                if (_startupWindowMode != value)
+                {
+                    _startupWindowMode = value;
                 }
             }
         }
@@ -834,6 +850,21 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        // When true, Segra ensures Windows Game Mode is turned off on startup.
+        // When false, Segra leaves Game Mode untouched (it never turns it back on).
+        [JsonPropertyName("disableWindowsGameMode")]
+        public bool DisableWindowsGameMode
+        {
+            get => _disableWindowsGameMode;
+            set
+            {
+                if (_disableWindowsGameMode != value)
+                {
+                    _disableWindowsGameMode = value;
+                }
+            }
+        }
+
         [JsonPropertyName("selectedOBSVersion")]
         public string? SelectedOBSVersion
         {
@@ -1205,6 +1236,13 @@ namespace Segra.Backend.Core.Models
         Session,
         Buffer,
         Hybrid
+    }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum StartupWindowMode
+    {
+        Normal,
+        Minimized
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]

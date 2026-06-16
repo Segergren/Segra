@@ -6,6 +6,8 @@ export type DisplayCaptureMethod = 'Auto' | 'DXGI' | 'WGC';
 
 export type AudioOutputMode = 'All' | 'GameOnly' | 'GameAndDiscord';
 
+export type StartupWindowMode = 'Normal' | 'Minimized';
+
 export interface Content {
   type: ContentType;
   title: string;
@@ -249,6 +251,7 @@ export interface Settings {
   enableAi: boolean;
   autoGenerateHighlights: boolean;
   runOnStartup: boolean;
+  startupWindowMode: StartupWindowMode; // Window state when launched from startup
   receiveBetaUpdates: boolean;
   airplaneMode: boolean; // Hides cloud account/login/upload features and signs the user out
   recordingMode: RecordingMode;
@@ -280,6 +283,7 @@ export interface Settings {
   clipQualityPreset: ClipQualityPreset;
   removeOriginalAfterCompression: boolean;
   discardSessionsWithoutBookmarks: boolean;
+  disableWindowsGameMode: boolean; // When true, ensures Windows Game Mode stays off on startup
   menuItems: MenuItemPreference[];
   defaultMenuItem: MenuItemId;
 }
@@ -327,6 +331,7 @@ export const initialSettings: Settings = {
   enableAi: true,
   autoGenerateHighlights: true,
   runOnStartup: false,
+  startupWindowMode: 'Minimized',
   receiveBetaUpdates: false,
   airplaneMode: false,
   recordingMode: 'Hybrid',
@@ -354,6 +359,7 @@ export const initialSettings: Settings = {
   clipQualityPreset: 'standard',
   removeOriginalAfterCompression: false,
   discardSessionsWithoutBookmarks: false,
+  disableWindowsGameMode: false,
   menuItems: DEFAULT_MENU_ITEMS,
   defaultMenuItem: 'Full Sessions',
   keybindings: [

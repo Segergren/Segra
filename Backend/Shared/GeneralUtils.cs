@@ -263,6 +263,16 @@ namespace Segra.Backend.Shared
             return message;
         }
 
+        private static readonly Regex UsernamePathRegex = new(@"([\\/]Users[\\/])([^\\/]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        public static string RedactUsername(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            return UsernamePathRegex.Replace(text, "$1<user>");
+        }
+
         private static int FindMatchingBracket(string text, int startIndex)
         {
             var openChar = text[startIndex];
