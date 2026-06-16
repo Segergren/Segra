@@ -11,14 +11,14 @@ namespace Segra.Backend.Windows.Watchers
             SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         }
 
-        private void OnDisplaySettingsChanged(object? sender, EventArgs e)
-        {
-            DisplaysChanged?.Invoke();
-        }
-
         public void Dispose()
         {
             SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        }
+
+        private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+        {
+            DisplaysChanged?.Invoke();
         }
     }
 }

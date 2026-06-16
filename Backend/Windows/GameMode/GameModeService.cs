@@ -1,6 +1,6 @@
+using Serilog;
 using Microsoft.Win32;
 using Segra.Backend.Core.Models;
-using Serilog;
 
 namespace Segra.Backend.Windows.GameMode
 {

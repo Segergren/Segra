@@ -1,8 +1,8 @@
+using Serilog;
+using System.Text.Json;
 using Segra.Backend.App;
 using Segra.Backend.Media;
-using Serilog;
 using System.Collections.Concurrent;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -10,12 +10,12 @@ namespace Segra.Backend.Games
 {
     public static class GameUtils
     {
-        private static HashSet<string> _gameExePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, string> _exeToGameName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, int> _exeToIgdbId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, string> _exeToCoverImageId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private static List<GameEntry> _gamesList = new List<GameEntry>();
-        private static BlacklistEntry _blacklist = new BlacklistEntry();
+        private static HashSet<string> _gameExePaths = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, string> _exeToGameName = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, int> _exeToIgdbId = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, string> _exeToCoverImageId = new(StringComparer.OrdinalIgnoreCase);
+        private static List<GameEntry> _gamesList = [];
+        private static BlacklistEntry _blacklist = new();
         private static readonly ConcurrentDictionary<string, Regex> _wildcardRegexCache = new();
         private static bool _isInitialized = false;
 
@@ -224,7 +224,7 @@ namespace Segra.Backend.Games
             try
             {
                 string jsonContent = File.ReadAllText(jsonPath);
-                _gamesList = JsonSerializer.Deserialize<List<GameEntry>>(jsonContent) ?? new List<GameEntry>();
+                _gamesList = JsonSerializer.Deserialize<List<GameEntry>>(jsonContent) ?? [];
 
                 _gameExePaths.Clear();
                 _exeToGameName.Clear();
@@ -350,7 +350,7 @@ namespace Segra.Backend.Games
             try
             {
                 string jsonContent = File.ReadAllText(jsonPath);
-                _blacklist = JsonSerializer.Deserialize<BlacklistEntry>(jsonContent) ?? new BlacklistEntry();
+                _blacklist = JsonSerializer.Deserialize<BlacklistEntry>(jsonContent) ?? new();
 
                 Log.Information($"Loaded blacklist with {_blacklist.PathTexts.Length} path texts and {_blacklist.DescriptionWords.Length} description words from blacklist.json");
             }

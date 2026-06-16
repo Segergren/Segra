@@ -1,7 +1,7 @@
 using Serilog;
-using System.Runtime.InteropServices;
-using Segra.Backend.Core.Models;
 using System.Management;
+using Segra.Backend.Core.Models;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace Segra.Backend.Windows.Display
@@ -139,7 +139,6 @@ namespace Segra.Backend.Windows.Display
             var currentDisplays = AppState.Instance.Displays;
             var currentMaxHeight = AppState.Instance.MaxDisplayHeight;
 
-            // Check if anything changed
             bool displaysChanged = currentDisplays == null || !currentDisplays.SequenceEqual(pendingDisplays);
             bool maxHeightChanged = currentMaxHeight != newMaxHeight;
 
@@ -148,7 +147,6 @@ namespace Segra.Backend.Windows.Display
                 return false;
             }
 
-            // Something changed - log and update state
             if (displaysChanged)
             {
                 Log.Information("=== Available Monitors ===");
@@ -166,34 +164,6 @@ namespace Segra.Backend.Windows.Display
             {
                 Log.Information("Max display height changed: {MaxHeight}p", newMaxHeight);
                 AppState.Instance.MaxDisplayHeight = newMaxHeight;
-            }
-
-            return true;
-        }
-
-        private static bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData)
-        {
-            MonitorInfoEx mi = new MonitorInfoEx();
-            mi.Size = Marshal.SizeOf(mi);
-
-            if (GetMonitorInfo(hMonitor, ref mi))
-            {
-                DisplayDevice device = new DisplayDevice();
-                device.Size = Marshal.SizeOf(device);
-
-                if (EnumDisplayDevices(mi.DeviceName, 0, ref device, 1))
-                {
-                    string friendlyName = GetFriendlyMonitorName(device.DeviceID, device.DeviceString);
-                    var display = new Core.Models.Display
-                    {
-                        DeviceName = friendlyName,
-                        DeviceId = device.DeviceID,
-                        IsPrimary = (mi.Flags & 1) != 0,
-                        IsHdr = HdrDetectionService.IsDisplayHdrActive(device.DeviceID)
-                    };
-
-                    pendingDisplays.Add(display);
-                }
             }
 
             return true;
@@ -270,6 +240,34 @@ namespace Segra.Backend.Windows.Display
                 Log.Warning("Failed to resolve device id for window: {Message}", ex.Message);
                 return null;
             }
+        }
+
+        private static bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData)
+        {
+            MonitorInfoEx mi = new MonitorInfoEx();
+            mi.Size = Marshal.SizeOf(mi);
+
+            if (GetMonitorInfo(hMonitor, ref mi))
+            {
+                DisplayDevice device = new DisplayDevice();
+                device.Size = Marshal.SizeOf(device);
+
+                if (EnumDisplayDevices(mi.DeviceName, 0, ref device, 1))
+                {
+                    string friendlyName = GetFriendlyMonitorName(device.DeviceID, device.DeviceString);
+                    var display = new Core.Models.Display
+                    {
+                        DeviceName = friendlyName,
+                        DeviceId = device.DeviceID,
+                        IsPrimary = (mi.Flags & 1) != 0,
+                        IsHdr = HdrDetectionService.IsDisplayHdrActive(device.DeviceID)
+                    };
+
+                    pendingDisplays.Add(display);
+                }
+            }
+
+            return true;
         }
 
         private static string GetFriendlyMonitorName(string deviceId, string fallback)

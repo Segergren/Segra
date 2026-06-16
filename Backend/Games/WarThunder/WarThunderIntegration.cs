@@ -1,6 +1,6 @@
-using Segra.Backend.Core.Models;
 using Serilog;
 using System.Text.Json;
+using Segra.Backend.Core.Models;
 using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Games.WarThunder

@@ -1,12 +1,11 @@
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Recorder;
-using Segra.Backend.Services;
 using Serilog;
+using NAudio.Wave;
+using Segra.Backend.App;
 using System.Diagnostics;
+using NAudio.CoreAudioApi;
+using Segra.Backend.Recorder;
+using Segra.Backend.Core.Models;
+using NAudio.Wave.SampleProviders;
 using System.Runtime.InteropServices;
 
 namespace Segra.Backend.Windows.Input

@@ -1,12 +1,12 @@
+using Serilog;
 using System.Text.Json;
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
+using Segra.Backend.Core;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
+using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
-using Serilog;
 
-namespace Segra.Backend.Services;
+namespace Segra.Backend.App;
 
 internal static class MigrationService
 {
@@ -16,21 +16,10 @@ internal static class MigrationService
     private static string MigrationsFolder = Path.Combine(appDataDir, ".migrations");
     private static string AppliedPath => Path.Combine(MigrationsFolder, "applied.json");
 
-    // Signal for when migrations are complete
     private static readonly TaskCompletionSource<bool> _migrationsComplete = new();
     public static Task WaitForMigrationsAsync() => _migrationsComplete.Task;
     public static bool IsRunning { get; private set; } = false;
     public static string? CurrentMigration { get; private set; } = null;
-
-    private static void UpdateMigrationStatus(bool isRunning, string? currentMigration = null)
-    {
-        IsRunning = isRunning;
-        CurrentMigration = currentMigration;
-        if (!Program.IsFirstRun)
-        {
-            _ = MessageService.SendFrontendMessage("MigrationStatus", new { isRunning, currentMigration });
-        }
-    }
 
     public static void RunMigrations()
     {
@@ -49,7 +38,6 @@ internal static class MigrationService
                 return;
             }
 
-            // Signal that migrations are starting
             UpdateMigrationStatus(true, pendingMigrations.First().Id);
 
             foreach (var migration in pendingMigrations)
@@ -81,11 +69,21 @@ internal static class MigrationService
         }
     }
 
+    private static void UpdateMigrationStatus(bool isRunning, string? currentMigration = null)
+    {
+        IsRunning = isRunning;
+        CurrentMigration = currentMigration;
+        if (!Program.IsFirstRun)
+        {
+            _ = MessageService.SendFrontendMessage("MigrationStatus", new { isRunning, currentMigration });
+        }
+    }
+
     private static HashSet<string> LoadApplied()
     {
         try
         {
-            if (!File.Exists(AppliedPath)) return new HashSet<string>();
+            if (!File.Exists(AppliedPath)) return new();
             var json = File.ReadAllText(AppliedPath);
             var doc = System.Text.Json.JsonDocument.Parse(json);
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -101,7 +99,7 @@ internal static class MigrationService
         }
         catch
         {
-            return new HashSet<string>();
+            return new();
         }
     }
 
@@ -136,8 +134,8 @@ internal static class MigrationService
 
     private static List<Migration> GetMigrations()
     {
-        return new List<Migration>
-        {
+        return
+        [
             new("0001_waveforms_json", Apply_0001_WaveformsJson),
             new("0002_hide_dotfolders", Apply_0002_HideDotfolders),
             new("0003_delete_legacy_games_files", Apply_0003_DeleteLegacyGamesFiles),
@@ -148,7 +146,7 @@ internal static class MigrationService
             new("0008_move_metadata_to_appdata", Apply_0008_MoveMetadataToAppData),
             new("0009_rename_clip_clear_selections_setting", Apply_0009_RenameClipClearSelectionsSetting),
             new("0010_rename_titled_content_files", Apply_0010_RenameTitledContentFiles)
-        };
+        ];
     }
 
     // Migration 0009: Rename clipClearSelectionsAfterCreatingClip -> clipClearSegmentsAfterCreatingClip
@@ -450,7 +448,6 @@ internal static class MigrationService
             int movedCount = 0;
             int errorCount = 0;
 
-            // Process each content type
             foreach (Content.ContentType type in Enum.GetValues(typeof(Content.ContentType)))
             {
                 string typeName = type.ToString().ToLower() + "s";
@@ -467,7 +464,6 @@ internal static class MigrationService
                 {
                     try
                     {
-                        // Read metadata to get game name and current file path
                         string metadataJson = File.ReadAllText(metadataFilePath);
                         var metadata = JsonSerializer.Deserialize<Content>(metadataJson);
 
@@ -479,14 +475,12 @@ internal static class MigrationService
 
                         string currentFilePath = metadata.FilePath;
 
-                        // Skip if file doesn't exist or path is empty
                         if (string.IsNullOrEmpty(currentFilePath) || !File.Exists(currentFilePath))
                         {
                             Log.Debug("Video file not found or path empty for metadata: {Path}", metadataFilePath);
                             continue;
                         }
 
-                        // Skip if already in a game subfolder
                         string currentDir = Path.GetDirectoryName(currentFilePath) ?? "";
                         string expectedFlatDir = videoFolder.Replace("\\", "/");
                         string actualDir = currentDir.Replace("\\", "/");
@@ -498,27 +492,22 @@ internal static class MigrationService
                             continue;
                         }
 
-                        // Get sanitized game name for folder
                         string gameName = metadata.Game ?? "Unknown";
                         string sanitizedGameName = StorageService.SanitizeGameNameForFolder(gameName);
 
-                        // Calculate new path
                         string fileName = Path.GetFileName(currentFilePath);
                         string newDir = Path.Combine(videoFolder, sanitizedGameName);
                         string newFilePath = Path.Combine(newDir, fileName);
 
-                        // Create directory if needed
                         if (!Directory.Exists(newDir))
                         {
                             Directory.CreateDirectory(newDir);
                             Log.Information("Created game folder: {Folder}", newDir);
                         }
 
-                        // Move the file
                         Log.Information("Moving {OldPath} to {NewPath}", currentFilePath, newFilePath);
                         File.Move(currentFilePath, newFilePath);
 
-                        // Update metadata with new file path
                         metadata.FilePath = newFilePath;
                         string updatedMetadataJson = JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true });
                         File.WriteAllText(metadataFilePath, updatedMetadataJson);
@@ -781,7 +770,6 @@ internal static class MigrationService
                         { FolderNames.LegacyHighlights, FolderNames.Highlights }
                     };
 
-                    // Move all subdirectories (content type folders)
                     foreach (var subDir in Directory.GetDirectories(sourcePath))
                     {
                         string subDirName = Path.GetFileName(subDir);
@@ -805,7 +793,6 @@ internal static class MigrationService
                             Directory.CreateDirectory(destSubDir);
                         }
 
-                        // Move all files from source subfolder to destination subfolder
                         foreach (var file in Directory.GetFiles(subDir))
                         {
                             string fileName = Path.GetFileName(file);

@@ -1,15 +1,17 @@
-using System.Net.WebSockets;
+using Serilog;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Serilog;
+using Segra.Backend.Auth;
+using Segra.Backend.Core;
 using System.Diagnostics;
-using Segra.Backend.Services;
-using Segra.Backend.Core.Models;
+using Segra.Backend.Games;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
+using System.Net.WebSockets;
 using Segra.Backend.Recorder;
-using Segra.Backend.Games;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Windows.Storage;
 
 namespace Segra.Backend.App
 {
@@ -230,10 +232,8 @@ namespace Segra.Backend.App
                             await SendSettingsToFrontend("New connection");
                             await SendStateToFrontend("New connection");
 
-                            // Send game list to frontend
                             await SendGameList();
 
-                            // Get current version
                             if (UpdateService.UpdateManager.CurrentVersion != null)
                             {
                                 string appVersion = UpdateService.UpdateManager.CurrentVersion.ToString();
@@ -336,99 +336,11 @@ namespace Segra.Backend.App
                 Log.Error($"Stack trace: {ex.StackTrace}");
             }
         }
-        private static async Task HandleCreateAiClip(JsonElement message)
-        {
-            Log.Information($"{message}");
-            message.TryGetProperty("FileName", out JsonElement fileNameElement);
-            await AiService.CreateHighlight(fileNameElement.GetString()!);
-        }
-
-        private static async Task HandleCompressVideo(JsonElement message)
-        {
-            Log.Information($"CompressVideo: {message}");
-            message.TryGetProperty("FilePath", out JsonElement filePathElement);
-            await CompressionService.CompressVideo(filePathElement.GetString()!);
-        }
-
-        private static async Task HandleCreateClip(JsonElement message)
-        {
-            Log.Information($"{message}");
-
-            if (message.TryGetProperty("Segments", out JsonElement segmentsElement))
-            {
-                var segments = new List<Segment>();
-                foreach (var segmentElement in segmentsElement.EnumerateArray())
-                {
-                    if (segmentElement.TryGetProperty("id", out JsonElement idElement) &&
-                        segmentElement.TryGetProperty("startTime", out JsonElement startTimeElement) &&
-                        segmentElement.TryGetProperty("endTime", out JsonElement endTimeElement) &&
-                        segmentElement.TryGetProperty("fileName", out JsonElement fileNameElement) &&
-                        segmentElement.TryGetProperty("type", out JsonElement videoTypeElement) &&
-                        segmentElement.TryGetProperty("game", out JsonElement gameElement) &&
-                        segmentElement.TryGetProperty("title", out JsonElement titleElement))
-                    {
-                        long id = idElement.GetInt64();
-                        double startTime = startTimeElement.GetDouble();
-                        double endTime = endTimeElement.GetDouble();
-                        string fileName = fileNameElement.GetString()!;
-                        string type = videoTypeElement.GetString()!;
-                        string game = gameElement.GetString()!;
-                        string title = titleElement.GetString() ?? string.Empty;
-                        int? igdbId = segmentElement.TryGetProperty("igdbId", out JsonElement igdbIdElement) && igdbIdElement.ValueKind == JsonValueKind.Number
-                            ? igdbIdElement.GetInt32()
-                            : null;
-                        string? filePath = segmentElement.TryGetProperty("filePath", out JsonElement filePathElement)
-                            ? filePathElement.GetString()
-                            : null;
-                        List<int>? mutedAudioTracks = null;
-                        if (segmentElement.TryGetProperty("mutedAudioTracks", out JsonElement mutedEl)
-                            && mutedEl.ValueKind == JsonValueKind.Array)
-                        {
-                            mutedAudioTracks = mutedEl.EnumerateArray().Select(e => e.GetInt32()).ToList();
-                        }
-                        Dictionary<int, double>? audioTrackVolumes = null;
-                        if (segmentElement.TryGetProperty("audioTrackVolumes", out JsonElement volEl)
-                            && volEl.ValueKind == JsonValueKind.Object)
-                        {
-                            audioTrackVolumes = new Dictionary<int, double>();
-                            foreach (var prop in volEl.EnumerateObject())
-                            {
-                                if (int.TryParse(prop.Name, out int trackIdx) && prop.Value.TryGetDouble(out double vol))
-                                    audioTrackVolumes[trackIdx] = vol;
-                            }
-                        }
-
-                        // Create a new Segment instance with all required properties.
-                        segments.Add(new Segment
-                        {
-                            Id = id,
-                            Type = type,
-                            StartTime = startTime,
-                            EndTime = endTime,
-                            FileName = fileName,
-                            FilePath = filePath,
-                            Game = game,
-                            Title = title,
-                            IgdbId = igdbId,
-                            MutedAudioTracks = mutedAudioTracks,
-                            AudioTrackVolumes = audioTrackVolumes
-                        });
-                    }
-                }
-
-                await ClipService.CreateClips(segments);
-            }
-            else
-            {
-                Log.Information("Segments property not found in CreateClip message.");
-            }
-        }
 
         public static async Task HandleDeleteContent(JsonElement message)
         {
             Log.Information($"Handling DeleteContent with message: {message}");
 
-            // Extract FileName and ContentType
             if (message.TryGetProperty("FileName", out JsonElement fileNameElement) &&
                 message.TryGetProperty("ContentType", out JsonElement contentTypeElement))
             {
@@ -512,70 +424,6 @@ namespace Segra.Backend.App
             }
         }
 
-        private static async Task SetVideoLocationAsync()
-        {
-            using (var fbd = new FolderBrowserDialog())
-            {
-                // Set an initial description or instruction for the dialog
-                fbd.Description = "Select a folder to set as the video location.";
-
-                // Optionally, set the root folder for the dialog (e.g., My Computer or Desktop)
-                fbd.RootFolder = Environment.SpecialFolder.Desktop;
-
-                // Show the dialog and check if the user selected a folder
-                if (fbd.ShowDialog() == DialogResult.OK)
-                {
-                    // Get the selected folder path
-                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
-                    Log.Information($"Selected Folder: {selectedPath}");
-
-                    // Check if the new folder would exceed storage limit
-                    bool shouldProceed = await StorageWarningService.CheckContentFolderChange(selectedPath);
-                    if (shouldProceed)
-                    {
-                        // Update settings with the selected folder path
-                        Settings.Instance.ContentFolder = selectedPath;
-
-                        // Push the updated path to the frontend so the settings UI reflects the change
-                        await SendSettingsToFrontend("Content folder changed");
-                    }
-                    // If not proceeding, a warning modal was sent to the frontend
-                }
-                else
-                {
-                    Log.Information("Folder selection was canceled.");
-                }
-            }
-        }
-
-        private static async Task SetCacheLocationAsync()
-        {
-            using (var fbd = new FolderBrowserDialog())
-            {
-                fbd.Description = "Select a folder for metadata, thumbnails, and waveforms.";
-                fbd.RootFolder = Environment.SpecialFolder.Desktop;
-
-                if (fbd.ShowDialog() == DialogResult.OK)
-                {
-                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
-                    string oldCacheFolder = Settings.Instance.CacheFolder;
-                    Log.Information($"Selected Cache Folder: {selectedPath}");
-
-                    Settings.Instance.CacheFolder = selectedPath;
-                    SettingsService.SaveSettings();
-
-                    // Migrate cache contents to new folder
-                    await SettingsService.MigrateCacheFolder(oldCacheFolder, selectedPath);
-
-                    await SendSettingsToFrontend("Cache folder changed");
-                }
-                else
-                {
-                    Log.Information("Cache folder selection was canceled.");
-                }
-            }
-        }
-
         public static async Task StartWebsocket()
         {
             HttpListener listener = new HttpListener();
@@ -593,7 +441,6 @@ namespace Segra.Backend.App
                     {
                         Log.Information("Received WebSocket connection request");
 
-                        // Close the current WebSocket if already active
                         if (activeWebSocket != null && activeWebSocket.State == WebSocketState.Open)
                         {
                             await activeWebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "New connection", CancellationToken.None);
@@ -681,50 +528,6 @@ namespace Segra.Backend.App
             }
         }
 
-        private static async Task HandleWebSocketAsync(WebSocket webSocket)
-        {
-            byte[] buffer = new byte[4096];
-            try
-            {
-                while (webSocket.State == WebSocketState.Open)
-                {
-                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-
-                    if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        Log.Information("Client initiated WebSocket closure.");
-                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client initiated closure", CancellationToken.None);
-                    }
-                    else
-                    {
-                        string receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        await HandleMessage(receivedMessage);
-                    }
-                }
-            }
-            catch (WebSocketException wsEx)
-            {
-                Log.Information($"WebSocketException in HandleWebSocketAsync: {wsEx.Message}");
-                Log.Information($"WebSocket state at exception: {webSocket.State}");
-                if (wsEx.InnerException != null)
-                {
-                    Log.Information($"Inner exception: {wsEx.InnerException.Message}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Information($"General exception in HandleWebSocketAsync: {ex.Message}");
-            }
-            finally
-            {
-                if (webSocket.State != WebSocketState.Closed && webSocket.State != WebSocketState.Aborted)
-                {
-                    await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "Server-side error", CancellationToken.None);
-                }
-                Log.Information("WebSocket connection closed.");
-            }
-        }
-
         public static async Task SendFrontendMessage(string method, object content)
         {
             await sendLock.WaitAsync();
@@ -766,7 +569,6 @@ namespace Segra.Backend.App
 
         public static async Task ShowModal(string title, string description, string type = "info", string? subtitle = null)
         {
-            // Validate the modal type
             if (type != "info" && type != "warning" && type != "error")
             {
                 Log.Warning($"Invalid modal type '{type}'. Defaulting to 'info'.");
@@ -815,6 +617,194 @@ namespace Segra.Backend.App
             {
                 Log.Error(ex, "Error sending game list to frontend");
                 await SendFrontendMessage("GameList", new List<object>());
+            }
+        }
+
+        private static async Task HandleCreateAiClip(JsonElement message)
+        {
+            Log.Information($"{message}");
+            message.TryGetProperty("FileName", out JsonElement fileNameElement);
+            await AiService.CreateHighlight(fileNameElement.GetString()!);
+        }
+
+        private static async Task HandleCompressVideo(JsonElement message)
+        {
+            Log.Information($"CompressVideo: {message}");
+            message.TryGetProperty("FilePath", out JsonElement filePathElement);
+            await CompressionService.CompressVideo(filePathElement.GetString()!);
+        }
+
+        private static async Task HandleCreateClip(JsonElement message)
+        {
+            Log.Information($"{message}");
+
+            if (message.TryGetProperty("Segments", out JsonElement segmentsElement))
+            {
+                var segments = new List<Segment>();
+                foreach (var segmentElement in segmentsElement.EnumerateArray())
+                {
+                    if (segmentElement.TryGetProperty("id", out JsonElement idElement) &&
+                        segmentElement.TryGetProperty("startTime", out JsonElement startTimeElement) &&
+                        segmentElement.TryGetProperty("endTime", out JsonElement endTimeElement) &&
+                        segmentElement.TryGetProperty("fileName", out JsonElement fileNameElement) &&
+                        segmentElement.TryGetProperty("type", out JsonElement videoTypeElement) &&
+                        segmentElement.TryGetProperty("game", out JsonElement gameElement) &&
+                        segmentElement.TryGetProperty("title", out JsonElement titleElement))
+                    {
+                        long id = idElement.GetInt64();
+                        double startTime = startTimeElement.GetDouble();
+                        double endTime = endTimeElement.GetDouble();
+                        string fileName = fileNameElement.GetString()!;
+                        string type = videoTypeElement.GetString()!;
+                        string game = gameElement.GetString()!;
+                        string title = titleElement.GetString() ?? string.Empty;
+                        int? igdbId = segmentElement.TryGetProperty("igdbId", out JsonElement igdbIdElement) && igdbIdElement.ValueKind == JsonValueKind.Number
+                            ? igdbIdElement.GetInt32()
+                            : null;
+                        string? filePath = segmentElement.TryGetProperty("filePath", out JsonElement filePathElement)
+                            ? filePathElement.GetString()
+                            : null;
+                        List<int>? mutedAudioTracks = null;
+                        if (segmentElement.TryGetProperty("mutedAudioTracks", out JsonElement mutedEl)
+                            && mutedEl.ValueKind == JsonValueKind.Array)
+                        {
+                            mutedAudioTracks = mutedEl.EnumerateArray().Select(e => e.GetInt32()).ToList();
+                        }
+                        Dictionary<int, double>? audioTrackVolumes = null;
+                        if (segmentElement.TryGetProperty("audioTrackVolumes", out JsonElement volEl)
+                            && volEl.ValueKind == JsonValueKind.Object)
+                        {
+                            audioTrackVolumes = new Dictionary<int, double>();
+                            foreach (var prop in volEl.EnumerateObject())
+                            {
+                                if (int.TryParse(prop.Name, out int trackIdx) && prop.Value.TryGetDouble(out double vol))
+                                    audioTrackVolumes[trackIdx] = vol;
+                            }
+                        }
+
+                        segments.Add(new Segment
+                        {
+                            Id = id,
+                            Type = type,
+                            StartTime = startTime,
+                            EndTime = endTime,
+                            FileName = fileName,
+                            FilePath = filePath,
+                            Game = game,
+                            Title = title,
+                            IgdbId = igdbId,
+                            MutedAudioTracks = mutedAudioTracks,
+                            AudioTrackVolumes = audioTrackVolumes
+                        });
+                    }
+                }
+
+                await ClipService.CreateClips(segments);
+            }
+            else
+            {
+                Log.Information("Segments property not found in CreateClip message.");
+            }
+        }
+
+        private static async Task SetVideoLocationAsync()
+        {
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Select a folder to set as the video location.";
+                fbd.RootFolder = Environment.SpecialFolder.Desktop;
+
+                if (fbd.ShowDialog() == DialogResult.OK)
+                {
+                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
+                    Log.Information($"Selected Folder: {selectedPath}");
+
+                    // Check if the new folder would exceed storage limit
+                    bool shouldProceed = await StorageWarningService.CheckContentFolderChange(selectedPath);
+                    if (shouldProceed)
+                    {
+                        Settings.Instance.ContentFolder = selectedPath;
+
+                        // Push the updated path to the frontend so the settings UI reflects the change
+                        await SendSettingsToFrontend("Content folder changed");
+                    }
+                    // If not proceeding, a warning modal was sent to the frontend
+                }
+                else
+                {
+                    Log.Information("Folder selection was canceled.");
+                }
+            }
+        }
+
+        private static async Task SetCacheLocationAsync()
+        {
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Select a folder for metadata, thumbnails, and waveforms.";
+                fbd.RootFolder = Environment.SpecialFolder.Desktop;
+
+                if (fbd.ShowDialog() == DialogResult.OK)
+                {
+                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
+                    string oldCacheFolder = Settings.Instance.CacheFolder;
+                    Log.Information($"Selected Cache Folder: {selectedPath}");
+
+                    Settings.Instance.CacheFolder = selectedPath;
+                    SettingsService.SaveSettings();
+
+                    await SettingsService.MigrateCacheFolder(oldCacheFolder, selectedPath);
+
+                    await SendSettingsToFrontend("Cache folder changed");
+                }
+                else
+                {
+                    Log.Information("Cache folder selection was canceled.");
+                }
+            }
+        }
+
+        private static async Task HandleWebSocketAsync(WebSocket webSocket)
+        {
+            byte[] buffer = new byte[4096];
+            try
+            {
+                while (webSocket.State == WebSocketState.Open)
+                {
+                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        Log.Information("Client initiated WebSocket closure.");
+                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client initiated closure", CancellationToken.None);
+                    }
+                    else
+                    {
+                        string receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        await HandleMessage(receivedMessage);
+                    }
+                }
+            }
+            catch (WebSocketException wsEx)
+            {
+                Log.Information($"WebSocketException in HandleWebSocketAsync: {wsEx.Message}");
+                Log.Information($"WebSocket state at exception: {webSocket.State}");
+                if (wsEx.InnerException != null)
+                {
+                    Log.Information($"Inner exception: {wsEx.InnerException.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Information($"General exception in HandleWebSocketAsync: {ex.Message}");
+            }
+            finally
+            {
+                if (webSocket.State != WebSocketState.Closed && webSocket.State != WebSocketState.Aborted)
+                {
+                    await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "Server-side error", CancellationToken.None);
+                }
+                Log.Information("WebSocket connection closed.");
             }
         }
 

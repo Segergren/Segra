@@ -1,18 +1,17 @@
+using Serilog;
+using Segra.Backend.Games.Pubg;
+using Segra.Backend.Games.Rust;
 using Segra.Backend.Core.Models;
-using Segra.Backend.Games;
-using Segra.Backend.Games.CounterStrike2;
 using Segra.Backend.Games.Dota2;
+using Segra.Backend.Games.Minecraft;
+using Segra.Backend.Games.WarThunder;
+using Segra.Backend.Games.RocketLeague;
+using Segra.Backend.Games.CounterStrike2;
 using Segra.Backend.Games.GrandTheftAuto;
 using Segra.Backend.Games.LeagueOfLegends;
-using Segra.Backend.Games.Minecraft;
-using Segra.Backend.Games.Pubg;
-using Segra.Backend.Games.RocketLeague;
 using Segra.Backend.Games.RunescapeDragonwilds;
-using Segra.Backend.Games.Rust;
-using Segra.Backend.Games.WarThunder;
-using Serilog;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Games
 {
     public static class GameIntegrationService
     {

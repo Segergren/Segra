@@ -1,24 +1,22 @@
-using System.Diagnostics;
-using System.Globalization;
+using Serilog;
 using System.Text.Json;
 using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Services;
+using Segra.Backend.Core;
+using System.Diagnostics;
 using Segra.Backend.Shared;
+using System.Globalization;
+using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
-using Serilog;
 using static Segra.Backend.Shared.GeneralUtils;
 
 namespace Segra.Backend.Media
 {
     public static class ClipService
     {
-        // Dictionary to store active FFmpeg processes
-        private static readonly Dictionary<int, List<Process>> ActiveFFmpegProcesses = new Dictionary<int, List<Process>>();
+        private static readonly Dictionary<int, List<Process>> ActiveFFmpegProcesses = new();
         // Clip IDs that were explicitly cancelled by the user, so their FFmpeg failures are not surfaced as errors
-        private static readonly HashSet<int> CancelledClipIds = new HashSet<int>();
-        // Lock for thread safety
-        private static readonly object ProcessLock = new object();
+        private static readonly HashSet<int> CancelledClipIds = new();
+        private static readonly object ProcessLock = new();
 
         public static async Task CreateClips(List<Segment> segments)
         {
@@ -115,7 +113,6 @@ namespace Segra.Backend.Media
                         _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, segments });
                     });
 
-                    // Verify the temp file was created successfully
                     if (!File.Exists(tempFileName))
                     {
                         Log.Error($"Failed to create temp clip file: {tempFileName}");
@@ -253,7 +250,6 @@ namespace Segra.Backend.Media
                             "error");
                     }
 
-                    // Notify frontend of failure
                     await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = cardError });
                 }
             }
@@ -271,6 +267,59 @@ namespace Segra.Backend.Media
                 {
                     CancelledClipIds.Remove(id);
                 }
+            }
+        }
+
+        public static async void CancelClip(int clipId)
+        {
+            Log.Information($"[Clip {clipId}] Cancel requested");
+
+            bool wasCancelled = false;
+
+            lock (ProcessLock)
+            {
+                if (ActiveFFmpegProcesses.TryGetValue(clipId, out var processes))
+                {
+                    // Mark as cancelled so the resulting FFmpeg failure isn't surfaced as an error
+                    CancelledClipIds.Add(clipId);
+                    Log.Information($"[Clip {clipId}] Found {processes.Count} active process(es) to cancel");
+
+                    foreach (var process in processes.ToList())
+                    {
+                        try
+                        {
+                            int processId = process.Id; // Capture ID before killing
+
+                            if (!process.HasExited)
+                            {
+                                Log.Information($"[Clip {clipId}] Killing FFmpeg process (PID: {processId})");
+                                process.Kill(true); // Force kill the process and child processes
+                                Log.Information($"[Clip {clipId}] Successfully killed process (PID: {processId})");
+                            }
+                            else
+                            {
+                                Log.Information($"[Clip {clipId}] Process (PID: {processId}) already exited");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error($"[Clip {clipId}] Error killing FFmpeg process: {ex.Message}");
+                        }
+                    }
+
+                    ActiveFFmpegProcesses.Remove(clipId);
+                    Log.Information($"[Clip {clipId}] Removed from active processes after cancellation");
+                    wasCancelled = true;
+                }
+                else
+                {
+                    Log.Warning($"[Clip {clipId}] No active processes found to cancel (may have already completed)");
+                }
+            }
+
+            if (wasCancelled)
+            {
+                await MessageService.SendFrontendMessage("ClipProgress", new { id = clipId, progress = 100, segments = new List<Segment>() });
             }
         }
 
@@ -610,60 +659,6 @@ namespace Segra.Backend.Media
                     ActiveFFmpegProcesses.Remove(clipId);
                     Log.Information($"[Clip {clipId}] Removed from active processes");
                 }
-            }
-        }
-
-
-        public static async void CancelClip(int clipId)
-        {
-            Log.Information($"[Clip {clipId}] Cancel requested");
-
-            bool wasCancelled = false;
-
-            lock (ProcessLock)
-            {
-                if (ActiveFFmpegProcesses.TryGetValue(clipId, out var processes))
-                {
-                    // Mark as cancelled so the resulting FFmpeg failure isn't surfaced as an error
-                    CancelledClipIds.Add(clipId);
-                    Log.Information($"[Clip {clipId}] Found {processes.Count} active process(es) to cancel");
-
-                    foreach (var process in processes.ToList())
-                    {
-                        try
-                        {
-                            int processId = process.Id; // Capture ID before killing
-
-                            if (!process.HasExited)
-                            {
-                                Log.Information($"[Clip {clipId}] Killing FFmpeg process (PID: {processId})");
-                                process.Kill(true); // Force kill the process and child processes
-                                Log.Information($"[Clip {clipId}] Successfully killed process (PID: {processId})");
-                            }
-                            else
-                            {
-                                Log.Information($"[Clip {clipId}] Process (PID: {processId}) already exited");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.Error($"[Clip {clipId}] Error killing FFmpeg process: {ex.Message}");
-                        }
-                    }
-
-                    ActiveFFmpegProcesses.Remove(clipId);
-                    Log.Information($"[Clip {clipId}] Removed from active processes after cancellation");
-                    wasCancelled = true;
-                }
-                else
-                {
-                    Log.Warning($"[Clip {clipId}] No active processes found to cancel (may have already completed)");
-                }
-            }
-
-            if (wasCancelled)
-            {
-                await MessageService.SendFrontendMessage("ClipProgress", new { id = clipId, progress = 100, segments = new List<Segment>() });
             }
         }
 

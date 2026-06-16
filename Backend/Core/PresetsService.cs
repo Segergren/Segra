@@ -1,18 +1,12 @@
+using Serilog;
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Display;
-using Serilog;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Core
 {
     public static class PresetsService
     {
-        private static bool IsAmdEncoder()
-        {
-            var codec = Settings.Instance.Codec;
-            return codec != null && codec.InternalEncoderId.Contains("amf", StringComparison.OrdinalIgnoreCase);
-        }
-
         /// <summary>
         /// Applies a video quality preset to the settings
         /// </summary>
@@ -160,6 +154,12 @@ namespace Segra.Backend.Services
             {
                 await MessageService.SendSettingsToFrontend("Clip preset applied");
             }
+        }
+
+        private static bool IsAmdEncoder()
+        {
+            var codec = Settings.Instance.Codec;
+            return codec != null && codec.InternalEncoderId.Contains("amf", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

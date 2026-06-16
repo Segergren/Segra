@@ -1,9 +1,9 @@
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
 using Serilog;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Segra.Backend.App;
+using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Games.CounterStrike2
 {
@@ -112,6 +112,8 @@ namespace Segra.Backend.Games.CounterStrike2
             }
             return Task.CompletedTask;
         }
+
+        public void Dispose() => Shutdown().Wait();
 
         private void InitializeListener()
         {
@@ -334,7 +336,5 @@ namespace Segra.Backend.Games.CounterStrike2
                 "    }\n" +
                 "}";
         }
-
-        public void Dispose() => Shutdown().Wait();
     }
 }

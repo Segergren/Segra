@@ -1,7 +1,7 @@
-using Segra.Backend.Core.Models;
 using Serilog;
 using System.Text;
 using System.Text.Json;
+using Segra.Backend.Core.Models;
 using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Games.Pubg
@@ -70,6 +70,8 @@ namespace Segra.Backend.Games.Pubg
             checkTimer.Stop();
             return Task.CompletedTask;
         }
+
+        public void Dispose() => Shutdown().Wait();
 
         private void TimerTick()
         {
@@ -308,11 +310,8 @@ namespace Segra.Backend.Games.Pubg
             }
         }
 
-        private static string RemoveClanTag(string playerName)
-        {
-            string result = ClanRegex().Replace(playerName, "").Trim();
-            return result;
-        }
+        private static string RemoveClanTag(string playerName) =>
+            ClanRegex().Replace(playerName, "").Trim();
 
         private static DateTime MatchTimestampToLocal(long matchStart, int offsetMs)
         {
@@ -322,7 +321,5 @@ namespace Segra.Backend.Games.Pubg
 
         [System.Text.RegularExpressions.GeneratedRegex(@"\[.*?\]")]
         private static partial System.Text.RegularExpressions.Regex ClanRegex();
-
-        public void Dispose() => Shutdown().Wait();
     }
 }

@@ -1,20 +1,16 @@
-using ObsKit.NET.Sources;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Games;
-using Segra.Backend.Recorder;
-using Segra.Backend.Shared;
 using Serilog;
-using System.Diagnostics;
-using System.Management;
-using System.Runtime.ConstrainedExecution;
-using System.Runtime.InteropServices;
-using System.Security;
 using System.Text;
+using System.Security;
 using System.Text.Json;
+using System.Management;
+using System.Diagnostics;
+using Segra.Backend.Shared;
+using Segra.Backend.Recorder;
+using Segra.Backend.Core.Models;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Games
 {
     public static class GameDetectionService
     {
@@ -24,25 +20,6 @@ namespace Segra.Backend.Services
         private static readonly Dictionary<string, string> deviceToDrive = new();
         private static bool _running;
         private static System.Threading.Timer? _processCheckTimer;
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
-
-        [DllImport("psapi.dll", CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private static extern int GetProcessImageFileName(IntPtr hprocess, StringBuilder lpExeName, int nSize);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [SuppressUnmanagedCodeSecurity]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool CloseHandle(IntPtr hObject);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool QueryDosDevice(string lpDeviceName, StringBuilder lpTargetPath, int ucchMax);
-
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool QueryFullProcessImageName(IntPtr hProcess, int dwFlags, StringBuilder lpExeName, ref int lpdwSize);
 
         public static async Task StartAsync()
         {
@@ -65,6 +42,25 @@ namespace Segra.Backend.Services
                 }
             });
         }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
+
+        [DllImport("psapi.dll", CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+        private static extern int GetProcessImageFileName(IntPtr hprocess, StringBuilder lpExeName, int nSize);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [SuppressUnmanagedCodeSecurity]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryDosDevice(string lpDeviceName, StringBuilder lpTargetPath, int ucchMax);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryFullProcessImageName(IntPtr hProcess, int dwFlags, StringBuilder lpExeName, ref int lpdwSize);
 
         // Paths that resolve to system locations or known non-game tooling are ignored by the watchers.
         private static bool IsIrrelevantProcessPath(string exePath) =>
@@ -487,7 +483,6 @@ namespace Segra.Backend.Services
                 // Skip if retry is prevented
                 if (PreventRetryRecording) return;
 
-                // Get the foreground window and its process ID
                 IntPtr foregroundWindow = GetForegroundWindow();
                 _ = GetWindowThreadProcessId(foregroundWindow, out uint foregroundPid);
 
@@ -497,7 +492,6 @@ namespace Segra.Backend.Services
                     return;
                 }
 
-                // Get the executable path of the foreground process
                 string foregroundExePath = ResolveProcessPath((int)foregroundPid);
 
                 if (string.IsNullOrEmpty(foregroundExePath))
@@ -506,7 +500,6 @@ namespace Segra.Backend.Services
                     return;
                 }
 
-                // Check if the foreground process is a game we should record
                 if (ShouldRecordGame(foregroundExePath))
                 {
                     string processName = "Unknown";
@@ -564,7 +557,7 @@ namespace Segra.Backend.Services
             public uint pid;
         }
 
-        private static readonly PROPERTYKEY PKEY_FileDescription = new PROPERTYKEY
+        private static readonly PROPERTYKEY PKEY_FileDescription = new()
         {
             fmtid = new Guid("0CEF7D53-FA64-11D1-A203-0000F81FEDEE"),
             pid = 3

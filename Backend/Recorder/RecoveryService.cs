@@ -1,16 +1,16 @@
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Games;
-using Segra.Backend.Media;
-using Segra.Backend.Shared;
-using Segra.Backend.Windows.Storage;
 using Serilog;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Net.Http;
+using Segra.Backend.App;
+using Segra.Backend.Auth;
+using Segra.Backend.Core;
+using Segra.Backend.Media;
+using Segra.Backend.Shared;
 using System.Net.Http.Headers;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Windows.Storage;
+using System.Text.Json.Serialization;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Recorder
 {
     internal class AiIdentificationResponse
     {
@@ -28,6 +28,136 @@ namespace Segra.Backend.Services
     {
         private static readonly Dictionary<string, OrphanedFile> _pendingRecoveries = new();
         private static readonly Dictionary<string, string> _detectedGames = new();
+
+        public static async Task CheckForOrphanedFilesAsync()
+        {
+            try
+            {
+                // Wait for migrations to complete before checking for orphaned files
+                await MigrationService.WaitForMigrationsAsync();
+                var orphanedFiles = FindOrphanedVideoFiles();
+
+                if (orphanedFiles.Count == 0)
+                    return;
+
+                Log.Information($"Found {orphanedFiles.Count} orphaned video file(s) without metadata");
+
+                // Only use AI for files that aren't already in a game subfolder
+                var filesNeedingAi = orphanedFiles.Where(f => string.IsNullOrEmpty(f.FolderGame)).ToList();
+                Dictionary<string, string>? aiIdentifiedGames = null;
+
+                if (filesNeedingAi.Count > 0)
+                {
+                    bool useAi = Settings.Instance.EnableAi && AuthService.IsAuthenticated();
+                    if (useAi)
+                    {
+                        aiIdentifiedGames = await IdentifyGamesWithAi(filesNeedingAi);
+                    }
+                }
+
+                var fileDataList = orphanedFiles.Select(orphanedFile =>
+                {
+                    string recoveryId = Guid.NewGuid().ToString();
+                    _pendingRecoveries[recoveryId] = orphanedFile;
+
+                    FileInfo fileInfo = new(orphanedFile.FilePath);
+                    double fileSizeMB = fileInfo.Length / (1024.0 * 1024.0);
+                    string formattedSize = fileSizeMB >= 1024
+                        ? $"{fileSizeMB / 1024.0:F2} GB"
+                        : $"{fileSizeMB:F2} MB";
+
+                    string typeLabel = orphanedFile.Type switch
+                    {
+                        Content.ContentType.Session => "Session Recording",
+                        Content.ContentType.Clip => "Clip",
+                        Content.ContentType.Highlight => "Highlight",
+                        Content.ContentType.Buffer => "Replay Buffer",
+                        _ => orphanedFile.Type.ToString()
+                    };
+
+                    // Use folder-derived game first, then AI as fallback
+                    string? detectedGame = orphanedFile.FolderGame;
+                    if (string.IsNullOrEmpty(detectedGame) && aiIdentifiedGames != null && aiIdentifiedGames.TryGetValue(orphanedFile.FilePath, out string? aiGame))
+                    {
+                        detectedGame = aiGame;
+                    }
+
+                    if (!string.IsNullOrEmpty(detectedGame))
+                    {
+                        _detectedGames[recoveryId] = detectedGame;
+                    }
+
+                    return new
+                    {
+                        recoveryId,
+                        fileName = orphanedFile.FileName,
+                        filePath = orphanedFile.FilePath,
+                        type = orphanedFile.Type.ToString(),
+                        typeLabel,
+                        fileSize = formattedSize,
+                        detectedGame
+                    };
+                }).ToList();
+
+                await MessageService.SendFrontendMessage("RecoveryPrompt", new
+                {
+                    files = fileDataList,
+                    totalCount = fileDataList.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error during recovery check: {ex.Message}");
+            }
+        }
+
+        public static async Task HandleRecoveryConfirm(JsonElement parameters)
+        {
+            try
+            {
+                if (!parameters.TryGetProperty("recoveryId", out JsonElement recoveryIdElement) ||
+                    !parameters.TryGetProperty("action", out JsonElement actionElement))
+                {
+                    Log.Error("Missing required parameters in RecoveryConfirm");
+                    return;
+                }
+
+                string recoveryId = recoveryIdElement.GetString()!;
+                string action = actionElement.GetString()!;
+                string? gameOverride = parameters.TryGetProperty("gameOverride", out JsonElement gameOverrideElement)
+                    ? gameOverrideElement.GetString()
+                    : null;
+
+                if (!_pendingRecoveries.TryGetValue(recoveryId, out OrphanedFile? orphanedFile))
+                {
+                    Log.Warning($"No pending recovery found for recoveryId: {recoveryId}");
+                    return;
+                }
+
+                _pendingRecoveries.Remove(recoveryId);
+                _detectedGames.TryGetValue(recoveryId, out string? detectedGame);
+                _detectedGames.Remove(recoveryId);
+
+                switch (action)
+                {
+                    case "recover":
+                        string? gameName = string.IsNullOrEmpty(gameOverride) ? detectedGame : gameOverride;
+                        await RecoverFile(orphanedFile, gameName);
+                        await SettingsService.LoadContentFromFolderIntoState(true);
+                        break;
+                    case "delete":
+                        DeleteFile(orphanedFile);
+                        break;
+                    case "skip":
+                        Log.Information($"User skipped recovery for: {orphanedFile.FileName}");
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error handling recovery confirmation: {ex.Message}");
+            }
+        }
 
         private static async Task<Dictionary<string, string>> IdentifyGamesWithAi(List<OrphanedFile> orphanedFiles)
         {
@@ -140,136 +270,6 @@ namespace Segra.Backend.Services
             {
                 Log.Error($"Error identifying game for {Path.GetFileName(videoFilePath)}: {ex.Message}");
                 return null;
-            }
-        }
-
-        public static async Task CheckForOrphanedFilesAsync()
-        {
-            try
-            {
-                // Wait for migrations to complete before checking for orphaned files
-                await MigrationService.WaitForMigrationsAsync();
-                var orphanedFiles = FindOrphanedVideoFiles();
-
-                if (orphanedFiles.Count == 0)
-                    return;
-
-                Log.Information($"Found {orphanedFiles.Count} orphaned video file(s) without metadata");
-
-                // Only use AI for files that aren't already in a game subfolder
-                var filesNeedingAi = orphanedFiles.Where(f => string.IsNullOrEmpty(f.FolderGame)).ToList();
-                Dictionary<string, string>? aiIdentifiedGames = null;
-
-                if (filesNeedingAi.Count > 0)
-                {
-                    bool useAi = Settings.Instance.EnableAi && AuthService.IsAuthenticated();
-                    if (useAi)
-                    {
-                        aiIdentifiedGames = await IdentifyGamesWithAi(filesNeedingAi);
-                    }
-                }
-
-                var fileDataList = orphanedFiles.Select(orphanedFile =>
-                {
-                    string recoveryId = Guid.NewGuid().ToString();
-                    _pendingRecoveries[recoveryId] = orphanedFile;
-
-                    FileInfo fileInfo = new FileInfo(orphanedFile.FilePath);
-                    double fileSizeMB = fileInfo.Length / (1024.0 * 1024.0);
-                    string formattedSize = fileSizeMB >= 1024
-                        ? $"{fileSizeMB / 1024.0:F2} GB"
-                        : $"{fileSizeMB:F2} MB";
-
-                    string typeLabel = orphanedFile.Type switch
-                    {
-                        Content.ContentType.Session => "Session Recording",
-                        Content.ContentType.Clip => "Clip",
-                        Content.ContentType.Highlight => "Highlight",
-                        Content.ContentType.Buffer => "Replay Buffer",
-                        _ => orphanedFile.Type.ToString()
-                    };
-
-                    // Use folder-derived game first, then AI as fallback
-                    string? detectedGame = orphanedFile.FolderGame;
-                    if (string.IsNullOrEmpty(detectedGame) && aiIdentifiedGames != null && aiIdentifiedGames.TryGetValue(orphanedFile.FilePath, out string? aiGame))
-                    {
-                        detectedGame = aiGame;
-                    }
-
-                    if (!string.IsNullOrEmpty(detectedGame))
-                    {
-                        _detectedGames[recoveryId] = detectedGame;
-                    }
-
-                    return new
-                    {
-                        recoveryId,
-                        fileName = orphanedFile.FileName,
-                        filePath = orphanedFile.FilePath,
-                        type = orphanedFile.Type.ToString(),
-                        typeLabel,
-                        fileSize = formattedSize,
-                        detectedGame
-                    };
-                }).ToList();
-
-                await MessageService.SendFrontendMessage("RecoveryPrompt", new
-                {
-                    files = fileDataList,
-                    totalCount = fileDataList.Count
-                });
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error during recovery check: {ex.Message}");
-            }
-        }
-
-        public static async Task HandleRecoveryConfirm(JsonElement parameters)
-        {
-            try
-            {
-                if (!parameters.TryGetProperty("recoveryId", out JsonElement recoveryIdElement) ||
-                    !parameters.TryGetProperty("action", out JsonElement actionElement))
-                {
-                    Log.Error("Missing required parameters in RecoveryConfirm");
-                    return;
-                }
-
-                string recoveryId = recoveryIdElement.GetString()!;
-                string action = actionElement.GetString()!;
-                string? gameOverride = parameters.TryGetProperty("gameOverride", out JsonElement gameOverrideElement)
-                    ? gameOverrideElement.GetString()
-                    : null;
-
-                if (!_pendingRecoveries.TryGetValue(recoveryId, out OrphanedFile? orphanedFile))
-                {
-                    Log.Warning($"No pending recovery found for recoveryId: {recoveryId}");
-                    return;
-                }
-
-                _pendingRecoveries.Remove(recoveryId);
-                _detectedGames.TryGetValue(recoveryId, out string? detectedGame);
-                _detectedGames.Remove(recoveryId);
-
-                switch (action)
-                {
-                    case "recover":
-                        string? gameName = string.IsNullOrEmpty(gameOverride) ? detectedGame : gameOverride;
-                        await RecoverFile(orphanedFile, gameName);
-                        await SettingsService.LoadContentFromFolderIntoState(true);
-                        break;
-                    case "delete":
-                        DeleteFile(orphanedFile);
-                        break;
-                    case "skip":
-                        Log.Information($"User skipped recovery for: {orphanedFile.FileName}");
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error handling recovery confirmation: {ex.Message}");
             }
         }
 

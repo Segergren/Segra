@@ -1,8 +1,6 @@
-using Segra.Backend.App;
-using Segra.Backend.Services;
-using Segra.Backend.Shared;
-using Segra.Backend.Windows.Display;
 using Serilog;
+using Segra.Backend.App;
+using Segra.Backend.Core;
 using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Core.Models
@@ -90,7 +88,6 @@ namespace Segra.Backend.Core.Models
             .ToList();
         private string _defaultMenuItem = "Full Sessions";
 
-        // Returns the default keybindings
         private static List<Keybind> GetDefaultKeybindings()
         {
             return new List<Keybind>
@@ -108,7 +105,6 @@ namespace Segra.Backend.Core.Models
             _keybindings = GetDefaultKeybindings();
         }
 
-        // Begin bulk update suppression
         public void BeginBulkUpdate()
         {
             _isBulkUpdating = true;
@@ -140,7 +136,6 @@ namespace Segra.Backend.Core.Models
                 screenHeight = primaryScreen.Bounds.Height;
             }
 
-            // Determine resolution based on height
             if (screenHeight >= 2160)
             {
                 _resolution = "4K";
@@ -975,7 +970,6 @@ namespace Segra.Backend.Core.Models
         public bool Visible { get; set; } = true;
     }
 
-    // Class definition for device settings
     public class DeviceSetting
     {
         [JsonPropertyName("id")]
@@ -1024,7 +1018,6 @@ namespace Segra.Backend.Core.Models
         public string? Exe { get; set; }
     }
 
-    // Recording class
     internal class Recording
     {
         private readonly object _bookmarksLock = new();
@@ -1093,7 +1086,6 @@ namespace Segra.Backend.Core.Models
         }
     }
 
-    // Content class
     public class Content
     {
         private readonly object _bookmarksLock = new();

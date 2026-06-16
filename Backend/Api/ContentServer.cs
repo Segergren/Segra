@@ -1,9 +1,9 @@
 using Serilog;
 using System.Net;
 using System.Web;
-using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
+using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Api
 {
@@ -18,8 +18,28 @@ namespace Segra.Backend.Api
             _httpListener.Start();
             Log.Information("Server started at {Prefix}", prefix);
 
-            _cancellationTokenSource = new CancellationTokenSource();
+            _cancellationTokenSource = new();
             _ = Task.Run(() => AcceptRequestsAsync(_cancellationTokenSource.Token));
+        }
+
+        public static void StopServer()
+        {
+            try
+            {
+                _cancellationTokenSource?.Cancel();
+                _httpListener.Stop();
+                _httpListener.Close();
+                Log.Information("ContentServer stopped");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error stopping ContentServer");
+            }
+            finally
+            {
+                _cancellationTokenSource?.Dispose();
+                _cancellationTokenSource = null;
+            }
         }
 
         private static async Task AcceptRequestsAsync(CancellationToken cancellationToken)
@@ -376,26 +396,6 @@ namespace Segra.Backend.Api
             }
 
             return null;
-        }
-
-        public static void StopServer()
-        {
-            try
-            {
-                _cancellationTokenSource?.Cancel();
-                _httpListener.Stop();
-                _httpListener.Close();
-                Log.Information("ContentServer stopped");
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error stopping ContentServer");
-            }
-            finally
-            {
-                _cancellationTokenSource?.Dispose();
-                _cancellationTokenSource = null;
-            }
         }
     }
 }

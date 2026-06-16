@@ -1,21 +1,20 @@
+using Serilog;
+using Velopack;
 using Photino.NET;
-using Photino.NET.Server;
+using System.IO.Pipes;
 using Segra.Backend.Api;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Recorder;
-using Segra.Backend.Services;
+using Photino.NET.Server;
+using Segra.Backend.Core;
+using System.Diagnostics;
 using Segra.Backend.Shared;
-using Segra.Backend.Windows.GameMode;
+using Segra.Backend.Recorder;
+using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Power;
 using Segra.Backend.Windows.Storage;
+using Segra.Backend.Windows.GameMode;
 using Segra.Backend.Windows.WebView2;
-using Serilog;
-using System.Diagnostics;
-using System.IO.Pipes;
-using System.Reflection;
 using System.Runtime.InteropServices;
-using Velopack;
 
 namespace Segra.Backend.App
 {
@@ -37,7 +36,7 @@ namespace Segra.Backend.App
         const int SM_CXFULLSCREEN = 16;
         const int SM_CYFULLSCREEN = 17;
         public static bool IsFirstRun { get; private set; } = false;
-        private static readonly AutoResetEvent ShowWindowEvent = new AutoResetEvent(false);
+        private static readonly AutoResetEvent ShowWindowEvent = new(false);
         public static bool hasLoadedInitialSettings = false;
         public static PhotinoWindow? Window { get; private set; }
         private static readonly string LogFilePath =
@@ -207,7 +206,6 @@ namespace Segra.Backend.App
                     });
                 }
 
-                // Get the directory containing the executable
                 Log.Information("Serving React app at {AppUrl}", appUrl);
 
                 Task.Run(() =>
@@ -296,6 +294,60 @@ namespace Segra.Backend.App
             }
         }
 
+        public static void ConfigureLogging()
+        {
+            PurgeOldLogs();
+
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.Debug()
+                //.WriteTo.Debug(restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning) // Remove restricted minimum level to show all logs but increase lag while debugging
+                .WriteTo.Sink(new TrimmingFileSink(LogFilePath, maxFileSizeBytes, trimTargetBytes, LogOutputTemplate))
+                .CreateLogger();
+        }
+
+        private static Size? _windowSizeBeforeFullscreen;
+        private static Point? _windowLocationBeforeFullscreen;
+        private static bool _wasMaximizedBeforeFullscreen;
+
+        public static void SetFullscreen(bool enabled)
+        {
+            try
+            {
+                if (Window == null) return;
+
+                if (enabled)
+                {
+                    _wasMaximizedBeforeFullscreen = Window.Maximized;
+                    _windowSizeBeforeFullscreen = Window.Size;
+                    _windowLocationBeforeFullscreen = Window.Location;
+                    Window.SetMaximized(true);
+                }
+                else
+                {
+                    if (_wasMaximizedBeforeFullscreen)
+                    {
+                        return;
+                    }
+                    else if (_windowSizeBeforeFullscreen.HasValue && _windowLocationBeforeFullscreen.HasValue)
+                    {
+                        // Was not maximized, restore size and position
+                        Window.SetMaximized(false);
+                        Window.SetSize(_windowSizeBeforeFullscreen.Value);
+                        Window.SetLocation(_windowLocationBeforeFullscreen.Value);
+                    }
+                    else
+                    {
+                        Window.SetMaximized(false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error setting fullscreen state");
+            }
+        }
+
         private static void Shutdown()
         {
             Log.Information("Application shutting down.");
@@ -339,18 +391,6 @@ namespace Segra.Backend.App
             }
         }
 
-        public static void ConfigureLogging()
-        {
-            PurgeOldLogs();
-
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Debug()
-                .WriteTo.Debug()
-                //.WriteTo.Debug(restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning) // Remove restricted minimum level to show all logs but increase lag while debugging
-                .WriteTo.Sink(new TrimmingFileSink(LogFilePath, maxFileSizeBytes, trimTargetBytes, LogOutputTemplate))
-                .CreateLogger();
-        }
-
         private static void PurgeOldLogs()
         {
             try
@@ -365,7 +405,6 @@ namespace Segra.Backend.App
                 if (logFiles.Length == 0)
                     return;
 
-                // Get the first .log file found
                 var logFilePath = logFiles[0];
                 var fileInfo = new FileInfo(logFilePath);
 
@@ -385,48 +424,6 @@ namespace Segra.Backend.App
             catch (Exception ex)
             {
                 Log.Error($"Error purging logs: {ex.Message}");
-            }
-        }
-
-        private static Size? _windowSizeBeforeFullscreen;
-        private static Point? _windowLocationBeforeFullscreen;
-        private static bool _wasMaximizedBeforeFullscreen;
-
-        public static void SetFullscreen(bool enabled)
-        {
-            try
-            {
-                if (Window == null) return;
-
-                if (enabled)
-                {
-                    _wasMaximizedBeforeFullscreen = Window.Maximized;
-                    _windowSizeBeforeFullscreen = Window.Size;
-                    _windowLocationBeforeFullscreen = Window.Location;
-                    Window.SetMaximized(true);
-                }
-                else
-                {
-                    if (_wasMaximizedBeforeFullscreen)
-                    {
-                        return;
-                    }
-                    else if (_windowSizeBeforeFullscreen.HasValue && _windowLocationBeforeFullscreen.HasValue)
-                    {
-                        // Was not maximized, restore size and position
-                        Window.SetMaximized(false);
-                        Window.SetSize(_windowSizeBeforeFullscreen.Value);
-                        Window.SetLocation(_windowLocationBeforeFullscreen.Value);
-                    }
-                    else
-                    {
-                        Window.SetMaximized(false);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error setting fullscreen state");
             }
         }
 

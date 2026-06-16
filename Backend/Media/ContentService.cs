@@ -1,17 +1,17 @@
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Games;
-using Segra.Backend.Services;
-using Segra.Backend.Shared;
-using Segra.Backend.Windows.Storage;
 using Serilog;
 using System.Text.Json;
+using Segra.Backend.App;
+using Segra.Backend.Core;
+using Segra.Backend.Games;
+using Segra.Backend.Shared;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Windows.Storage;
 
 namespace Segra.Backend.Media
 {
     internal class ContentService
     {
-        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
+        private static readonly JsonSerializerOptions _jsonOptions = new()
         {
             WriteIndented = true
         };
@@ -23,24 +23,20 @@ namespace Segra.Backend.Media
 
             try
             {
-                // Ensure the video file exists
                 if (!File.Exists(filePath))
                 {
                     Log.Information($"Video file not found: {filePath}");
                     return;
                 }
 
-                // Get the directory and file name
                 string contentFileName = Path.GetFileNameWithoutExtension(filePath);
 
-                // Ensure the metadata folder exists
                 string metadataFolderPath = FolderNames.GetMetadataFolderPath(type);
                 if (!Directory.Exists(metadataFolderPath))
                 {
                     Directory.CreateDirectory(metadataFolderPath);
                 }
 
-                // Create the metadata file
                 string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{contentFileName}.json");
                 var (displaySize, sizeKb) = GetFileSize(filePath);
 
@@ -92,10 +88,8 @@ namespace Segra.Backend.Media
                     return null;
                 }
 
-                // Apply the update
                 updateAction(content);
 
-                // Serialize and write back
                 string updatedJson = JsonSerializer.Serialize(content, _jsonOptions);
 
                 await File.WriteAllTextAsync(metadataFilePath, updatedJson);
@@ -208,17 +202,14 @@ namespace Segra.Backend.Media
         {
             try
             {
-                // Get the directory and file name
                 string contentFileName = Path.GetFileNameWithoutExtension(filePath);
 
-                // Ensure the thumbnails folder exists
                 string thumbnailsFolderPath = FolderNames.GetThumbnailsFolderPath(type);
                 if (!Directory.Exists(thumbnailsFolderPath))
                 {
                     Directory.CreateDirectory(thumbnailsFolderPath);
                 }
 
-                // Define the output thumbnail file path
                 string thumbnailFilePath = PathUtils.Combine(thumbnailsFolderPath, $"{contentFileName}.jpeg");
 
                 if (!FFmpegService.FFmpegExists())
@@ -253,7 +244,6 @@ namespace Segra.Backend.Media
 
                 string contentFileName = Path.GetFileNameWithoutExtension(videoFilePath);
 
-                // Ensure the waveforms folder exists
                 string waveformFolderPath = FolderNames.GetWaveformsFolderPath(type);
                 if (!Directory.Exists(waveformFolderPath))
                 {
@@ -338,13 +328,11 @@ namespace Segra.Backend.Media
                     length = data.Count,
                     data
                 };
-                // Serialize JSON
                 var json = JsonSerializer.Serialize(wrapper);
                 await File.WriteAllTextAsync(waveformJsonPathTemp, json);
                 File.Move(waveformJsonPathTemp, waveformJsonPath, true);
                 Log.Information($"Waveform JSON successfully created at: {waveformJsonPath}");
 
-                // Cleanup
                 try { File.Delete(tempPcmPath); } catch { /* ignore */ }
             }
             catch (Exception ex)
@@ -362,7 +350,7 @@ namespace Segra.Backend.Media
             catch (Exception ex)
             {
                 Log.Error($"Error getting video duration: {ex.Message}");
-                return TimeSpan.Zero; // Return zero duration in case of error
+                return TimeSpan.Zero;
             }
         }
 
@@ -370,17 +358,14 @@ namespace Segra.Backend.Media
         {
             try
             {
-                // Validate the file path
                 if (string.IsNullOrWhiteSpace(filePath))
                 {
                     Log.Warning("DeleteClip called with an invalid file path.");
                     return;
                 }
 
-                // Normalize the file path
                 string normalizedFilePath = PathUtils.Normalize(Path.GetFullPath(filePath));
 
-                // Ensure the video file exists before attempting deletion
                 string? videoDirectory = Path.GetDirectoryName(normalizedFilePath);
                 if (File.Exists(normalizedFilePath))
                 {
@@ -395,13 +380,12 @@ namespace Segra.Backend.Media
                         }
                         catch (IOException)
                         {
-                            if (i == maxRetries - 1) throw; // Re-throw on last attempt
+                            if (i == maxRetries - 1) throw;
                             Log.Warning($"File is locked, retrying deletion in 500ms... (Attempt {i + 1}/{maxRetries})");
                             await Task.Delay(500);
                         }
                     }
 
-                    // Clean up empty game folder if it exists
                     if (!string.IsNullOrEmpty(videoDirectory) && Directory.Exists(videoDirectory))
                     {
                         try
@@ -515,7 +499,6 @@ namespace Segra.Backend.Media
         {
             try
             {
-                // Get required properties from the message
                 if (message.TryGetProperty("FilePath", out JsonElement filePathElement) &&
                     message.TryGetProperty("Type", out JsonElement typeElement) &&
                     message.TryGetProperty("Time", out JsonElement timeElement) &&
@@ -534,26 +517,22 @@ namespace Segra.Backend.Media
                         return;
                     }
 
-                    // Parse bookmark type, default to Manual if not valid
                     BookmarkType bookmarkType = BookmarkType.Manual;
                     if (!string.IsNullOrEmpty(bookmarkTypeStr) && Enum.TryParse<BookmarkType>(bookmarkTypeStr, out var parsedType))
                     {
                         bookmarkType = parsedType;
                     }
 
-                    // Determine content type from the provided value
                     if (!Enum.TryParse<Content.ContentType>(contentTypeStr, out Content.ContentType contentType))
                     {
                         Log.Error($"Invalid content type: {contentTypeStr}");
                         return;
                     }
 
-                    // Get metadata file path
                     string contentFileName = Path.GetFileNameWithoutExtension(filePath);
                     string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
                     string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{contentFileName}.json");
 
-                    // Create a new bookmark
                     var bookmark = new Bookmark
                     {
                         Id = bookmarkId,
@@ -561,13 +540,9 @@ namespace Segra.Backend.Media
                         Time = TimeSpan.Parse(timeString)
                     };
 
-                    // Update the metadata file
                     var content = await UpdateMetadataFile(metadataFilePath, c =>
                     {
-                        if (c.Bookmarks == null)
-                        {
-                            c.Bookmarks = [];
-                        }
+                        c.Bookmarks ??= [];
                         c.AddBookmark(bookmark);
                     });
 
@@ -607,7 +582,6 @@ namespace Segra.Backend.Media
         {
             try
             {
-                // Get required properties from the message
                 if (message.TryGetProperty("FilePath", out JsonElement filePathElement) &&
                     message.TryGetProperty("ContentType", out JsonElement contentTypeElement) &&
                     message.TryGetProperty("Id", out JsonElement idElement))
@@ -622,19 +596,16 @@ namespace Segra.Backend.Media
                         return;
                     }
 
-                    // Determine content type from the provided value
                     if (!Enum.TryParse<Content.ContentType>(contentTypeStr, out Content.ContentType contentType))
                     {
                         Log.Error($"Invalid content type: {contentTypeStr}");
                         return;
                     }
 
-                    // Get metadata file path
                     string contentFileName = Path.GetFileNameWithoutExtension(filePath);
                     string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
                     string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{contentFileName}.json");
 
-                    // Update the metadata file
                     var content = await UpdateMetadataFile(metadataFilePath, c =>
                     {
                         if (c.Bookmarks != null)

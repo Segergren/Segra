@@ -1,11 +1,11 @@
-using Segra.Backend.Core.Models;
-using Segra.Backend.Recorder;
 using Serilog;
 using System.Drawing;
+using Segra.Backend.Recorder;
 using System.Drawing.Imaging;
+using global::Windows.Media.Ocr;
+using Segra.Backend.Core.Models;
 using System.Runtime.InteropServices;
 using global::Windows.Graphics.Imaging;
-using global::Windows.Media.Ocr;
 
 namespace Segra.Backend.Games
 {

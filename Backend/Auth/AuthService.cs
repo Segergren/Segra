@@ -1,8 +1,8 @@
+using Serilog;
 using System.Text;
 using System.Text.Json;
-using Serilog;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Auth
 {
     public static class AuthService
     {

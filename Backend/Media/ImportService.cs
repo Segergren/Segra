@@ -1,10 +1,10 @@
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Services;
-using Segra.Backend.Shared;
-using Segra.Backend.Windows.Storage;
 using Serilog;
 using System.Text.Json;
+using Segra.Backend.App;
+using Segra.Backend.Core;
+using Segra.Backend.Shared;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Windows.Storage;
 
 namespace Segra.Backend.Media
 {
@@ -16,7 +16,6 @@ namespace Segra.Backend.Media
 
             try
             {
-                // Extract sectionId and determine content type
                 if (!parameters.TryGetProperty("sectionId", out JsonElement sectionIdElement))
                 {
                     Log.Error("sectionId not found in ImportFile parameters");
@@ -89,7 +88,6 @@ namespace Segra.Backend.Media
 
                 Log.Information($"Starting import of {selectedFiles.Length} file(s) to {contentType}");
 
-                // Check if import would exceed storage limit
                 bool shouldProceed = await StorageWarningService.CheckImportStorageLimit(selectedFiles, contentType);
                 if (!shouldProceed)
                 {
@@ -97,14 +95,12 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                // Proceed with import
                 await ExecuteImport(selectedFiles, contentType);
             }
             catch (Exception ex)
             {
                 Log.Error($"Error during import process: {ex.Message}");
 
-                // Send error progress update for the entire import process
                 try
                 {
                     await MessageService.SendFrontendMessage("ImportProgress", new
@@ -134,7 +130,6 @@ namespace Segra.Backend.Media
         {
             int importId = Guid.NewGuid().GetHashCode();
 
-            // Base content folder
             string contentFolder = Settings.Instance.ContentFolder;
             string baseTypeFolder = PathUtils.Combine(contentFolder, FolderNames.GetVideoFolderName(contentType));
 
@@ -147,7 +142,6 @@ namespace Segra.Backend.Media
                 string originalFileName = Path.GetFileNameWithoutExtension(sourceFile);
                 string fileExtension = Path.GetExtension(sourceFile);
 
-                // Validate file extension is MP4
                 if (!fileExtension.Equals(".mp4", StringComparison.OrdinalIgnoreCase))
                 {
                     failedCount++;
@@ -157,11 +151,9 @@ namespace Segra.Backend.Media
 
                 try
                 {
-                    // Create target directory with game subfolder
                     string targetFolder = PathUtils.Combine(baseTypeFolder, "Unknown");
                     Directory.CreateDirectory(targetFolder);
 
-                    // Send initial progress for current file
                     double progressPercent = (double)i / selectedFiles.Length * 100;
                     try
                     {
@@ -180,12 +172,10 @@ namespace Segra.Backend.Media
                         Log.Warning($"Failed to send import progress message: {msgEx.Message}");
                     }
 
-                    // Generate unique filename with timestamp
                     string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
                     string targetFileName = $"{timestamp}_{originalFileName}{fileExtension}";
                     string targetFilePath = PathUtils.Combine(targetFolder, targetFileName);
 
-                    // Ensure unique filename if file already exists
                     int counter = 1;
                     while (File.Exists(targetFilePath))
                     {
@@ -196,10 +186,8 @@ namespace Segra.Backend.Media
 
                     Log.Information($"Importing {originalFileName} to {targetFilePath}");
 
-                    // Copy the video file to target location
                     File.Copy(sourceFile, targetFilePath);
 
-                    // Extract recording date from file
                     DateTime recordingDate = File.GetCreationTime(sourceFile);
 
                     // Probe audio track layout so the multi-track player UI
@@ -248,7 +236,6 @@ namespace Segra.Backend.Media
                         Log.Information($"Detected {audioTrackNames.Count} audio tracks in {originalFileName}: {string.Join(", ", audioTrackNames)}");
                     }
 
-                    // Send progress after file copy
                     try
                     {
                         await MessageService.SendFrontendMessage("ImportProgress", new
@@ -266,13 +253,11 @@ namespace Segra.Backend.Media
                         Log.Warning($"Failed to send import progress message: {msgEx.Message}");
                     }
 
-                    // Create metadata file with detected game name and date
                     await ContentService.CreateMetadataFile(targetFilePath, contentType, "Unknown", null, originalFileName.Replace("_", " "), recordingDate != DateTime.MinValue ? recordingDate : null, isImported: true, audioTrackNames: audioTrackNames);
 
                     // Ensure file is fully written to disk/network before thumbnail generation
                     await GeneralUtils.EnsureFileReady(targetFilePath);
 
-                    // Send progress after metadata creation
                     try
                     {
                         await MessageService.SendFrontendMessage("ImportProgress", new
@@ -290,10 +275,8 @@ namespace Segra.Backend.Media
                         Log.Warning($"Failed to send import progress message: {msgEx.Message}");
                     }
 
-                    // Create thumbnail image
                     await ContentService.CreateThumbnail(targetFilePath, contentType);
 
-                    // Send progress after thumbnail creation
                     try
                     {
                         await MessageService.SendFrontendMessage("ImportProgress", new
@@ -311,7 +294,6 @@ namespace Segra.Backend.Media
                         Log.Warning($"Failed to send import progress message: {msgEx.Message}");
                     }
 
-                    // Create waveform data asynchronously
                     _ = Task.Run(async () => await ContentService.CreateWaveformFile(targetFilePath, contentType));
 
                     importedCount++;
@@ -322,7 +304,6 @@ namespace Segra.Backend.Media
                     failedCount++;
                     Log.Error(ex, $"Failed to import {originalFileName}");
 
-                    // Send error progress update
                     double progressPercent = (double)i / selectedFiles.Length * 100;
                     try
                     {
@@ -344,7 +325,6 @@ namespace Segra.Backend.Media
                 }
             }
 
-            // Send final progress update
             try
             {
                 await MessageService.SendFrontendMessage("ImportProgress", new
@@ -363,7 +343,6 @@ namespace Segra.Backend.Media
                 Log.Warning($"Failed to send final import progress message: {msgEx.Message}");
             }
 
-            // Reload content list to include newly imported files
             await SettingsService.LoadContentFromFolderIntoState();
 
             // No need for completion modal since progress cards show completion status

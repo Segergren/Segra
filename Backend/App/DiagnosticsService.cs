@@ -1,15 +1,14 @@
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Recorder;
-using Segra.Backend.Windows.Storage;
 using Serilog;
+using System.Reflection;
 using System.Diagnostics;
 using System.Globalization;
-using System.Reflection;
+using Segra.Backend.Recorder;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Windows.Storage;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.App
 {
     internal static class DiagnosticsService
     {

@@ -1,9 +1,8 @@
 using Serilog;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Media;
 using Segra.Backend.App;
+using Segra.Backend.Core.Models;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Media
 {
     internal class AiService
     {

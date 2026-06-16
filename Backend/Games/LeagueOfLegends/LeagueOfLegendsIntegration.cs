@@ -1,6 +1,6 @@
-using Segra.Backend.Core.Models;
 using Serilog;
 using System.Text.Json;
+using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Games.LeagueOfLegends
 {
@@ -48,6 +48,8 @@ namespace Segra.Backend.Games.LeagueOfLegends
             return Task.CompletedTask;
         }
 
+        public void Dispose() => Shutdown().Wait();
+
         private async Task PollGameData()
         {
             try
@@ -56,13 +58,11 @@ namespace Segra.Backend.Games.LeagueOfLegends
                 JsonDocument doc = JsonDocument.Parse(result);
                 JsonElement root = doc.RootElement;
 
-                // Check if game has started
                 if (!IsGameStarted(root))
                 {
                     return;
                 }
 
-                // If we reach here, the game is in progress
                 if (!_isGameInProgress)
                 {
                     Log.Information("League of Legends game detected and started");
@@ -76,14 +76,12 @@ namespace Segra.Backend.Games.LeagueOfLegends
                     return;
                 }
 
-                // Find current player data
                 JsonElement currentPlayer = FindCurrentPlayer(root, summonerName);
                 if (currentPlayer.ValueKind == JsonValueKind.Undefined)
                 {
                     return;
                 }
 
-                // Process player stats
                 ProcessPlayerStats(currentPlayer);
             }
             catch (HttpRequestException)
@@ -171,7 +169,6 @@ namespace Segra.Backend.Games.LeagueOfLegends
                 return;
             }
 
-            // First capture the current stats
             int currentKills = 0;
             int currentDeaths = 0;
             int currentAssists = 0;
@@ -203,7 +200,6 @@ namespace Segra.Backend.Games.LeagueOfLegends
                 return;
             }
 
-            // Process kills
             if (currentKills > _stats.Kills)
             {
                 Log.Information($"Player got a kill! Total: {currentKills}");
@@ -211,7 +207,6 @@ namespace Segra.Backend.Games.LeagueOfLegends
                 _stats.Kills = currentKills;
             }
 
-            // Process deaths
             if (currentDeaths > _stats.Deaths)
             {
                 Log.Information($"Player died! Total deaths: {currentDeaths}");
@@ -219,7 +214,6 @@ namespace Segra.Backend.Games.LeagueOfLegends
                 _stats.Deaths = currentDeaths;
             }
 
-            // Process assists
             if (currentAssists > _stats.Assists)
             {
                 Log.Information($"Player got an assist! Total: {currentAssists}");
@@ -245,8 +239,6 @@ namespace Segra.Backend.Games.LeagueOfLegends
             recording.AddBookmark(bookmark);
             Log.Information($"Added {type} bookmark at {bookmark.Time}");
         }
-
-        public void Dispose() => Shutdown().Wait();
     }
 
     public class PlayerStats

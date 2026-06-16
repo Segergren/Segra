@@ -1,36 +1,34 @@
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
+using Serilog;
 using ObsKit.NET;
-using ObsKit.NET.Encoders;
-using ObsKit.NET.Native.Types;
-using ObsKit.NET.Outputs;
+using NAudio.Wave;
 using ObsKit.NET.Scenes;
+using Segra.Backend.App;
+using ObsKit.NET.Outputs;
 using ObsKit.NET.Signals;
 using ObsKit.NET.Sources;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Services;
-using Segra.Backend.Shared;
-using Serilog;
+using Segra.Backend.Core;
 using System.Diagnostics;
-using System.IO.Compression;
-using System.Text.RegularExpressions;
-using static Segra.Backend.Shared.GeneralUtils;
-using static Segra.Backend.App.MessageService;
-using System.Net.Http.Json;
-using Segra.Backend.Media;
-using Segra.Backend.App;
-using Segra.Backend.Windows.Display;
+using NAudio.CoreAudioApi;
+using ObsKit.NET.Encoders;
 using Segra.Backend.Games;
-using Segra.Backend.Windows.Input;
-using Segra.Backend.Windows.Storage;
+using Segra.Backend.Media;
+using Segra.Backend.Shared;
+using System.Net.Http.Json;
+using System.IO.Compression;
+using ObsKit.NET.Native.Types;
+using Segra.Backend.Core.Models;
 using System.Threading.Channels;
+using NAudio.Wave.SampleProviders;
+using Segra.Backend.Windows.Display;
+using Segra.Backend.Windows.Storage;
+using System.Text.RegularExpressions;
+using static Segra.Backend.App.MessageService;
+using static Segra.Backend.Shared.GeneralUtils;
 
 namespace Segra.Backend.Recorder
 {
     public static partial class OBSService
     {
-        // Constants
         private const uint OBS_SOURCE_FLAG_FORCE_MONO = 1u << 1; // from obs.h
 
         // OBS output stop codes (from libobs/obs-defs.h), passed as "code" in the output "stop" signal
@@ -45,32 +43,26 @@ namespace Segra.Backend.Recorder
         private const int OBS_OUTPUT_ENCODE_ERROR = -8;
         private const int OBS_OUTPUT_HDR_DISABLED = -9;
 
-        // Regex patterns for buffer parsing
         [GeneratedRegex(@"BufferDesc\.Width:\s*(\d+)")]
         private static partial Regex BufferDescWidthRegex();
 
         [GeneratedRegex(@"BufferDesc\.Height:\s*(\d+)")]
         private static partial Regex BufferDescHeightRegex();
 
-        // Public properties
         public static bool IsInitialized { get; private set; }
         public static uint? CapturedWindowWidth { get; private set; } = null;
         public static uint? CapturedWindowHeight { get; private set; } = null;
         public static string? InstalledOBSVersion { get; private set; } = null;
 
-        // OBS context
         private static ObsContext? _obsContext;
 
-        // OBS scene
         private static Scene? _mainScene;
         private static SceneItem? _gameCaptureItem;
         private static SceneItem? _displayItem;
 
-        // OBS output resources
         private static RecordingOutput? _output;
         private static ReplayBuffer? _bufferOutput;
 
-        // OBS source resources
         public static GameCapture? GameCaptureSource { get; set; }
         private static MonitorCapture? _displaySource;
         private static readonly List<AudioInputCapture> _micSources = [];
@@ -88,11 +80,9 @@ namespace Segra.Backend.Recorder
             ("TeamSpeak 3", "TeamSpeak 3:Qt5152QWindowIcon:ts3client_win32.exe"),
         ];
 
-        // OBS encoder resources
         private static VideoEncoder? _videoEncoder;
         private static readonly List<AudioEncoder> _audioEncoders = [];
 
-        // Game capture state
         private static string? _hookedExecutableFileName;
         private static System.Threading.Timer? _gameCaptureHookTimeoutTimer = null;
         private static bool _isStillHookedAfterUnhook = false;
@@ -103,7 +93,6 @@ namespace Segra.Backend.Recorder
         // Quality-based rate controls (CRF/CQP) have no bitrate cap, so assume a high worst case when sizing headroom
         private const int QualityModeAssumedMbps = 150;
 
-        // Recording/output state
         private static bool _isStoppingOrStopped = false;
         private static uint _currentBaseWidth;
         private static uint _currentBaseHeight;
@@ -137,7 +126,6 @@ namespace Segra.Backend.Recorder
             ["obs_qsv11"] = new[] { "obs_qsv11_hevc", "obs_qsv11_av1" },
         };
 
-        // Replay buffer state
         private static bool _replaySaved = false;
 
         // Signal connection for replay buffer saved event
@@ -156,8 +144,7 @@ namespace Segra.Backend.Recorder
         /// </summary>
         private static bool IsGameCaptureHooked => GameCaptureSource?.IsHooked ?? false;
 
-        // Threading primitives
-        private static readonly SemaphoreSlim _stopRecordingSemaphore = new SemaphoreSlim(1, 1);
+        private static readonly SemaphoreSlim _stopRecordingSemaphore = new(1, 1);
 
         // Log processing queue - prevents OBS thread from blocking on log operations
         private static readonly Channel<(int level, string message)> _logChannel =
@@ -242,7 +229,6 @@ namespace Segra.Backend.Recorder
             // Restart replay buffer so subsequent saves only include new footage
             await ResetReplayBuffer();
 
-            // Reset the flag
             _replaySaved = false;
 
             return true;
@@ -656,7 +642,6 @@ namespace Segra.Backend.Recorder
             // Configure video settings specifically for this recording/buffer
             ResetVideoSettings(out _, customFps: (uint)Settings.Instance.FrameRate);
 
-            // Create main scene for this recording
             _mainScene = new Scene("Recording Scene");
             Log.Information("Created recording scene");
 
@@ -739,7 +724,6 @@ namespace Segra.Backend.Recorder
             // Set scene as program output (channel 0)
             Obs.SetOutputSource(_mainScene);
 
-            // Create video encoder
             string encoderId = Settings.Instance.Codec!.InternalEncoderId;
             if (_isHdrRecording && _hdrEncoderId != null)
                 encoderId = _hdrEncoderId;
@@ -1026,7 +1010,6 @@ namespace Segra.Backend.Recorder
                 _bufferOutput.SetFilenameFormat("%CCYY-%MM-%DD_%hh-%mm-%ss");
                 _bufferOutput.Update(s => s.Set("extension", "mp4").Set("tracks", (long)bufferTracksMask));
 
-                // Set encoders
                 _bufferOutput.WithVideoEncoder(_videoEncoder);
                 for (int t = 0; t < _audioEncoders.Count; t++)
                 {
@@ -1060,7 +1043,6 @@ namespace Segra.Backend.Recorder
                 }
                 _output.Update(s => s.Set("tracks", (long)recordTracksMask));
 
-                // Set encoders
                 _output.WithVideoEncoder(_videoEncoder);
                 for (int t = 0; t < _audioEncoders.Count; t++)
                 {
@@ -2280,13 +2262,13 @@ namespace Segra.Backend.Recorder
                         else
                         {
                             Log.Warning("Received null OBS versions list from API");
-                            response = new List<Core.Models.OBSVersion>();
+                            response = [];
                         }
                     }
                     catch (Exception ex)
                     {
                         Log.Error($"Error parsing OBS versions from API: {ex.Message}");
-                        response = new List<Core.Models.OBSVersion>();
+                        response = [];
                     }
                 }
 
@@ -2327,7 +2309,7 @@ namespace Segra.Backend.Recorder
                     response = compatibleVersions;
                 }
 
-                SettingsService.SetAvailableOBSVersions(response ?? new List<Core.Models.OBSVersion>());
+                SettingsService.SetAvailableOBSVersions(response ?? []);
             }
             catch (Exception ex)
             {

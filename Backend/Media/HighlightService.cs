@@ -1,10 +1,10 @@
-using System.Globalization;
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Services;
-using Segra.Backend.Shared;
-using Segra.Backend.Windows.Storage;
 using Serilog;
+using Segra.Backend.App;
+using Segra.Backend.Core;
+using Segra.Backend.Shared;
+using System.Globalization;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Windows.Storage;
 
 namespace Segra.Backend.Media
 {
@@ -30,7 +30,6 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                // Get all highlight-worthy bookmarks
                 List<Bookmark> highlightBookmarks = content.Bookmarks
                     .Where(b => b.Type.IncludeInHighlight())
                     .OrderBy(b => b.Time)
@@ -54,11 +53,9 @@ namespace Segra.Backend.Media
                     EndTime = b.Time.TotalSeconds + paddingAfter
                 }).ToList();
 
-                // Merge overlapping segments
                 var mergedSegments = MergeOverlappingSegments(segments);
                 Log.Information($"Merged {segments.Count} segments into {mergedSegments.Count} clips");
 
-                // Create the highlight
                 string videoFolder = Settings.Instance.ContentFolder;
                 // Input files are organized by game
                 string inputGameFolder = StorageService.SanitizeGameNameForFolder(content.Game ?? "Unknown");
@@ -154,7 +151,7 @@ namespace Segra.Backend.Media
                 return false;
             }
 
-            List<string> tempFiles = new List<string>();
+            List<string> tempFiles = new();
             string? concatFilePath = null;
 
             try
@@ -246,7 +243,6 @@ namespace Segra.Backend.Media
             }
             finally
             {
-                // Cleanup temp files
                 foreach (var tempFile in tempFiles)
                 {
                     try { File.Delete(tempFile); }
@@ -266,7 +262,7 @@ namespace Segra.Backend.Media
         /// </summary>
         private static List<TimeSegment> MergeOverlappingSegments(List<TimeSegment> segments)
         {
-            if (segments.Count == 0) return new List<TimeSegment>();
+            if (segments.Count == 0) return [];
 
             var sorted = segments.OrderBy(s => s.StartTime).ToList();
             var merged = new List<TimeSegment>();

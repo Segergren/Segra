@@ -1,9 +1,9 @@
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
 using Serilog;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Segra.Backend.App;
+using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Games.Dota2
 {
@@ -113,6 +113,11 @@ namespace Segra.Backend.Games.Dota2
                 Log.Warning($"Error shutting down Dota 2 integration: {ex.Message}");
             }
             return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            Shutdown().Wait();
         }
 
         private void InitializeListener()
@@ -343,11 +348,6 @@ namespace Segra.Backend.Games.Dota2
                 "        \"items\"         \"1\"\n" +
                 "    }\n" +
                 "}\n";
-        }
-
-        public void Dispose()
-        {
-            Shutdown().Wait();
         }
     }
 }

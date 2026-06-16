@@ -1,8 +1,8 @@
-using Segra.Backend.Core.Models;
-using Segra.Backend.Media;
-using Segra.Backend.Shared;
 using Serilog;
 using System.Diagnostics;
+using Segra.Backend.Media;
+using Segra.Backend.Shared;
+using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Windows.Storage
 {
