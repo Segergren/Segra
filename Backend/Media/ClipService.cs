@@ -18,16 +18,40 @@ namespace Segra.Backend.Media
         private static readonly HashSet<int> CancelledClipIds = new();
         private static readonly object ProcessLock = new();
 
+        // Serialises clip creation. Running several clip encodes at once (e.g. starting a new clip
+        // while a previous one is still encoding) drove concurrent av1_nvenc sessions into a GPU
+        // deadlock where each ffmpeg froze at the flush stage and never exited, leaving the user
+        // unable to create any further clips until restart. Encoding one clip at a time avoids this.
+        private static readonly SemaphoreSlim CreationGate = new(1, 1);
+
+        // How long an individual clip ffmpeg process may make no progress before the watchdog kills it.
+        private static readonly TimeSpan ClipStallTimeout = TimeSpan.FromSeconds(60);
+
         public static async Task CreateClips(List<Segment> segments)
         {
             int id = Guid.NewGuid().GetHashCode();
             List<string> tempClipFiles = new List<string>();
             string? concatFilePath = null;
             string? outputFilePath = null;
+            bool gateAcquired = false;
 
             try
             {
+                // Show the loading card immediately, then queue behind any in-flight clip.
                 await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 0, segments });
+                await CreationGate.WaitAsync();
+                gateAcquired = true;
+
+                // The user may have cancelled while this clip was queued and before any process existed.
+                lock (ProcessLock)
+                {
+                    if (CancelledClipIds.Remove(id))
+                    {
+                        Log.Information($"[Clip {id}] Cancelled while queued; skipping creation");
+                        return;
+                    }
+                }
+
                 string videoFolder = Settings.Instance.ContentFolder;
 
                 if (segments == null || !segments.Any())
@@ -176,7 +200,8 @@ namespace Segra.Backend.Media
                                     ActiveFFmpegProcesses[id].Add(process);
                                     Log.Information($"[Clip {id}] Tracking concatenation FFmpeg process (PID: {process.Id})");
                                 }
-                            }
+                            },
+                            stallTimeout: ClipStallTimeout
                         );
                     }
                     finally
@@ -249,6 +274,16 @@ namespace Segra.Backend.Media
                             FFmpegErrors.DescribeForUser(ffEx.ExitCode),
                             "error");
                     }
+                    else if (ex is FFmpegService.FFmpegStallException)
+                    {
+                        cardError = "The video encoder stopped responding.";
+                        _ = MessageService.ShowModal(
+                            "Clip creation failed",
+                            "The video encoder stopped responding and the clip was cancelled. " +
+                            "This can happen when several clips are created at once or when the GPU encoder hangs. " +
+                            "Please try creating the clip again.",
+                            "error");
+                    }
 
                     await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = cardError });
                 }
@@ -266,6 +301,11 @@ namespace Segra.Backend.Media
                 lock (ProcessLock)
                 {
                     CancelledClipIds.Remove(id);
+                }
+
+                if (gateAcquired)
+                {
+                    CreationGate.Release();
                 }
             }
         }
@@ -313,7 +353,11 @@ namespace Segra.Backend.Media
                 }
                 else
                 {
-                    Log.Warning($"[Clip {clipId}] No active processes found to cancel (may have already completed)");
+                    // No process yet: the clip may still be queued behind the creation gate. Record the
+                    // cancellation so it is skipped once it reaches the front of the queue, and clear its card.
+                    CancelledClipIds.Add(clipId);
+                    Log.Information($"[Clip {clipId}] No active processes found; marked as cancelled (queued or already completed)");
+                    wasCancelled = true;
                 }
             }
 
@@ -649,7 +693,7 @@ namespace Segra.Backend.Media
                         ActiveFFmpegProcesses[clipId].Add(process);
                         Log.Information($"[Clip {clipId}] Tracking FFmpeg process (PID: {process.Id})");
                     }
-                });
+                }, stallTimeout: ClipStallTimeout);
             }
             finally
             {

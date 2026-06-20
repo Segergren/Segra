@@ -138,15 +138,36 @@ namespace Segra.Backend.Media
         /// </summary>
         public static bool FFmpegExists() => File.Exists(FFmpegExecutable);
 
+        // Matches the running frame counter ffmpeg prints on its progress lines, e.g. "frame=  400".
+        private static readonly Regex _frameProgressRegex = new(@"frame=\s*(\d+)", RegexOptions.Compiled);
+        private static readonly Regex _timeProgressRegex = new(@"time=(\d+:\d+:\d+\.\d+)", RegexOptions.Compiled);
+
         /// <summary>
-        /// Runs ffmpeg with progress tracking and callbacks
+        /// Thrown when ffmpeg stops making progress for longer than the allowed stall timeout and is
+        /// killed by the watchdog. Surfaced separately from <see cref="FFmpegException"/> so callers can
+        /// give the user a meaningful message instead of a misleading exit code.
         /// </summary>
+        public class FFmpegStallException : Exception
+        {
+            public FFmpegStallException(string message) : base(message) { }
+        }
+
+        /// <summary>
+        /// Runs ffmpeg with progress tracking and callbacks.
+        /// </summary>
+        /// <param name="stallTimeout">
+        /// When set, the process is killed if ffmpeg makes no forward progress (no advancing frame or
+        /// time) for this long, and an <see cref="FFmpegStallException"/> is thrown. Guards against
+        /// hardware encoders (e.g. av1_nvenc) that occasionally deadlock at the flush stage and never
+        /// exit, which would otherwise hang the whole operation forever.
+        /// </param>
         public static async Task RunWithProgress(
             int processId,
             string arguments,
             double? totalDuration,
             Action<double> progressCallback,
-            Action<Process>? onProcessStarted = null)
+            Action<Process>? onProcessStarted = null,
+            TimeSpan? stallTimeout = null)
         {
             if (!FFmpegExists())
             {
@@ -166,6 +187,12 @@ namespace Segra.Backend.Media
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+
+            // Watchdog progress markers. ffmpeg prints progress on stderr; a healthy encode keeps
+            // advancing the frame counter (and time) while a deadlocked one freezes on a single line.
+            long lastProgressTicks = DateTime.UtcNow.Ticks;
+            long lastFrame = -1;
+            double lastTimeSeconds = -1;
 
             using (var process = new Process { StartInfo = processStartInfo })
             {
@@ -187,15 +214,34 @@ namespace Segra.Backend.Media
 
                     try
                     {
-                        if (totalDuration.HasValue)
+                        bool advanced = false;
+
+                        var frameMatch = _frameProgressRegex.Match(e.Data);
+                        if (frameMatch.Success && long.TryParse(frameMatch.Groups[1].Value, out long frame) && frame > lastFrame)
                         {
-                            var timeMatch = Regex.Match(e.Data, @"time=(\d+:\d+:\d+\.\d+)");
-                            if (timeMatch.Success)
+                            lastFrame = frame;
+                            advanced = true;
+                        }
+
+                        var timeMatch = _timeProgressRegex.Match(e.Data);
+                        if (timeMatch.Success)
+                        {
+                            var ts = TimeSpan.Parse(timeMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+                            if (ts.TotalSeconds > lastTimeSeconds)
                             {
-                                var ts = TimeSpan.Parse(timeMatch.Groups[1].Value, CultureInfo.InvariantCulture);
-                                var progress = ts.TotalSeconds / totalDuration.Value;
-                                progressCallback?.Invoke(progress);
+                                lastTimeSeconds = ts.TotalSeconds;
+                                advanced = true;
                             }
+
+                            if (totalDuration.HasValue)
+                            {
+                                progressCallback?.Invoke(ts.TotalSeconds / totalDuration.Value);
+                            }
+                        }
+
+                        if (advanced)
+                        {
+                            Interlocked.Exchange(ref lastProgressTicks, DateTime.UtcNow.Ticks);
                         }
                     }
                     catch (Exception ex)
@@ -204,6 +250,7 @@ namespace Segra.Backend.Media
                     }
                 };
 
+                bool killedByWatchdog = false;
                 try
                 {
                     process.Start();
@@ -216,7 +263,31 @@ namespace Segra.Backend.Media
                     process.BeginOutputReadLine();
                     process.BeginErrorReadLine();
 
-                    await process.WaitForExitAsync();
+                    var exitTask = process.WaitForExitAsync();
+
+                    if (stallTimeout.HasValue)
+                    {
+                        var interval = TimeSpan.FromSeconds(5);
+                        while (await Task.WhenAny(exitTask, Task.Delay(interval)) != exitTask)
+                        {
+                            var sinceProgress = DateTime.UtcNow - new DateTime(Interlocked.Read(ref lastProgressTicks), DateTimeKind.Utc);
+                            if (sinceProgress > stallTimeout.Value)
+                            {
+                                killedByWatchdog = true;
+                                Log.Error($"[Process {processId}] FFmpeg made no progress for {sinceProgress.TotalSeconds:F0}s (timeout {stallTimeout.Value.TotalSeconds:F0}s). Killing process.");
+                                try { process.Kill(true); } catch (Exception killEx) { Log.Error($"[Process {processId}] Failed to kill stalled FFmpeg: {killEx.Message}"); }
+                                break;
+                            }
+                        }
+                    }
+
+                    await exitTask;
+
+                    if (killedByWatchdog)
+                    {
+                        throw new FFmpegStallException(
+                            $"FFmpeg stopped responding and was cancelled after {stallTimeout!.Value.TotalSeconds:F0}s without progress.");
+                    }
 
                     Log.Information($"[Process {processId}] FFmpeg process completed with exit code: {process.ExitCode}");
 
