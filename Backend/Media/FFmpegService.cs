@@ -446,15 +446,21 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Builds the thumbnail -vf chain. HDR sources are tone-mapped from Rec.2100 (PQ/HLG) down
         /// to Rec.709 SDR so the JPEG is not washed out; SDR sources are only scaled.
+        ///
+        /// The chain always ends in <c>format=yuvj420p</c> to emit full-range YUV. FFmpeg 8.x's
+        /// mjpeg encoder rejects limited (tv) range input with "Non full-range YUV is non-standard"
+        /// and fails to open the encoder (exit -22), so converting the range here is required for
+        /// the many sources (e.g. NVENC / AV1 recordings) that are tagged limited range.
         /// </summary>
         private static string BuildThumbnailVideoFilter(int width, bool isHdr)
         {
             string scale = $"scale={width}:-1";
             if (!isHdr)
-                return scale;
+                return scale + ",format=yuvj420p";
 
             return "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
-                   "tonemap=tonemap=hable,zscale=t=bt709:m=bt709:r=tv,format=yuv420p," + scale;
+                   "tonemap=tonemap=hable,zscale=t=bt709:m=bt709:r=tv,format=yuv420p," +
+                   scale + ",format=yuvj420p";
         }
 
         private static readonly Regex _streamHeaderRegex = new(
