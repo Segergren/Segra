@@ -375,6 +375,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const [containerWidth, setContainerWidth] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [showNoSegmentsIndicator, setShowNoSegmentsIndicator] = useState(false);
+  const [clipOutputMode, setClipOutputMode] = useState<'combined' | 'separate'>('combined');
   const [volume, setVolume] = useState(() => {
     // Initialize volume from localStorage or default to 1
     const savedVolume = localStorage.getItem('segra-volume');
@@ -1146,6 +1147,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
 
     const params = {
+      OutputMode: clipOutputMode,
       Segments: segments.map((s) => ({
         id: s.id,
         type: s.type,
@@ -2223,7 +2225,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     onClick={handleCreateClip}
                   >
                     <Clapperboard className="w-5 h-5" />
-                    <span>Create Clip</span>
+                    <span>{clipOutputMode === 'separate' ? 'Create Clips' : 'Create Clip'}</span>
                   </Button>
                   <div className="indicator">
                     <Button
@@ -2358,6 +2360,30 @@ export default function VideoComponent({ video }: { video: Content }) {
                 />
                 <span className="ml-2 text-sm">Auto-Clear Segments</span>
               </label>
+            </div>
+            <div className="grid grid-cols-2 gap-1 p-1 mb-3 mr-3 rounded-lg bg-base-200 border border-base-400">
+              <button
+                type="button"
+                className={`h-8 rounded-md text-xs font-medium transition-colors ${
+                  clipOutputMode === 'combined'
+                    ? 'bg-primary text-primary-content'
+                    : 'text-gray-300 hover:bg-white/10'
+                }`}
+                onClick={() => setClipOutputMode('combined')}
+              >
+                Combined
+              </button>
+              <button
+                type="button"
+                className={`h-8 rounded-md text-xs font-medium transition-colors ${
+                  clipOutputMode === 'separate'
+                    ? 'bg-primary text-primary-content'
+                    : 'text-gray-300 hover:bg-white/10'
+                }`}
+                onClick={() => setClipOutputMode('separate')}
+              >
+                Separate
+              </button>
             </div>
             <div className="flex items-center h-10 gap-0 px-0 mb-2 mr-3 rounded-lg bg-base-300 tooltip">
               <Button
