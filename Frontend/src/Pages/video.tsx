@@ -375,7 +375,10 @@ export default function VideoComponent({ video }: { video: Content }) {
   const [containerWidth, setContainerWidth] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [showNoSegmentsIndicator, setShowNoSegmentsIndicator] = useState(false);
-  const [clipOutputMode, setClipOutputMode] = useState<'combined' | 'separate'>('combined');
+  const [clipOutputMode, setClipOutputMode] = useState<'combined' | 'separate'>(() => {
+    const saved = localStorage.getItem('segra-clip-output-mode');
+    return saved === 'separate' ? 'separate' : 'combined';
+  });
   const [volume, setVolume] = useState(() => {
     // Initialize volume from localStorage or default to 1
     const savedVolume = localStorage.getItem('segra-volume');
@@ -385,6 +388,9 @@ export default function VideoComponent({ video }: { video: Content }) {
     // Initialize muted state from localStorage or default to false
     return localStorage.getItem('segra-muted') === 'true';
   });
+  useEffect(() => {
+    localStorage.setItem('segra-clip-output-mode', clipOutputMode);
+  }, [clipOutputMode]);
   const [playbackRate, setPlaybackRate] = useState(() => {
     const saved = localStorage.getItem('segra-playbackRate');
     return saved ? parseFloat(saved) : 1;
@@ -2364,7 +2370,7 @@ export default function VideoComponent({ video }: { video: Content }) {
             <div className="grid grid-cols-2 gap-1 p-1 mb-3 mr-3 rounded-lg bg-base-200 border border-base-400">
               <button
                 type="button"
-                className={`h-8 rounded-md text-xs font-medium transition-colors ${
+                className={`h-8 cursor-pointer rounded-md text-xs font-medium transition-colors ${
                   clipOutputMode === 'combined'
                     ? 'bg-primary text-primary-content'
                     : 'text-gray-300 hover:bg-white/10'
@@ -2375,7 +2381,7 @@ export default function VideoComponent({ video }: { video: Content }) {
               </button>
               <button
                 type="button"
-                className={`h-8 rounded-md text-xs font-medium transition-colors ${
+                className={`h-8 cursor-pointer rounded-md text-xs font-medium transition-colors ${
                   clipOutputMode === 'separate'
                     ? 'bg-primary text-primary-content'
                     : 'text-gray-300 hover:bg-white/10'
