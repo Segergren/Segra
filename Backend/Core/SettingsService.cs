@@ -430,6 +430,19 @@ namespace Segra.Backend.Core
                 }
             }
 
+            if (updatedSettings.Games != null)
+            {
+                // The per-game list carries nested overrides; compare by serialized JSON to detect any change.
+                string currentGamesJson = JsonSerializer.Serialize(settings.Games);
+                string updatedGamesJson = JsonSerializer.Serialize(updatedSettings.Games);
+                if (currentGamesJson != updatedGamesJson)
+                {
+                    Log.Information($"Games changed from {settings.Games.Count} entries to {updatedSettings.Games.Count} entries");
+                    settings.Games = updatedSettings.Games;
+                    hasChanges = true;
+                }
+            }
+
             if (settings.ContentFolder != updatedSettings.ContentFolder)
             {
                 Log.Information($"ContentFolder changed from '{settings.ContentFolder}' to '{updatedSettings.ContentFolder}'");

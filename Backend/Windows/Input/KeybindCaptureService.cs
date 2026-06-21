@@ -142,7 +142,9 @@ namespace Segra.Backend.Windows.Input
         {
             var recording = AppState.Instance.Recording;
             var preRecording = AppState.Instance.PreRecording;
-            var recordingMode = Settings.Instance.RecordingMode;
+            // Use the active recording's effective mode (per-game override aware) so bookmark/replay
+            // hotkeys behave according to the mode the current recording actually started in.
+            var recordingMode = OBSService.ActiveEffectiveSettings?.RecordingMode ?? Settings.Instance.RecordingMode;
 
             switch (action)
             {

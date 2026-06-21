@@ -35,6 +35,15 @@
   --noise: 0; /* v4 hade ingen noise */
 }
 
+/* Hide the scrollbar while keeping the element scrollable (used by the game tabs strip). */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @layer components {
   .checkbox {
     color: var(--color-base-300) !important;

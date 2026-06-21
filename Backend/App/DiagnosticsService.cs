@@ -1,4 +1,5 @@
 using Serilog;
+using System.Linq;
 using System.Reflection;
 using System.Diagnostics;
 using System.Globalization;
@@ -469,8 +470,7 @@ namespace Segra.Backend.App
         {
             Log.Information("--- Game detection ---");
             var s = Settings.Instance;
-            Log.Information($"Whitelist: {s.Whitelist.Count} entries");
-            Log.Information($"Blacklist: {s.Blacklist.Count} entries");
+            Log.Information($"Custom game settings: {s.Games.Count} entries ({s.Games.Count(g => g.Record)} recording, {s.Games.Count(g => !g.Record)} blocked)");
             Log.Information($"Game integrations: CS2={s.GameIntegrations.CounterStrike2.Enabled}, LoL={s.GameIntegrations.LeagueOfLegends.Enabled}, PUBG={s.GameIntegrations.Pubg.Enabled}, RocketLeague={s.GameIntegrations.RocketLeague.Enabled}");
         }
 

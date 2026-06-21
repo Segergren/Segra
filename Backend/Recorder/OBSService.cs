@@ -464,7 +464,7 @@ namespace Segra.Backend.Recorder
         /// Configures OBS video settings based on the provided dimensions.
         /// </summary>
         /// <param name="is4by3">True if the content was detected as 4:3 and stretched to 16:9.</param>
-        private static void ResetVideoSettings(out bool is4by3, uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null)
+        private static void ResetVideoSettings(out bool is4by3, uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null, string? customResolution = null)
         {
             SettingsService.GetPrimaryMonitorResolution(out uint baseWidth, out uint baseHeight);
 
@@ -472,8 +472,8 @@ namespace Segra.Backend.Recorder
             baseWidth = customOutputWidth ?? baseWidth;
             baseHeight = customOutputHeight ?? baseHeight;
 
-            // Get the maximum height from resolution setting
-            SettingsService.GetResolution(Settings.Instance.Resolution, out uint maxWidth, out uint maxHeight);
+            // Get the maximum height from resolution setting (per-game override may substitute the resolution)
+            SettingsService.GetResolution(customResolution ?? Settings.Instance.Resolution, out uint maxWidth, out uint maxHeight);
 
             // Calculate output dimensions respecting the max height cap while preserving aspect ratio
             uint outputWidth = baseWidth;
@@ -527,6 +527,12 @@ namespace Segra.Backend.Recorder
             });
         }
 
+        // Effective recording settings (global overlaid with per-game overrides) resolved at the start of
+        // the active recording. Consumed by StartRecording, OnRecordingStopped and the keybind handler so
+        // they all agree on the same values for the duration of the recording.
+        private static EffectiveRecordingSettings? _activeEffectiveSettings;
+        public static EffectiveRecordingSettings? ActiveEffectiveSettings => _activeEffectiveSettings;
+
         public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null)
         {
             // Wait for pending StopRecording to complete before starting. Prevents race conditions where a new recording starts before cleanup finishes
@@ -545,9 +551,14 @@ namespace Segra.Backend.Recorder
                 return false;
             }
 
-            bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
-            bool isSessionMode = Settings.Instance.RecordingMode == RecordingMode.Session;
-            bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
+            // Resolve global settings overlaid with any per-game overrides for this game.
+            // Note: the static _activeEffectiveSettings is only published once the early-return guards
+            // below have passed, so a blocked start attempt can never clobber an active recording's settings.
+            EffectiveRecordingSettings eff = GameSettingsService.Resolve(exePath);
+
+            bool isReplayBufferMode = eff.RecordingMode == RecordingMode.Buffer;
+            bool isSessionMode = eff.RecordingMode == RecordingMode.Session;
+            bool isHybridMode = eff.RecordingMode == RecordingMode.Hybrid;
 
             string fileName = Path.GetFileName(exePath);
 
@@ -558,6 +569,11 @@ namespace Segra.Backend.Recorder
                 AppState.Instance.PreRecording = null;
                 return false;
             }
+
+            // Publish the effective settings only now that we know no other recording is active, so a
+            // blocked start can never overwrite the in-progress recording's settings. The disk-space
+            // checks below intentionally run after this so they estimate using the per-game bitrate.
+            _activeEffectiveSettings = eff;
 
             // Prevent starting if any of the system, recording or temp drives are almost full
             List<StorageService.FullDrive> fullDrives = StorageService.GetFullDrives();
@@ -615,7 +631,7 @@ namespace Segra.Backend.Recorder
 
                     if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
                     {
-                        string userEncoderId = Settings.Instance.Codec?.InternalEncoderId ?? string.Empty;
+                        string userEncoderId = eff.Codec?.InternalEncoderId ?? string.Empty;
                         string? hdrEncoderId = ResolveHdrEncoder(userEncoderId, AppState.Instance.Codecs);
                         if (hdrEncoderId != null)
                         {
@@ -640,7 +656,7 @@ namespace Segra.Backend.Recorder
             }
 
             // Configure video settings specifically for this recording/buffer
-            ResetVideoSettings(out _, customFps: (uint)Settings.Instance.FrameRate);
+            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customResolution: eff.Resolution);
 
             _mainScene = new Scene("Recording Scene");
             Log.Information("Created recording scene");
@@ -702,9 +718,10 @@ namespace Segra.Backend.Recorder
                 {
                     ResetVideoSettings(
                         out bool is4by3,
-                        customFps: (uint)Settings.Instance.FrameRate,
+                        customFps: (uint)eff.FrameRate,
                         customOutputWidth: windowWidth,
-                        customOutputHeight: windowHeight
+                        customOutputHeight: windowHeight,
+                        customResolution: eff.Resolution
                     );
 
                     // Scene item bounds must use BASE dimensions (not output) because the scene canvas is at base resolution.
@@ -724,7 +741,7 @@ namespace Segra.Backend.Recorder
             // Set scene as program output (channel 0)
             Obs.SetOutputSource(_mainScene);
 
-            string encoderId = Settings.Instance.Codec!.InternalEncoderId;
+            string encoderId = eff.Codec!.InternalEncoderId;
             if (_isHdrRecording && _hdrEncoderId != null)
                 encoderId = _hdrEncoderId;
             Log.Information($"Using encoder: {encoderId}{(_isHdrRecording ? " (HDR)" : "")}");
@@ -734,21 +751,21 @@ namespace Segra.Backend.Recorder
             // HEVC needs the Main 10 profile for 10-bit HDR; AV1 derives bit depth from the P010 input.
             videoEncoderSettings.Set("profile", _isHdrRecording && IsHevcEncoder(encoderId) ? "main10" : "high");
             videoEncoderSettings.Set("use_bufsize", true);
-            videoEncoderSettings.Set("rate_control", Settings.Instance.RateControl);
+            videoEncoderSettings.Set("rate_control", eff.RateControl);
             videoEncoderSettings.Set("keyint_sec", 1);
 
-            switch (Settings.Instance.RateControl)
+            switch (eff.RateControl)
             {
                 case "CBR":
-                    int targetBitrateKbps = Settings.Instance.Bitrate * 1000;
+                    int targetBitrateKbps = eff.Bitrate * 1000;
                     videoEncoderSettings.Set("bitrate", targetBitrateKbps);
                     videoEncoderSettings.Set("max_bitrate", targetBitrateKbps);
                     videoEncoderSettings.Set("bufsize", targetBitrateKbps);
                     break;
 
                 case "VBR":
-                    int minBitrateKbps = Settings.Instance.MinBitrate * 1000;
-                    int maxBitrateKbps = Settings.Instance.MaxBitrate * 1000;
+                    int minBitrateKbps = eff.MinBitrate * 1000;
+                    int maxBitrateKbps = eff.MaxBitrate * 1000;
                     videoEncoderSettings.Set("bitrate", minBitrateKbps);
                     videoEncoderSettings.Set("max_bitrate", maxBitrateKbps);
                     videoEncoderSettings.Set("bufsize", maxBitrateKbps);
@@ -756,13 +773,13 @@ namespace Segra.Backend.Recorder
 
                 case "CRF":
                     // Software x264 path mainly; no explicit bitrate
-                    videoEncoderSettings.Set("crf", Settings.Instance.CrfValue);
+                    videoEncoderSettings.Set("crf", eff.CrfValue);
                     break;
 
                 case "CQP":
                     // Hardware encoders (NVENC/QSV/AMF) often use cqp/cq; provide both cqp and qp for compatibility
-                    videoEncoderSettings.Set("cqp", Settings.Instance.CqLevel);
-                    videoEncoderSettings.Set("qp", Settings.Instance.CqLevel);
+                    videoEncoderSettings.Set("cqp", eff.CqLevel);
+                    videoEncoderSettings.Set("qp", eff.CqLevel);
                     break;
 
                 default:
@@ -786,10 +803,10 @@ namespace Segra.Backend.Recorder
                 Obs.SetVideo(v => v
                     .BaseResolution(_currentBaseWidth, _currentBaseHeight)
                     .OutputResolution(_currentOutputWidth, _currentOutputHeight)
-                    .Fps((uint)Settings.Instance.FrameRate)
+                    .Fps((uint)eff.FrameRate)
                     .Sdr());
 
-                encoderId = Settings.Instance.Codec!.InternalEncoderId;
+                encoderId = eff.Codec!.InternalEncoderId;
                 videoEncoderSettings.Set("profile", "high");
                 ApplyNvencBFrameLimit(videoEncoderSettings, encoderId);
                 _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
@@ -1005,7 +1022,7 @@ namespace Segra.Backend.Recorder
             {
                 uint bufferTracksMask = (1u << trackCount) - 1u;
 
-                _bufferOutput = new ReplayBuffer("replay_buffer_output", Settings.Instance.ReplayBufferDuration, Settings.Instance.ReplayBufferMaxSize);
+                _bufferOutput = new ReplayBuffer("replay_buffer_output", eff.ReplayBufferDuration, eff.ReplayBufferMaxSize);
                 _bufferOutput.SetDirectory(bufferDir);
                 _bufferOutput.SetFilenameFormat("%CCYY-%MM-%DD_%hh-%mm-%ss");
                 _bufferOutput.Update(s => s.Set("extension", "mp4").Set("tracks", (long)bufferTracksMask));
@@ -1117,7 +1134,7 @@ namespace Segra.Backend.Recorder
             AppState.Instance.PreRecording = null;
             _ = MessageService.SendStateToFrontend("OBS Start recording");
 
-            RecordingPreviewService.OnRecordingStarted((uint)Settings.Instance.FrameRate);
+            RecordingPreviewService.OnRecordingStarted((uint)eff.FrameRate);
 
             NotifyIconService.SetNotifyIconStatus(NotifyIconState.Recording);
 
@@ -1342,8 +1359,12 @@ namespace Segra.Backend.Recorder
                 StopGameCaptureHookTimeoutTimer();
                 StopDiskSpaceMonitor();
 
-                bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
-                bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
+                // Use the same effective recording mode that StartRecording used (per-game override aware),
+                // falling back to the global setting if no recording is active.
+                RecordingMode effectiveMode = _activeEffectiveSettings?.RecordingMode ?? Settings.Instance.RecordingMode;
+                bool effectiveDiscard = _activeEffectiveSettings?.DiscardSessionsWithoutBookmarks ?? Settings.Instance.DiscardSessionsWithoutBookmarks;
+                bool isReplayBufferMode = effectiveMode == RecordingMode.Buffer;
+                bool isHybridMode = effectiveMode == RecordingMode.Hybrid;
 
                 if (isReplayBufferMode && _bufferOutput != null)
                 {
@@ -1414,7 +1435,7 @@ namespace Segra.Backend.Recorder
                     {
                         // Check if we should discard the session due to no manual bookmarks
                         bool hasManualBookmarks = AppState.Instance.Recording.Bookmarks.Any(b => b.Type == BookmarkType.Manual);
-                        if (Settings.Instance.DiscardSessionsWithoutBookmarks && !hasManualBookmarks)
+                        if (effectiveDiscard && !hasManualBookmarks)
                         {
                             Log.Information("Discarding session recording without manual bookmarks");
                             try
@@ -1511,7 +1532,7 @@ namespace Segra.Backend.Recorder
                     {
                         // Check if we should discard the session due to no manual bookmarks
                         bool hasManualBookmarks = AppState.Instance.Recording.Bookmarks.Any(b => b.Type == BookmarkType.Manual);
-                        if (Settings.Instance.DiscardSessionsWithoutBookmarks && !hasManualBookmarks)
+                        if (effectiveDiscard && !hasManualBookmarks)
                         {
                             Log.Information("Hybrid: Discarding session recording without manual bookmarks");
                             try
@@ -1560,6 +1581,7 @@ namespace Segra.Backend.Recorder
                 CapturedWindowHeight = null;
                 _isHdrRecording = false;
                 _hdrEncoderId = null;
+                _activeEffectiveSettings = null;
 
                 // If the recording ends before it started, don't do anything
                 if (AppState.Instance.Recording == null || (!isReplayBufferMode && AppState.Instance.Recording.FilePath == null))
@@ -2073,12 +2095,18 @@ namespace Segra.Backend.Recorder
         // can otherwise burn through hundreds of MB before the next check).
         private static long EstimateRecordingBytesPerSecond()
         {
-            int videoMbps = Settings.Instance.RateControl switch
+            // Use the active recording's effective settings (per-game override aware) when present,
+            // falling back to the global settings for the pre-start check / when nothing is recording.
+            string rateControl = _activeEffectiveSettings?.RateControl ?? Settings.Instance.RateControl;
+            int bitrate = _activeEffectiveSettings?.Bitrate ?? Settings.Instance.Bitrate;
+            int maxBitrate = _activeEffectiveSettings?.MaxBitrate ?? Settings.Instance.MaxBitrate;
+
+            int videoMbps = rateControl switch
             {
-                "CBR" => Settings.Instance.Bitrate,
-                "VBR" => Settings.Instance.MaxBitrate,
+                "CBR" => bitrate,
+                "VBR" => maxBitrate,
                 // CRF/CQP are quality-based with no explicit cap; assume a high worst case.
-                _ => Math.Max(Settings.Instance.MaxBitrate, QualityModeAssumedMbps)
+                _ => Math.Max(maxBitrate, QualityModeAssumedMbps)
             };
 
             // Add 1 Mbps of headroom for audio tracks (a few AAC tracks at 128 kbps each).

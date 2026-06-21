@@ -210,29 +210,23 @@ namespace Segra.Backend.Games
             // Normalize path for consistent comparison
             string normalizedExePath = exePath.Replace("\\", "/");
 
-            // 1. Check if the game is in the whitelist - if so, always record
-            var whitelist = Settings.Instance.Whitelist;
-            foreach (var game in whitelist)
+            // 1. Check the unified per-game settings list (replaces whitelist/blacklist).
+            // An explicit per-game entry always wins over auto-detection: Record == true forces recording,
+            // Record == false prevents it.
+            var gameSetting = GameSettingsService.FindForExePath(exePath);
+            if (gameSetting != null)
             {
-                if (game.Paths.Any(path => GameUtils.MatchesExePattern(exePath, path)))
+                if (gameSetting.Record)
                 {
-                    Log.Information($"Game {game.Name} found in whitelist, will record");
+                    Log.Information($"Game {gameSetting.Name} has custom game settings (recording enabled), will record");
                     return true;
                 }
+
+                Log.Information($"Game {gameSetting.Name} has custom game settings (recording disabled), will not record");
+                return false;
             }
 
-            // 2. Check if the game is in the blacklist - if so, never record
-            var blacklist = Settings.Instance.Blacklist;
-            foreach (var game in blacklist)
-            {
-                if (game.Paths.Any(path => GameUtils.MatchesExePattern(exePath, path)))
-                {
-                    Log.Information($"Game {game.Name} found in blacklist, will not record");
-                    return false;
-                }
-            }
-
-            // 3. Check if the game is in the games.json list
+            // 2. Check if the game is in the games.json list
             bool isKnownGame = GameUtils.IsGameExePath(exePath);
             if (isKnownGame)
             {
@@ -241,20 +235,20 @@ namespace Segra.Backend.Games
                 return true;
             }
 
-            // 4. Check if the file path contains blacklisted text
+            // 3. Check if the file path contains blacklisted text
             if (ContainsBlacklistedTextInFilePath(exePath))
             {
                 return false;
             }
 
-            // 5. Check for anticheat in file description and log window information
+            // 4. Check for anticheat in file description and log window information
             if (IsAntiCheatClient(exePath, fileDescription))
             {
                 Log.Information($"Detected anticheat client for this executable, will not record");
                 return false;
             }
 
-            // 6. Launcher-based detection (Steam, EA, Epic, Ubisoft)
+            // 5. Launcher-based detection (Steam, EA, Epic, Ubisoft)
             string[] launcherMarkers = { "/steamapps/common/", "/EA Games/", "/Epic Games/", "/Ubisoft/" };
             string[] launcherNames = { "Steam", "EA", "Epic", "Ubisoft" };
 

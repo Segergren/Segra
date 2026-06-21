@@ -282,8 +282,7 @@ namespace Segra.Backend.Recorder
             var knownGameNames = AppState.Instance.Content
                 .Where(c => !string.IsNullOrEmpty(c.Game))
                 .Select(c => c.Game)
-                .Concat(Settings.Instance.Whitelist.Select(g => g.Name))
-                .Concat(Settings.Instance.Blacklist.Select(g => g.Name))
+                .Concat(Settings.Instance.Games.Select(g => g.Name))
                 .Distinct()
                 .ToList();
 

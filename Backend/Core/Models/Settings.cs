@@ -56,8 +56,7 @@ namespace Segra.Backend.Core.Models
         private int _replayBufferDuration = 30;
         private int _replayBufferMaxSize = 1000;
         private List<Keybind> _keybindings;
-        private List<Game> _whitelist = new List<Game>();
-        private List<Game> _blacklist = new List<Game>();
+        private List<GameSetting> _games = new List<GameSetting>();
         private Auth _auth = new Auth();
         private bool _clipClearSegmentsAfterCreatingClip = false;
         private bool _clipShowInBrowserAfterUpload = false;
@@ -491,37 +490,30 @@ namespace Segra.Backend.Core.Models
             }
         }
 
-        [JsonPropertyName("whitelist")]
-        public List<Game> Whitelist
+        // Unified per-game settings list (replaces the old whitelist/blacklist).
+        // Each entry decides whether to record the game (Record) and can override
+        // recording quality, recording mode and the discard-without-bookmarks behavior.
+        [JsonPropertyName("games")]
+        public List<GameSetting> Games
         {
-            get => _whitelist;
+            get => _games;
             set
             {
-                bool hasChanged = !_whitelist.SequenceEqual(value, new GameEqualityComparer());
-                _whitelist = value;
-                if (hasChanged && !_isBulkUpdating)
-                {
-                    SettingsService.SaveSettings();
-                    SendToFrontend("Whitelist changed");
-                }
+                _games = value ?? new List<GameSetting>();
             }
         }
 
+        // Legacy lists kept only so the pre-rework whitelist/blacklist survive a settings load until the
+        // "whitelist_blacklist_to_games" migration converts them into Games and nulls them out (after which
+        // WhenWritingNull stops them from being written back). Do not use these for anything else.
+        // (Named to match the JSON keys because the settings loader maps json key -> PascalCase property.)
+        [JsonPropertyName("whitelist")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<Game>? Whitelist { get; set; }
+
         [JsonPropertyName("blacklist")]
-        public List<Game> Blacklist
-        {
-            get => _blacklist;
-            set
-            {
-                bool hasChanged = !_blacklist.SequenceEqual(value, new GameEqualityComparer());
-                _blacklist = value;
-                if (hasChanged && !_isBulkUpdating)
-                {
-                    SettingsService.SaveSettings();
-                    SendToFrontend("Blacklist changed");
-                }
-            }
-        }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<Game>? Blacklist { get; set; }
 
         [JsonPropertyName("replayBufferDuration")]
         public int ReplayBufferDuration
@@ -1285,6 +1277,94 @@ namespace Segra.Backend.Core.Models
             // Use name for hash code since paths can vary
             return obj.Name.GetHashCode();
         }
+    }
+
+    // A single entry in the unified per-game settings list. Replaces the old whitelist/blacklist:
+    // Record == true means "always record this game" (old whitelist), false means "never record" (old blacklist).
+    // Each override is null when the game inherits the corresponding global setting.
+    public class GameSetting
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("paths")]
+        public List<string> Paths { get; set; } = new List<string>();
+
+        // Stable link to the games.json catalog entry. Set when added from the catalog and used to keep
+        // Name/Icon in sync with the catalog on startup (so a renamed game is reflected here too).
+        [JsonPropertyName("igdbId")]
+        public int? IgdbId { get; set; }
+
+        // CDN icon id from games.json (https://segra.tv/api/games/icon/{icon}); refreshed from the
+        // catalog on startup. Null for custom games (those use CustomIcon instead).
+        [JsonPropertyName("icon")]
+        public string? Icon { get; set; }
+
+        // Base64-encoded PNG icon extracted from the executable, for custom games not in the catalog.
+        [JsonPropertyName("customIcon")]
+        public string? CustomIcon { get; set; }
+
+        [JsonPropertyName("record")]
+        public bool Record { get; set; } = true;
+
+        [JsonPropertyName("qualityOverride")]
+        public GameQualityOverride? QualityOverride { get; set; }
+
+        [JsonPropertyName("recordingModeOverride")]
+        public GameRecordingModeOverride? RecordingModeOverride { get; set; }
+
+        [JsonPropertyName("discardSessionsWithoutBookmarksOverride")]
+        public bool? DiscardSessionsWithoutBookmarksOverride { get; set; }
+    }
+
+    // Mirrors the global video quality settings. When Preset is "low"/"standard"/"high" the concrete
+    // values are resolved from PresetsService at record time; when "custom" the explicit fields are used.
+    public class GameQualityOverride
+    {
+        [JsonPropertyName("preset")]
+        public string Preset { get; set; } = "high";
+
+        [JsonPropertyName("resolution")]
+        public string Resolution { get; set; } = "1080p";
+
+        [JsonPropertyName("frameRate")]
+        public int FrameRate { get; set; } = 60;
+
+        [JsonPropertyName("rateControl")]
+        public string RateControl { get; set; } = "VBR";
+
+        [JsonPropertyName("crfValue")]
+        public int CrfValue { get; set; } = 23;
+
+        [JsonPropertyName("cqLevel")]
+        public int CqLevel { get; set; } = 20;
+
+        [JsonPropertyName("bitrate")]
+        public int Bitrate { get; set; } = 50;
+
+        [JsonPropertyName("minBitrate")]
+        public int MinBitrate { get; set; } = 40;
+
+        [JsonPropertyName("maxBitrate")]
+        public int MaxBitrate { get; set; } = 70;
+
+        [JsonPropertyName("encoder")]
+        public string Encoder { get; set; } = "gpu";
+
+        [JsonPropertyName("codec")]
+        public Codec? Codec { get; set; }
+    }
+
+    public class GameRecordingModeOverride
+    {
+        [JsonPropertyName("recordingMode")]
+        public RecordingMode RecordingMode { get; set; } = RecordingMode.Hybrid;
+
+        [JsonPropertyName("replayBufferDuration")]
+        public int ReplayBufferDuration { get; set; } = 30;
+
+        [JsonPropertyName("replayBufferMaxSize")]
+        public int ReplayBufferMaxSize { get; set; } = 1000;
     }
 
     // Game integration settings - each game has its own settings object

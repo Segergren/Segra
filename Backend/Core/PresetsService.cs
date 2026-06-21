@@ -5,8 +5,82 @@ using Segra.Backend.Windows.Display;
 
 namespace Segra.Backend.Core
 {
+    // Concrete video quality values produced by a named preset (low/standard/high).
+    public class VideoPresetValues
+    {
+        public required string Resolution { get; init; }
+        public required int FrameRate { get; init; }
+        public required string RateControl { get; init; }
+        public required int CqLevel { get; init; }
+        public required int Bitrate { get; init; }
+        public required int MinBitrate { get; init; }
+        public required int MaxBitrate { get; init; }
+        public required string Encoder { get; init; }
+    }
+
     public static class PresetsService
     {
+        /// <summary>
+        /// Resolves the concrete video quality values for a named preset.
+        /// Returns null for "custom" or unknown presets (callers should use explicit values).
+        /// This is the single source of truth shared by the global preset and per-game quality overrides.
+        /// </summary>
+        public static VideoPresetValues? GetVideoPresetValues(string presetName, bool isAmd)
+        {
+            switch (presetName.ToLower())
+            {
+                case "low":
+                    return new VideoPresetValues
+                    {
+                        Resolution = "720p",
+                        FrameRate = 30,
+                        RateControl = "VBR",
+                        CqLevel = isAmd ? 22 : 24,
+                        Bitrate = isAmd ? 20 : 15,
+                        MinBitrate = 10,
+                        MaxBitrate = isAmd ? 20 : 15,
+                        Encoder = "gpu"
+                    };
+
+                case "standard":
+                    return new VideoPresetValues
+                    {
+                        Resolution = "1080p",
+                        FrameRate = 60,
+                        RateControl = "VBR",
+                        CqLevel = isAmd ? 20 : 22,
+                        Bitrate = isAmd ? 40 : 30,
+                        MinBitrate = isAmd ? 25 : 20,
+                        MaxBitrate = isAmd ? 50 : 40,
+                        Encoder = "gpu"
+                    };
+
+                case "high":
+                    return new VideoPresetValues
+                    {
+                        Resolution = DisplayService.HasDisplayWithMinHeight(1440) ? "1440p" : "1080p",
+                        FrameRate = 60,
+                        RateControl = "VBR",
+                        CqLevel = isAmd ? 18 : 20,
+                        Bitrate = isAmd ? 60 : 50,
+                        MinBitrate = isAmd ? 45 : 40,
+                        MaxBitrate = isAmd ? 90 : 70,
+                        Encoder = "gpu"
+                    };
+
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// Returns true if the global codec is an AMD (AMF) encoder.
+        /// </summary>
+        public static bool IsAmdEncoder(Codec? codec)
+        {
+            return codec != null && codec.InternalEncoderId.Contains("amf", StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>
         /// Applies a video quality preset to the settings
         /// </summary>
@@ -22,39 +96,18 @@ namespace Segra.Backend.Core
                 switch (presetName.ToLower())
                 {
                     case "low":
-                        settings.VideoQualityPreset = "low";
-                        settings.Resolution = "720p";
-                        settings.FrameRate = 30;
-                        settings.RateControl = "VBR";
-                        settings.CqLevel = isAmd ? 22 : 24;
-                        settings.Bitrate = isAmd ? 20 : 15;
-                        settings.MinBitrate = 10;
-                        settings.MaxBitrate = isAmd ? 20 : 15;
-                        settings.Encoder = "gpu";
-                        break;
-
                     case "standard":
-                        settings.VideoQualityPreset = "standard";
-                        settings.Resolution = "1080p";
-                        settings.FrameRate = 60;
-                        settings.RateControl = "VBR";
-                        settings.CqLevel = isAmd ? 20 : 22;
-                        settings.Bitrate = isAmd ? 40 : 30;
-                        settings.MinBitrate = isAmd ? 25 : 20;
-                        settings.MaxBitrate = isAmd ? 50 : 40;
-                        settings.Encoder = "gpu";
-                        break;
-
                     case "high":
-                        settings.VideoQualityPreset = "high";
-                        settings.Resolution = DisplayService.HasDisplayWithMinHeight(1440) ? "1440p" : "1080p";
-                        settings.FrameRate = 60;
-                        settings.RateControl = "VBR";
-                        settings.CqLevel = isAmd ? 18 : 20;
-                        settings.Bitrate = isAmd ? 60 : 50;
-                        settings.MinBitrate = isAmd ? 45 : 40;
-                        settings.MaxBitrate = isAmd ? 90 : 70;
-                        settings.Encoder = "gpu";
+                        var values = GetVideoPresetValues(presetName, isAmd)!;
+                        settings.VideoQualityPreset = presetName.ToLower();
+                        settings.Resolution = values.Resolution;
+                        settings.FrameRate = values.FrameRate;
+                        settings.RateControl = values.RateControl;
+                        settings.CqLevel = values.CqLevel;
+                        settings.Bitrate = values.Bitrate;
+                        settings.MinBitrate = values.MinBitrate;
+                        settings.MaxBitrate = values.MaxBitrate;
+                        settings.Encoder = values.Encoder;
                         break;
 
                     case "custom":
@@ -158,8 +211,7 @@ namespace Segra.Backend.Core
 
         private static bool IsAmdEncoder()
         {
-            var codec = Settings.Instance.Codec;
-            return codec != null && codec.InternalEncoderId.Contains("amf", StringComparison.OrdinalIgnoreCase);
+            return IsAmdEncoder(Settings.Instance.Codec);
         }
     }
 }
