@@ -80,7 +80,7 @@ namespace Segra.Backend.Core
                         {
                             if (property.Value.ValueKind == JsonValueKind.Array)
                             {
-                                var propertyName = char.ToUpper(property.Name[0]) + property.Name.Substring(1);
+                                var propertyName = char.ToUpperInvariant(property.Name[0]) + property.Name.Substring(1);
                                 var targetProperty = typeof(Settings).GetProperty(
                                     propertyName,
                                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
@@ -125,7 +125,7 @@ namespace Segra.Backend.Core
                             }
                             else
                             {
-                                var propertyName = char.ToUpper(property.Name[0]) + property.Name.Substring(1);
+                                var propertyName = char.ToUpperInvariant(property.Name[0]) + property.Name.Substring(1);
                                 var targetProperty = typeof(Settings).GetProperty(
                                     propertyName,
                                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
