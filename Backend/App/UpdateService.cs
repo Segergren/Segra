@@ -24,6 +24,40 @@ namespace Segra.Backend.App
         private static DateTime _lastUpdateCheckUtc = DateTime.MinValue;
         private static DateTime _lastReleaseNotesFetchUtc = DateTime.MinValue;
         private static List<object>? _cachedReleaseNotesList = null;
+        private static readonly object _updateProgressLock = new();
+        private static object? _currentUpdateProgress = null;
+
+        private static object SetCurrentUpdateProgress(string version, int progress, string status, string message)
+        {
+            var updateProgress = new
+            {
+                version,
+                progress,
+                status,
+                message
+            };
+
+            lock (_updateProgressLock)
+            {
+                _currentUpdateProgress = updateProgress;
+            }
+
+            return updateProgress;
+        }
+
+        public static async Task SendCurrentUpdateProgressToFrontend()
+        {
+            object? updateProgress;
+            lock (_updateProgressLock)
+            {
+                updateProgress = _currentUpdateProgress;
+            }
+
+            if (updateProgress != null)
+            {
+                await MessageService.SendFrontendMessage("UpdateProgress", updateProgress);
+            }
+        }
 
         public static async Task<bool> UpdateAppIfNecessary(bool forceCheck = false)
         {
@@ -85,13 +119,11 @@ namespace Segra.Backend.App
                 string targetVersion = newVersion.TargetFullRelease.Version.ToString();
 
                 // Notify frontend that update download is starting
-                await MessageService.SendFrontendMessage("UpdateProgress", new
-                {
-                    version = targetVersion,
-                    progress = 0,
-                    status = "downloading",
-                    message = $"Starting download of update to version {targetVersion}..."
-                });
+                await SendUpdateProgressToFrontend(
+                    version: targetVersion,
+                    progress: 0,
+                    status: "downloading",
+                    message: $"Starting download of update to version {targetVersion}...");
 
                 // Download and apply the update with progress reporting
                 Log.Information($"Installing update to version {targetVersion}");
@@ -101,13 +133,11 @@ namespace Segra.Backend.App
                 );
 
                 // Notify frontend that update is ready to install
-                await MessageService.SendFrontendMessage("UpdateProgress", new
-                {
-                    version = targetVersion,
-                    progress = 100,
-                    status = "ready",
-                    message = $"Update to version {targetVersion} is ready to install"
-                });
+                await SendUpdateProgressToFrontend(
+                    version: targetVersion,
+                    progress: 100,
+                    status: "ready",
+                    message: $"Update to version {targetVersion} is ready to install");
 
                 return true;
             }
@@ -139,6 +169,12 @@ namespace Segra.Backend.App
             UpdateManager.ApplyUpdatesAndRestart(LatestUpdateInfo);
         }
 
+        private static async Task SendUpdateProgressToFrontend(string version, int progress, string status, string message)
+        {
+            object updateProgress = SetCurrentUpdateProgress(version, progress, status, message);
+            await MessageService.SendFrontendMessage("UpdateProgress", updateProgress);
+        }
+
         // Helper method to send progress updates to the frontend
         public static async void SendUpdateProgressToFrontend(string version, int progress)
         {
@@ -149,13 +185,7 @@ namespace Segra.Backend.App
                     ? $"Downloading update: {progress}% complete"
                     : "Download complete, preparing to install";
 
-                await MessageService.SendFrontendMessage("UpdateProgress", new
-                {
-                    version,
-                    progress,
-                    status,
-                    message
-                });
+                await SendUpdateProgressToFrontend(version, progress, status, message);
 
                 Log.Information($"Update progress: {progress}%");
             }
