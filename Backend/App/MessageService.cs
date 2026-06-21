@@ -679,7 +679,10 @@ namespace Segra.Backend.App
                     }
                 }
 
-                await ClipService.CreateClips(segments);
+                bool createSeparateClips = message.TryGetProperty("OutputMode", out JsonElement outputModeElement)
+                    && string.Equals(outputModeElement.GetString(), "separate", StringComparison.OrdinalIgnoreCase);
+
+                await ClipService.CreateClips(segments, createSeparateClips);
             }
             else
             {
