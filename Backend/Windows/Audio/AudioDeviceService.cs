@@ -6,9 +6,12 @@ namespace Segra.Backend.Windows.Audio
 {
     internal class AudioDeviceService
     {
+        public static List<AudioDevice> GetInputDevices() => GetDevices(DataFlow.Capture, Role.Communications);
+
+        public static List<AudioDevice> GetOutputDevices() => GetDevices(DataFlow.Render, Role.Console);
+
         private static string GetCleanDeviceName(string friendlyName)
         {
-
             // If it's Voicemeeter, Elgato, GoXLR or BEACN, return the original name
             if (friendlyName.Contains("Voicemeeter") || friendlyName.Contains("Elgato") || friendlyName.Contains("GoXLR") || friendlyName.Contains("BEACN"))
             {
@@ -38,10 +41,6 @@ namespace Segra.Backend.Windows.Audio
             // Fallback to original name if pattern doesn't match
             return friendlyName;
         }
-
-        public static List<AudioDevice> GetInputDevices() => GetDevices(DataFlow.Capture, Role.Communications);
-
-        public static List<AudioDevice> GetOutputDevices() => GetDevices(DataFlow.Render, Role.Console);
 
         // defaultRole intentionally uses Console/Communications (not Multimedia) to match the
         // device OBS selects for WASAPI capture.

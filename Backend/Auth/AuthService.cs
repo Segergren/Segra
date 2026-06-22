@@ -1,8 +1,8 @@
+using Serilog;
 using System.Text;
 using System.Text.Json;
-using Serilog;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Auth
 {
     public static class AuthService
     {
@@ -19,6 +19,11 @@ namespace Segra.Backend.Services
                 Log.Warning("Login attempt with empty JWT or refresh token");
                 return;
             }
+
+            // Ignore duplicate logins with unchanged credentials (the frontend re-sends Login on every
+            // websocket (re)connect) so we don't persist or log redundantly.
+            if (jwt == Auth.Jwt && refreshToken == Auth.RefreshToken)
+                return;
 
             Auth.Jwt = jwt;
             Auth.RefreshToken = refreshToken;

@@ -1,7 +1,7 @@
-using Segra.Backend.Core.Models;
 using Serilog;
 using System.Text;
 using System.Text.Json;
+using Segra.Backend.Core.Models;
 using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Games.Pubg
@@ -70,6 +70,8 @@ namespace Segra.Backend.Games.Pubg
             checkTimer.Stop();
             return Task.CompletedTask;
         }
+
+        public void Dispose() => Shutdown().Wait();
 
         private void TimerTick()
         {
@@ -140,10 +142,11 @@ namespace Segra.Backend.Games.Pubg
                         !string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
                         var downTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                        var bookmarkTime = downTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
+                        var recording = AppState.Instance.Recording;
+                        var bookmarkTime = downTime - recording?.StartTime ?? TimeSpan.Zero;
 
                         // Skip events that occurred before recording started
-                        if (bookmarkTime < TimeSpan.Zero)
+                        if (bookmarkTime < TimeSpan.Zero || recording == null)
                             continue;
 
                         var bookmark = new Bookmark
@@ -151,7 +154,7 @@ namespace Segra.Backend.Games.Pubg
                             Type = BookmarkType.Kill,
                             Time = bookmarkTime
                         };
-                        AppState.Instance.Recording?.Bookmarks.Add(bookmark);
+                        recording.AddBookmark(bookmark);
                     }
                 }
             }
@@ -180,10 +183,11 @@ namespace Segra.Backend.Games.Pubg
                         if (!eventData.IsDBNO)
                         {
                             var killTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                            var bookmarkTime = killTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
+                            var recording = AppState.Instance.Recording;
+                            var bookmarkTime = killTime - recording?.StartTime ?? TimeSpan.Zero;
 
                             // Skip events that occurred before recording started
-                            if (bookmarkTime < TimeSpan.Zero)
+                            if (bookmarkTime < TimeSpan.Zero || recording == null)
                                 continue;
 
                             var bookmark = new Bookmark
@@ -191,7 +195,7 @@ namespace Segra.Backend.Games.Pubg
                                 Type = BookmarkType.Kill,
                                 Time = bookmarkTime
                             };
-                            AppState.Instance.Recording?.Bookmarks.Add(bookmark);
+                            recording.AddBookmark(bookmark);
                         }
                     }
                 }
@@ -215,10 +219,11 @@ namespace Segra.Backend.Games.Pubg
                     if (string.Equals(cleanVictim, cleanRecordName, StringComparison.OrdinalIgnoreCase))
                     {
                         var downTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                        var bookmarkTime = downTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
+                        var recording = AppState.Instance.Recording;
+                        var bookmarkTime = downTime - recording?.StartTime ?? TimeSpan.Zero;
 
                         // Skip events that occurred before recording started
-                        if (bookmarkTime < TimeSpan.Zero)
+                        if (bookmarkTime < TimeSpan.Zero || recording == null)
                             continue;
 
                         var bookmark = new Bookmark
@@ -226,7 +231,7 @@ namespace Segra.Backend.Games.Pubg
                             Type = BookmarkType.Death,
                             Time = bookmarkTime
                         };
-                        AppState.Instance.Recording?.Bookmarks.Add(bookmark);
+                        recording.AddBookmark(bookmark);
                     }
                 }
             }
@@ -253,10 +258,11 @@ namespace Segra.Backend.Games.Pubg
                         if (!eventData.IsDBNO)
                         {
                             var deathTime = MatchTimestampToLocal(matchInfo.Timestamp, eventTime);
-                            var bookmarkTime = deathTime - AppState.Instance.Recording?.StartTime ?? TimeSpan.Zero;
+                            var recording = AppState.Instance.Recording;
+                            var bookmarkTime = deathTime - recording?.StartTime ?? TimeSpan.Zero;
 
                             // Skip events that occurred before recording started
-                            if (bookmarkTime < TimeSpan.Zero)
+                            if (bookmarkTime < TimeSpan.Zero || recording == null)
                                 continue;
 
                             var bookmark = new Bookmark
@@ -264,7 +270,7 @@ namespace Segra.Backend.Games.Pubg
                                 Type = BookmarkType.Death,
                                 Time = bookmarkTime
                             };
-                            AppState.Instance.Recording?.Bookmarks.Add(bookmark);
+                            recording.AddBookmark(bookmark);
                         }
                     }
                 }
@@ -304,11 +310,8 @@ namespace Segra.Backend.Games.Pubg
             }
         }
 
-        private static string RemoveClanTag(string playerName)
-        {
-            string result = ClanRegex().Replace(playerName, "").Trim();
-            return result;
-        }
+        private static string RemoveClanTag(string playerName) =>
+            ClanRegex().Replace(playerName, "").Trim();
 
         private static DateTime MatchTimestampToLocal(long matchStart, int offsetMs)
         {
@@ -318,7 +321,5 @@ namespace Segra.Backend.Games.Pubg
 
         [System.Text.RegularExpressions.GeneratedRegex(@"\[.*?\]")]
         private static partial System.Text.RegularExpressions.Regex ClanRegex();
-
-        public void Dispose() => Shutdown().Wait();
     }
 }

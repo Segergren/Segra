@@ -1,4 +1,4 @@
-namespace Segra.Backend.Services;
+namespace Segra.Backend.App;
 
 internal enum NotifyIconState
 {

@@ -1,10 +1,10 @@
-using Segra.Backend.Core.Models;
-using Segra.Backend.Recorder;
-using Segra.Backend.Services;
 using Serilog;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text;
+using Segra.Backend.Core;
+using System.Diagnostics;
+using Segra.Backend.Recorder;
+using Segra.Backend.Core.Models;
+using System.Runtime.InteropServices;
 
 namespace Segra.Backend.Windows.Display
 {
@@ -164,7 +164,6 @@ namespace Segra.Backend.Windows.Display
 
                 if (attempt == 1) Log.Information($"Found {processes.Length} process(es) with name {executableFileName}");
 
-                // Iterate through all processes with the same name
                 foreach (var process in processes)
                 {
                     IntPtr targetWindow = TryFindWindowForProcess(process, attempt);
@@ -240,7 +239,7 @@ namespace Segra.Backend.Windows.Display
                     GetWindowThreadProcessId(hWnd, out uint windowProcessId);
                     if (windowProcessId == targetProcessId)
                     {
-                        StringBuilder className = new StringBuilder(256);
+                        StringBuilder className = new(256);
                         GetClassName(hWnd, className, className.Capacity);
                         string classNameStr = className.ToString();
 
@@ -248,7 +247,7 @@ namespace Segra.Backend.Windows.Display
                         string title = "";
                         if (titleLength > 0)
                         {
-                            StringBuilder titleBuilder = new StringBuilder(titleLength + 1);
+                            StringBuilder titleBuilder = new(titleLength + 1);
                             GetWindowText(hWnd, titleBuilder, titleBuilder.Capacity);
                             title = titleBuilder.ToString();
                         }
@@ -274,7 +273,7 @@ namespace Segra.Backend.Windows.Display
                     GetWindowThreadProcessId(hWnd, out uint windowProcessId);
                     if (windowProcessId == targetProcessId && IsWindowVisible(hWnd))
                     {
-                        StringBuilder className = new StringBuilder(256);
+                        StringBuilder className = new(256);
                         GetClassName(hWnd, className, className.Capacity);
                         string classNameStr = className.ToString();
 
@@ -317,7 +316,7 @@ namespace Segra.Backend.Windows.Display
                     GetWindowThreadProcessId(hWnd, out uint windowProcessId);
                     if (windowProcessId == targetProcessId)
                     {
-                        StringBuilder className = new StringBuilder(256);
+                        StringBuilder className = new(256);
                         GetClassName(hWnd, className, className.Capacity);
                         string classNameStr = className.ToString();
 
@@ -325,7 +324,7 @@ namespace Segra.Backend.Windows.Display
                         string title = "";
                         if (titleLength > 0)
                         {
-                            StringBuilder titleBuilder = new StringBuilder(titleLength + 1);
+                            StringBuilder titleBuilder = new(titleLength + 1);
                             GetWindowText(hWnd, titleBuilder, titleBuilder.Capacity);
                             title = titleBuilder.ToString();
                         }

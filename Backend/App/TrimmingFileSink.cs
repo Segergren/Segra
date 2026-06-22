@@ -1,8 +1,9 @@
+using System.Text;
 using Serilog.Core;
 using Serilog.Events;
 using Serilog.Formatting;
+using Segra.Backend.Shared;
 using Serilog.Formatting.Display;
-using System.Text;
 
 namespace Segra.Backend.App
 {
@@ -26,20 +27,13 @@ namespace Segra.Backend.App
             Open();
         }
 
-        private void Open()
-        {
-            _stream = new FileStream(_path, FileMode.Append, FileAccess.Write, FileShare.Read);
-            _writer = new StreamWriter(_stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            _bytesWritten = _stream.Length;
-        }
-
         public void Emit(LogEvent logEvent)
         {
             lock (_lock)
             {
                 using var sw = new StringWriter();
                 _formatter.Format(logEvent, sw);
-                var text = sw.ToString();
+                var text = GeneralUtils.RedactUsername(sw.ToString());
 
                 _writer.Write(text);
                 _writer.Flush();
@@ -50,6 +44,22 @@ namespace Segra.Backend.App
                     Trim();
                 }
             }
+        }
+
+        public void Dispose()
+        {
+            lock (_lock)
+            {
+                _writer?.Dispose();
+                _stream?.Dispose();
+            }
+        }
+
+        private void Open()
+        {
+            _stream = new FileStream(_path, FileMode.Append, FileAccess.Write, FileShare.Read);
+            _writer = new StreamWriter(_stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            _bytesWritten = _stream.Length;
         }
 
         private void Trim()
@@ -75,15 +85,6 @@ namespace Segra.Backend.App
             finally
             {
                 Open();
-            }
-        }
-
-        public void Dispose()
-        {
-            lock (_lock)
-            {
-                _writer?.Dispose();
-                _stream?.Dispose();
             }
         }
     }

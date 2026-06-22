@@ -1,5 +1,5 @@
-using Segra.Backend.Core.Models;
 using Serilog;
+using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Games
 {
@@ -169,9 +169,9 @@ namespace Segra.Backend.Games
 
         protected void AddBookmark(BookmarkType type)
         {
-            if (AppState.Instance.Recording == null)
+            var recording = AppState.Instance.Recording;
+            if (recording == null)
             {
-                Log.Debug($"[{LogPrefix}] No recording active, skipping {type} bookmark");
                 return;
             }
 
@@ -182,9 +182,9 @@ namespace Segra.Backend.Games
             var bookmark = new Bookmark
             {
                 Type = type,
-                Time = (DateTime.Now - AppState.Instance.Recording.StartTime) - compensation
+                Time = (DateTime.Now - recording.StartTime) - compensation
             };
-            AppState.Instance.Recording.Bookmarks.Add(bookmark);
+            recording.AddBookmark(bookmark);
             Log.Information($"[{LogPrefix}] BOOKMARK ADDED: {type} at {bookmark.Time} (compensated -{compensation.TotalMilliseconds:F0}ms)");
         }
     }

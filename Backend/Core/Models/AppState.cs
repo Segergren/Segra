@@ -1,10 +1,10 @@
+using Serilog;
 using Segra.Backend.App;
-using Segra.Backend.Services;
+using Segra.Backend.Core;
 using Segra.Backend.Shared;
 using Segra.Backend.Windows.Audio;
 using Segra.Backend.Windows.Display;
 using Segra.Backend.Windows.Watchers;
-using Serilog;
 using System.Text.Json.Serialization;
 using static Segra.Backend.Shared.GeneralUtils;
 
@@ -12,7 +12,7 @@ namespace Segra.Backend.Core.Models
 {
     internal class AppState : IDisposable
     {
-        private static AppState _instance = new AppState();
+        private static AppState _instance = new();
         public static AppState Instance => _instance;
 
         private GpuVendor _gpuVendor = GpuVendor.Unknown;
@@ -46,14 +46,6 @@ namespace Segra.Backend.Core.Models
 
             UpdateAudioDevices();
             UpdateDisplays();
-        }
-
-        private static void SendToFrontend(string cause)
-        {
-            if (Settings.Instance != null && !Settings.Instance._isBulkUpdating)
-            {
-                _ = MessageService.SendStateToFrontend(cause);
-            }
         }
 
         [JsonPropertyName("gpuVendor")]
@@ -228,11 +220,18 @@ namespace Segra.Backend.Core.Models
         public double CurrentFolderSizeGb
         {
             get => _currentFolderSizeGb;
-            set
+            set => SetCurrentFolderSizeGb(value, sendToFrontend: true);
+        }
+
+        // sendToFrontend: false lets a silent content reload stay silent, so the new content and the
+        // cleared recording arrive in one state message instead of a stray send causing a flicker.
+        public void SetCurrentFolderSizeGb(double value, bool sendToFrontend)
+        {
+            if (Math.Abs(_currentFolderSizeGb - value) > 0.001)
             {
-                if (Math.Abs(_currentFolderSizeGb - value) > 0.001)
+                _currentFolderSizeGb = value;
+                if (sendToFrontend)
                 {
-                    _currentFolderSizeGb = value;
                     SendToFrontend("State update: CurrentFolderSizeGb");
                 }
             }
@@ -242,38 +241,14 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("cacheFolder")]
         public string CacheFolder => FolderNames.CacheFolder.Replace("\\", "/");
 
-        private void OnAudioDevicesChanged()
-        {
-            _audioDeviceDebounceTimer?.Dispose();
-            _audioDeviceDebounceTimer = new System.Threading.Timer(
-                _ => UpdateAudioDevices(),
-                null,
-                DebounceDelayMs,
-                Timeout.Infinite
-            );
-        }
-
-        private void OnDisplaysChanged()
-        {
-            _displayDebounceTimer?.Dispose();
-            _displayDebounceTimer = new System.Threading.Timer(
-                _ => UpdateDisplays(),
-                null,
-                DebounceDelayMs,
-                Timeout.Infinite
-            );
-        }
-
         public void UpdateAudioDevices()
         {
-            // Get the list of input devices
             List<AudioDevice> inputDevices = AudioDeviceService.GetInputDevices();
             if (!Enumerable.SequenceEqual(_inputDevices, inputDevices))
             {
                 _inputDevices = inputDevices;
             }
 
-            // Get the list of output devices
             List<AudioDevice> outputDevices = AudioDeviceService.GetOutputDevices();
             if (!Enumerable.SequenceEqual(_outputDevices, outputDevices))
             {
@@ -302,15 +277,6 @@ namespace Segra.Backend.Core.Models
             _ = MessageService.SendSettingsToFrontend("Updated audio devices (device reconciliation may have changed selections)");
         }
 
-        private static void UpdateDisplays()
-        {
-            bool hasChanged = DisplayService.LoadAvailableMonitorsIntoState();
-            if (hasChanged)
-            {
-                SendToFrontend("Display change detected");
-            }
-        }
-
         public void UpdateRecordingEndTime(DateTime endTime)
         {
             if (_recording != null)
@@ -318,6 +284,16 @@ namespace Segra.Backend.Core.Models
                 _recording.EndTime = endTime;
                 SendToFrontend("State update: Recording end time");
             }
+        }
+
+        public void NotifyRecordingUpdated()
+        {
+            SendToFrontend("State update: Recording updated");
+        }
+
+        public void NotifyContentUpdated()
+        {
+            SendToFrontend("State update: Content updated");
         }
 
         public void SetContent(List<Content> contents, bool sendToFrontend)
@@ -347,6 +323,45 @@ namespace Segra.Backend.Core.Models
 
             _audioDeviceDebounceTimer?.Dispose();
             _displayDebounceTimer?.Dispose();
+        }
+
+        private static void SendToFrontend(string cause)
+        {
+            if (Settings.Instance != null && !Settings.Instance._isBulkUpdating)
+            {
+                _ = MessageService.SendStateToFrontend(cause);
+            }
+        }
+
+        private void OnAudioDevicesChanged()
+        {
+            _audioDeviceDebounceTimer?.Dispose();
+            _audioDeviceDebounceTimer = new System.Threading.Timer(
+                _ => UpdateAudioDevices(),
+                null,
+                DebounceDelayMs,
+                Timeout.Infinite
+            );
+        }
+
+        private void OnDisplaysChanged()
+        {
+            _displayDebounceTimer?.Dispose();
+            _displayDebounceTimer = new System.Threading.Timer(
+                _ => UpdateDisplays(),
+                null,
+                DebounceDelayMs,
+                Timeout.Infinite
+            );
+        }
+
+        private static void UpdateDisplays()
+        {
+            bool hasChanged = DisplayService.LoadAvailableMonitorsIntoState();
+            if (hasChanged)
+            {
+                SendToFrontend("Display change detected");
+            }
         }
     }
 }

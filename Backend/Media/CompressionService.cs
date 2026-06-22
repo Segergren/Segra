@@ -1,8 +1,8 @@
 using Serilog;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Services;
-using Segra.Backend.Shared;
 using Segra.Backend.App;
+using Segra.Backend.Core;
+using Segra.Backend.Shared;
+using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Media
 {

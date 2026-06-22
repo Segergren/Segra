@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <!--
-    Pass 1: signs the main application binary before Velopack packs it into
-    the installer and update nupkg. Self-contained publish output also
-    contains hundreds of Microsoft-signed runtime DLLs, which are excluded.
+    Pass 1: signs the main application binaries before Velopack packs them into
+    the installer and update nupkg. Segra.exe is the native apphost; Segra.dll
+    is the managed assembly that carries the actual application code. Both are
+    signed. Self-contained publish output also contains hundreds of
+    Microsoft-signed runtime DLLs, which are excluded.
   -->
   <zip-file>
     <pe-file path="Segra.exe">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="Segra.dll">
       <authenticode-sign />
     </pe-file>
   </zip-file>

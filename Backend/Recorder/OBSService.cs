@@ -1,36 +1,34 @@
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
+using Serilog;
 using ObsKit.NET;
-using ObsKit.NET.Encoders;
-using ObsKit.NET.Native.Types;
-using ObsKit.NET.Outputs;
+using NAudio.Wave;
 using ObsKit.NET.Scenes;
+using Segra.Backend.App;
+using ObsKit.NET.Outputs;
 using ObsKit.NET.Signals;
 using ObsKit.NET.Sources;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Services;
-using Segra.Backend.Shared;
-using Serilog;
+using Segra.Backend.Core;
 using System.Diagnostics;
-using System.IO.Compression;
-using System.Text.RegularExpressions;
-using static Segra.Backend.Shared.GeneralUtils;
-using static Segra.Backend.App.MessageService;
-using System.Net.Http.Json;
-using Segra.Backend.Media;
-using Segra.Backend.App;
-using Segra.Backend.Windows.Display;
+using NAudio.CoreAudioApi;
+using ObsKit.NET.Encoders;
 using Segra.Backend.Games;
-using Segra.Backend.Windows.Input;
-using Segra.Backend.Windows.Storage;
+using Segra.Backend.Media;
+using Segra.Backend.Shared;
+using System.Net.Http.Json;
+using System.IO.Compression;
+using ObsKit.NET.Native.Types;
+using Segra.Backend.Core.Models;
 using System.Threading.Channels;
+using NAudio.Wave.SampleProviders;
+using Segra.Backend.Windows.Display;
+using Segra.Backend.Windows.Storage;
+using System.Text.RegularExpressions;
+using static Segra.Backend.App.MessageService;
+using static Segra.Backend.Shared.GeneralUtils;
 
 namespace Segra.Backend.Recorder
 {
     public static partial class OBSService
     {
-        // Constants
         private const uint OBS_SOURCE_FLAG_FORCE_MONO = 1u << 1; // from obs.h
 
         // OBS output stop codes (from libobs/obs-defs.h), passed as "code" in the output "stop" signal
@@ -45,43 +43,46 @@ namespace Segra.Backend.Recorder
         private const int OBS_OUTPUT_ENCODE_ERROR = -8;
         private const int OBS_OUTPUT_HDR_DISABLED = -9;
 
-        // Regex patterns for buffer parsing
         [GeneratedRegex(@"BufferDesc\.Width:\s*(\d+)")]
         private static partial Regex BufferDescWidthRegex();
 
         [GeneratedRegex(@"BufferDesc\.Height:\s*(\d+)")]
         private static partial Regex BufferDescHeightRegex();
 
-        // Public properties
         public static bool IsInitialized { get; private set; }
         public static uint? CapturedWindowWidth { get; private set; } = null;
         public static uint? CapturedWindowHeight { get; private set; } = null;
         public static string? InstalledOBSVersion { get; private set; } = null;
 
-        // OBS context
         private static ObsContext? _obsContext;
 
-        // OBS scene
         private static Scene? _mainScene;
         private static SceneItem? _gameCaptureItem;
         private static SceneItem? _displayItem;
 
-        // OBS output resources
         private static RecordingOutput? _output;
         private static ReplayBuffer? _bufferOutput;
 
-        // OBS source resources
         public static GameCapture? GameCaptureSource { get; set; }
         private static MonitorCapture? _displaySource;
         private static readonly List<AudioInputCapture> _micSources = [];
         private static readonly List<AudioOutputCapture> _desktopSources = [];
-        private static Source? _discordAudioSource;
+        private static readonly List<(string Name, string Window, Source Source)> _voiceChatSources = [];
 
-        // OBS encoder resources
+        // Mixer mask of the shared "Voice Chat" track, so sources created mid-recording land on the same track
+        private static uint _voiceChatMixerMask = 1u << 0;
+
+        private static readonly (string Name, string Window)[] VoiceChatApps =
+        [
+            ("Discord", "Discord:Chrome_WidgetWin_1:Discord.exe"),
+            ("TeamSpeak", "TeamSpeak:Chrome_WidgetWin_1:TeamSpeak.exe"),
+            ("TeamSpeak 3", "TeamSpeak 3:Qt5152QWindowIcon:ts3client_win64.exe"),
+            ("TeamSpeak 3", "TeamSpeak 3:Qt5152QWindowIcon:ts3client_win32.exe"),
+        ];
+
         private static VideoEncoder? _videoEncoder;
         private static readonly List<AudioEncoder> _audioEncoders = [];
 
-        // Game capture state
         private static string? _hookedExecutableFileName;
         private static System.Threading.Timer? _gameCaptureHookTimeoutTimer = null;
         private static bool _isStillHookedAfterUnhook = false;
@@ -92,7 +93,6 @@ namespace Segra.Backend.Recorder
         // Quality-based rate controls (CRF/CQP) have no bitrate cap, so assume a high worst case when sizing headroom
         private const int QualityModeAssumedMbps = 150;
 
-        // Recording/output state
         private static bool _isStoppingOrStopped = false;
         private static uint _currentBaseWidth;
         private static uint _currentBaseHeight;
@@ -126,7 +126,6 @@ namespace Segra.Backend.Recorder
             ["obs_qsv11"] = new[] { "obs_qsv11_hevc", "obs_qsv11_av1" },
         };
 
-        // Replay buffer state
         private static bool _replaySaved = false;
 
         // Signal connection for replay buffer saved event
@@ -145,8 +144,7 @@ namespace Segra.Backend.Recorder
         /// </summary>
         private static bool IsGameCaptureHooked => GameCaptureSource?.IsHooked ?? false;
 
-        // Threading primitives
-        private static readonly SemaphoreSlim _stopRecordingSemaphore = new SemaphoreSlim(1, 1);
+        private static readonly SemaphoreSlim _stopRecordingSemaphore = new(1, 1);
 
         // Log processing queue - prevents OBS thread from blocking on log operations
         private static readonly Channel<(int level, string message)> _logChannel =
@@ -231,7 +229,6 @@ namespace Segra.Backend.Recorder
             // Restart replay buffer so subsequent saves only include new footage
             await ResetReplayBuffer();
 
-            // Reset the flag
             _replaySaved = false;
 
             return true;
@@ -445,7 +442,12 @@ namespace Segra.Backend.Recorder
             {
                 Log.Information("Shutting down OBS...");
 
-                // Dispose the OBS context to properly clean up OBS resources
+                // Manually clean up all resources since AutoDispose is false
+                DisposeOutput();
+                DisposeSources();
+                DisposeEncoders();
+
+                // Dispose the OBS context last
                 _obsContext?.Dispose();
                 _obsContext = null;
 
@@ -462,7 +464,7 @@ namespace Segra.Backend.Recorder
         /// Configures OBS video settings based on the provided dimensions.
         /// </summary>
         /// <param name="is4by3">True if the content was detected as 4:3 and stretched to 16:9.</param>
-        private static void ResetVideoSettings(out bool is4by3, uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null)
+        private static void ResetVideoSettings(out bool is4by3, uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null, string? customResolution = null)
         {
             SettingsService.GetPrimaryMonitorResolution(out uint baseWidth, out uint baseHeight);
 
@@ -470,8 +472,8 @@ namespace Segra.Backend.Recorder
             baseWidth = customOutputWidth ?? baseWidth;
             baseHeight = customOutputHeight ?? baseHeight;
 
-            // Get the maximum height from resolution setting
-            SettingsService.GetResolution(Settings.Instance.Resolution, out uint maxWidth, out uint maxHeight);
+            // Get the maximum height from resolution setting (per-game override may substitute the resolution)
+            SettingsService.GetResolution(customResolution ?? Settings.Instance.Resolution, out uint maxWidth, out uint maxHeight);
 
             // Calculate output dimensions respecting the max height cap while preserving aspect ratio
             uint outputWidth = baseWidth;
@@ -525,6 +527,12 @@ namespace Segra.Backend.Recorder
             });
         }
 
+        // Effective recording settings (global overlaid with per-game overrides) resolved at the start of
+        // the active recording. Consumed by StartRecording, OnRecordingStopped and the keybind handler so
+        // they all agree on the same values for the duration of the recording.
+        private static EffectiveRecordingSettings? _activeEffectiveSettings;
+        public static EffectiveRecordingSettings? ActiveEffectiveSettings => _activeEffectiveSettings;
+
         public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null)
         {
             // Wait for pending StopRecording to complete before starting. Prevents race conditions where a new recording starts before cleanup finishes
@@ -543,9 +551,14 @@ namespace Segra.Backend.Recorder
                 return false;
             }
 
-            bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
-            bool isSessionMode = Settings.Instance.RecordingMode == RecordingMode.Session;
-            bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
+            // Resolve global settings overlaid with any per-game overrides for this game.
+            // Note: the static _activeEffectiveSettings is only published once the early-return guards
+            // below have passed, so a blocked start attempt can never clobber an active recording's settings.
+            EffectiveRecordingSettings eff = GameSettingsService.Resolve(exePath);
+
+            bool isReplayBufferMode = eff.RecordingMode == RecordingMode.Buffer;
+            bool isSessionMode = eff.RecordingMode == RecordingMode.Session;
+            bool isHybridMode = eff.RecordingMode == RecordingMode.Hybrid;
 
             string fileName = Path.GetFileName(exePath);
 
@@ -556,6 +569,11 @@ namespace Segra.Backend.Recorder
                 AppState.Instance.PreRecording = null;
                 return false;
             }
+
+            // Publish the effective settings only now that we know no other recording is active, so a
+            // blocked start can never overwrite the in-progress recording's settings. The disk-space
+            // checks below intentionally run after this so they estimate using the per-game bitrate.
+            _activeEffectiveSettings = eff;
 
             // Prevent starting if any of the system, recording or temp drives are almost full
             List<StorageService.FullDrive> fullDrives = StorageService.GetFullDrives();
@@ -613,7 +631,7 @@ namespace Segra.Backend.Recorder
 
                     if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
                     {
-                        string userEncoderId = Settings.Instance.Codec?.InternalEncoderId ?? string.Empty;
+                        string userEncoderId = eff.Codec?.InternalEncoderId ?? string.Empty;
                         string? hdrEncoderId = ResolveHdrEncoder(userEncoderId, AppState.Instance.Codecs);
                         if (hdrEncoderId != null)
                         {
@@ -638,9 +656,8 @@ namespace Segra.Backend.Recorder
             }
 
             // Configure video settings specifically for this recording/buffer
-            ResetVideoSettings(out _, customFps: (uint)Settings.Instance.FrameRate);
+            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customResolution: eff.Resolution);
 
-            // Create main scene for this recording
             _mainScene = new Scene("Recording Scene");
             Log.Information("Created recording scene");
 
@@ -701,9 +718,10 @@ namespace Segra.Backend.Recorder
                 {
                     ResetVideoSettings(
                         out bool is4by3,
-                        customFps: (uint)Settings.Instance.FrameRate,
+                        customFps: (uint)eff.FrameRate,
                         customOutputWidth: windowWidth,
-                        customOutputHeight: windowHeight
+                        customOutputHeight: windowHeight,
+                        customResolution: eff.Resolution
                     );
 
                     // Scene item bounds must use BASE dimensions (not output) because the scene canvas is at base resolution.
@@ -720,11 +738,10 @@ namespace Segra.Backend.Recorder
                 }
             }
 
-            // Set scene as program output
-            _mainScene.SetAsProgram();
+            // Set scene as program output (channel 0)
+            Obs.SetOutputSource(_mainScene);
 
-            // Create video encoder
-            string encoderId = Settings.Instance.Codec!.InternalEncoderId;
+            string encoderId = eff.Codec!.InternalEncoderId;
             if (_isHdrRecording && _hdrEncoderId != null)
                 encoderId = _hdrEncoderId;
             Log.Information($"Using encoder: {encoderId}{(_isHdrRecording ? " (HDR)" : "")}");
@@ -734,21 +751,21 @@ namespace Segra.Backend.Recorder
             // HEVC needs the Main 10 profile for 10-bit HDR; AV1 derives bit depth from the P010 input.
             videoEncoderSettings.Set("profile", _isHdrRecording && IsHevcEncoder(encoderId) ? "main10" : "high");
             videoEncoderSettings.Set("use_bufsize", true);
-            videoEncoderSettings.Set("rate_control", Settings.Instance.RateControl);
+            videoEncoderSettings.Set("rate_control", eff.RateControl);
             videoEncoderSettings.Set("keyint_sec", 1);
 
-            switch (Settings.Instance.RateControl)
+            switch (eff.RateControl)
             {
                 case "CBR":
-                    int targetBitrateKbps = Settings.Instance.Bitrate * 1000;
+                    int targetBitrateKbps = eff.Bitrate * 1000;
                     videoEncoderSettings.Set("bitrate", targetBitrateKbps);
                     videoEncoderSettings.Set("max_bitrate", targetBitrateKbps);
                     videoEncoderSettings.Set("bufsize", targetBitrateKbps);
                     break;
 
                 case "VBR":
-                    int minBitrateKbps = Settings.Instance.MinBitrate * 1000;
-                    int maxBitrateKbps = Settings.Instance.MaxBitrate * 1000;
+                    int minBitrateKbps = eff.MinBitrate * 1000;
+                    int maxBitrateKbps = eff.MaxBitrate * 1000;
                     videoEncoderSettings.Set("bitrate", minBitrateKbps);
                     videoEncoderSettings.Set("max_bitrate", maxBitrateKbps);
                     videoEncoderSettings.Set("bufsize", maxBitrateKbps);
@@ -756,13 +773,13 @@ namespace Segra.Backend.Recorder
 
                 case "CRF":
                     // Software x264 path mainly; no explicit bitrate
-                    videoEncoderSettings.Set("crf", Settings.Instance.CrfValue);
+                    videoEncoderSettings.Set("crf", eff.CrfValue);
                     break;
 
                 case "CQP":
                     // Hardware encoders (NVENC/QSV/AMF) often use cqp/cq; provide both cqp and qp for compatibility
-                    videoEncoderSettings.Set("cqp", Settings.Instance.CqLevel);
-                    videoEncoderSettings.Set("qp", Settings.Instance.CqLevel);
+                    videoEncoderSettings.Set("cqp", eff.CqLevel);
+                    videoEncoderSettings.Set("qp", eff.CqLevel);
                     break;
 
                 default:
@@ -786,10 +803,10 @@ namespace Segra.Backend.Recorder
                 Obs.SetVideo(v => v
                     .BaseResolution(_currentBaseWidth, _currentBaseHeight)
                     .OutputResolution(_currentOutputWidth, _currentOutputHeight)
-                    .Fps((uint)Settings.Instance.FrameRate)
+                    .Fps((uint)eff.FrameRate)
                     .Sdr());
 
-                encoderId = Settings.Instance.Codec!.InternalEncoderId;
+                encoderId = eff.Codec!.InternalEncoderId;
                 videoEncoderSettings.Set("profile", "high");
                 ApplyNvencBFrameLimit(videoEncoderSettings, encoderId);
                 _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
@@ -819,17 +836,14 @@ namespace Segra.Backend.Recorder
                         {
                             try
                             {
-                                var noiseGate = new Source("noise_gate_filter", $"{sourceName}_NoiseGate");
-                                noiseGate.Update(s =>
+                                var noiseSuppression = new Source("noise_suppress_filter", $"{sourceName}_NoiseSuppression");
+                                noiseSuppression.Update(s =>
                                 {
-                                    s.Set("close_threshold", -48.0);
-                                    s.Set("open_threshold", -42.0);
-                                    s.Set("attack_time", 25L);
-                                    s.Set("hold_time", 200L);
-                                    s.Set("release_time", 150L);
+                                    s.Set("method", "rnnoise");
+                                    s.Set("suppress_level", -30L);
                                 });
-                                micSource.AddFilter(noiseGate);
-                                Log.Information($"Added noise suppression filter to {sourceName}");
+                                micSource.AddFilter(noiseSuppression);
+                                Log.Information($"Added RNNoise noise suppression filter to {sourceName}");
                             }
                             catch (Exception ex)
                             {
@@ -866,37 +880,31 @@ namespace Segra.Backend.Recorder
                 }
             }
 
-            // In GameAndDiscord mode, also create Discord application audio capture (starts muted until game hooks)
+            // In GameAndDiscord mode, capture audio from running voice chat apps. Sources start muted
+            // (desktop audio covers voice chat until the game hooks); apps launched mid-recording are
+            // added via OnVoiceChatAppStarted.
             if (audioOutputMode == AudioOutputMode.GameAndDiscord && GameCaptureSource != null)
             {
-                try
+                foreach (var app in VoiceChatApps)
                 {
-                    _discordAudioSource = new Source("wasapi_process_output_capture", "Discord Audio");
-                    _discordAudioSource.Update(s =>
-                    {
-                        // Window format: title:class:executable
-                        s.Set("window", "Discord:Chrome_WidgetWin_1:Discord.exe");
-                        s.Set("priority", 2); // WINDOW_PRIORITY_EXE
-                    });
-                    _discordAudioSource.IsMuted = true; // Muted until game hooks (desktop audio covers Discord until then)
-                    _mainScene!.AddSource(_discordAudioSource);
-                    Log.Information("Added Discord application audio capture source (muted until game hooks)");
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to create Discord audio capture source: {ex.Message}");
-                    _discordAudioSource = null;
+                    string processName = Path.GetFileNameWithoutExtension(app.Window.Split(':')[^1]);
+                    if (IsProcessRunning(processName))
+                        TryAddVoiceChatSource(app, muted: true);
                 }
             }
 
             // Configure mixers and audio encoders based on setting.
-            // If enabled: Track 1 = Full Mix, Tracks 2..6 = per-source isolated (up to 5 sources)
+            // If enabled: Track 1 = Full Mix, Tracks 2..6 = per-group isolated (up to 5 groups)
             // If disabled: Track 1 only (Full Mix)
+            // Each group shares one isolated track; all voice chat apps form a single "Voice Chat" group.
             // In GameOnly/GameAndDiscord modes, desktop sources are fallback-only (full mix only).
-            var allAudioSources = new List<Source>();
-            allAudioSources.AddRange(_micSources);
-            allAudioSources.AddRange(_desktopSources);
+            var trackGroups = new List<List<Source>>();
+            foreach (var micSource in _micSources)
+                trackGroups.Add([micSource]);
+            foreach (var desktopSource in _desktopSources)
+                trackGroups.Add([desktopSource]);
 
+            int voiceChatGroupIndex = -1;
             if (audioOutputMode != AudioOutputMode.All && GameCaptureSource != null)
             {
                 // Desktop sources are fallback-only: assign to full mix (Track 1) only, no separate tracks
@@ -907,11 +915,18 @@ namespace Segra.Backend.Recorder
                 }
 
                 // Remove desktop sources from the list that gets separate tracks
-                allAudioSources = new List<Source>();
-                allAudioSources.AddRange(_micSources);
-                allAudioSources.Add(GameCaptureSource);
-                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
-                    allAudioSources.Add(_discordAudioSource);
+                trackGroups = [];
+                foreach (var micSource in _micSources)
+                    trackGroups.Add([micSource]);
+                trackGroups.Add([GameCaptureSource]);
+
+                // The voice chat group is reserved even when currently empty so apps launched
+                // mid-recording can still join its track (the encoders are fixed once recording starts)
+                if (audioOutputMode == AudioOutputMode.GameAndDiscord)
+                {
+                    voiceChatGroupIndex = trackGroups.Count;
+                    trackGroups.Add(_voiceChatSources.Select(v => v.Source).ToList());
+                }
             }
 
             // Build list of device names for encoder naming
@@ -932,37 +947,44 @@ namespace Segra.Backend.Recorder
             else
             {
                 audioDeviceNames.Add("Game Audio");
-                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
-                    audioDeviceNames.Add("Discord");
+                if (audioOutputMode == AudioOutputMode.GameAndDiscord)
+                    audioDeviceNames.Add("Voice Chat");
             }
 
             bool separateTracks = Settings.Instance.EnableSeparateAudioTracks;
             int maxTracks = 6; // OBS supports up to 6 audio tracks
-            int perSourceTracks = separateTracks ? Math.Min(allAudioSources.Count, maxTracks - 1) : 0; // tracks 2..6 for sources
+            int perSourceTracks = separateTracks ? Math.Min(trackGroups.Count, maxTracks - 1) : 0; // tracks 2..6 for groups
             int trackCount = 1 + perSourceTracks; // Track 1 is always the full mix
 
-            for (int i = 0; i < allAudioSources.Count; i++)
+            _voiceChatMixerMask = 1u << 0;
+            for (int i = 0; i < trackGroups.Count; i++)
             {
-                try
-                {
-                    // Always include Track 1 (bit 0) as a full mix
-                    uint mixersMask = 1u << 0;
+                // Always include Track 1 (bit 0) as a full mix
+                uint mixersMask = 1u << 0;
 
-                    // If enabled, give first 5 sources their own isolated tracks on 2..6 (bits 1..5)
-                    if (separateTracks && i < (maxTracks - 1))
-                    {
-                        mixersMask |= (uint)(1 << (i + 1));
-                    }
-                    else
-                    {
-                        if (separateTracks && i >= (maxTracks - 1))
-                            Log.Warning($"Audio source index {i} exceeds {maxTracks - 1} dedicated per-source tracks. It will be available in the master mix (Track 1) only.");
-                    }
-                    allAudioSources[i].AudioMixers = mixersMask;
-                }
-                catch (Exception ex)
+                // If enabled, give first 5 groups their own isolated tracks on 2..6 (bits 1..5)
+                if (separateTracks && i < (maxTracks - 1))
                 {
-                    Log.Warning($"Failed to set mixers for audio source {i}: {ex.Message}");
+                    mixersMask |= (uint)(1 << (i + 1));
+                }
+                else if (separateTracks)
+                {
+                    Log.Warning($"Audio group index {i} exceeds {maxTracks - 1} dedicated tracks. It will be available in the master mix (Track 1) only.");
+                }
+
+                if (i == voiceChatGroupIndex)
+                    _voiceChatMixerMask = mixersMask;
+
+                foreach (var source in trackGroups[i])
+                {
+                    try
+                    {
+                        source.AudioMixers = mixersMask;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Failed to set mixers for audio source in group {i}: {ex.Message}");
+                    }
                 }
             }
 
@@ -997,12 +1019,11 @@ namespace Segra.Backend.Recorder
             {
                 uint bufferTracksMask = (1u << trackCount) - 1u;
 
-                _bufferOutput = new ReplayBuffer("replay_buffer_output", Settings.Instance.ReplayBufferDuration, Settings.Instance.ReplayBufferMaxSize);
+                _bufferOutput = new ReplayBuffer("replay_buffer_output", eff.ReplayBufferDuration, eff.ReplayBufferMaxSize);
                 _bufferOutput.SetDirectory(bufferDir);
                 _bufferOutput.SetFilenameFormat("%CCYY-%MM-%DD_%hh-%mm-%ss");
                 _bufferOutput.Update(s => s.Set("extension", "mp4").Set("tracks", (long)bufferTracksMask));
 
-                // Set encoders
                 _bufferOutput.WithVideoEncoder(_videoEncoder);
                 for (int t = 0; t < _audioEncoders.Count; t++)
                 {
@@ -1036,7 +1057,6 @@ namespace Segra.Backend.Recorder
                 }
                 _output.Update(s => s.Set("tracks", (long)recordTracksMask));
 
-                // Set encoders
                 _output.WithVideoEncoder(_videoEncoder);
                 for (int t = 0; t < _audioEncoders.Count; t++)
                 {
@@ -1111,7 +1131,7 @@ namespace Segra.Backend.Recorder
             AppState.Instance.PreRecording = null;
             _ = MessageService.SendStateToFrontend("OBS Start recording");
 
-            RecordingPreviewService.OnRecordingStarted((uint)Settings.Instance.FrameRate);
+            RecordingPreviewService.OnRecordingStarted((uint)eff.FrameRate);
 
             NotifyIconService.SetNotifyIconStatus(NotifyIconState.Recording);
 
@@ -1134,25 +1154,7 @@ namespace Segra.Backend.Recorder
                 return;
             }
 
-            int monitorIndex = 0;
-
-            if (Settings.Instance.SelectedDisplay != null)
-            {
-                int? foundIndex = AppState.Instance.Displays
-                    .Select((d, i) => new { Display = d, Index = i })
-                    .Where(x => x.Display.DeviceId == Settings.Instance.SelectedDisplay?.DeviceId)
-                    .Select(x => (int?)x.Index)
-                    .FirstOrDefault();
-
-                if (foundIndex.HasValue)
-                {
-                    monitorIndex = foundIndex.Value;
-                }
-                else
-                {
-                    _ = MessageService.ShowModal("Display recording", $"Could not find selected display. Defaulting to first automatically detected display.", "warning");
-                }
-            }
+            int monitorIndex = ResolveSelectedMonitorIndex(warnIfNotFound: true);
 
             var captureMethod = Settings.Instance.DisplayCaptureMethod switch
             {
@@ -1168,6 +1170,48 @@ namespace Segra.Backend.Recorder
             _displayItem = _mainScene.AddSource(_displaySource);
 
             Log.Information($"Display capture added for monitor {monitorIndex} using {Settings.Instance.DisplayCaptureMethod} method");
+        }
+
+        /// <summary>
+        /// Switches the live display capture to the selected monitor in place (keeping the source and its
+        /// scene-item bounds), so a mid-recording monitor change has no gap. No-op if no display source is
+        /// active (e.g. a game is hooked); the new monitor then applies on the next recording.
+        /// </summary>
+        public static void UpdateMonitorCapture()
+        {
+            if (_displaySource == null)
+            {
+                Log.Information("Monitor selection changed but no active display capture to update; it will apply on the next recording.");
+                return;
+            }
+
+            int monitorIndex = ResolveSelectedMonitorIndex(warnIfNotFound: true);
+            _displaySource.SetMonitor(monitorIndex);
+            Log.Information($"Updated live display capture to monitor {monitorIndex}");
+        }
+
+        /// <summary>
+        /// Resolves the monitor index to capture from the selected display setting, falling back to the
+        /// first monitor when no display is selected or the selected one can't be found.
+        /// </summary>
+        private static int ResolveSelectedMonitorIndex(bool warnIfNotFound)
+        {
+            if (Settings.Instance.SelectedDisplay == null)
+                return 0;
+
+            int? foundIndex = AppState.Instance.Displays
+                .Select((d, i) => new { Display = d, Index = i })
+                .Where(x => x.Display.DeviceId == Settings.Instance.SelectedDisplay?.DeviceId)
+                .Select(x => (int?)x.Index)
+                .FirstOrDefault();
+
+            if (foundIndex.HasValue)
+                return foundIndex.Value;
+
+            if (warnIfNotFound)
+                _ = MessageService.ShowModal("Display recording", "Could not find selected display. Defaulting to first automatically detected display.", "warning");
+
+            return 0;
         }
 
         /// <summary>
@@ -1312,8 +1356,12 @@ namespace Segra.Backend.Recorder
                 StopGameCaptureHookTimeoutTimer();
                 StopDiskSpaceMonitor();
 
-                bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
-                bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
+                // Use the same effective recording mode that StartRecording used (per-game override aware),
+                // falling back to the global setting if no recording is active.
+                RecordingMode effectiveMode = _activeEffectiveSettings?.RecordingMode ?? Settings.Instance.RecordingMode;
+                bool effectiveDiscard = _activeEffectiveSettings?.DiscardSessionsWithoutBookmarks ?? Settings.Instance.DiscardSessionsWithoutBookmarks;
+                bool isReplayBufferMode = effectiveMode == RecordingMode.Buffer;
+                bool isHybridMode = effectiveMode == RecordingMode.Hybrid;
 
                 if (isReplayBufferMode && _bufferOutput != null)
                 {
@@ -1384,7 +1432,7 @@ namespace Segra.Backend.Recorder
                     {
                         // Check if we should discard the session due to no manual bookmarks
                         bool hasManualBookmarks = AppState.Instance.Recording.Bookmarks.Any(b => b.Type == BookmarkType.Manual);
-                        if (Settings.Instance.DiscardSessionsWithoutBookmarks && !hasManualBookmarks)
+                        if (effectiveDiscard && !hasManualBookmarks)
                         {
                             Log.Information("Discarding session recording without manual bookmarks");
                             try
@@ -1481,7 +1529,7 @@ namespace Segra.Backend.Recorder
                     {
                         // Check if we should discard the session due to no manual bookmarks
                         bool hasManualBookmarks = AppState.Instance.Recording.Bookmarks.Any(b => b.Type == BookmarkType.Manual);
-                        if (Settings.Instance.DiscardSessionsWithoutBookmarks && !hasManualBookmarks)
+                        if (effectiveDiscard && !hasManualBookmarks)
                         {
                             Log.Information("Hybrid: Discarding session recording without manual bookmarks");
                             try
@@ -1530,6 +1578,7 @@ namespace Segra.Backend.Recorder
                 CapturedWindowHeight = null;
                 _isHdrRecording = false;
                 _hdrEncoderId = null;
+                _activeEffectiveSettings = null;
 
                 // If the recording ends before it started, don't do anything
                 if (AppState.Instance.Recording == null || (!isReplayBufferMode && AppState.Instance.Recording.FilePath == null))
@@ -1588,7 +1637,7 @@ namespace Segra.Backend.Recorder
                 // Remove display capture to save resources while game is hooked
                 DisposeDisplaySource();
 
-                // Switch output audio: mute desktop sources and unmute game/discord sources
+                // Switch output audio: mute desktop sources and unmute game/voice chat sources
                 var audioOutputMode = Settings.Instance.AudioOutputMode;
                 if (audioOutputMode != AudioOutputMode.All)
                 {
@@ -1599,11 +1648,10 @@ namespace Segra.Backend.Recorder
                     }
                     Log.Information("Muted desktop audio sources (game hooked, using capture_audio)");
 
-                    if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
+                    foreach (var (voiceName, _, voiceSource) in _voiceChatSources)
                     {
-                        try { _discordAudioSource.IsMuted = false; }
-                        catch (Exception ex) { Log.Warning($"Failed to unmute Discord source: {ex.Message}"); }
-                        Log.Information("Unmuted Discord audio source (game hooked)");
+                        try { voiceSource.IsMuted = false; Log.Information($"Unmuted {voiceName} audio source (game hooked)"); }
+                        catch (Exception ex) { Log.Warning($"Failed to unmute {voiceName} source: {ex.Message}"); }
                     }
                 }
 
@@ -1628,7 +1676,7 @@ namespace Segra.Backend.Recorder
             // IsHooked is now managed by GameCapture automatically
             Log.Information("Game unhooked.");
 
-            // Switch output audio back: unmute desktop sources and mute discord source
+            // Switch output audio back: unmute desktop sources and mute voice chat sources
             var audioOutputMode = Settings.Instance.AudioOutputMode;
             if (audioOutputMode != AudioOutputMode.All)
             {
@@ -1639,11 +1687,10 @@ namespace Segra.Backend.Recorder
                 }
                 Log.Information("Unmuted desktop audio sources (game unhooked, falling back to desktop audio)");
 
-                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
+                foreach (var (voiceName, _, voiceSource) in _voiceChatSources)
                 {
-                    try { _discordAudioSource.IsMuted = true; }
-                    catch (Exception ex) { Log.Warning($"Failed to mute Discord source: {ex.Message}"); }
-                    Log.Information("Muted Discord audio source (game unhooked)");
+                    try { voiceSource.IsMuted = true; Log.Information($"Muted {voiceName} audio source (game unhooked)"); }
+                    catch (Exception ex) { Log.Warning($"Failed to mute {voiceName} source: {ex.Message}"); }
                 }
             }
         }
@@ -1832,11 +1879,76 @@ namespace Segra.Backend.Recorder
             }
         }
 
+        private static Source? TryAddVoiceChatSource((string Name, string Window) app, bool muted)
+        {
+            try
+            {
+                var voiceSource = new Source("wasapi_process_output_capture", $"{app.Name} Audio");
+                voiceSource.Update(s =>
+                {
+                    s.Set("window", app.Window);
+                    s.Set("priority", 2); // WINDOW_PRIORITY_EXE
+                });
+                voiceSource.IsMuted = muted;
+                _mainScene!.AddSource(voiceSource);
+                _voiceChatSources.Add((app.Name, app.Window, voiceSource));
+                Log.Information($"Added {app.Name} application audio capture source{(muted ? " (muted until game hooks)" : "")}");
+                return voiceSource;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to create {app.Name} audio capture source: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Called by GameDetectionService's process watcher. Starts capturing a voice chat app
+        /// that launches while a GameAndDiscord-mode recording is active.
+        /// </summary>
+        public static void OnVoiceChatAppStarted(string exePath)
+        {
+            try
+            {
+                if (Settings.Instance.AudioOutputMode != AudioOutputMode.GameAndDiscord) return;
+                if (_mainScene == null || GameCaptureSource == null || _isStoppingOrStopped) return;
+
+                string fileName = Path.GetFileName(exePath);
+                foreach (var app in VoiceChatApps)
+                {
+                    string appExe = app.Window.Split(':')[^1];
+                    if (!string.Equals(fileName, appExe, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (_voiceChatSources.Any(v => v.Window == app.Window)) return;
+
+                    var voiceSource = TryAddVoiceChatSource(app, muted: !GameCaptureSource.IsHooked);
+                    if (voiceSource != null)
+                    {
+                        try { voiceSource.AudioMixers = _voiceChatMixerMask; }
+                        catch (Exception ex) { Log.Warning($"Failed to set mixer for {app.Name} source: {ex.Message}"); }
+                    }
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to handle voice chat app start for {exePath}: {ex.Message}");
+            }
+        }
+
         public static void DisposeSources()
         {
-            // Dispose the scene (automatically clears output channel and disposes scene items)
             if (_mainScene != null)
             {
+                try
+                {
+                    if (Obs.IsInitialized)
+                        Obs.ClearOutputSource(0);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to clear output channel: {ex.Message}");
+                }
+
                 try
                 {
                     _mainScene.Dispose();
@@ -1885,19 +1997,19 @@ namespace Segra.Backend.Recorder
             }
             _desktopSources.Clear();
 
-            // Dispose Discord audio source
-            if (_discordAudioSource != null)
+            // Dispose voice chat audio sources
+            foreach (var (voiceName, _, voiceSource) in _voiceChatSources)
             {
                 try
                 {
-                    _discordAudioSource.Dispose();
+                    voiceSource.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning($"Failed to dispose Discord audio source: {ex.Message}");
+                    Log.Warning($"Failed to dispose {voiceName} audio source: {ex.Message}");
                 }
-                _discordAudioSource = null;
             }
+            _voiceChatSources.Clear();
         }
 
         public static void DisposeGameCaptureSource()
@@ -1987,12 +2099,18 @@ namespace Segra.Backend.Recorder
         // can otherwise burn through hundreds of MB before the next check).
         private static long EstimateRecordingBytesPerSecond()
         {
-            int videoMbps = Settings.Instance.RateControl switch
+            // Use the active recording's effective settings (per-game override aware) when present,
+            // falling back to the global settings for the pre-start check / when nothing is recording.
+            string rateControl = _activeEffectiveSettings?.RateControl ?? Settings.Instance.RateControl;
+            int bitrate = _activeEffectiveSettings?.Bitrate ?? Settings.Instance.Bitrate;
+            int maxBitrate = _activeEffectiveSettings?.MaxBitrate ?? Settings.Instance.MaxBitrate;
+
+            int videoMbps = rateControl switch
             {
-                "CBR" => Settings.Instance.Bitrate,
-                "VBR" => Settings.Instance.MaxBitrate,
+                "CBR" => bitrate,
+                "VBR" => maxBitrate,
                 // CRF/CQP are quality-based with no explicit cap; assume a high worst case.
-                _ => Math.Max(Settings.Instance.MaxBitrate, QualityModeAssumedMbps)
+                _ => Math.Max(maxBitrate, QualityModeAssumedMbps)
             };
 
             // Add 1 Mbps of headroom for audio tracks (a few AAC tracks at 128 kbps each).
@@ -2121,26 +2239,38 @@ namespace Segra.Backend.Recorder
         }
 
         /// <summary>
-        /// Clears encoder references. Encoders are auto-disposed by OBSKit.NET when outputs stop.
+        /// Clears encoder references. Encoders are manually disposed since AutoDispose is false.
         /// </summary>
         public static void DisposeEncoders()
         {
+            try { _videoEncoder?.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing video encoder: {ex.Message}"); }
             _videoEncoder = null;
+
+            foreach (var audioEncoder in _audioEncoders)
+            {
+                try { audioEncoder.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing audio encoder: {ex.Message}"); }
+            }
             _audioEncoders.Clear();
         }
 
         /// <summary>
-        /// Clears output references and signal connections. Outputs are auto-disposed by OBSKit.NET when Stop() is called.
+        /// Clears output references and signal connections. Outputs are manually disposed since AutoDispose is false.
         /// </summary>
         public static void DisposeOutput()
         {
             _replaySavedConnection?.Dispose();
             _replaySavedConnection = null;
+
             _outputStoppedConnection?.Dispose();
             _outputStoppedConnection = null;
+
             _bufferStoppedConnection?.Dispose();
             _bufferStoppedConnection = null;
+
+            try { _output?.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing output: {ex.Message}"); }
             _output = null;
+
+            try { _bufferOutput?.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing buffer output: {ex.Message}"); }
             _bufferOutput = null;
         }
 
@@ -2164,13 +2294,13 @@ namespace Segra.Backend.Recorder
                         else
                         {
                             Log.Warning("Received null OBS versions list from API");
-                            response = new List<Core.Models.OBSVersion>();
+                            response = [];
                         }
                     }
                     catch (Exception ex)
                     {
                         Log.Error($"Error parsing OBS versions from API: {ex.Message}");
-                        response = new List<Core.Models.OBSVersion>();
+                        response = [];
                     }
                 }
 
@@ -2211,7 +2341,7 @@ namespace Segra.Backend.Recorder
                     response = compatibleVersions;
                 }
 
-                SettingsService.SetAvailableOBSVersions(response ?? new List<Core.Models.OBSVersion>());
+                SettingsService.SetAvailableOBSVersions(response ?? []);
             }
             catch (Exception ex)
             {

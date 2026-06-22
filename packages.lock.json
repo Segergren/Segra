@@ -33,9 +33,9 @@
       },
       "ObsKit.NET": {
         "type": "Direct",
-        "requested": "[1.3.0, )",
-        "resolved": "1.3.0",
-        "contentHash": "9Z8x7stW5BWODdn1UZ0wLX7qqYjaeCjmsjqy9JIrog6iGE/F4GX5mtylLTweimXrCYHA+LyGbzG7nuVcVKALEA=="
+        "requested": "[1.4.1, )",
+        "resolved": "1.4.1",
+        "contentHash": "oQ3dUGFaS8B39Lc6pkE95/Y0J6/DepqQSryjLb7JkXb+tmcrIIgGe9n6z8USBWInOSBVGcGtpTpdVpDn3SI+Eg=="
       },
       "Photino.NET": {
         "type": "Direct",
@@ -170,6 +170,19 @@
         "type": "Transitive",
         "resolved": "2.1.0",
         "contentHash": "KK+SjNSuKdP+zbavekubi+vaeb1Jo4k87ZF6CMkVWjr6RjJwc8peVtmgzXXDIMy4ZC3ZISyk3llY3q65ISOkBQ=="
+      }
+    },
+    "net10.0-windows10.0.19041/win-x64": {
+      "System.Management": {
+        "type": "Direct",
+        "requested": "[10.0.8, )",
+        "resolved": "10.0.8",
+        "contentHash": "8GgwcQgAv1Xg0z4vkJ759AJOFbZpK17cX9+21SOHo+KXS+VUhwSBeFSzjDJyyaEiJwgQ0D5sGnfpEs2hjyZrmA=="
+      },
+      "Photino.Native": {
+        "type": "Transitive",
+        "resolved": "4.0.22",
+        "contentHash": "VIHipEOe4CZ7HElZE8zTwcvANOsCZ2yak/4nQ4LXzjdlwIjdbY8htmHfNR6rRPgWlCfTfT349GCa6V6Id2/Xyg=="
       }
     }
   }

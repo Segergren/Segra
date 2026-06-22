@@ -1,15 +1,17 @@
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Media;
-using Segra.Backend.Recorder;
-using Segra.Backend.Shared;
-using Segra.Backend.Windows.Display;
-using Segra.Backend.Windows.Input;
 using Serilog;
 using System.Text.Json;
+using Segra.Backend.App;
+using Segra.Backend.Media;
+using Segra.Backend.Shared;
+using Segra.Backend.Recorder;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Windows.Input;
+using Segra.Backend.Windows.Display;
+using Segra.Backend.Windows.Storage;
+using Segra.Backend.Windows.GameMode;
 using System.Text.Json.Serialization;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Core
 {
     internal static class SettingsService
     {
@@ -25,14 +27,12 @@ namespace Segra.Backend.Services
 
             try
             {
-                // Ensure the directory exists
                 var directory = Path.GetDirectoryName(SettingsFilePath);
                 if (directory != null && !Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
                 }
 
-                // Serialize Settings
                 var json = JsonSerializer.Serialize(Settings.Instance, new JsonSerializerOptions
                 {
                     WriteIndented = true
@@ -80,7 +80,7 @@ namespace Segra.Backend.Services
                         {
                             if (property.Value.ValueKind == JsonValueKind.Array)
                             {
-                                var propertyName = char.ToUpper(property.Name[0]) + property.Name.Substring(1);
+                                var propertyName = char.ToUpperInvariant(property.Name[0]) + property.Name.Substring(1);
                                 var targetProperty = typeof(Settings).GetProperty(
                                     propertyName,
                                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
@@ -125,7 +125,7 @@ namespace Segra.Backend.Services
                             }
                             else
                             {
-                                var propertyName = char.ToUpper(property.Name[0]) + property.Name.Substring(1);
+                                var propertyName = char.ToUpperInvariant(property.Name[0]) + property.Name.Substring(1);
                                 var targetProperty = typeof(Settings).GetProperty(
                                     propertyName,
                                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
@@ -203,7 +203,6 @@ namespace Segra.Backend.Services
             // Begin bulk update to suppress multiple state updates
             settings.BeginBulkUpdate();
 
-            // Update ClipClearSegmentsAfterCreatingClip
             if (settings.ClipClearSegmentsAfterCreatingClip != updatedSettings.ClipClearSegmentsAfterCreatingClip)
             {
                 Log.Information($"ClipClearSegmentsAfterCreatingClip changed from '{settings.ClipClearSegmentsAfterCreatingClip}' to '{updatedSettings.ClipClearSegmentsAfterCreatingClip}'");
@@ -211,7 +210,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipEncoder
             bool hasAutoSelectedClipCodec = false;
             if (settings.ClipEncoder != updatedSettings.ClipEncoder)
             {
@@ -225,7 +223,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipShowInBrowserAfterUpload
             if (settings.ClipShowInBrowserAfterUpload != updatedSettings.ClipShowInBrowserAfterUpload)
             {
                 Log.Information($"ClipShowInBrowserAfterUpload changed from '{settings.ClipShowInBrowserAfterUpload}' to '{updatedSettings.ClipShowInBrowserAfterUpload}'");
@@ -233,7 +230,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipQualityCpu
             if (settings.ClipQualityCpu != updatedSettings.ClipQualityCpu)
             {
                 Log.Information($"ClipQualityCpu changed from '{settings.ClipQualityCpu}' to '{updatedSettings.ClipQualityCpu}'");
@@ -241,7 +237,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipQualityGpu
             if (settings.ClipQualityGpu != updatedSettings.ClipQualityGpu)
             {
                 Log.Information($"ClipQualityGpu changed from '{settings.ClipQualityGpu}' to '{updatedSettings.ClipQualityGpu}'");
@@ -249,7 +244,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipCodec
             if (settings.ClipCodec != updatedSettings.ClipCodec && !hasAutoSelectedClipCodec)
             {
                 Log.Information($"ClipCodec changed from '{settings.ClipCodec}' to '{updatedSettings.ClipCodec}'");
@@ -257,7 +251,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipFps
             if (settings.ClipFps != updatedSettings.ClipFps)
             {
                 Log.Information($"ClipFps changed from '{settings.ClipFps}' to '{updatedSettings.ClipFps}'");
@@ -265,7 +258,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipAudioQuality
             if (settings.ClipAudioQuality != updatedSettings.ClipAudioQuality)
             {
                 Log.Information($"ClipAudioQuality changed from '{settings.ClipAudioQuality}' to '{updatedSettings.ClipAudioQuality}'");
@@ -273,7 +265,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipPreset
             if (settings.ClipPreset != updatedSettings.ClipPreset)
             {
                 Log.Information($"ClipPreset changed from '{settings.ClipPreset}' to '{updatedSettings.ClipPreset}'");
@@ -281,7 +272,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipKeepSeparateAudioTracks
             if (settings.ClipKeepSeparateAudioTracks != updatedSettings.ClipKeepSeparateAudioTracks)
             {
                 Log.Information($"ClipKeepSeparateAudioTracks changed from '{settings.ClipKeepSeparateAudioTracks}' to '{updatedSettings.ClipKeepSeparateAudioTracks}'");
@@ -289,7 +279,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update SoundEffectsVolume
             if (settings.SoundEffectsVolume != updatedSettings.SoundEffectsVolume)
             {
                 Log.Information($"SoundEffectsVolume changed from '{settings.SoundEffectsVolume}' to '{updatedSettings.SoundEffectsVolume}'");
@@ -299,7 +288,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ShowNewBadgeOnVideos
             if (settings.ShowNewBadgeOnVideos != updatedSettings.ShowNewBadgeOnVideos)
             {
                 Log.Information($"ShowNewBadgeOnVideos changed from '{settings.ShowNewBadgeOnVideos}' to '{updatedSettings.ShowNewBadgeOnVideos}'");
@@ -307,7 +295,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ShowGameBackground
             if (settings.ShowGameBackground != updatedSettings.ShowGameBackground)
             {
                 Log.Information($"ShowGameBackground changed from '{settings.ShowGameBackground}' to '{updatedSettings.ShowGameBackground}'");
@@ -315,7 +302,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ShowAudioWaveformInTimeline
             if (settings.ShowAudioWaveformInTimeline != updatedSettings.ShowAudioWaveformInTimeline)
             {
                 Log.Information($"ShowAudioWaveformInTimeline changed from '{settings.ShowAudioWaveformInTimeline}' to '{updatedSettings.ShowAudioWaveformInTimeline}'");
@@ -323,7 +309,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update EnableSeparateAudioTracks
             if (settings.EnableSeparateAudioTracks != updatedSettings.EnableSeparateAudioTracks)
             {
                 Log.Information($"EnableSeparateAudioTracks changed from '{settings.EnableSeparateAudioTracks}' to '{updatedSettings.EnableSeparateAudioTracks}'");
@@ -331,7 +316,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update AudioOutputMode
             if (settings.AudioOutputMode != updatedSettings.AudioOutputMode)
             {
                 Log.Information($"AudioOutputMode changed from '{settings.AudioOutputMode}' to '{updatedSettings.AudioOutputMode}'");
@@ -339,7 +323,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update VideoQualityPreset
             if (settings.VideoQualityPreset != updatedSettings.VideoQualityPreset)
             {
                 Log.Information($"VideoQualityPreset changed from '{settings.VideoQualityPreset}' to '{updatedSettings.VideoQualityPreset}'");
@@ -347,7 +330,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipQualityPreset
             if (settings.ClipQualityPreset != updatedSettings.ClipQualityPreset)
             {
                 Log.Information($"ClipQualityPreset changed from '{settings.ClipQualityPreset}' to '{updatedSettings.ClipQualityPreset}'");
@@ -362,7 +344,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update DiscardSessionsWithoutBookmarks
             if (settings.DiscardSessionsWithoutBookmarks != updatedSettings.DiscardSessionsWithoutBookmarks)
             {
                 Log.Information($"DiscardSessionsWithoutBookmarks changed from '{settings.DiscardSessionsWithoutBookmarks}' to '{updatedSettings.DiscardSessionsWithoutBookmarks}'");
@@ -370,7 +351,18 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update GameIntegrations
+            if (settings.DisableWindowsGameMode != updatedSettings.DisableWindowsGameMode)
+            {
+                Log.Information($"DisableWindowsGameMode changed from '{settings.DisableWindowsGameMode}' to '{updatedSettings.DisableWindowsGameMode}'");
+                settings.DisableWindowsGameMode = updatedSettings.DisableWindowsGameMode;
+                // Enabling the option proactively disables Game Mode; disabling it leaves Game Mode untouched.
+                if (settings.DisableWindowsGameMode)
+                {
+                    GameModeService.EnforceDisabledIfEnabled();
+                }
+                hasChanges = true;
+            }
+
             if (updatedSettings.GameIntegrations != null)
             {
                 var current = settings.GameIntegrations;
@@ -438,7 +430,19 @@ namespace Segra.Backend.Services
                 }
             }
 
-            // Update ContentFolder
+            if (updatedSettings.Games != null)
+            {
+                // The per-game list carries nested overrides; compare by serialized JSON to detect any change.
+                string currentGamesJson = JsonSerializer.Serialize(settings.Games);
+                string updatedGamesJson = JsonSerializer.Serialize(updatedSettings.Games);
+                if (currentGamesJson != updatedGamesJson)
+                {
+                    Log.Information($"Games changed from {settings.Games.Count} entries to {updatedSettings.Games.Count} entries");
+                    settings.Games = updatedSettings.Games;
+                    hasChanges = true;
+                }
+            }
+
             if (settings.ContentFolder != updatedSettings.ContentFolder)
             {
                 Log.Information($"ContentFolder changed from '{settings.ContentFolder}' to '{updatedSettings.ContentFolder}'");
@@ -460,7 +464,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update RecordingMode
             if (settings.RecordingMode != updatedSettings.RecordingMode)
             {
                 Log.Information($"RecordingMode changed from '{settings.RecordingMode}' to '{updatedSettings.RecordingMode}'");
@@ -468,7 +471,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ReplayBufferDuration
             if (settings.ReplayBufferDuration != updatedSettings.ReplayBufferDuration)
             {
                 Log.Information($"ReplayBufferDuration changed from '{settings.ReplayBufferDuration}' to '{updatedSettings.ReplayBufferDuration}'");
@@ -476,7 +478,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ReplayBufferMaxSize
             if (settings.ReplayBufferMaxSize != updatedSettings.ReplayBufferMaxSize)
             {
                 Log.Information($"ReplayBufferMaxSize changed from '{settings.ReplayBufferMaxSize}' to '{updatedSettings.ReplayBufferMaxSize}'");
@@ -484,7 +485,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update Resolution
             if (settings.Resolution != updatedSettings.Resolution)
             {
                 Log.Information($"Resolution changed from '{settings.Resolution}' to '{updatedSettings.Resolution}'");
@@ -492,7 +492,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update FrameRate
             if (settings.FrameRate != updatedSettings.FrameRate)
             {
                 Log.Information($"FrameRate changed from '{settings.FrameRate}' to '{updatedSettings.FrameRate}'");
@@ -500,7 +499,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update Stretch4By3
             if (settings.Stretch4By3 != updatedSettings.Stretch4By3)
             {
                 Log.Information($"Stretch4By3 changed from '{settings.Stretch4By3}' to '{updatedSettings.Stretch4By3}'");
@@ -508,7 +506,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update EnableHdr
             if (settings.EnableHdr != updatedSettings.EnableHdr)
             {
                 Log.Information($"EnableHdr changed from '{settings.EnableHdr}' to '{updatedSettings.EnableHdr}'");
@@ -516,7 +513,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update Bitrate
             if (settings.Bitrate != updatedSettings.Bitrate)
             {
                 Log.Information($"Bitrate changed from '{settings.Bitrate} Mbps' to '{updatedSettings.Bitrate} Mbps'");
@@ -540,7 +536,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update Encoder
             bool hasAutoSelectedCodec = false;
             bool hasAutoSelectedRateControl = false;
             if (settings.Encoder != updatedSettings.Encoder)
@@ -574,7 +569,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update Codec
             if (settings.Codec != null && updatedSettings.Codec != null && !settings.Codec.Equals(updatedSettings.Codec) && !hasAutoSelectedCodec)
             {
                 if (!OBSService.IsInitialized)
@@ -589,7 +583,6 @@ namespace Segra.Backend.Services
                 }
             }
 
-            // Update StorageLimit
             if (settings.StorageLimit != updatedSettings.StorageLimit)
             {
                 Log.Information($"StorageLimit changed from '{settings.StorageLimit} GB' to '{updatedSettings.StorageLimit} GB'");
@@ -597,7 +590,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update InputDevice
             if (!settings.InputDevices.SequenceEqual(updatedSettings.InputDevices, new DeviceSettingEqualityComparer()))
             {
                 Log.Information($"InputDevice changed from '[{string.Join(", ", settings.InputDevices.Select(d => $"{d.Name}"))}]' to '[{string.Join(", ", updatedSettings.InputDevices.Select(d => $"{d.Name}"))}]'");
@@ -605,7 +597,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update OutputDevice
             if (!settings.OutputDevices.SequenceEqual(updatedSettings.OutputDevices, new DeviceSettingEqualityComparer()))
             {
                 Log.Information($"OutputDevice changed from '[{string.Join(", ", settings.OutputDevices.Select(d => $"{d.Name}"))}]' to '[{string.Join(", ", updatedSettings.OutputDevices.Select(d => $"{d.Name}"))}]'");
@@ -613,7 +604,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ForceMonoInputSources
             if (settings.ForceMonoInputSources != updatedSettings.ForceMonoInputSources)
             {
                 Log.Information($"ForceMonoInputSources changed from '{settings.ForceMonoInputSources}' to '{updatedSettings.ForceMonoInputSources}'");
@@ -621,7 +611,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update InputNoiseSuppression
             if (settings.InputNoiseSuppression != updatedSettings.InputNoiseSuppression)
             {
                 Log.Information($"InputNoiseSuppression changed from '{settings.InputNoiseSuppression}' to '{updatedSettings.InputNoiseSuppression}'");
@@ -629,7 +618,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update RateControl
             if (settings.RateControl != updatedSettings.RateControl && !hasAutoSelectedRateControl)
             {
                 Log.Information($"RateControl changed from '{settings.RateControl}' to '{updatedSettings.RateControl}'");
@@ -637,7 +625,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update CrfValue
             if (settings.CrfValue != updatedSettings.CrfValue)
             {
                 Log.Information($"CrfValue changed from '{settings.CrfValue}' to '{updatedSettings.CrfValue}'");
@@ -645,7 +632,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update CqLevel
             if (settings.CqLevel != updatedSettings.CqLevel)
             {
                 Log.Information($"CqLevel changed from '{settings.CqLevel}' to '{updatedSettings.CqLevel}'");
@@ -653,7 +639,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update SelectedDisplay
             if ((settings.SelectedDisplay == null && updatedSettings.SelectedDisplay != null) ||
                 (settings.SelectedDisplay != null && updatedSettings.SelectedDisplay == null) ||
                 (settings.SelectedDisplay != null && updatedSettings.SelectedDisplay != null && !settings.SelectedDisplay.Equals(updatedSettings.SelectedDisplay)))
@@ -661,16 +646,14 @@ namespace Segra.Backend.Services
                 Log.Information($"SelectedDisplay changed from '{settings.SelectedDisplay}' to '{updatedSettings.SelectedDisplay}'");
                 settings.SelectedDisplay = updatedSettings.SelectedDisplay;
 
-                // Update display source if we have a recording and it is not using game hook
+                // Update the live display capture in place; only meaningful while recording without a game hook.
                 if (AppState.Instance.Recording != null && !AppState.Instance.Recording.IsUsingGameHook)
                 {
-                    OBSService.DisposeDisplaySource();
-                    OBSService.AddMonitorCapture();
+                    OBSService.UpdateMonitorCapture();
                 }
                 hasChanges = true;
             }
 
-            // Update DisplayCaptureMethod
             if (settings.DisplayCaptureMethod != updatedSettings.DisplayCaptureMethod)
             {
                 Log.Information($"DisplayCaptureMethod changed from '{settings.DisplayCaptureMethod}' to '{updatedSettings.DisplayCaptureMethod}'");
@@ -678,7 +661,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update EnableAi
             if (settings.EnableAi != updatedSettings.EnableAi)
             {
                 Log.Information($"EnableAi changed from '{settings.EnableAi}' to '{updatedSettings.EnableAi}'");
@@ -686,7 +668,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update AutoGenerateHighlights
             if (settings.AutoGenerateHighlights != updatedSettings.AutoGenerateHighlights)
             {
                 Log.Information($"AutoGenerateHighlights changed from '{settings.AutoGenerateHighlights}' to '{updatedSettings.AutoGenerateHighlights}'");
@@ -694,7 +675,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update HighlightPaddingBefore
             if (settings.HighlightPaddingBefore != updatedSettings.HighlightPaddingBefore)
             {
                 Log.Information($"HighlightPaddingBefore changed from '{settings.HighlightPaddingBefore}' to '{updatedSettings.HighlightPaddingBefore}'");
@@ -702,7 +682,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update HighlightPaddingAfter
             if (settings.HighlightPaddingAfter != updatedSettings.HighlightPaddingAfter)
             {
                 Log.Information($"HighlightPaddingAfter changed from '{settings.HighlightPaddingAfter}' to '{updatedSettings.HighlightPaddingAfter}'");
@@ -741,8 +720,6 @@ namespace Segra.Backend.Services
                 settings.LowlightPaddingAfter = updatedSettings.LowlightPaddingAfter;
                 hasChanges = true;
             }
-
-            // Update ReceiveBetaUpdates
             if (settings.ReceiveBetaUpdates != updatedSettings.ReceiveBetaUpdates)
             {
                 Log.Information($"ReceiveBetaUpdates changed from '{settings.ReceiveBetaUpdates}' to '{updatedSettings.ReceiveBetaUpdates}'");
@@ -752,7 +729,6 @@ namespace Segra.Backend.Services
                 _ = Task.Run(() => UpdateService.GetReleaseNotes(forceCheck: true));
             }
 
-            // Update RunOnStartup
             if (settings.RunOnStartup != updatedSettings.RunOnStartup)
             {
                 Log.Information($"RunOnStartup changed from '{settings.RunOnStartup}' to '{updatedSettings.RunOnStartup}'");
@@ -760,7 +736,13 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update AirplaneMode
+            if (settings.StartupWindowMode != updatedSettings.StartupWindowMode)
+            {
+                Log.Information($"StartupWindowMode changed from '{settings.StartupWindowMode}' to '{updatedSettings.StartupWindowMode}'");
+                settings.StartupWindowMode = updatedSettings.StartupWindowMode;
+                hasChanges = true;
+            }
+
             if (settings.AirplaneMode != updatedSettings.AirplaneMode)
             {
                 Log.Information($"AirplaneMode changed from '{settings.AirplaneMode}' to '{updatedSettings.AirplaneMode}'");
@@ -768,7 +750,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update SelectedOBSVersion
             if (settings.SelectedOBSVersion != updatedSettings.SelectedOBSVersion)
             {
                 Log.Information($"SelectedOBSVersion changed from '{settings.SelectedOBSVersion ?? "Automatic"}' to '{updatedSettings.SelectedOBSVersion ?? "Automatic"}'");
@@ -782,7 +763,6 @@ namespace Segra.Backend.Services
                 }
             }
 
-            // Update MenuItems
             if (updatedSettings.MenuItems != null)
             {
                 bool menuItemsChanged = settings.MenuItems.Count != updatedSettings.MenuItems.Count ||
@@ -796,7 +776,6 @@ namespace Segra.Backend.Services
                 }
             }
 
-            // Update DefaultMenuItem
             if (!string.IsNullOrEmpty(updatedSettings.DefaultMenuItem) && settings.DefaultMenuItem != updatedSettings.DefaultMenuItem)
             {
                 Log.Information($"DefaultMenuItem changed from '{settings.DefaultMenuItem}' to '{updatedSettings.DefaultMenuItem}'");
@@ -804,7 +783,6 @@ namespace Segra.Backend.Services
                 hasChanges = true;
             }
 
-            // Update Keybindings
             if (updatedSettings.Keybindings != null)
             {
                 settings.Keybindings = updatedSettings.Keybindings;
@@ -842,7 +820,6 @@ namespace Segra.Backend.Services
                         continue;
                     }
 
-                    // Get metadata files in the current folder
                     var metadataFiles = Directory.EnumerateFiles(metadataPath, "*.json", SearchOption.TopDirectoryOnly)
                                                  .Where(file => IsMetadataFile(file));
 
@@ -851,7 +828,6 @@ namespace Segra.Backend.Services
                         var serializedMetadataFilePath = PathUtils.Normalize(metadataFilePath);
                         try
                         {
-                            // Read and parse metadata
                             var metadataContent = File.ReadAllText(serializedMetadataFilePath);
                             var metadata = JsonSerializer.Deserialize<Content>(metadataContent);
 
@@ -901,7 +877,6 @@ namespace Segra.Backend.Services
                     }
                 }
 
-                // Sort videos by creation date descending
                 content = content.OrderByDescending(v => v.CreatedAt).ToList();
             }
             catch (Exception ex)
@@ -913,8 +888,8 @@ namespace Segra.Backend.Services
 
             AppState.Instance.SetContent(content, sendToFrontend);
 
-            // Update folder size in state
-            Windows.Storage.StorageService.UpdateFolderSizeInState();
+            // Honor sendToFrontend so a silent reload doesn't leak a state send via the folder size.
+            Windows.Storage.StorageService.UpdateFolderSizeInState(sendToFrontend);
         }
 
         public static void GetPrimaryMonitorResolution(out uint boundsWidth, out uint boundsHeight)
@@ -929,7 +904,6 @@ namespace Segra.Backend.Services
                 return;
             }
 
-            // Fallback to logical resolution
             if (Screen.PrimaryScreen != null)
             {
                 boundsWidth = (uint)Screen.PrimaryScreen.Bounds.Width;
@@ -965,18 +939,10 @@ namespace Segra.Backend.Services
                     height = 2160;
                     break;
                 default:
-                    // Default to 1080p if unknown
                     width = 1920;
                     height = 1080;
                     break;
             }
-        }
-
-        private static bool IsMetadataFile(string filePath)
-        {
-            // Check if the file is a metadata file
-            return Path.GetExtension(filePath).Equals(".json", StringComparison.OrdinalIgnoreCase) &&
-                   !Path.GetFileName(filePath).StartsWith(".");
         }
 
         public static void SetAvailableOBSVersions(List<Core.Models.OBSVersion> versions)
@@ -1053,22 +1019,6 @@ namespace Segra.Backend.Services
             }
         }
 
-        private static string NormalizeDeviceName(string name)
-        {
-            if (string.IsNullOrEmpty(name))
-            {
-                return string.Empty;
-            }
-
-            const string defaultSuffix = " (Default)";
-            if (name.EndsWith(defaultSuffix, StringComparison.OrdinalIgnoreCase))
-            {
-                return name[..^defaultSuffix.Length];
-            }
-
-            return name;
-        }
-
         public static void SelectDefaultDevices()
         {
             Settings.Instance.BeginBulkUpdate();
@@ -1120,10 +1070,8 @@ namespace Segra.Backend.Services
 
                 try
                 {
-                    // Create destination directory if it doesn't exist
                     Directory.CreateDirectory(destPath);
 
-                    // Move all files and subdirectories
                     foreach (var dir in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
                     {
                         string targetDir = dir.Replace(sourcePath, destPath);
@@ -1140,7 +1088,6 @@ namespace Segra.Backend.Services
                         File.Move(file, targetFile);
                     }
 
-                    // Remove old directory after successful migration
                     Directory.Delete(sourcePath, true);
                     Log.Information($"Successfully migrated {folderName} from {sourcePath} to {destPath}");
                 }
@@ -1150,9 +1097,30 @@ namespace Segra.Backend.Services
                 }
             }
 
-            // Reload content to update paths
             await LoadContentFromFolderIntoState();
             Log.Information("Cache migration completed");
+        }
+
+        private static bool IsMetadataFile(string filePath)
+        {
+            return Path.GetExtension(filePath).Equals(".json", StringComparison.OrdinalIgnoreCase) &&
+                   !Path.GetFileName(filePath).StartsWith(".");
+        }
+
+        private static string NormalizeDeviceName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return string.Empty;
+            }
+
+            const string defaultSuffix = " (Default)";
+            if (name.EndsWith(defaultSuffix, StringComparison.OrdinalIgnoreCase))
+            {
+                return name[..^defaultSuffix.Length];
+            }
+
+            return name;
         }
     }
 }

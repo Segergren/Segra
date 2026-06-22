@@ -6,6 +6,8 @@ export type DisplayCaptureMethod = 'Auto' | 'DXGI' | 'WGC';
 
 export type AudioOutputMode = 'All' | 'GameOnly' | 'GameAndDiscord';
 
+export type StartupWindowMode = 'Normal' | 'Minimized';
+
 export interface Content {
   type: ContentType;
   title: string;
@@ -138,6 +140,45 @@ export interface Game {
 export interface GameListEntry {
   name: string;
   executables: string[];
+  icon?: string; // CDN icon id (https://segra.tv/api/games/icon/{icon})
+  igdbId?: number;
+}
+
+// Per-game recording quality override. When preset is a named preset (low/standard/high) the
+// backend resolves concrete values at record time; when 'custom' the explicit fields below are used.
+export interface GameQualityOverride {
+  preset: VideoQualityPreset;
+  resolution: '720p' | '1080p' | '1440p' | '4K';
+  frameRate: number;
+  rateControl: string;
+  crfValue: number;
+  cqLevel: number;
+  bitrate: number;
+  minBitrate: number;
+  maxBitrate: number;
+  encoder: 'gpu' | 'cpu';
+  codec: Codec | null;
+}
+
+export interface GameRecordingModeOverride {
+  recordingMode: RecordingMode;
+  replayBufferDuration: number;
+  replayBufferMaxSize: number;
+}
+
+// A single entry in the unified per-game settings list (replaces whitelist/blacklist).
+// record === true means "always record this game", false means "never record it".
+// Each *Override is null when the game inherits the corresponding global setting.
+export interface GameSetting {
+  name: string;
+  paths: string[];
+  igdbId: number | null; // catalog link; keeps name/icon in sync on startup
+  icon?: string; // CDN icon id resolved from the catalog (known games)
+  customIcon: string | null; // base64 PNG extracted from the exe (custom games)
+  record: boolean;
+  qualityOverride: GameQualityOverride | null;
+  recordingModeOverride: GameRecordingModeOverride | null;
+  discardSessionsWithoutBookmarksOverride: boolean | null;
 }
 
 export interface GameIntegrationSettings {
@@ -261,6 +302,7 @@ export interface Settings {
   autoGenerateHighlights: boolean;
   autoGenerateLowlights: boolean;
   runOnStartup: boolean;
+  startupWindowMode: StartupWindowMode; // Window state when launched from startup
   receiveBetaUpdates: boolean;
   airplaneMode: boolean; // Hides cloud account/login/upload features and signs the user out
   recordingMode: RecordingMode;
@@ -281,8 +323,7 @@ export interface Settings {
   clipPreset: ClipPreset;
   clipKeepSeparateAudioTracks: boolean;
   keybindings: Keybind[];
-  whitelist: Game[];
-  blacklist: Game[];
+  games: GameSetting[];
   gameIntegrations: GameIntegrations;
   soundEffectsVolume: number; // Volume for UI sound effects (0.0 to 1.0)
   showNewBadgeOnVideos: boolean;
@@ -294,6 +335,7 @@ export interface Settings {
   clipQualityPreset: ClipQualityPreset;
   removeOriginalAfterCompression: boolean;
   discardSessionsWithoutBookmarks: boolean;
+  disableWindowsGameMode: boolean; // When true, ensures Windows Game Mode stays off on startup
   menuItems: MenuItemPreference[];
   defaultMenuItem: MenuItemId;
 }
@@ -343,6 +385,7 @@ export const initialSettings: Settings = {
   autoGenerateHighlights: true,
   autoGenerateLowlights: true,
   runOnStartup: false,
+  startupWindowMode: 'Minimized',
   receiveBetaUpdates: false,
   airplaneMode: false,
   recordingMode: 'Hybrid',
@@ -372,6 +415,7 @@ export const initialSettings: Settings = {
   clipQualityPreset: 'standard',
   removeOriginalAfterCompression: false,
   discardSessionsWithoutBookmarks: false,
+  disableWindowsGameMode: false,
   menuItems: DEFAULT_MENU_ITEMS,
   defaultMenuItem: 'Full Sessions',
   keybindings: [
@@ -380,8 +424,7 @@ export const initialSettings: Settings = {
     { keys: [121], action: KeybindAction.SaveReplayBuffer, enabled: true }, // 121 is F10
     { keys: [122], action: KeybindAction.TogglePreview, enabled: true }, // 122 is F11
   ],
-  whitelist: [],
-  blacklist: [],
+  games: [],
   gameIntegrations: {
     counterStrike2: { enabled: true },
     leagueOfLegends: { enabled: true },

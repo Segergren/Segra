@@ -1,5 +1,5 @@
-using System.Reflection;
 using Serilog;
+using System.Reflection;
 
 namespace Segra.Backend.App
 {

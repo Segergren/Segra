@@ -1,7 +1,7 @@
 using Serilog;
+using Vortice.DXCore;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using Vortice.DXCore;
 
 namespace Segra.Backend.Shared
 {
@@ -15,7 +15,7 @@ namespace Segra.Backend.Shared
             Intel
         }
 
-        private static readonly List<string> internalGpuIdentifiers = new List<string>
+        private static readonly List<string> internalGpuIdentifiers = new()
         {
             // Intel integrated GPUs
             "HD Graphics",         // Broadwell (5xxx), Skylake (510–530), Kaby Lake (610/620), Comet Lake, etc.
@@ -34,17 +34,16 @@ namespace Segra.Backend.Shared
         };
 
         // Cache the detected GPU vendor to avoid repeated WMI queries
-        private static GpuVendor? _cachedGpuVendor = null;
+        private static GpuVendor? _cachedGpuVendor;
 
         public static GpuVendor DetectGpuVendor()
         {
-            // Return cached value if available
             if (_cachedGpuVendor.HasValue)
             {
                 return _cachedGpuVendor.Value;
             }
 
-            // Try using DXCore first - it's more reliable but requires Windows 10 build 19041 or later
+            // Try DXCore first - more reliable but requires Windows 10 build 19041 or later
             try
             {
                 using var factory = DXCore.DXCoreCreateAdapterFactory<IDXCoreAdapterFactory>();
@@ -77,7 +76,6 @@ namespace Segra.Backend.Shared
                     .ThenByDescending(a => a.DedicatedAdapterMemory)
                     .ToList();
 
-                // Process the sorted adapters
                 foreach (var adapter in sortedAdapters)
                 {
                     string name = adapter.DriverDescription;
@@ -102,7 +100,6 @@ namespace Segra.Backend.Shared
                     }
                 }
 
-                // Clean up adapters
                 foreach (var adapter in adapters)
                 {
                     adapter.Dispose();
@@ -121,7 +118,6 @@ namespace Segra.Backend.Shared
                 {
                     List<System.Management.ManagementObject> gpus = searcher.Get().Cast<System.Management.ManagementObject>().ToList();
 
-                    // Log all active GPUs found
                     Log.Information($"Found {gpus.Count} active GPU(s):");
                     foreach (var gpu in gpus)
                     {
@@ -171,7 +167,6 @@ namespace Segra.Backend.Shared
                 {
                     var allGpus = searcher.Get().Cast<System.Management.ManagementObject>().ToList();
 
-                    // Log all GPUs found in fallback search
                     Log.Information($"Found {allGpus.Count} total GPU(s) in fallback search:");
                     foreach (var gpu in allGpus)
                     {
@@ -255,12 +250,90 @@ namespace Segra.Backend.Shared
                         }
                     }
 
-                    // Find next occurrence
                     index = message.IndexOf($"\"{prop}\":", index + 1, StringComparison.OrdinalIgnoreCase);
                 }
             }
 
             return message;
+        }
+
+        private static readonly Regex UsernamePathRegex = new(@"([\\/]Users[\\/])([^\\/]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        public static string RedactUsername(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            return UsernamePathRegex.Replace(text, "$1<user>");
+        }
+
+        public static bool IsProcessRunning(string processName)
+        {
+            try
+            {
+                Process[] processes = Process.GetProcessesByName(processName);
+                foreach (var process in processes)
+                    process.Dispose();
+                return processes.Length > 0;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to check if {processName} is running: {ex.Message}");
+                return false;
+            }
+        }
+
+        public static void SetProcessPriority(ProcessPriorityClass priority)
+        {
+            try
+            {
+                Process.GetCurrentProcess().PriorityClass = priority;
+                Log.Information($"Process priority set to {priority}");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to set process priority to {priority}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Ensures a file is fully written and readable, especially important for network drives.
+        /// Retries with delays to handle write caching and sync delays on network paths.
+        /// </summary>
+        public static async Task EnsureFileReady(string filePath)
+        {
+            // 30 seconds timeout
+            const int maxRetries = 150;
+            const int delayMs = 200;
+
+            Log.Information($"Verifying file ready: {filePath}");
+            for (int i = 0; i < maxRetries; i++)
+            {
+                try
+                {
+                    using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        if (fs.Length > 0)
+                        {
+                            byte[] buffer = new byte[1024];
+                            int bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length);
+                            if (bytesRead > 0)
+                            {
+                                Log.Information($"File verified ready: {filePath} ({fs.Length} bytes)");
+                                return;
+                            }
+                        }
+                    }
+                }
+                catch (IOException ex)
+                {
+                    Log.Warning($"File not ready yet (attempt {i + 1}/{maxRetries}): {ex.Message}");
+                }
+
+                await Task.Delay(delayMs);
+            }
+
+            Log.Warning($"File may not be fully synced after {maxRetries} attempts: {filePath}");
         }
 
         private static int FindMatchingBracket(string text, int startIndex)
@@ -307,61 +380,6 @@ namespace Segra.Backend.Shared
             }
 
             return -1; // No matching bracket found
-        }
-
-        public static void SetProcessPriority(ProcessPriorityClass priority)
-        {
-            try
-            {
-                Process.GetCurrentProcess().PriorityClass = priority;
-                Log.Information($"Process priority set to {priority}");
-            }
-            catch (Exception ex)
-            {
-                Log.Warning($"Failed to set process priority to {priority}: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Ensures a file is fully written and readable, especially important for network drives.
-        /// Retries with delays to handle write caching and sync delays on network paths.
-        /// </summary>
-        public static async Task EnsureFileReady(string filePath)
-        {
-            // 30 seconds timeout
-            const int maxRetries = 150;
-            const int delayMs = 200;
-
-            Log.Information($"Verifying file ready: {filePath}");
-            for (int i = 0; i < maxRetries; i++)
-            {
-                try
-                {
-                    // Try to open the file for reading to verify it's accessible and complete
-                    using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
-                    {
-                        // Verify we can read at least some data
-                        if (fs.Length > 0)
-                        {
-                            byte[] buffer = new byte[1024];
-                            int bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length);
-                            if (bytesRead > 0)
-                            {
-                                Log.Information($"File verified ready: {filePath} ({fs.Length} bytes)");
-                                return;
-                            }
-                        }
-                    }
-                }
-                catch (IOException ex)
-                {
-                    Log.Warning($"File not ready yet (attempt {i + 1}/{maxRetries}): {ex.Message}");
-                }
-
-                await Task.Delay(delayMs);
-            }
-
-            Log.Warning($"File may not be fully synced after {maxRetries} attempts: {filePath}");
         }
     }
 }

@@ -1,5 +1,5 @@
-using System.Text;
 using Serilog;
+using System.Text;
 
 namespace Segra.Backend.Media
 {

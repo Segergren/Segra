@@ -1,9 +1,9 @@
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
 using Serilog;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Segra.Backend.App;
+using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Games.CounterStrike2
 {
@@ -112,6 +112,8 @@ namespace Segra.Backend.Games.CounterStrike2
             }
             return Task.CompletedTask;
         }
+
+        public void Dispose() => Shutdown().Wait();
 
         private void InitializeListener()
         {
@@ -254,7 +256,8 @@ namespace Segra.Backend.Games.CounterStrike2
 
         private static void AddBookmark(BookmarkType type)
         {
-            if (AppState.Instance.Recording == null)
+            var recording = AppState.Instance.Recording;
+            if (recording == null)
             {
                 Log.Debug($"No recording active, skipping {type} bookmark");
                 return;
@@ -263,9 +266,9 @@ namespace Segra.Backend.Games.CounterStrike2
             var bookmark = new Bookmark
             {
                 Type = type,
-                Time = DateTime.Now - AppState.Instance.Recording.StartTime
+                Time = DateTime.Now - recording.StartTime
             };
-            AppState.Instance.Recording.Bookmarks.Add(bookmark);
+            recording.AddBookmark(bookmark);
             Log.Information($"Added {type} bookmark at {bookmark.Time}");
         }
 
@@ -333,7 +336,5 @@ namespace Segra.Backend.Games.CounterStrike2
                 "    }\n" +
                 "}";
         }
-
-        public void Dispose() => Shutdown().Wait();
     }
 }

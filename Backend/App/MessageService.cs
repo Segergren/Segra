@@ -1,15 +1,17 @@
-using System.Net.WebSockets;
+using Serilog;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Serilog;
+using Segra.Backend.Auth;
+using Segra.Backend.Core;
 using System.Diagnostics;
-using Segra.Backend.Services;
-using Segra.Backend.Core.Models;
+using Segra.Backend.Games;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
+using System.Net.WebSockets;
 using Segra.Backend.Recorder;
-using Segra.Backend.Games;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Windows.Storage;
 
 namespace Segra.Backend.App
 {
@@ -24,7 +26,6 @@ namespace Segra.Backend.App
 
         public static async Task HandleMessage(string message)
         {
-            Log.Information("Websocket message received: " + GeneralUtils.RedactSensitiveInfo(message));
             if (string.IsNullOrEmpty(message))
             {
                 Log.Information("Received empty message.");
@@ -37,6 +38,8 @@ namespace Segra.Backend.App
                 await SendFrontendMessage("pong", new { });
                 return;
             }
+
+            Log.Information("Websocket message received: " + GeneralUtils.RedactSensitiveInfo(message));
 
             try
             {
@@ -108,26 +111,6 @@ namespace Segra.Backend.App
                         case "CheckForUpdates":
                             Log.Information("CheckForUpdates command received.");
                             _ = Task.Run(() => UpdateService.UpdateAppIfNecessary(forceCheck: true));
-                            break;
-                        case "AddToWhitelist":
-                            root.TryGetProperty("Parameters", out JsonElement addWhitelistParameterElement);
-                            await HandleAddToWhitelist(addWhitelistParameterElement);
-                            break;
-                        case "RemoveFromWhitelist":
-                            root.TryGetProperty("Parameters", out JsonElement removeWhitelistParameterElement);
-                            await HandleRemoveFromWhitelist(removeWhitelistParameterElement);
-                            break;
-                        case "AddToBlacklist":
-                            root.TryGetProperty("Parameters", out JsonElement addBlacklistParameterElement);
-                            await HandleAddToBlacklist(addBlacklistParameterElement);
-                            break;
-                        case "RemoveFromBlacklist":
-                            root.TryGetProperty("Parameters", out JsonElement removeBlacklistParameterElement);
-                            await HandleRemoveFromBlacklist(removeBlacklistParameterElement);
-                            break;
-                        case "MoveGame":
-                            root.TryGetProperty("Parameters", out JsonElement moveGameParameterElement);
-                            await HandleMoveGame(moveGameParameterElement);
                             break;
                         case "DeleteContent":
                             root.TryGetProperty("Parameters", out JsonElement deleteContentParameterElement);
@@ -233,10 +216,8 @@ namespace Segra.Backend.App
                             await SendSettingsToFrontend("New connection");
                             await SendStateToFrontend("New connection");
 
-                            // Send game list to frontend
                             await SendGameList();
 
-                            // Get current version
                             if (UpdateService.UpdateManager.CurrentVersion != null)
                             {
                                 string appVersion = UpdateService.UpdateManager.CurrentVersion.ToString();
@@ -339,13 +320,6 @@ namespace Segra.Backend.App
                 Log.Error($"Stack trace: {ex.StackTrace}");
             }
         }
-        private static async Task HandleCreateAiClip(JsonElement message)
-        {
-            Log.Information($"{message}");
-            message.TryGetProperty("FileName", out JsonElement fileNameElement);
-            await AiService.CreateHighlight(fileNameElement.GetString()!);
-        }
-
         private static async Task HandleCreateLowlight(JsonElement message)
         {
             Log.Information($"{message}");
@@ -353,92 +327,10 @@ namespace Segra.Backend.App
             await AiService.CreateLowlight(fileNameElement.GetString()!);
         }
 
-        private static async Task HandleCompressVideo(JsonElement message)
-        {
-            Log.Information($"CompressVideo: {message}");
-            message.TryGetProperty("FilePath", out JsonElement filePathElement);
-            await CompressionService.CompressVideo(filePathElement.GetString()!);
-        }
-
-        private static async Task HandleCreateClip(JsonElement message)
-        {
-            Log.Information($"{message}");
-
-            if (message.TryGetProperty("Segments", out JsonElement segmentsElement))
-            {
-                var segments = new List<Segment>();
-                foreach (var segmentElement in segmentsElement.EnumerateArray())
-                {
-                    if (segmentElement.TryGetProperty("id", out JsonElement idElement) &&
-                        segmentElement.TryGetProperty("startTime", out JsonElement startTimeElement) &&
-                        segmentElement.TryGetProperty("endTime", out JsonElement endTimeElement) &&
-                        segmentElement.TryGetProperty("fileName", out JsonElement fileNameElement) &&
-                        segmentElement.TryGetProperty("type", out JsonElement videoTypeElement) &&
-                        segmentElement.TryGetProperty("game", out JsonElement gameElement) &&
-                        segmentElement.TryGetProperty("title", out JsonElement titleElement))
-                    {
-                        long id = idElement.GetInt64();
-                        double startTime = startTimeElement.GetDouble();
-                        double endTime = endTimeElement.GetDouble();
-                        string fileName = fileNameElement.GetString()!;
-                        string type = videoTypeElement.GetString()!;
-                        string game = gameElement.GetString()!;
-                        string title = titleElement.GetString() ?? string.Empty;
-                        int? igdbId = segmentElement.TryGetProperty("igdbId", out JsonElement igdbIdElement) && igdbIdElement.ValueKind == JsonValueKind.Number
-                            ? igdbIdElement.GetInt32()
-                            : null;
-                        string? filePath = segmentElement.TryGetProperty("filePath", out JsonElement filePathElement)
-                            ? filePathElement.GetString()
-                            : null;
-                        List<int>? mutedAudioTracks = null;
-                        if (segmentElement.TryGetProperty("mutedAudioTracks", out JsonElement mutedEl)
-                            && mutedEl.ValueKind == JsonValueKind.Array)
-                        {
-                            mutedAudioTracks = mutedEl.EnumerateArray().Select(e => e.GetInt32()).ToList();
-                        }
-                        Dictionary<int, double>? audioTrackVolumes = null;
-                        if (segmentElement.TryGetProperty("audioTrackVolumes", out JsonElement volEl)
-                            && volEl.ValueKind == JsonValueKind.Object)
-                        {
-                            audioTrackVolumes = new Dictionary<int, double>();
-                            foreach (var prop in volEl.EnumerateObject())
-                            {
-                                if (int.TryParse(prop.Name, out int trackIdx) && prop.Value.TryGetDouble(out double vol))
-                                    audioTrackVolumes[trackIdx] = vol;
-                            }
-                        }
-
-                        // Create a new Segment instance with all required properties.
-                        segments.Add(new Segment
-                        {
-                            Id = id,
-                            Type = type,
-                            StartTime = startTime,
-                            EndTime = endTime,
-                            FileName = fileName,
-                            FilePath = filePath,
-                            Game = game,
-                            Title = title,
-                            IgdbId = igdbId,
-                            MutedAudioTracks = mutedAudioTracks,
-                            AudioTrackVolumes = audioTrackVolumes
-                        });
-                    }
-                }
-
-                await ClipService.CreateClips(segments);
-            }
-            else
-            {
-                Log.Information("Segments property not found in CreateClip message.");
-            }
-        }
-
         public static async Task HandleDeleteContent(JsonElement message)
         {
             Log.Information($"Handling DeleteContent with message: {message}");
 
-            // Extract FileName and ContentType
             if (message.TryGetProperty("FileName", out JsonElement fileNameElement) &&
                 message.TryGetProperty("ContentType", out JsonElement contentTypeElement))
             {
@@ -522,70 +414,6 @@ namespace Segra.Backend.App
             }
         }
 
-        private static async Task SetVideoLocationAsync()
-        {
-            using (var fbd = new FolderBrowserDialog())
-            {
-                // Set an initial description or instruction for the dialog
-                fbd.Description = "Select a folder to set as the video location.";
-
-                // Optionally, set the root folder for the dialog (e.g., My Computer or Desktop)
-                fbd.RootFolder = Environment.SpecialFolder.Desktop;
-
-                // Show the dialog and check if the user selected a folder
-                if (fbd.ShowDialog() == DialogResult.OK)
-                {
-                    // Get the selected folder path
-                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
-                    Log.Information($"Selected Folder: {selectedPath}");
-
-                    // Check if the new folder would exceed storage limit
-                    bool shouldProceed = await StorageWarningService.CheckContentFolderChange(selectedPath);
-                    if (shouldProceed)
-                    {
-                        // Update settings with the selected folder path
-                        Settings.Instance.ContentFolder = selectedPath;
-
-                        // Push the updated path to the frontend so the settings UI reflects the change
-                        await SendSettingsToFrontend("Content folder changed");
-                    }
-                    // If not proceeding, a warning modal was sent to the frontend
-                }
-                else
-                {
-                    Log.Information("Folder selection was canceled.");
-                }
-            }
-        }
-
-        private static async Task SetCacheLocationAsync()
-        {
-            using (var fbd = new FolderBrowserDialog())
-            {
-                fbd.Description = "Select a folder for metadata, thumbnails, and waveforms.";
-                fbd.RootFolder = Environment.SpecialFolder.Desktop;
-
-                if (fbd.ShowDialog() == DialogResult.OK)
-                {
-                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
-                    string oldCacheFolder = Settings.Instance.CacheFolder;
-                    Log.Information($"Selected Cache Folder: {selectedPath}");
-
-                    Settings.Instance.CacheFolder = selectedPath;
-                    SettingsService.SaveSettings();
-
-                    // Migrate cache contents to new folder
-                    await SettingsService.MigrateCacheFolder(oldCacheFolder, selectedPath);
-
-                    await SendSettingsToFrontend("Cache folder changed");
-                }
-                else
-                {
-                    Log.Information("Cache folder selection was canceled.");
-                }
-            }
-        }
-
         public static async Task StartWebsocket()
         {
             HttpListener listener = new HttpListener();
@@ -603,7 +431,6 @@ namespace Segra.Backend.App
                     {
                         Log.Information("Received WebSocket connection request");
 
-                        // Close the current WebSocket if already active
                         if (activeWebSocket != null && activeWebSocket.State == WebSocketState.Open)
                         {
                             await activeWebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "New connection", CancellationToken.None);
@@ -691,51 +518,6 @@ namespace Segra.Backend.App
             }
         }
 
-        private static async Task HandleWebSocketAsync(WebSocket webSocket)
-        {
-            byte[] buffer = new byte[4096];
-            try
-            {
-                while (webSocket.State == WebSocketState.Open)
-                {
-                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-
-                    if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        Log.Information("Client initiated WebSocket closure.");
-                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client initiated closure", CancellationToken.None);
-                    }
-                    else
-                    {
-                        string receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        Log.Information($"Received message: {receivedMessage}");
-                        await HandleMessage(receivedMessage);
-                    }
-                }
-            }
-            catch (WebSocketException wsEx)
-            {
-                Log.Information($"WebSocketException in HandleWebSocketAsync: {wsEx.Message}");
-                Log.Information($"WebSocket state at exception: {webSocket.State}");
-                if (wsEx.InnerException != null)
-                {
-                    Log.Information($"Inner exception: {wsEx.InnerException.Message}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Information($"General exception in HandleWebSocketAsync: {ex.Message}");
-            }
-            finally
-            {
-                if (webSocket.State != WebSocketState.Closed && webSocket.State != WebSocketState.Aborted)
-                {
-                    await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "Server-side error", CancellationToken.None);
-                }
-                Log.Information("WebSocket connection closed.");
-            }
-        }
-
         public static async Task SendFrontendMessage(string method, object content)
         {
             await sendLock.WaitAsync();
@@ -777,7 +559,6 @@ namespace Segra.Backend.App
 
         public static async Task ShowModal(string title, string description, string type = "info", string? subtitle = null)
         {
-            // Validate the modal type
             if (type != "info" && type != "warning" && type != "error")
             {
                 Log.Warning($"Invalid modal type '{type}'. Defaulting to 'info'.");
@@ -829,187 +610,194 @@ namespace Segra.Backend.App
             }
         }
 
-        // Returns a copy of the list with the game appended, or null if it is already present.
-        private static List<Game>? AddGameToList(List<Game> list, Game game)
+        private static async Task HandleCreateAiClip(JsonElement message)
         {
-            var comparer = new GameEqualityComparer();
-            if (list.Any(g => comparer.Equals(g, game)))
-            {
-                return null;
-            }
-            return new List<Game>(list) { game };
+            Log.Information($"{message}");
+            message.TryGetProperty("FileName", out JsonElement fileNameElement);
+            await AiService.CreateHighlight(fileNameElement.GetString()!);
         }
 
-        // Returns a copy of the list with the game removed, or null if it is not present.
-        private static List<Game>? RemoveGameFromList(List<Game> list, Game game)
+        private static async Task HandleCompressVideo(JsonElement message)
         {
-            var comparer = new GameEqualityComparer();
-            var existing = list.FirstOrDefault(g => comparer.Equals(g, game));
-            if (existing == null)
-            {
-                return null;
-            }
-            var copy = new List<Game>(list);
-            copy.Remove(existing);
-            return copy;
+            Log.Information($"CompressVideo: {message}");
+            message.TryGetProperty("FilePath", out JsonElement filePathElement);
+            await CompressionService.CompressVideo(filePathElement.GetString()!);
         }
 
-        private static bool TryDeserializeGame(JsonElement parameters, out Game game)
+        private static async Task HandleCreateClip(JsonElement message)
         {
-            game = null!;
-            if (!parameters.TryGetProperty("game", out JsonElement gameElement))
-            {
-                return false;
-            }
-            var deserialized = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-            if (deserialized == null || string.IsNullOrEmpty(deserialized.Name) || deserialized.Paths.Count == 0)
-            {
-                return false;
-            }
-            game = deserialized;
-            return true;
-        }
+            Log.Information($"{message}");
 
-        private static async Task HandleAddToWhitelist(JsonElement parameters)
-        {
-            try
+            if (message.TryGetProperty("Segments", out JsonElement segmentsElement))
             {
-                if (!TryDeserializeGame(parameters, out var game)) return;
-
-                var updated = AddGameToList(Settings.Instance.Whitelist, game);
-                if (updated != null)
+                var segments = new List<Segment>();
+                foreach (var segmentElement in segmentsElement.EnumerateArray())
                 {
-                    Settings.Instance.Whitelist = updated;
-                    Log.Information($"Added game {game.Name} to whitelist");
-                }
-                else
-                {
-                    Log.Information($"Game {game.Name} already exists in whitelist");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error adding to whitelist: {ex.Message}");
-                await ShowModal("Error", $"Failed to add game to whitelist: {ex.Message}", "error");
-            }
-        }
-
-        private static async Task HandleRemoveFromWhitelist(JsonElement parameters)
-        {
-            try
-            {
-                if (!TryDeserializeGame(parameters, out var game)) return;
-
-                var updated = RemoveGameFromList(Settings.Instance.Whitelist, game);
-                if (updated != null)
-                {
-                    Settings.Instance.Whitelist = updated;
-                    Log.Information($"Removed game {game.Name} from whitelist");
-                }
-                else
-                {
-                    Log.Information($"Game {game.Name} does not exist in whitelist");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error removing from whitelist: {ex.Message}");
-                await ShowModal("Error", $"Failed to remove game from whitelist: {ex.Message}", "error");
-            }
-        }
-
-        private static async Task HandleAddToBlacklist(JsonElement parameters)
-        {
-            try
-            {
-                if (!TryDeserializeGame(parameters, out var game)) return;
-
-                var updated = AddGameToList(Settings.Instance.Blacklist, game);
-                if (updated != null)
-                {
-                    Settings.Instance.Blacklist = updated;
-                    Log.Information($"Added game {game.Name} to blacklist");
-                }
-                else
-                {
-                    Log.Information($"Game {game.Name} already exists in blacklist");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error adding to blacklist: {ex.Message}");
-                await ShowModal("Error", $"Failed to add game to blacklist: {ex.Message}", "error");
-            }
-        }
-
-        private static async Task HandleRemoveFromBlacklist(JsonElement parameters)
-        {
-            try
-            {
-                if (!TryDeserializeGame(parameters, out var game)) return;
-
-                var updated = RemoveGameFromList(Settings.Instance.Blacklist, game);
-                if (updated != null)
-                {
-                    Settings.Instance.Blacklist = updated;
-                    Log.Information($"Removed game {game.Name} from blacklist");
-                }
-                else
-                {
-                    Log.Information($"Game {game.Name} does not exist in blacklist");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error removing from blacklist: {ex.Message}");
-                await ShowModal("Error", $"Failed to remove game from blacklist: {ex.Message}", "error");
-            }
-        }
-
-        private static async Task HandleMoveGame(JsonElement parameters)
-        {
-            Settings.Instance._isBulkUpdating = true;
-            try
-            {
-                var targetList = parameters.TryGetProperty("targetList", out JsonElement targetListElement)
-                    ? targetListElement.GetString()
-                    : null;
-
-                if (TryDeserializeGame(parameters, out var game) &&
-                    (targetList == "whitelist" || targetList == "blacklist"))
-                {
-                    bool isMovingToWhitelist = targetList == "whitelist";
-
-                    var sourceRemoved = isMovingToWhitelist
-                        ? RemoveGameFromList(Settings.Instance.Blacklist, game)
-                        : RemoveGameFromList(Settings.Instance.Whitelist, game);
-                    if (sourceRemoved != null)
+                    if (segmentElement.TryGetProperty("id", out JsonElement idElement) &&
+                        segmentElement.TryGetProperty("startTime", out JsonElement startTimeElement) &&
+                        segmentElement.TryGetProperty("endTime", out JsonElement endTimeElement) &&
+                        segmentElement.TryGetProperty("fileName", out JsonElement fileNameElement) &&
+                        segmentElement.TryGetProperty("type", out JsonElement videoTypeElement) &&
+                        segmentElement.TryGetProperty("game", out JsonElement gameElement) &&
+                        segmentElement.TryGetProperty("title", out JsonElement titleElement))
                     {
-                        if (isMovingToWhitelist) Settings.Instance.Blacklist = sourceRemoved;
-                        else Settings.Instance.Whitelist = sourceRemoved;
+                        long id = idElement.GetInt64();
+                        double startTime = startTimeElement.GetDouble();
+                        double endTime = endTimeElement.GetDouble();
+                        string fileName = fileNameElement.GetString()!;
+                        string type = videoTypeElement.GetString()!;
+                        string game = gameElement.GetString()!;
+                        string title = titleElement.GetString() ?? string.Empty;
+                        int? igdbId = segmentElement.TryGetProperty("igdbId", out JsonElement igdbIdElement) && igdbIdElement.ValueKind == JsonValueKind.Number
+                            ? igdbIdElement.GetInt32()
+                            : null;
+                        string? filePath = segmentElement.TryGetProperty("filePath", out JsonElement filePathElement)
+                            ? filePathElement.GetString()
+                            : null;
+                        List<int>? mutedAudioTracks = null;
+                        if (segmentElement.TryGetProperty("mutedAudioTracks", out JsonElement mutedEl)
+                            && mutedEl.ValueKind == JsonValueKind.Array)
+                        {
+                            mutedAudioTracks = mutedEl.EnumerateArray().Select(e => e.GetInt32()).ToList();
+                        }
+                        Dictionary<int, double>? audioTrackVolumes = null;
+                        if (segmentElement.TryGetProperty("audioTrackVolumes", out JsonElement volEl)
+                            && volEl.ValueKind == JsonValueKind.Object)
+                        {
+                            audioTrackVolumes = new Dictionary<int, double>();
+                            foreach (var prop in volEl.EnumerateObject())
+                            {
+                                if (int.TryParse(prop.Name, out int trackIdx) && prop.Value.TryGetDouble(out double vol))
+                                    audioTrackVolumes[trackIdx] = vol;
+                            }
+                        }
+
+                        segments.Add(new Segment
+                        {
+                            Id = id,
+                            Type = type,
+                            StartTime = startTime,
+                            EndTime = endTime,
+                            FileName = fileName,
+                            FilePath = filePath,
+                            Game = game,
+                            Title = title,
+                            IgdbId = igdbId,
+                            MutedAudioTracks = mutedAudioTracks,
+                            AudioTrackVolumes = audioTrackVolumes
+                        });
                     }
+                }
 
-                    var targetAdded = isMovingToWhitelist
-                        ? AddGameToList(Settings.Instance.Whitelist, game)
-                        : AddGameToList(Settings.Instance.Blacklist, game);
-                    if (targetAdded != null)
+                bool createSeparateClips = message.TryGetProperty("OutputMode", out JsonElement outputModeElement)
+                    && string.Equals(outputModeElement.GetString(), "separate", StringComparison.OrdinalIgnoreCase);
+
+                await ClipService.CreateClips(segments, createSeparateClips);
+            }
+            else
+            {
+                Log.Information("Segments property not found in CreateClip message.");
+            }
+        }
+
+        private static async Task SetVideoLocationAsync()
+        {
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Select a folder to set as the video location.";
+                fbd.RootFolder = Environment.SpecialFolder.Desktop;
+
+                if (fbd.ShowDialog() == DialogResult.OK)
+                {
+                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
+                    Log.Information($"Selected Folder: {selectedPath}");
+
+                    // Check if the new folder would exceed storage limit
+                    bool shouldProceed = await StorageWarningService.CheckContentFolderChange(selectedPath);
+                    if (shouldProceed)
                     {
-                        if (isMovingToWhitelist) Settings.Instance.Whitelist = targetAdded;
-                        else Settings.Instance.Blacklist = targetAdded;
-                        Log.Information($"Moved game {game.Name} to {targetList}");
+                        Settings.Instance.ContentFolder = selectedPath;
+
+                        // Push the updated path to the frontend so the settings UI reflects the change
+                        await SendSettingsToFrontend("Content folder changed");
+                    }
+                    // If not proceeding, a warning modal was sent to the frontend
+                }
+                else
+                {
+                    Log.Information("Folder selection was canceled.");
+                }
+            }
+        }
+
+        private static async Task SetCacheLocationAsync()
+        {
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Select a folder for metadata, thumbnails, and waveforms.";
+                fbd.RootFolder = Environment.SpecialFolder.Desktop;
+
+                if (fbd.ShowDialog() == DialogResult.OK)
+                {
+                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
+                    string oldCacheFolder = Settings.Instance.CacheFolder;
+                    Log.Information($"Selected Cache Folder: {selectedPath}");
+
+                    Settings.Instance.CacheFolder = selectedPath;
+                    SettingsService.SaveSettings();
+
+                    await SettingsService.MigrateCacheFolder(oldCacheFolder, selectedPath);
+
+                    await SendSettingsToFrontend("Cache folder changed");
+                }
+                else
+                {
+                    Log.Information("Cache folder selection was canceled.");
+                }
+            }
+        }
+
+        private static async Task HandleWebSocketAsync(WebSocket webSocket)
+        {
+            byte[] buffer = new byte[4096];
+            try
+            {
+                while (webSocket.State == WebSocketState.Open)
+                {
+                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        Log.Information("Client initiated WebSocket closure.");
+                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client initiated closure", CancellationToken.None);
+                    }
+                    else
+                    {
+                        string receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        await HandleMessage(receivedMessage);
                     }
                 }
             }
+            catch (WebSocketException wsEx)
+            {
+                Log.Information($"WebSocketException in HandleWebSocketAsync: {wsEx.Message}");
+                Log.Information($"WebSocket state at exception: {webSocket.State}");
+                if (wsEx.InnerException != null)
+                {
+                    Log.Information($"Inner exception: {wsEx.InnerException.Message}");
+                }
+            }
             catch (Exception ex)
             {
-                Log.Error($"Error moving game: {ex.Message}");
-                await ShowModal("Error", $"Failed to move game: {ex.Message}", "error");
+                Log.Information($"General exception in HandleWebSocketAsync: {ex.Message}");
             }
             finally
             {
-                Settings.Instance._isBulkUpdating = false;
-                SettingsService.SaveSettings();
-                _ = SendSettingsToFrontend("Moved game");
+                if (webSocket.State != WebSocketState.Closed && webSocket.State != WebSocketState.Aborted)
+                {
+                    await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "Server-side error", CancellationToken.None);
+                }
+                Log.Information("WebSocket connection closed.");
             }
         }
 
@@ -1033,14 +821,29 @@ namespace Segra.Backend.App
                     string filePath = Shared.PathUtils.Normalize(openFileDialog.FileName);
                     string fileName = Path.GetFileNameWithoutExtension(filePath);
 
+                    // If the selected exe is a known catalog game, link it (catalog name + igdb id + CDN
+                    // icon) so it behaves exactly like adding from search; otherwise treat it as a custom
+                    // game and extract the exe's own icon.
+                    string? catalogName = GameUtils.GetGameNameFromExePath(openFileDialog.FileName);
+                    int? igdbId = GameUtils.GetIgdbIdFromExePath(openFileDialog.FileName);
+                    string? catalogIcon = GameUtils.GetIconFromExePath(openFileDialog.FileName);
+                    // Fall back to the exe's own icon whenever the catalog has no icon for it (even for a
+                    // known game), so the entry always has the best icon available.
+                    string? customIcon = catalogIcon == null
+                        ? Shared.IconUtils.ExtractExeIconBase64(openFileDialog.FileName)
+                        : null;
+
                     var gameObject = new
                     {
-                        name = fileName,
-                        paths = new[] { filePath }
+                        name = catalogName ?? fileName,
+                        paths = new[] { filePath },
+                        igdbId,
+                        icon = catalogIcon,
+                        customIcon
                     };
 
                     await SendFrontendMessage("SelectedGameExecutable", gameObject);
-                    Log.Information($"Selected game executable: {filePath}");
+                    Log.Information($"Selected game executable: {filePath}{(catalogName != null ? $" (matched catalog game '{catalogName}')" : "")}");
                 }
             }
             catch (Exception ex)

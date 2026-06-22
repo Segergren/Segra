@@ -1,8 +1,10 @@
-using Segra.Backend.App;
-using Segra.Backend.Media;
 using Serilog;
-using System.Collections.Concurrent;
 using System.Text.Json;
+using Segra.Backend.App;
+using Segra.Backend.Core;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Media;
+using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -10,12 +12,13 @@ namespace Segra.Backend.Games
 {
     public static class GameUtils
     {
-        private static HashSet<string> _gameExePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, string> _exeToGameName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, int> _exeToIgdbId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, string> _exeToCoverImageId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private static List<GameEntry> _gamesList = new List<GameEntry>();
-        private static BlacklistEntry _blacklist = new BlacklistEntry();
+        private static HashSet<string> _gameExePaths = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, string> _exeToGameName = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, int> _exeToIgdbId = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, string> _exeToCoverImageId = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, string> _exeToIcon = new(StringComparer.OrdinalIgnoreCase);
+        private static List<GameEntry> _gamesList = [];
+        private static BlacklistEntry _blacklist = new();
         private static readonly ConcurrentDictionary<string, Regex> _wildcardRegexCache = new();
         private static bool _isInitialized = false;
 
@@ -109,6 +112,23 @@ namespace Segra.Backend.Games
             return null;
         }
 
+        public static string? GetIconFromExePath(string exePath)
+        {
+            if (!_isInitialized || string.IsNullOrEmpty(exePath))
+                return null;
+
+            string normalizedPath = exePath.Replace("\\", "/");
+            string fileName = Path.GetFileName(exePath);
+
+            foreach (var entry in _exeToIcon)
+            {
+                if (MatchesGamePattern(normalizedPath, fileName, entry.Key))
+                    return entry.Value;
+            }
+
+            return null;
+        }
+
         public static bool HasKnownGameExeInFolder(string gameFolderName, string basePath)
         {
             if (!_isInitialized) return false;
@@ -163,8 +183,58 @@ namespace Segra.Backend.Games
             return _gamesList.Select(game => new GameEntry
             {
                 Name = game.Name,
-                Executables = game.Executables.Select(exe => exe.Replace("/", "\\")).ToList()
+                Executables = game.Executables.Select(exe => exe.Replace("/", "\\")).ToList(),
+                Icon = game.Icon,
+                IgdbId = game.Igdb?.Id
             }).ToList();
+        }
+
+        // Keeps each per-game setting's display name and icon in sync with the games.json catalog.
+        // Games are matched by their stored IgdbId; entries without one are matched by name and have the
+        // id backfilled, so a future catalog rename is then tracked. Custom games (no match) are left as-is.
+        public static void ReconcileGameSettingsWithCatalog()
+        {
+            try
+            {
+                if (_gamesList.Count == 0 || Settings.Instance.Games.Count == 0) return;
+
+                bool changed = false;
+                foreach (var gameSetting in Settings.Instance.Games)
+                {
+                    GameEntry? entry = gameSetting.IgdbId.HasValue
+                        ? _gamesList.FirstOrDefault(e => e.Igdb?.Id == gameSetting.IgdbId.Value)
+                        : _gamesList.FirstOrDefault(e => string.Equals(e.Name, gameSetting.Name, StringComparison.OrdinalIgnoreCase));
+
+                    if (entry == null) continue;
+
+                    if (entry.Igdb?.Id is int id && gameSetting.IgdbId != id)
+                    {
+                        gameSetting.IgdbId = id;
+                        changed = true;
+                    }
+                    if (!string.Equals(gameSetting.Name, entry.Name, StringComparison.Ordinal))
+                    {
+                        gameSetting.Name = entry.Name;
+                        changed = true;
+                    }
+                    if (!string.Equals(gameSetting.Icon, entry.Icon, StringComparison.Ordinal))
+                    {
+                        gameSetting.Icon = entry.Icon;
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    Log.Information("Reconciled per-game settings with the games.json catalog");
+                    SettingsService.SaveSettings();
+                    _ = MessageService.SendSettingsToFrontend("Reconciled game settings with catalog");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to reconcile game settings with catalog");
+            }
         }
 
         public static IReadOnlyDictionary<int, string> GetIgdbIdToNameMap()
@@ -224,12 +294,13 @@ namespace Segra.Backend.Games
             try
             {
                 string jsonContent = File.ReadAllText(jsonPath);
-                _gamesList = JsonSerializer.Deserialize<List<GameEntry>>(jsonContent) ?? new List<GameEntry>();
+                _gamesList = JsonSerializer.Deserialize<List<GameEntry>>(jsonContent) ?? [];
 
                 _gameExePaths.Clear();
                 _exeToGameName.Clear();
                 _exeToIgdbId.Clear();
                 _exeToCoverImageId.Clear();
+                _exeToIcon.Clear();
                 _wildcardRegexCache.Clear();
 
                 foreach (var entry in _gamesList)
@@ -248,6 +319,10 @@ namespace Segra.Backend.Games
                         {
                             _exeToCoverImageId[normalizedExe] = entry.Igdb.CoverImageId;
                         }
+                        if (!string.IsNullOrEmpty(entry.Icon))
+                        {
+                            _exeToIcon[normalizedExe] = entry.Icon;
+                        }
                     }
                 }
 
@@ -257,6 +332,9 @@ namespace Segra.Backend.Games
             {
                 Log.Error(ex, "Error loading games.json");
             }
+
+            // Keep per-game custom settings in sync with the (possibly updated) catalog.
+            ReconcileGameSettingsWithCatalog();
 
             _ = MessageService.SendFrontendMessage("GameList", GetGameList());
 
@@ -350,7 +428,7 @@ namespace Segra.Backend.Games
             try
             {
                 string jsonContent = File.ReadAllText(jsonPath);
-                _blacklist = JsonSerializer.Deserialize<BlacklistEntry>(jsonContent) ?? new BlacklistEntry();
+                _blacklist = JsonSerializer.Deserialize<BlacklistEntry>(jsonContent) ?? new();
 
                 Log.Information($"Loaded blacklist with {_blacklist.PathTexts.Length} path texts and {_blacklist.DescriptionWords.Length} description words from blacklist.json");
             }
@@ -443,6 +521,15 @@ namespace Segra.Backend.Games
 
             [JsonPropertyName("igdb")]
             public IgdbInfo? Igdb { get; set; }
+
+            // CDN icon id (https://segra.tv/api/games/icon/{icon}); not present for every game.
+            [JsonPropertyName("icon")]
+            public string? Icon { get; set; }
+
+            // Flattened IGDB id, only populated for the frontend game list (GetGameList); the catalog
+            // file itself uses the nested `igdb` object above.
+            [JsonPropertyName("igdbId")]
+            public int? IgdbId { get; set; }
         }
 
         public class IgdbInfo

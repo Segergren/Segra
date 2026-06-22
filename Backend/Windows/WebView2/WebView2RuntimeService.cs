@@ -1,5 +1,5 @@
-using Microsoft.Win32;
 using Serilog;
+using Microsoft.Win32;
 
 namespace Segra.Backend.Windows.WebView2
 {

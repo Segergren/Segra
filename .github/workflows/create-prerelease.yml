@@ -36,24 +36,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@v5
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('Frontend/bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
-          restore-keys: nuget-${{ runner.os }}-
-
       - name: Determine Version
         id: get_version
         shell: pwsh
@@ -111,12 +93,6 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
         shell: pwsh
 
-      - name: Install vpk as .NET Global Tool
-        run: |
-          dotnet tool install -g vpk --version 1.2.0
-          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
-        shell: pwsh
-
       - name: Update Frontend version
         working-directory: ./Frontend
         shell: pwsh
@@ -127,33 +103,59 @@ jobs:
           $packageJson | ConvertTo-Json -Depth 100 | Set-Content package.json -NoNewline
           Write-Host "Updated version: $(Select-String -Path package.json -Pattern 'version')"
 
-      - name: Install Frontend dependencies
-        working-directory: ./Frontend
-        run: bun install --frozen-lockfile
-
-      - name: Build Frontend
-        working-directory: ./Frontend
-        run: bun run build
-
-      - name: Move Frontend Build to Resources/wwwroot
-        run: |
-          $source = "./Frontend/dist"
-          $destination = "./Resources/wwwroot"
-          if (-Not (Test-Path -Path $destination)) { New-Item -ItemType Directory -Path $destination -Force }
-          Remove-Item -Path "$destination\*" -Recurse -Force
-          Copy-Item -Path "$source\*" -Destination $destination -Recurse -Force
+      - name: Build frontend; restore backend and install vpk in parallel
         shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # vpk install and the NuGet restore don't depend on the frontend, so run them
+          # in the background while the frontend builds; both are awaited before publish.
+          $vpkJob = Start-Job {
+            dotnet tool install -g vpk --version 1.2.0
+            if ($LASTEXITCODE -ne 0) { throw "vpk install exited $LASTEXITCODE" }
+          }
+          $restoreJob = Start-Job -ArgumentList $PWD.Path {
+            param($root)
+            Set-Location $root
+            dotnet restore -r win-x64
+            if ($LASTEXITCODE -ne 0) { throw "dotnet restore exited $LASTEXITCODE" }
+          }
+
+          Push-Location Frontend
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw "npm ci exited $LASTEXITCODE" }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw "npm run build exited $LASTEXITCODE" }
+          Pop-Location
+
+          # Copy the frontend build into Resources/wwwroot so dotnet publish embeds it.
+          $destination = "./Resources/wwwroot"
+          if (-Not (Test-Path -Path $destination)) { New-Item -ItemType Directory -Path $destination -Force | Out-Null }
+          Remove-Item -Path "$destination\*" -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item -Path "./Frontend/dist/*" -Destination $destination -Recurse -Force
+
+          # Native stderr from a job surfaces as error records, so relax ErrorAction and
+          # merge it into output; gate success on each job's State (jobs throw on failure).
+          $ErrorActionPreference = 'Continue'
+          Write-Host "=== vpk tool install ==="
+          Receive-Job $vpkJob -Wait 2>&1 | ForEach-Object { Write-Host $_ }
+          Write-Host "=== dotnet restore -r win-x64 ==="
+          Receive-Job $restoreJob -Wait 2>&1 | ForEach-Object { Write-Host $_ }
+          if ($vpkJob.State -ne 'Completed') { throw "vpk install job failed (state: $($vpkJob.State))" }
+          if ($restoreJob.State -ne 'Completed') { throw "dotnet restore job failed (state: $($restoreJob.State))" }
 
       - name: Publish the App
-        run: dotnet publish -c Release --self-contained -r win-x64 -o publish -p:Version=${{ env.new_version }}
+        run: dotnet publish -c Release --self-contained -r win-x64 -o publish --no-restore -p:Version=${{ env.new_version }}
         shell: pwsh
 
-      - name: Upload Segra.exe for signing (Pass 1)
+      - name: Upload Segra binaries for signing (Pass 1)
         id: upload_unsigned_exe
         uses: actions/upload-artifact@v7
         with:
           name: Segra-exe-unsigned
-          path: ./publish/Segra.exe
+          path: |
+            ./publish/Segra.exe
+            ./publish/Segra.dll
           if-no-files-found: error
           retention-days: 1
 
@@ -298,3 +300,46 @@ jobs:
             ./releases.win.json
             ./assets.win.json
             ./Segra-${{ needs.build.outputs.new_version }}-full.nupkg
+
+  # Separate, non-blocking job so the release job goes green without waiting on VirusTotal.
+  virustotal:
+    needs: pre-release
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Segra
+
+      - name: Upload installer to VirusTotal
+        shell: bash
+        env:
+          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          FILE="./Segra-win-Setup.exe"
+          if [ -z "${VT_API_KEY:-}" ]; then
+            echo "::warning::VIRUSTOTAL_API_KEY secret not set; skipping VirusTotal upload"
+            exit 0
+          fi
+          if [ ! -f "$FILE" ]; then
+            echo "::warning::$FILE not found; skipping VirusTotal upload"
+            exit 0
+          fi
+          # /files caps at 32MB, so request a one-time large-file upload URL instead.
+          echo "Requesting VirusTotal upload URL..."
+          UPLOAD_URL=$(curl -sS --fail -H "x-apikey: $VT_API_KEY" \
+            https://www.virustotal.com/api/v3/files/upload_url | jq -r '.data')
+          echo "Uploading $FILE to VirusTotal..."
+          ANALYSIS_ID=$(curl -sS --fail -H "x-apikey: $VT_API_KEY" \
+            -F "file=@${FILE}" "$UPLOAD_URL" | jq -r '.data.id')
+          REPORT_URL="https://www.virustotal.com/gui/file-analysis/$ANALYSIS_ID"
+          echo "VirusTotal analysis id: $ANALYSIS_ID"
+          echo "Report: $REPORT_URL"
+          {
+            echo "## VirusTotal"
+            echo "Pre-release installer submitted for scanning."
+            echo ""
+            echo "[View analysis]($REPORT_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"

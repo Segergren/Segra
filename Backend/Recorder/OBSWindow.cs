@@ -4,19 +4,17 @@ namespace Segra.Backend.Recorder
     {
         public OBSWindow()
         {
-            // Hide the form
             ShowInTaskbar = false;
             FormBorderStyle = FormBorderStyle.None;
             Opacity = 0;
 
-            // Initialize OBS utils asynchronously
             Task.Run(() => OBSService.InitializeAsync());
         }
 
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            Hide(); // Ensure the form is hidden on load
+            Hide();
         }
 
         protected override CreateParams CreateParams
