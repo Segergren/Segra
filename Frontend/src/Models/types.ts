@@ -7,6 +7,7 @@ export type DisplayCaptureMethod = 'Auto' | 'DXGI' | 'WGC';
 export type AudioOutputMode = 'All' | 'GameOnly' | 'GameAndDiscord';
 
 export type StartupWindowMode = 'Normal' | 'Minimized';
+export type CloseButtonAction = 'Minimize' | 'Exit';
 
 export interface Content {
   type: ContentType;
@@ -252,6 +253,7 @@ export interface Settings {
   autoGenerateHighlights: boolean;
   runOnStartup: boolean;
   startupWindowMode: StartupWindowMode; // Window state when launched from startup
+  closeButtonAction: CloseButtonAction;
   receiveBetaUpdates: boolean;
   airplaneMode: boolean; // Hides cloud account/login/upload features and signs the user out
   recordingMode: RecordingMode;
@@ -332,6 +334,7 @@ export const initialSettings: Settings = {
   autoGenerateHighlights: true,
   runOnStartup: false,
   startupWindowMode: 'Minimized',
+  closeButtonAction: 'Minimize',
   receiveBetaUpdates: false,
   airplaneMode: false,
   recordingMode: 'Hybrid',

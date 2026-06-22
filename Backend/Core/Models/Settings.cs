@@ -50,6 +50,7 @@ namespace Segra.Backend.Core.Models
         private double _highlightPaddingAfter = 4;
         private bool _runOnStartup = false;
         private StartupWindowMode _startupWindowMode = StartupWindowMode.Minimized;
+        private CloseButtonAction _closeButtonAction = CloseButtonAction.Minimize;
         private bool _receiveBetaUpdates = false;
         private bool _airplaneMode = false;
         private RecordingMode _recordingMode = RecordingMode.Hybrid;
@@ -448,6 +449,19 @@ namespace Segra.Backend.Core.Models
                 if (_startupWindowMode != value)
                 {
                     _startupWindowMode = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("closeButtonAction")]
+        public CloseButtonAction CloseButtonAction
+        {
+            get => _closeButtonAction;
+            set
+            {
+                if (_closeButtonAction != value)
+                {
+                    _closeButtonAction = value;
                 }
             }
         }
@@ -1235,6 +1249,13 @@ namespace Segra.Backend.Core.Models
     {
         Normal,
         Minimized
+    }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum CloseButtonAction
+    {
+        Minimize,
+        Exit
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]

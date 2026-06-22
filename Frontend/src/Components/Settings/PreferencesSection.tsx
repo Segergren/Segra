@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { VolumeX, Volume2 } from 'lucide-react';
 import CloudBadge from '../CloudBadge';
 import DropdownSelect from '../DropdownSelect';
-import { Settings as SettingsType, StartupWindowMode } from '../../Models/types';
+import { CloseButtonAction, Settings as SettingsType, StartupWindowMode } from '../../Models/types';
 
 interface PreferencesSectionProps {
   settings: SettingsType;
@@ -64,6 +64,20 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
         </AnimatePresence>
       </div>
 
+      <div className="flex flex-col">
+        <span className="font-medium">Close Button Action</span>
+        <div className="w-44 pt-2">
+          <DropdownSelect
+            size="sm"
+            items={[
+              { value: 'Minimize', label: 'Minimize to Tray' },
+              { value: 'Exit', label: 'Close App' },
+            ]}
+            value={settings.closeButtonAction}
+            onChange={(val) => updateSettings({ closeButtonAction: val as CloseButtonAction })}
+          />
+        </div>
+      </div>
       <div className="flex items-center">
         <label className="flex items-center gap-2">
           <input

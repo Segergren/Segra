@@ -699,6 +699,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.CloseButtonAction != updatedSettings.CloseButtonAction)
+            {
+                Log.Information($"CloseButtonAction changed from '{settings.CloseButtonAction}' to '{updatedSettings.CloseButtonAction}'");
+                settings.CloseButtonAction = updatedSettings.CloseButtonAction;
+                hasChanges = true;
+            }
+
             if (settings.AirplaneMode != updatedSettings.AirplaneMode)
             {
                 Log.Information($"AirplaneMode changed from '{settings.AirplaneMode}' to '{updatedSettings.AirplaneMode}'");
