@@ -51,34 +51,37 @@ export default function VideoSettingsSection({
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-      <h2 className="text-xl font-semibold mb-4">Video Settings</h2>
+      <div className="flex items-center gap-2 mb-4">
+        <h2 className="text-xl font-semibold">Video Settings</h2>
+        {isRecording && <span className="text-xs text-warning">(locked while recording)</span>}
+      </div>
 
       {/* Quality Preset Selector */}
       <div className="mb-4">
         <div className="grid grid-cols-4 gap-3">
           <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border ${
               settings.videoQualityPreset === 'low' ? 'border-primary' : 'border-base-400'
-            }`}
-            onClick={() => handlePresetChange('low')}
+            } ${isRecording ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-base-300'}`}
+            onClick={() => !isRecording && handlePresetChange('low')}
           >
             <div className="text-sm font-semibold">Low Quality</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">720p • 30fps</div>
           </div>
           <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border ${
               settings.videoQualityPreset === 'standard' ? 'border-primary' : 'border-base-400'
-            }`}
-            onClick={() => handlePresetChange('standard')}
+            } ${isRecording ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-base-300'}`}
+            onClick={() => !isRecording && handlePresetChange('standard')}
           >
             <div className="text-sm font-semibold">Standard</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">1080p • 60fps</div>
           </div>
           <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border ${
               settings.videoQualityPreset === 'high' ? 'border-primary' : 'border-base-400'
-            }`}
-            onClick={() => handlePresetChange('high')}
+            } ${isRecording ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-base-300'}`}
+            onClick={() => !isRecording && handlePresetChange('high')}
           >
             <div className="text-sm font-semibold">High Quality</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">
@@ -86,10 +89,10 @@ export default function VideoSettingsSection({
             </div>
           </div>
           <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border ${
               settings.videoQualityPreset === 'custom' ? 'border-primary' : 'border-base-400'
-            }`}
-            onClick={() => handlePresetChange('custom')}
+            } ${isRecording ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-base-300'}`}
+            onClick={() => !isRecording && handlePresetChange('custom')}
           >
             <div className="text-sm font-semibold">Custom</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">Manual config</div>
@@ -222,6 +225,7 @@ export default function VideoSettingsSection({
                   onChange={(val) =>
                     updateSettings({ resolution: val as '720p' | '1080p' | '1440p' | '4K' })
                   }
+                  disabled={isRecording}
                 />
               </div>
 
@@ -237,6 +241,7 @@ export default function VideoSettingsSection({
                   }))}
                   value={String(settings.frameRate)}
                   onChange={(val) => updateSettings({ frameRate: Number(val) })}
+                  disabled={isRecording}
                 />
               </div>
 
@@ -258,6 +263,7 @@ export default function VideoSettingsSection({
                   ]}
                   value={settings.rateControl}
                   onChange={(val) => updateSettings({ rateControl: val })}
+                  disabled={isRecording}
                 />
               </div>
 
@@ -274,6 +280,7 @@ export default function VideoSettingsSection({
                     }))}
                     value={String(settings.bitrate)}
                     onChange={(val) => updateSettings({ bitrate: Number(val) })}
+                    disabled={isRecording}
                   />
                 </div>
               )}
@@ -296,6 +303,7 @@ export default function VideoSettingsSection({
                         const max = Math.max(min, settings.maxBitrate ?? min);
                         updateSettings({ minBitrate: min, maxBitrate: max });
                       }}
+                      disabled={isRecording}
                     />
                   </div>
                   <div className="form-control">
@@ -319,6 +327,7 @@ export default function VideoSettingsSection({
                         const min = Math.min(max, settings.minBitrate ?? settings.bitrate);
                         updateSettings({ maxBitrate: max, minBitrate: min });
                       }}
+                      disabled={isRecording}
                     />
                   </div>
                 </>
@@ -342,7 +351,8 @@ export default function VideoSettingsSection({
                     }}
                     min="0"
                     max="51"
-                    className="input input-bordered bg-base-200 w-full outline-none focus:border-base-400"
+                    disabled={isRecording}
+                    className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:opacity-80 w-full outline-none focus:border-base-400"
                   />
                 </div>
               )}
@@ -365,7 +375,8 @@ export default function VideoSettingsSection({
                     }}
                     min="0"
                     max="30"
-                    className="input input-bordered bg-base-200 w-full outline-none focus:border-base-400"
+                    disabled={isRecording}
+                    className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:opacity-80 w-full outline-none focus:border-base-400"
                   />
                 </div>
               )}
@@ -382,6 +393,7 @@ export default function VideoSettingsSection({
                   ]}
                   value={settings.encoder}
                   onChange={(val) => updateSettings({ encoder: val as 'gpu' | 'cpu' })}
+                  disabled={isRecording}
                 />
               </div>
 
@@ -420,7 +432,7 @@ export default function VideoSettingsSection({
                       codec: appState.codecs.find((c) => c.internalEncoderId === val),
                     })
                   }
-                  disabled={appState.codecs.length === 0}
+                  disabled={isRecording || appState.codecs.length === 0}
                 />
               </div>
             </div>
@@ -467,17 +479,21 @@ export default function VideoSettingsSection({
             onChange={(val) =>
               updateSettings({ displayCaptureMethod: val as DisplayCaptureMethod })
             }
+            disabled={isRecording}
           />
         </div>
       </div>
 
       {/* 4:3 Stretch Option */}
       <div className="mt-3">
-        <label className="flex items-center gap-2 cursor-pointer">
+        <label
+          className={`flex items-center gap-2 ${isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+        >
           <input
             type="checkbox"
             checked={settings.stretch4By3}
             onChange={(e) => updateSettings({ stretch4By3: e.target.checked })}
+            disabled={isRecording}
             className="checkbox checkbox-primary checkbox-sm"
           />
           <span>Stretch 4:3 content to 16:9</span>
@@ -487,11 +503,14 @@ export default function VideoSettingsSection({
       {/* HDR Option - only shown when at least one display is in HDR mode */}
       {appState.displays.some((d) => d.isHdr) && (
         <div className="mt-3">
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label
+            className={`flex items-center gap-2 ${isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+          >
             <input
               type="checkbox"
               checked={settings.enableHdr}
               onChange={(e) => updateSettings({ enableHdr: e.target.checked })}
+              disabled={isRecording}
               className="checkbox checkbox-primary checkbox-sm"
             />
             <span>Record in HDR</span>

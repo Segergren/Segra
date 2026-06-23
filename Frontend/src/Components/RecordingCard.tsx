@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PreRecording, Recording, GameResponse, Game } from '../Models/types';
+import { PreRecording, Recording, GameResponse, GameSetting } from '../Models/types';
 import { Gamepad2, Monitor, Ellipsis, Ban } from 'lucide-react';
-import { useSettings } from '../Context/SettingsContext';
+import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAppState } from '../Context/AppStateContext';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import Button from './Button';
@@ -17,7 +17,9 @@ interface RecordingCardProps {
 const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }) => {
   const timerRef = useRef<HTMLSpanElement>(null);
   const previewImgRef = useRef<HTMLImageElement>(null);
-  const { showGameBackground } = useSettings();
+  const settings = useSettings();
+  const showGameBackground = settings.showGameBackground;
+  const updateSettings = useSettingsUpdater();
   const state = useAppState();
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const lastFetchedGameRef = useRef<string | null>(null);
@@ -31,13 +33,25 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
 
   const handleAddToBlocklist = useCallback(() => {
     if (!gameListEntry) return;
-    const game: Game = {
-      name: gameListEntry.name,
-      paths: gameListEntry.executables,
-    };
-    sendMessageToBackend('AddToBlacklist', { game });
+    const games = settings.games.some((g) => g.name === gameListEntry.name)
+      ? settings.games.map((g) => (g.name === gameListEntry.name ? { ...g, record: false } : g))
+      : [
+          ...settings.games,
+          {
+            name: gameListEntry.name,
+            paths: gameListEntry.executables,
+            igdbId: gameListEntry.igdbId ?? null,
+            icon: gameListEntry.icon,
+            customIcon: null,
+            record: false,
+            qualityOverride: null,
+            recordingModeOverride: null,
+            discardSessionsWithoutBookmarksOverride: null,
+          } as GameSetting,
+        ];
+    updateSettings({ games });
     sendMessageToBackend('StopRecording');
-  }, [gameListEntry]);
+  }, [gameListEntry, settings.games, updateSettings]);
 
   // Listen for bookmark created, preview state, and preview-frame events
   useEffect(() => {

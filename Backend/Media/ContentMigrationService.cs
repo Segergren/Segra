@@ -1,11 +1,11 @@
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Media;
-using Segra.Backend.Shared;
-using Segra.Backend.Windows.Storage;
 using Serilog;
+using Segra.Backend.App;
+using Segra.Backend.Core;
+using Segra.Backend.Shared;
+using Segra.Backend.Core.Models;
+using Segra.Backend.Windows.Storage;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Media
 {
     /// <summary>
     /// Moves existing content whose video files live outside the selected recording path

@@ -1,7 +1,7 @@
+using Serilog;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Serilog;
 
 namespace Segra.Backend.Media
 {
@@ -120,10 +120,7 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Gets the path to the ffmpeg executable.
         /// </summary>
-        public static string GetFFmpegPath()
-        {
-            return FFmpegExecutable;
-        }
+        public static string GetFFmpegPath() => FFmpegExecutable;
 
         /// <summary>
         /// Builds a single line for an FFmpeg concat-demuxer list file. The demuxer treats text
@@ -139,10 +136,7 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Checks if ffmpeg executable exists
         /// </summary>
-        public static bool FFmpegExists()
-        {
-            return File.Exists(FFmpegExecutable);
-        }
+        public static bool FFmpegExists() => File.Exists(FFmpegExecutable);
 
         /// <summary>
         /// Runs ffmpeg with progress tracking and callbacks
@@ -189,12 +183,10 @@ namespace Segra.Backend.Media
                 {
                     if (string.IsNullOrEmpty(e.Data)) return;
 
-                    // Log all FFmpeg stderr output
                     Log.Information($"[Process {processId}] FFmpeg stderr: {e.Data}");
 
                     try
                     {
-                        // Only try to parse time if we have total duration
                         if (totalDuration.HasValue)
                         {
                             var timeMatch = Regex.Match(e.Data, @"time=(\d+:\d+:\d+\.\d+)");

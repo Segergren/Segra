@@ -1,14 +1,14 @@
+using Serilog;
+using ObsKit.NET;
 using System.Buffers;
 using System.Drawing;
-using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
-using ObsKit.NET;
-using ObsKit.NET.Native.Types;
 using ObsKit.NET.Video;
 using Segra.Backend.App;
-using Serilog;
+using System.Drawing.Imaging;
+using ObsKit.NET.Native.Types;
+using System.Runtime.InteropServices;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Recorder
 {
     /// <summary>
     /// Streams a low-resolution JPEG preview of the active OBS canvas to the frontend.

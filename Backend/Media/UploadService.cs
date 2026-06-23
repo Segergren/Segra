@@ -1,18 +1,19 @@
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Services;
-using Segra.Backend.Shared;
 using Serilog;
-using System.Diagnostics;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text.Json;
+using Segra.Backend.App;
+using Segra.Backend.Auth;
+using Segra.Backend.Core;
+using System.Diagnostics;
+using Segra.Backend.Shared;
+using System.Net.Http.Headers;
+using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Media
 {
     internal static class UploadService
     {
-        private static readonly HttpClient _httpClient = new HttpClient
+        private static readonly HttpClient _httpClient = new()
         {
             Timeout = TimeSpan.FromMinutes(10)
         };
@@ -254,14 +255,6 @@ namespace Segra.Backend.Media
             }
         }
 
-        private static void AddOptionalContent(MultipartFormDataContent formData, JsonElement message, string field)
-        {
-            if (message.TryGetProperty(field, out JsonElement element))
-            {
-                formData.Add(new StringContent(element.GetString()!), field.ToLower());
-            }
-        }
-
         public class ProgressableStreamContent : HttpContent
         {
             private readonly byte[] _content;
@@ -300,5 +293,12 @@ namespace Segra.Backend.Media
             }
         }
 
+        private static void AddOptionalContent(MultipartFormDataContent formData, JsonElement message, string field)
+        {
+            if (message.TryGetProperty(field, out JsonElement element))
+            {
+                formData.Add(new StringContent(element.GetString()!), field.ToLower());
+            }
+        }
     }
 }

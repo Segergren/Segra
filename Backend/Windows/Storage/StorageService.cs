@@ -1,8 +1,8 @@
-using Segra.Backend.Core.Models;
-using Segra.Backend.Media;
-using Segra.Backend.Shared;
 using Serilog;
 using System.Diagnostics;
+using Segra.Backend.Media;
+using Segra.Backend.Shared;
+using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Windows.Storage
 {
@@ -120,10 +120,10 @@ namespace Segra.Backend.Windows.Storage
             return fullDrives;
         }
 
-        public static void UpdateFolderSizeInState()
+        public static void UpdateFolderSizeInState(bool sendToFrontend = true)
         {
             double currentSizeGb = GetCurrentFolderSizeGb();
-            AppState.Instance.CurrentFolderSizeGb = currentSizeGb;
+            AppState.Instance.SetCurrentFolderSizeGb(currentSizeGb, sendToFrontend);
             Log.Information($"Updated folder size in state: {currentSizeGb:F2} GB");
         }
 

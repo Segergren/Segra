@@ -1,12 +1,11 @@
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Recorder;
-using Segra.Backend.Services;
 using Serilog;
+using NAudio.Wave;
+using Segra.Backend.App;
 using System.Diagnostics;
+using NAudio.CoreAudioApi;
+using Segra.Backend.Recorder;
+using Segra.Backend.Core.Models;
+using NAudio.Wave.SampleProviders;
 using System.Runtime.InteropServices;
 
 namespace Segra.Backend.Windows.Input
@@ -143,7 +142,9 @@ namespace Segra.Backend.Windows.Input
         {
             var recording = AppState.Instance.Recording;
             var preRecording = AppState.Instance.PreRecording;
-            var recordingMode = Settings.Instance.RecordingMode;
+            // Use the active recording's effective mode (per-game override aware) so bookmark/replay
+            // hotkeys behave according to the mode the current recording actually started in.
+            var recordingMode = OBSService.ActiveEffectiveSettings?.RecordingMode ?? Settings.Instance.RecordingMode;
 
             switch (action)
             {
@@ -151,11 +152,12 @@ namespace Segra.Backend.Windows.Input
                     if (recording != null && (recordingMode == RecordingMode.Session || recordingMode == RecordingMode.Hybrid))
                     {
                         Log.Information("Saving bookmark...");
-                        recording.Bookmarks.Add(new Bookmark
+                        var bookmark = new Bookmark
                         {
                             Type = BookmarkType.Manual,
                             Time = DateTime.Now - recording.StartTime
-                        });
+                        };
+                        recording.AddBookmark(bookmark);
                         Task.Run(PlayBookmarkSound);
                         _ = MessageService.SendFrontendMessage("BookmarkCreated", new { });
                     }

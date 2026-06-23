@@ -1,11 +1,11 @@
-using Segra.Backend.Core.Models;
-using Segra.Backend.Recorder;
 using Serilog;
 using System.Drawing;
+using Segra.Backend.Recorder;
 using System.Drawing.Imaging;
+using global::Windows.Media.Ocr;
+using Segra.Backend.Core.Models;
 using System.Runtime.InteropServices;
 using global::Windows.Graphics.Imaging;
-using global::Windows.Media.Ocr;
 
 namespace Segra.Backend.Games
 {
@@ -384,7 +384,8 @@ namespace Segra.Backend.Games
 
         private void AddBookmark(BookmarkType type, DateTime? detectionTime = null)
         {
-            if (AppState.Instance.Recording == null)
+            var recording = AppState.Instance.Recording;
+            if (recording == null)
             {
                 Log.Warning($"[{_config.LogPrefix}] No recording active, skipping {type} bookmark");
                 return;
@@ -393,9 +394,9 @@ namespace Segra.Backend.Games
             var bookmark = new Bookmark
             {
                 Type = type,
-                Time = (detectionTime ?? DateTime.Now) - AppState.Instance.Recording.StartTime - _config.TimeCompensation
+                Time = (detectionTime ?? DateTime.Now) - recording.StartTime - _config.TimeCompensation
             };
-            AppState.Instance.Recording.Bookmarks.Add(bookmark);
+            recording.AddBookmark(bookmark);
             Log.Information($"[{_config.LogPrefix}] BOOKMARK ADDED: {type} at {bookmark.Time}");
         }
     }

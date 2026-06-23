@@ -1,20 +1,20 @@
+using Serilog;
+using Velopack;
 using Photino.NET;
-using Photino.NET.Server;
+using System.IO.Pipes;
 using Segra.Backend.Api;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Recorder;
-using Segra.Backend.Services;
+using Photino.NET.Server;
+using Segra.Backend.Core;
+using System.Diagnostics;
 using Segra.Backend.Shared;
+using Segra.Backend.Recorder;
+using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Power;
 using Segra.Backend.Windows.Storage;
+using Segra.Backend.Windows.GameMode;
 using Segra.Backend.Windows.WebView2;
-using Serilog;
-using System.Diagnostics;
-using System.IO.Pipes;
-using System.Reflection;
 using System.Runtime.InteropServices;
-using Velopack;
 
 namespace Segra.Backend.App
 {
@@ -36,7 +36,7 @@ namespace Segra.Backend.App
         const int SM_CXFULLSCREEN = 16;
         const int SM_CYFULLSCREEN = 17;
         public static bool IsFirstRun { get; private set; } = false;
-        private static readonly AutoResetEvent ShowWindowEvent = new AutoResetEvent(false);
+        private static readonly AutoResetEvent ShowWindowEvent = new(false);
         public static bool hasLoadedInitialSettings = false;
         public static PhotinoWindow? Window { get; private set; }
         private static readonly string LogFilePath =
@@ -206,7 +206,6 @@ namespace Segra.Backend.App
                     });
                 }
 
-                // Get the directory containing the executable
                 Log.Information("Serving React app at {AppUrl}", appUrl);
 
                 Task.Run(() =>
@@ -223,6 +222,7 @@ namespace Segra.Backend.App
                 {
                     _ = SettingsService.LoadContentFromFolderIntoState(true);
                     StartupService.SetStartupStatus(true);
+                    Settings.Instance.DisableWindowsGameMode = true;
                     AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
                     SettingsService.SelectDefaultDevices();
                     _ = PresetsService.ApplyVideoPreset("high");
@@ -246,14 +246,19 @@ namespace Segra.Backend.App
                 // Check for updates
                 Task.Run(() => UpdateService.UpdateAppIfNecessary(forceCheck: true));
 
-                // Check if application was launched from startup
-                bool startMinimized = IsLaunchedFromStartup();
+                // Check if application was launched from startup. Only minimize to tray when the
+                // user has chosen the Minimized startup window mode; otherwise open normally.
+                bool startMinimized = IsLaunchedFromStartup() &&
+                    Settings.Instance.StartupWindowMode == StartupWindowMode.Minimized;
                 Log.Information($"Starting application{(startMinimized ? " minimized from startup" : "")}");
 
                 AddNotifyIcon();
 
                 // Start monitoring system power state changes (sleep/wake)
                 Task.Run(PowerModeMonitor.StartMonitoring);
+
+                // Ensure Windows Game Mode is off when the user has opted in (no-op otherwise)
+                Task.Run(GameModeService.EnforceDisabledIfEnabled);
 
                 // Run the OBS Initializer in a separate thread and application to make sure someting on the main thread doesn't block
                 Task.Run(() => Application.Run(new OBSWindow()));
@@ -289,34 +294,6 @@ namespace Segra.Backend.App
             }
         }
 
-        private static void Shutdown()
-        {
-            Log.Information("Application shutting down.");
-
-            // Shutdown OBS if it was initialized
-            OBSService.Shutdown();
-
-            Log.CloseAndFlush(); // Ensure all logs are written before the application exits
-
-            // Release the mutex when closing (only if we own it)
-            if (singleInstanceMutex != null)
-            {
-                try
-                {
-                    singleInstanceMutex.ReleaseMutex();
-                }
-                catch (ApplicationException)
-                {
-                    // Mutex was not owned by this thread, which is fine
-                    // This can happen when exiting from the tray icon thread
-                }
-                finally
-                {
-                    singleInstanceMutex.Dispose();
-                }
-            }
-        }
-
         public static void ConfigureLogging()
         {
             PurgeOldLogs();
@@ -327,43 +304,6 @@ namespace Segra.Backend.App
                 //.WriteTo.Debug(restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning) // Remove restricted minimum level to show all logs but increase lag while debugging
                 .WriteTo.Sink(new TrimmingFileSink(LogFilePath, maxFileSizeBytes, trimTargetBytes, LogOutputTemplate))
                 .CreateLogger();
-        }
-
-        private static void PurgeOldLogs()
-        {
-            try
-            {
-                var logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
-
-                if (!Directory.Exists(logDirectory))
-                    return;
-
-                var logFiles = Directory.GetFiles(logDirectory, "*.log");
-
-                if (logFiles.Length == 0)
-                    return;
-
-                // Get the first .log file found
-                var logFilePath = logFiles[0];
-                var fileInfo = new FileInfo(logFilePath);
-
-                if (!fileInfo.Exists || fileInfo.Length <= maxFileSizeBytes)
-                    return;
-
-                var lines = File.ReadAllLines(logFilePath).ToList();
-                var avgLineSize = fileInfo.Length / lines.Count;
-                var linesToKeep = (int)(trimTargetBytes / avgLineSize);
-
-                if (linesToKeep < lines.Count)
-                {
-                    var recentLines = lines.Skip(lines.Count - linesToKeep).ToList();
-                    File.WriteAllLines(logFilePath, recentLines);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error purging logs: {ex.Message}");
-            }
         }
 
         private static Size? _windowSizeBeforeFullscreen;
@@ -405,6 +345,85 @@ namespace Segra.Backend.App
             catch (Exception ex)
             {
                 Log.Error(ex, "Error setting fullscreen state");
+            }
+        }
+
+        private static void Shutdown()
+        {
+            Log.Information("Application shutting down.");
+
+            // Stop any active recording first so OBS finalizes the file cleanly. Task.Run + block keeps
+            // the awaits off the tray thread, whose WinForms SynchronizationContext would otherwise deadlock.
+            if (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null)
+            {
+                Log.Information("Active recording detected during shutdown; stopping it before exit.");
+                try
+                {
+                    Task.Run(() => OBSService.StopRecording()).GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error stopping recording during shutdown");
+                }
+            }
+
+            // Shutdown OBS if it was initialized
+            OBSService.Shutdown();
+
+            Log.CloseAndFlush(); // Ensure all logs are written before the application exits
+
+            // Release the mutex when closing (only if we own it)
+            if (singleInstanceMutex != null)
+            {
+                try
+                {
+                    singleInstanceMutex.ReleaseMutex();
+                }
+                catch (ApplicationException)
+                {
+                    // Mutex was not owned by this thread, which is fine
+                    // This can happen when exiting from the tray icon thread
+                }
+                finally
+                {
+                    singleInstanceMutex.Dispose();
+                }
+            }
+        }
+
+        private static void PurgeOldLogs()
+        {
+            try
+            {
+                var logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
+
+                if (!Directory.Exists(logDirectory))
+                    return;
+
+                var logFiles = Directory.GetFiles(logDirectory, "*.log");
+
+                if (logFiles.Length == 0)
+                    return;
+
+                var logFilePath = logFiles[0];
+                var fileInfo = new FileInfo(logFilePath);
+
+                if (!fileInfo.Exists || fileInfo.Length <= maxFileSizeBytes)
+                    return;
+
+                var lines = File.ReadAllLines(logFilePath).ToList();
+                var avgLineSize = fileInfo.Length / lines.Count;
+                var linesToKeep = (int)(trimTargetBytes / avgLineSize);
+
+                if (linesToKeep < lines.Count)
+                {
+                    var recentLines = lines.Skip(lines.Count - linesToKeep).ToList();
+                    File.WriteAllLines(logFilePath, recentLines);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error purging logs: {ex.Message}");
             }
         }
 

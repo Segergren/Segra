@@ -12,7 +12,10 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-      <h2 className="text-xl font-semibold mb-4">Capture Mode</h2>
+      <div className="flex items-center gap-2 mb-4">
+        <h2 className="text-xl font-semibold">Capture Mode</h2>
+        {isRecording && <span className="text-xs text-warning">(locked while recording)</span>}
+      </div>
       <div className="mb-6">
         <div
           className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Hybrid' ? 'border-primary' : 'border-base-400'} ${isRecording ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-base-300'}`}

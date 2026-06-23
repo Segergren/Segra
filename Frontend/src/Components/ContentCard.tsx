@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import { useMemo, useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useSettings } from '../Context/SettingsContext';
 import { useAppState } from '../Context/AppStateContext';
 import { BookmarkType, Content, includeInHighlight } from '../Models/types';
@@ -27,6 +27,14 @@ import Button from './Button';
 
 type VideoType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
 
+// Content keys (type:fileName) present at the first populated list. Anything absent afterwards
+// appeared while the app was open and is the only kind whose thumbnail animates in.
+const knownContentKeys = new Set<string>();
+let hasSeededKnownContent = false;
+
+// Thumbnails already loaded this session, so a remounted card shows instantly without re-animating.
+const loadedThumbnailKeys = new Set<string>();
+
 interface VideoCardProps {
   content?: Content; // Optional for skeleton cards
   type: VideoType;
@@ -47,7 +55,7 @@ export default function ContentCard({
   isHighlighted = false,
 }: VideoCardProps) {
   const { enableAi, showNewBadgeOnVideos, airplaneMode } = useSettings();
-  const { cacheFolder } = useAppState();
+  const { cacheFolder, content: allContent } = useAppState();
   const { session } = useAuth();
   const { openModal, closeModal } = useModal();
   const { aiProgress } = useAiHighlights();
@@ -65,6 +73,39 @@ export default function ContentCard({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const thumbnailRef = useRef<HTMLImageElement>(null);
+  const thumbnailKey = `${type}:${content?.fileName ?? ''}`;
+  const isNewContent =
+    hasSeededKnownContent && content != null && !knownContentKeys.has(thumbnailKey);
+
+  // Existing content starts "loaded" (instant); only newly appeared content crossfades from the shimmer.
+  const [thumbnailLoaded, setThumbnailLoaded] = useState(
+    () => !isNewContent || loadedThumbnailKeys.has(thumbnailKey),
+  );
+
+  // Seed the known set on the first populated list; record each card on mount so it stays "known".
+  useEffect(() => {
+    if (!hasSeededKnownContent && allContent.length > 0) {
+      for (const item of allContent) knownContentKeys.add(`${item.type}:${item.fileName}`);
+      hasSeededKnownContent = true;
+    }
+    if (content?.fileName) knownContentKeys.add(thumbnailKey);
+  }, [allContent, thumbnailKey, content?.fileName]);
+
+  const markThumbnailLoaded = useCallback(() => {
+    loadedThumbnailKeys.add(thumbnailKey);
+    setThumbnailLoaded(true);
+  }, [thumbnailKey]);
+
+  // A cached thumbnail can already be `complete` on mount. Mark it loaded before paint so it shows
+  // instantly (no crossfade) rather than briefly shimmering.
+  useLayoutEffect(() => {
+    const img = thumbnailRef.current;
+    if (img?.complete && img.naturalWidth > 0) {
+      markThumbnailLoaded();
+    }
+  }, [markThumbnailLoaded]);
 
   const updateDropdownPosition = useCallback(() => {
     if (dropdownRef.current) {
@@ -107,7 +148,7 @@ export default function ContentCard({
               <figure className="relative aspect-w-16 aspect-h-9">
                 {/* Thumbnail Skeleton */}
                 <div
-                  className="skeleton w-full h-0 relative bg-base-300/70 rounded-none"
+                  className="skeleton w-full h-0 relative bg-base-200/75 rounded-none"
                   style={{ paddingTop: '56.25%' }}
                 ></div>
                 <span
@@ -127,22 +168,27 @@ export default function ContentCard({
 
         {type !== 'Highlight' && (
           <>
-            <figure className="relative aspect-w-16 aspect-h-9">
-              {/* Thumbnail Skeleton */}
-              <div
-                className="skeleton w-full h-0 relative bg-base-300/70 rounded-none"
-                style={{ paddingTop: '56.25%' }}
-              ></div>
-              <span
-                className="absolute bottom-2 right-2 bg-opacity-75 text-white text-xs rounded skeleton w-full"
-                style={{ aspectRatio: '16/9', visibility: 'hidden' }}
-              ></span>
+            {/* Mirrors the loaded card's figure/body exactly so the skeleton is the same height. */}
+            <figure className="relative aspect-video bg-black">
+              <div className="skeleton w-full h-full rounded-none bg-base-200/75"></div>
             </figure>
-            <div className="card card-body bg-base-300">
-              {/* Title Skeleton */}
-              <div className="skeleton bg-base-300 h-5 w-3/4 mb-2 mt-1"></div>
+            <div className="card-body gap-1 pt-2">
+              <div className="flex justify-between items-center">
+                <h2 className="card-title !block w-3/4">
+                  {/* Title Skeleton */}
+                  <span className="skeleton inline-block align-middle h-4 w-full rounded"></span>
+                </h2>
+                <span
+                  aria-hidden="true"
+                  className="btn btn-ghost btn-sm btn-circle invisible shrink-0"
+                >
+                  <Ellipsis size={24} />
+                </span>
+              </div>
               {/* Metadata Skeleton */}
-              <div className="skeleton h-4 w-4/6"></div>
+              <div className="text-sm">
+                <span className="skeleton inline-block align-middle h-3.5 w-4/6 rounded"></span>
+              </div>
             </div>
           </>
         )}
@@ -285,14 +331,21 @@ export default function ContentCard({
       }}
     >
       <figure className="relative aspect-video bg-black">
+        {/* Shimmer crossfades out as the image fades in, so the figure never flashes black. */}
+        <div
+          className={`absolute inset-0 rounded-none bg-base-200/75 transition-opacity duration-200 ${thumbnailLoaded ? 'opacity-0' : 'skeleton opacity-100'}`}
+        ></div>
         <img
+          ref={thumbnailRef}
           src={thumbnailPath}
           alt={'thumbnail'}
-          className="w-full h-full object-contain select-none"
+          className={`w-full h-full object-contain select-none transition-opacity duration-200 ${thumbnailLoaded ? 'opacity-100' : 'opacity-0'}`}
           loading="lazy"
           width={1600}
           height={900}
           draggable={false}
+          onLoad={markThumbnailLoaded}
+          onError={markThumbnailLoaded}
         />
         <span className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
           {formattedDuration}

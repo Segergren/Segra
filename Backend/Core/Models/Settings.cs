@@ -1,8 +1,6 @@
-using Segra.Backend.App;
-using Segra.Backend.Services;
-using Segra.Backend.Shared;
-using Segra.Backend.Windows.Display;
 using Serilog;
+using Segra.Backend.App;
+using Segra.Backend.Core;
 using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Core.Models
@@ -51,14 +49,14 @@ namespace Segra.Backend.Core.Models
         private double _highlightPaddingBefore = 4;
         private double _highlightPaddingAfter = 4;
         private bool _runOnStartup = false;
+        private StartupWindowMode _startupWindowMode = StartupWindowMode.Minimized;
         private bool _receiveBetaUpdates = false;
         private bool _airplaneMode = false;
         private RecordingMode _recordingMode = RecordingMode.Hybrid;
         private int _replayBufferDuration = 30;
         private int _replayBufferMaxSize = 1000;
         private List<Keybind> _keybindings;
-        private List<Game> _whitelist = new List<Game>();
-        private List<Game> _blacklist = new List<Game>();
+        private List<GameSetting> _games = new List<GameSetting>();
         private Auth _auth = new Auth();
         private bool _clipClearSegmentsAfterCreatingClip = false;
         private bool _clipShowInBrowserAfterUpload = false;
@@ -81,6 +79,7 @@ namespace Segra.Backend.Core.Models
         private string _clipQualityPreset = "standard";
         private bool _removeOriginalAfterCompression = false;
         private bool _discardSessionsWithoutBookmarks = false;
+        private bool _disableWindowsGameMode = false;
         private GameIntegrations _gameIntegrations = new GameIntegrations();
 
         private List<MenuItemPreference> _menuItems = KnownMenuItemIds
@@ -88,7 +87,6 @@ namespace Segra.Backend.Core.Models
             .ToList();
         private string _defaultMenuItem = "Full Sessions";
 
-        // Returns the default keybindings
         private static List<Keybind> GetDefaultKeybindings()
         {
             return new List<Keybind>
@@ -106,7 +104,6 @@ namespace Segra.Backend.Core.Models
             _keybindings = GetDefaultKeybindings();
         }
 
-        // Begin bulk update suppression
         public void BeginBulkUpdate()
         {
             _isBulkUpdating = true;
@@ -138,7 +135,6 @@ namespace Segra.Backend.Core.Models
                 screenHeight = primaryScreen.Bounds.Height;
             }
 
-            // Determine resolution based on height
             if (screenHeight >= 2160)
             {
                 _resolution = "4K";
@@ -441,6 +437,20 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        // Whether the window opens normally or stays minimized to tray when launched from startup.
+        [JsonPropertyName("startupWindowMode")]
+        public StartupWindowMode StartupWindowMode
+        {
+            get => _startupWindowMode;
+            set
+            {
+                if (_startupWindowMode != value)
+                {
+                    _startupWindowMode = value;
+                }
+            }
+        }
+
         [JsonPropertyName("receiveBetaUpdates")]
         public bool ReceiveBetaUpdates
         {
@@ -480,37 +490,30 @@ namespace Segra.Backend.Core.Models
             }
         }
 
-        [JsonPropertyName("whitelist")]
-        public List<Game> Whitelist
+        // Unified per-game settings list (replaces the old whitelist/blacklist).
+        // Each entry decides whether to record the game (Record) and can override
+        // recording quality, recording mode and the discard-without-bookmarks behavior.
+        [JsonPropertyName("games")]
+        public List<GameSetting> Games
         {
-            get => _whitelist;
+            get => _games;
             set
             {
-                bool hasChanged = !_whitelist.SequenceEqual(value, new GameEqualityComparer());
-                _whitelist = value;
-                if (hasChanged && !_isBulkUpdating)
-                {
-                    SettingsService.SaveSettings();
-                    SendToFrontend("Whitelist changed");
-                }
+                _games = value ?? new List<GameSetting>();
             }
         }
 
+        // Legacy lists kept only so the pre-rework whitelist/blacklist survive a settings load until the
+        // "whitelist_blacklist_to_games" migration converts them into Games and nulls them out (after which
+        // WhenWritingNull stops them from being written back). Do not use these for anything else.
+        // (Named to match the JSON keys because the settings loader maps json key -> PascalCase property.)
+        [JsonPropertyName("whitelist")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<Game>? Whitelist { get; set; }
+
         [JsonPropertyName("blacklist")]
-        public List<Game> Blacklist
-        {
-            get => _blacklist;
-            set
-            {
-                bool hasChanged = !_blacklist.SequenceEqual(value, new GameEqualityComparer());
-                _blacklist = value;
-                if (hasChanged && !_isBulkUpdating)
-                {
-                    SettingsService.SaveSettings();
-                    SendToFrontend("Blacklist changed");
-                }
-            }
-        }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<Game>? Blacklist { get; set; }
 
         [JsonPropertyName("replayBufferDuration")]
         public int ReplayBufferDuration
@@ -834,6 +837,21 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        // When true, Segra ensures Windows Game Mode is turned off on startup.
+        // When false, Segra leaves Game Mode untouched (it never turns it back on).
+        [JsonPropertyName("disableWindowsGameMode")]
+        public bool DisableWindowsGameMode
+        {
+            get => _disableWindowsGameMode;
+            set
+            {
+                if (_disableWindowsGameMode != value)
+                {
+                    _disableWindowsGameMode = value;
+                }
+            }
+        }
+
         [JsonPropertyName("selectedOBSVersion")]
         public string? SelectedOBSVersion
         {
@@ -944,7 +962,6 @@ namespace Segra.Backend.Core.Models
         public bool Visible { get; set; } = true;
     }
 
-    // Class definition for device settings
     public class DeviceSetting
     {
         [JsonPropertyName("id")]
@@ -993,9 +1010,10 @@ namespace Segra.Backend.Core.Models
         public string? Exe { get; set; }
     }
 
-    // Recording class
     internal class Recording
     {
+        private readonly object _bookmarksLock = new();
+
         [JsonPropertyName("startTime")]
         public DateTime StartTime { get; set; }
 
@@ -1034,6 +1052,15 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("audioTrackNames")]
         public List<string>? AudioTrackNames { get; set; }
 
+        public void AddBookmark(Bookmark bookmark)
+        {
+            lock (_bookmarksLock)
+            {
+                Bookmarks.Add(bookmark);
+            }
+            AppState.Instance.NotifyRecordingUpdated();
+        }
+
         [JsonPropertyName("duration")]
         public TimeSpan? Duration
         {
@@ -1051,9 +1078,10 @@ namespace Segra.Backend.Core.Models
         }
     }
 
-    // Content class
     public class Content
     {
+        private readonly object _bookmarksLock = new();
+
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public enum ContentType
         {
@@ -1069,6 +1097,15 @@ namespace Segra.Backend.Core.Models
 
         public string Game { get; set; } = string.Empty;
         public List<Bookmark> Bookmarks { get; set; } = new List<Bookmark>();
+
+        public void AddBookmark(Bookmark bookmark)
+        {
+            lock (_bookmarksLock)
+            {
+                Bookmarks.Add(bookmark);
+            }
+            AppState.Instance.NotifyContentUpdated();
+        }
 
         public string FileName { get; set; } = string.Empty;
 
@@ -1186,6 +1223,13 @@ namespace Segra.Backend.Core.Models
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum StartupWindowMode
+    {
+        Normal,
+        Minimized
+    }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum DisplayCaptureMethod
     {
         Auto,
@@ -1233,6 +1277,94 @@ namespace Segra.Backend.Core.Models
             // Use name for hash code since paths can vary
             return obj.Name.GetHashCode();
         }
+    }
+
+    // A single entry in the unified per-game settings list. Replaces the old whitelist/blacklist:
+    // Record == true means "always record this game" (old whitelist), false means "never record" (old blacklist).
+    // Each override is null when the game inherits the corresponding global setting.
+    public class GameSetting
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("paths")]
+        public List<string> Paths { get; set; } = new List<string>();
+
+        // Stable link to the games.json catalog entry. Set when added from the catalog and used to keep
+        // Name/Icon in sync with the catalog on startup (so a renamed game is reflected here too).
+        [JsonPropertyName("igdbId")]
+        public int? IgdbId { get; set; }
+
+        // CDN icon id from games.json (https://segra.tv/api/games/icon/{icon}); refreshed from the
+        // catalog on startup. Null for custom games (those use CustomIcon instead).
+        [JsonPropertyName("icon")]
+        public string? Icon { get; set; }
+
+        // Base64-encoded PNG icon extracted from the executable, for custom games not in the catalog.
+        [JsonPropertyName("customIcon")]
+        public string? CustomIcon { get; set; }
+
+        [JsonPropertyName("record")]
+        public bool Record { get; set; } = true;
+
+        [JsonPropertyName("qualityOverride")]
+        public GameQualityOverride? QualityOverride { get; set; }
+
+        [JsonPropertyName("recordingModeOverride")]
+        public GameRecordingModeOverride? RecordingModeOverride { get; set; }
+
+        [JsonPropertyName("discardSessionsWithoutBookmarksOverride")]
+        public bool? DiscardSessionsWithoutBookmarksOverride { get; set; }
+    }
+
+    // Mirrors the global video quality settings. When Preset is "low"/"standard"/"high" the concrete
+    // values are resolved from PresetsService at record time; when "custom" the explicit fields are used.
+    public class GameQualityOverride
+    {
+        [JsonPropertyName("preset")]
+        public string Preset { get; set; } = "high";
+
+        [JsonPropertyName("resolution")]
+        public string Resolution { get; set; } = "1080p";
+
+        [JsonPropertyName("frameRate")]
+        public int FrameRate { get; set; } = 60;
+
+        [JsonPropertyName("rateControl")]
+        public string RateControl { get; set; } = "VBR";
+
+        [JsonPropertyName("crfValue")]
+        public int CrfValue { get; set; } = 23;
+
+        [JsonPropertyName("cqLevel")]
+        public int CqLevel { get; set; } = 20;
+
+        [JsonPropertyName("bitrate")]
+        public int Bitrate { get; set; } = 50;
+
+        [JsonPropertyName("minBitrate")]
+        public int MinBitrate { get; set; } = 40;
+
+        [JsonPropertyName("maxBitrate")]
+        public int MaxBitrate { get; set; } = 70;
+
+        [JsonPropertyName("encoder")]
+        public string Encoder { get; set; } = "gpu";
+
+        [JsonPropertyName("codec")]
+        public Codec? Codec { get; set; }
+    }
+
+    public class GameRecordingModeOverride
+    {
+        [JsonPropertyName("recordingMode")]
+        public RecordingMode RecordingMode { get; set; } = RecordingMode.Hybrid;
+
+        [JsonPropertyName("replayBufferDuration")]
+        public int ReplayBufferDuration { get; set; } = 30;
+
+        [JsonPropertyName("replayBufferMaxSize")]
+        public int ReplayBufferMaxSize { get; set; } = 1000;
     }
 
     // Game integration settings - each game has its own settings object

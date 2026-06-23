@@ -1,7 +1,7 @@
 using Serilog;
+using Vortice.DXCore;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using Vortice.DXCore;
 
 namespace Segra.Backend.Shared
 {
@@ -15,7 +15,7 @@ namespace Segra.Backend.Shared
             Intel
         }
 
-        private static readonly List<string> internalGpuIdentifiers = new List<string>
+        private static readonly List<string> internalGpuIdentifiers = new()
         {
             // Intel integrated GPUs
             "HD Graphics",         // Broadwell (5xxx), Skylake (510–530), Kaby Lake (610/620), Comet Lake, etc.
@@ -34,17 +34,16 @@ namespace Segra.Backend.Shared
         };
 
         // Cache the detected GPU vendor to avoid repeated WMI queries
-        private static GpuVendor? _cachedGpuVendor = null;
+        private static GpuVendor? _cachedGpuVendor;
 
         public static GpuVendor DetectGpuVendor()
         {
-            // Return cached value if available
             if (_cachedGpuVendor.HasValue)
             {
                 return _cachedGpuVendor.Value;
             }
 
-            // Try using DXCore first - it's more reliable but requires Windows 10 build 19041 or later
+            // Try DXCore first - more reliable but requires Windows 10 build 19041 or later
             try
             {
                 using var factory = DXCore.DXCoreCreateAdapterFactory<IDXCoreAdapterFactory>();
@@ -77,7 +76,6 @@ namespace Segra.Backend.Shared
                     .ThenByDescending(a => a.DedicatedAdapterMemory)
                     .ToList();
 
-                // Process the sorted adapters
                 foreach (var adapter in sortedAdapters)
                 {
                     string name = adapter.DriverDescription;
@@ -102,7 +100,6 @@ namespace Segra.Backend.Shared
                     }
                 }
 
-                // Clean up adapters
                 foreach (var adapter in adapters)
                 {
                     adapter.Dispose();
@@ -121,7 +118,6 @@ namespace Segra.Backend.Shared
                 {
                     List<System.Management.ManagementObject> gpus = searcher.Get().Cast<System.Management.ManagementObject>().ToList();
 
-                    // Log all active GPUs found
                     Log.Information($"Found {gpus.Count} active GPU(s):");
                     foreach (var gpu in gpus)
                     {
@@ -171,7 +167,6 @@ namespace Segra.Backend.Shared
                 {
                     var allGpus = searcher.Get().Cast<System.Management.ManagementObject>().ToList();
 
-                    // Log all GPUs found in fallback search
                     Log.Information($"Found {allGpus.Count} total GPU(s) in fallback search:");
                     foreach (var gpu in allGpus)
                     {
@@ -255,7 +250,6 @@ namespace Segra.Backend.Shared
                         }
                     }
 
-                    // Find next occurrence
                     index = message.IndexOf($"\"{prop}\":", index + 1, StringComparison.OrdinalIgnoreCase);
                 }
             }
@@ -263,50 +257,14 @@ namespace Segra.Backend.Shared
             return message;
         }
 
-        private static int FindMatchingBracket(string text, int startIndex)
+        private static readonly Regex UsernamePathRegex = new(@"([\\/]Users[\\/])([^\\/]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        public static string RedactUsername(string text)
         {
-            var openChar = text[startIndex];
-            var closeChar = openChar == '{' ? '}' : ']';
-            var depth = 1;
-            var inString = false;
-            var escaped = false;
+            if (string.IsNullOrEmpty(text))
+                return text;
 
-            for (int i = startIndex + 1; i < text.Length; i++)
-            {
-                var c = text[i];
-
-                if (escaped)
-                {
-                    escaped = false;
-                    continue;
-                }
-
-                if (c == '\\')
-                {
-                    escaped = true;
-                    continue;
-                }
-
-                if (c == '"')
-                {
-                    inString = !inString;
-                    continue;
-                }
-
-                if (!inString)
-                {
-                    if (c == openChar)
-                        depth++;
-                    else if (c == closeChar)
-                    {
-                        depth--;
-                        if (depth == 0)
-                            return i;
-                    }
-                }
-            }
-
-            return -1; // No matching bracket found
+            return UsernamePathRegex.Replace(text, "$1<user>");
         }
 
         public static bool IsProcessRunning(string processName)
@@ -353,10 +311,8 @@ namespace Segra.Backend.Shared
             {
                 try
                 {
-                    // Try to open the file for reading to verify it's accessible and complete
                     using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
-                        // Verify we can read at least some data
                         if (fs.Length > 0)
                         {
                             byte[] buffer = new byte[1024];
@@ -378,6 +334,52 @@ namespace Segra.Backend.Shared
             }
 
             Log.Warning($"File may not be fully synced after {maxRetries} attempts: {filePath}");
+        }
+
+        private static int FindMatchingBracket(string text, int startIndex)
+        {
+            var openChar = text[startIndex];
+            var closeChar = openChar == '{' ? '}' : ']';
+            var depth = 1;
+            var inString = false;
+            var escaped = false;
+
+            for (int i = startIndex + 1; i < text.Length; i++)
+            {
+                var c = text[i];
+
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = !inString;
+                    continue;
+                }
+
+                if (!inString)
+                {
+                    if (c == openChar)
+                        depth++;
+                    else if (c == closeChar)
+                    {
+                        depth--;
+                        if (depth == 0)
+                            return i;
+                    }
+                }
+            }
+
+            return -1; // No matching bracket found
         }
     }
 }

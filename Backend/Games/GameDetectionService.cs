@@ -1,20 +1,16 @@
-using ObsKit.NET.Sources;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Games;
-using Segra.Backend.Recorder;
-using Segra.Backend.Shared;
 using Serilog;
-using System.Diagnostics;
-using System.Management;
-using System.Runtime.ConstrainedExecution;
-using System.Runtime.InteropServices;
-using System.Security;
 using System.Text;
+using System.Security;
 using System.Text.Json;
+using System.Management;
+using System.Diagnostics;
+using Segra.Backend.Shared;
+using Segra.Backend.Recorder;
+using Segra.Backend.Core.Models;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
-namespace Segra.Backend.Services
+namespace Segra.Backend.Games
 {
     public static class GameDetectionService
     {
@@ -24,25 +20,6 @@ namespace Segra.Backend.Services
         private static readonly Dictionary<string, string> deviceToDrive = new();
         private static bool _running;
         private static System.Threading.Timer? _processCheckTimer;
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
-
-        [DllImport("psapi.dll", CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private static extern int GetProcessImageFileName(IntPtr hprocess, StringBuilder lpExeName, int nSize);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [SuppressUnmanagedCodeSecurity]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool CloseHandle(IntPtr hObject);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool QueryDosDevice(string lpDeviceName, StringBuilder lpTargetPath, int ucchMax);
-
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool QueryFullProcessImageName(IntPtr hProcess, int dwFlags, StringBuilder lpExeName, ref int lpdwSize);
 
         public static async Task StartAsync()
         {
@@ -65,6 +42,25 @@ namespace Segra.Backend.Services
                 }
             });
         }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
+
+        [DllImport("psapi.dll", CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+        private static extern int GetProcessImageFileName(IntPtr hprocess, StringBuilder lpExeName, int nSize);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [SuppressUnmanagedCodeSecurity]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryDosDevice(string lpDeviceName, StringBuilder lpTargetPath, int ucchMax);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryFullProcessImageName(IntPtr hProcess, int dwFlags, StringBuilder lpExeName, ref int lpdwSize);
 
         // Paths that resolve to system locations or known non-game tooling are ignored by the watchers.
         private static bool IsIrrelevantProcessPath(string exePath) =>
@@ -207,36 +203,30 @@ namespace Segra.Backend.Services
             }
         }
 
-        private static bool ShouldRecordGame(string exePath, bool isPeriodicCheck = false)
+        private static bool ShouldRecordGame(string exePath, string? fileDescription = null)
         {
             if (string.IsNullOrEmpty(exePath) || AppState.Instance.Recording != null || AppState.Instance.PreRecording != null) return false;
 
             // Normalize path for consistent comparison
             string normalizedExePath = exePath.Replace("\\", "/");
 
-            // 1. Check if the game is in the whitelist - if so, always record
-            var whitelist = Settings.Instance.Whitelist;
-            foreach (var game in whitelist)
+            // 1. Check the unified per-game settings list (replaces whitelist/blacklist).
+            // An explicit per-game entry always wins over auto-detection: Record == true forces recording,
+            // Record == false prevents it.
+            var gameSetting = GameSettingsService.FindForExePath(exePath);
+            if (gameSetting != null)
             {
-                if (game.Paths.Any(path => GameUtils.MatchesExePattern(exePath, path)))
+                if (gameSetting.Record)
                 {
-                    Log.Information($"Game {game.Name} found in whitelist, will record");
+                    Log.Information($"Game {gameSetting.Name} has custom game settings (recording enabled), will record");
                     return true;
                 }
+
+                Log.Information($"Game {gameSetting.Name} has custom game settings (recording disabled), will not record");
+                return false;
             }
 
-            // 2. Check if the game is in the blacklist - if so, never record
-            var blacklist = Settings.Instance.Blacklist;
-            foreach (var game in blacklist)
-            {
-                if (game.Paths.Any(path => GameUtils.MatchesExePattern(exePath, path)))
-                {
-                    Log.Information($"Game {game.Name} found in blacklist, will not record");
-                    return false;
-                }
-            }
-
-            // 3. Check if the game is in the games.json list
+            // 2. Check if the game is in the games.json list
             bool isKnownGame = GameUtils.IsGameExePath(exePath);
             if (isKnownGame)
             {
@@ -245,20 +235,20 @@ namespace Segra.Backend.Services
                 return true;
             }
 
-            // 4. Check if the file path contains blacklisted text
+            // 3. Check if the file path contains blacklisted text
             if (ContainsBlacklistedTextInFilePath(exePath))
             {
                 return false;
             }
 
-            // 5. Check for anticheat in file description and log window information
-            if (IsAntiCheatClient(exePath, isPeriodicCheck))
+            // 4. Check for anticheat in file description and log window information
+            if (IsAntiCheatClient(exePath, fileDescription))
             {
                 Log.Information($"Detected anticheat client for this executable, will not record");
                 return false;
             }
 
-            // 6. Launcher-based detection (Steam, EA, Epic, Ubisoft)
+            // 5. Launcher-based detection (Steam, EA, Epic, Ubisoft)
             string[] launcherMarkers = { "/steamapps/common/", "/EA Games/", "/Epic Games/", "/Ubisoft/" };
             string[] launcherNames = { "Steam", "EA", "Epic", "Ubisoft" };
 
@@ -305,41 +295,24 @@ namespace Segra.Backend.Services
             return false;
         }
 
-        private static bool IsAntiCheatClient(string exePath, bool isPeriodicCheck)
+        private static bool IsAntiCheatClient(string exePath, string? fileDescription = null)
         {
             try
             {
-                string fileDescription = string.Empty;
+                fileDescription ??= GetFileDescription(exePath);
+
+                if (string.IsNullOrEmpty(fileDescription))
+                    return false;
 
                 string[] blacklistedWords = GameUtils.GetBlacklistedWords();
 
-                if (File.Exists(exePath))
+                string? matchedWord = blacklistedWords.FirstOrDefault(word =>
+                    fileDescription.Contains(word, StringComparison.OrdinalIgnoreCase));
+
+                if (matchedWord != null)
                 {
-                    FileVersionInfo fileInfo = FileVersionInfo.GetVersionInfo(exePath);
-                    fileDescription = fileInfo.FileDescription ?? string.Empty;
-
-                    // Fallback: if FileVersionInfo returned empty, try Shell32 API
-                    if (string.IsNullOrEmpty(fileDescription))
-                    {
-                        fileDescription = GetFileDescriptionViaShell(exePath);
-                    }
-
-                    // Prevent logging file description for periodic checks (to avoid spamming and for security concerns)
-                    if (!isPeriodicCheck)
-                        Log.Information($"File description: '{fileDescription}' for {exePath}");
-
-                    // Check for blacklisted words in file description
-                    if (!string.IsNullOrEmpty(fileDescription))
-                    {
-                        string? matchedWord = blacklistedWords.FirstOrDefault(word =>
-                            fileDescription.Contains(word, StringComparison.OrdinalIgnoreCase));
-
-                        if (matchedWord != null)
-                        {
-                            Log.Information($"Detected blacklisted word '{matchedWord}' in file description: '{fileDescription}' for {exePath}, will not record");
-                            return true;
-                        }
-                    }
+                    Log.Information($"Detected blacklisted word '{matchedWord}' in file description: '{fileDescription}' for {exePath}, will not record");
+                    return true;
                 }
             }
             catch (Exception ex)
@@ -348,6 +321,29 @@ namespace Segra.Backend.Services
             }
 
             return false;
+        }
+
+        private static string GetFileDescription(string exePath)
+        {
+            try
+            {
+                if (!File.Exists(exePath))
+                    return string.Empty;
+
+                FileVersionInfo fileInfo = FileVersionInfo.GetVersionInfo(exePath);
+                string fileDescription = fileInfo.FileDescription ?? string.Empty;
+
+                // Fallback: if FileVersionInfo returned empty, try Shell32 API
+                if (string.IsNullOrEmpty(fileDescription))
+                    fileDescription = GetFileDescriptionViaShell(exePath);
+
+                return fileDescription;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to read file description for {exePath}: {ex.Message}");
+                return string.Empty;
+            }
         }
 
         private static string ResolveProcessPath(int pid)
@@ -481,7 +477,6 @@ namespace Segra.Backend.Services
                 // Skip if retry is prevented
                 if (PreventRetryRecording) return;
 
-                // Get the foreground window and its process ID
                 IntPtr foregroundWindow = GetForegroundWindow();
                 _ = GetWindowThreadProcessId(foregroundWindow, out uint foregroundPid);
 
@@ -491,7 +486,6 @@ namespace Segra.Backend.Services
                     return;
                 }
 
-                // Get the executable path of the foreground process
                 string foregroundExePath = ResolveProcessPath((int)foregroundPid);
 
                 if (string.IsNullOrEmpty(foregroundExePath))
@@ -500,8 +494,7 @@ namespace Segra.Backend.Services
                     return;
                 }
 
-                // Check if the foreground process is a game we should record
-                if (ShouldRecordGame(foregroundExePath, true))
+                if (ShouldRecordGame(foregroundExePath))
                 {
                     string processName = "Unknown";
                     try
@@ -558,7 +551,7 @@ namespace Segra.Backend.Services
             public uint pid;
         }
 
-        private static readonly PROPERTYKEY PKEY_FileDescription = new PROPERTYKEY
+        private static readonly PROPERTYKEY PKEY_FileDescription = new()
         {
             fmtid = new Guid("0CEF7D53-FA64-11D1-A203-0000F81FEDEE"),
             pid = 3
@@ -809,6 +802,9 @@ namespace Segra.Backend.Services
             private static Thread? _hookThread;
             private static int _hookThreadId;
 
+            // Track the last window we logged so repeated foreground events for the same HWND don't spam the log
+            private static IntPtr _lastLoggedHwnd = IntPtr.Zero;
+
             // The callback signature
             private delegate void WinEventDelegate(
                 IntPtr hWinEventHook,
@@ -926,39 +922,50 @@ namespace Segra.Backend.Services
             {
                 if (eventType == EVENT_SYSTEM_FOREGROUND)
                 {
-                    Log.Information($"Foreground window changed. New hwnd: 0x{hwnd.ToInt64():X}");
-
                     // Reset retry recording flag to allow retrying recording if the user has changed foreground window
                     PreventRetryRecording = false;
 
                     if (AppState.Instance.Recording != null) return;
 
+                    // The foreground hook can fire repeatedly for the same window; skip if it matches what we last logged
+                    if (hwnd == _lastLoggedHwnd) return;
+
                     _ = GetWindowThreadProcessId(hwnd, out uint pid);
 
-                    Log.Information($"Foreground window process ID: {pid}");
-
-                    if (pid > 0)
+                    if (pid <= 0)
                     {
-                        try
+                        Log.Warning($"Foreground window changed. HWND: 0x{hwnd.ToInt64():X8}, no valid process associated with the window handle.");
+                        _lastLoggedHwnd = hwnd;
+                        return;
+                    }
+
+                    try
+                    {
+                        string exePath = ResolveProcessPath((int)pid);
+
+                        // Windows shell surfaces (Explorer, Start menu, Search, etc.) own many windows, change
+                        // foreground constantly, and are never recorded, so skip them to avoid log spam
+                        if (string.Equals(Path.GetFileName(exePath), "explorer.exe", StringComparison.OrdinalIgnoreCase)
+                            || exePath.StartsWith("C:/Windows/SystemApps/", StringComparison.OrdinalIgnoreCase))
+                            return;
+
+                        string fileDescription = GetFileDescription(exePath);
+
+                        Log.Information($"Foreground window changed. HWND: 0x{hwnd.ToInt64():X8}, PID: {pid,5}, file description: '{fileDescription}' for {exePath}");
+                        _lastLoggedHwnd = hwnd;
+
+                        if (ShouldRecordGame(exePath, fileDescription))
                         {
-                            string exePath = ResolveProcessPath((int)pid);
-                            if (ShouldRecordGame(exePath))
-                            {
-                                StartGameRecording((int)pid, exePath);
-                            }
-                        }
-                        catch (ArgumentException ex)
-                        {
-                            Log.Error(ex, $"Process with PID {pid} no longer exists.");
-                        }
-                        catch (InvalidOperationException ex)
-                        {
-                            Log.Error(ex, $"Failed to access process with PID {pid}.");
+                            StartGameRecording((int)pid, exePath);
                         }
                     }
-                    else
+                    catch (ArgumentException ex)
                     {
-                        Log.Warning("No valid process associated with the window handle.");
+                        Log.Error(ex, $"Process with PID {pid} no longer exists.");
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        Log.Error(ex, $"Failed to access process with PID {pid}.");
                     }
                 }
             }

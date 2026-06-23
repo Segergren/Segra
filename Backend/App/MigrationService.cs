@@ -1,12 +1,12 @@
+using Serilog;
 using System.Text.Json;
-using Segra.Backend.App;
-using Segra.Backend.Core.Models;
+using Segra.Backend.Core;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
+using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
-using Serilog;
 
-namespace Segra.Backend.Services;
+namespace Segra.Backend.App;
 
 internal static class MigrationService
 {
@@ -16,21 +16,10 @@ internal static class MigrationService
     private static string MigrationsFolder = Path.Combine(appDataDir, ".migrations");
     private static string AppliedPath => Path.Combine(MigrationsFolder, "applied.json");
 
-    // Signal for when migrations are complete
     private static readonly TaskCompletionSource<bool> _migrationsComplete = new();
     public static Task WaitForMigrationsAsync() => _migrationsComplete.Task;
     public static bool IsRunning { get; private set; } = false;
     public static string? CurrentMigration { get; private set; } = null;
-
-    private static void UpdateMigrationStatus(bool isRunning, string? currentMigration = null)
-    {
-        IsRunning = isRunning;
-        CurrentMigration = currentMigration;
-        if (!Program.IsFirstRun)
-        {
-            _ = MessageService.SendFrontendMessage("MigrationStatus", new { isRunning, currentMigration });
-        }
-    }
 
     public static void RunMigrations()
     {
@@ -49,7 +38,6 @@ internal static class MigrationService
                 return;
             }
 
-            // Signal that migrations are starting
             UpdateMigrationStatus(true, pendingMigrations.First().Id);
 
             foreach (var migration in pendingMigrations)
@@ -81,11 +69,21 @@ internal static class MigrationService
         }
     }
 
+    private static void UpdateMigrationStatus(bool isRunning, string? currentMigration = null)
+    {
+        IsRunning = isRunning;
+        CurrentMigration = currentMigration;
+        if (!Program.IsFirstRun)
+        {
+            _ = MessageService.SendFrontendMessage("MigrationStatus", new { isRunning, currentMigration });
+        }
+    }
+
     private static HashSet<string> LoadApplied()
     {
         try
         {
-            if (!File.Exists(AppliedPath)) return new HashSet<string>();
+            if (!File.Exists(AppliedPath)) return new();
             var json = File.ReadAllText(AppliedPath);
             var doc = System.Text.Json.JsonDocument.Parse(json);
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -101,7 +99,7 @@ internal static class MigrationService
         }
         catch
         {
-            return new HashSet<string>();
+            return new();
         }
     }
 
@@ -136,8 +134,8 @@ internal static class MigrationService
 
     private static List<Migration> GetMigrations()
     {
-        return new List<Migration>
-        {
+        return
+        [
             new("0001_waveforms_json", Apply_0001_WaveformsJson),
             new("0002_hide_dotfolders", Apply_0002_HideDotfolders),
             new("0003_delete_legacy_games_files", Apply_0003_DeleteLegacyGamesFiles),
@@ -147,8 +145,134 @@ internal static class MigrationService
             new("0007_rename_video_folders", Apply_0007_RenameVideoFolders),
             new("0008_move_metadata_to_appdata", Apply_0008_MoveMetadataToAppData),
             new("0009_rename_clip_clear_selections_setting", Apply_0009_RenameClipClearSelectionsSetting),
-            new("0010_rename_titled_content_files", Apply_0010_RenameTitledContentFiles)
-        };
+            new("0010_rename_titled_content_files", Apply_0010_RenameTitledContentFiles),
+            new("0011_whitelist_blacklist_to_games", Apply_0011_WhitelistBlacklistToGames),
+            new("0012_backfill_custom_game_icons", Apply_0012_BackfillCustomGameIcons)
+        ];
+    }
+
+    // Migration 0012: Backfill exe icons for custom games that have no icon yet (e.g. games migrated
+    // by an earlier build of 0011 that didn't extract icons). Idempotent: only fills games with no
+    // catalog link and no icon whose executable still exists on disk; catalog games are left to the
+    // name-based reconciliation, which gives them their CDN icon.
+    private static void Apply_0012_BackfillCustomGameIcons()
+    {
+        try
+        {
+            bool changed = false;
+            foreach (var game in Settings.Instance.Games)
+            {
+                if (game.IgdbId != null || game.Icon != null || game.CustomIcon != null) continue;
+
+                string? icon = ExtractCustomIcon(game.Paths);
+                if (icon != null)
+                {
+                    game.CustomIcon = icon;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                SettingsService.SaveSettings();
+                _ = MessageService.SendSettingsToFrontend("Backfilled custom game icons");
+                Log.Information("Backfilled exe icons for custom games that were missing one");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to backfill custom game icons");
+        }
+    }
+
+    // Migration 0011: Convert the pre-rework whitelist/blacklist into the unified Games list.
+    // whitelist -> Record = true (always record), blacklist -> Record = false (never record).
+    // Same-named entries are merged (paths unioned) with whitelist winning, matching the old
+    // "check whitelist first" precedence. The legacy lists are then nulled so they stop being persisted.
+    private static void Apply_0011_WhitelistBlacklistToGames()
+    {
+        try
+        {
+            var settings = Settings.Instance;
+            var whitelist = settings.Whitelist ?? new List<Game>();
+            var blacklist = settings.Blacklist ?? new List<Game>();
+
+            if (whitelist.Count == 0 && blacklist.Count == 0)
+            {
+                Log.Debug("No legacy whitelist/blacklist to migrate");
+                return;
+            }
+
+            // Key by name (the new model's unique key), seeding from any games that already exist.
+            var byName = new Dictionary<string, GameSetting>(StringComparer.OrdinalIgnoreCase);
+            foreach (var game in settings.Games)
+                byName[game.Name] = game;
+
+            MergeLegacyGames(whitelist, record: true, byName);
+            MergeLegacyGames(blacklist, record: false, byName);
+
+            settings.Games = byName.Values.ToList();
+            settings.Whitelist = null;
+            settings.Blacklist = null;
+
+            SettingsService.SaveSettings();
+            // Push the migrated list so the UI reflects it without needing a restart.
+            _ = MessageService.SendSettingsToFrontend("Migrated whitelist/blacklist to games");
+            Log.Information("Migrated legacy whitelist/blacklist into {Count} unified game entries", settings.Games.Count);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to migrate legacy whitelist/blacklist into games");
+        }
+    }
+
+    private static void MergeLegacyGames(List<Game> legacyGames, bool record, Dictionary<string, GameSetting> target)
+    {
+        foreach (var legacy in legacyGames)
+        {
+            if (string.IsNullOrEmpty(legacy.Name)) continue;
+
+            var paths = new List<string>(legacy.Paths);
+            // Fall back to the even older single `path` field if no `paths` array was present.
+            if (paths.Count == 0 && !string.IsNullOrEmpty(legacy.Path))
+                paths.Add(legacy.Path);
+            if (paths.Count == 0) continue;
+
+            if (target.TryGetValue(legacy.Name, out var existing))
+            {
+                foreach (var path in paths)
+                {
+                    if (!existing.Paths.Contains(path, StringComparer.OrdinalIgnoreCase))
+                        existing.Paths.Add(path);
+                }
+                // Whitelist (record == true) wins over blacklist when the same name is in both.
+                existing.Record = existing.Record || record;
+                existing.CustomIcon ??= ExtractCustomIcon(paths);
+            }
+            else
+            {
+                target[legacy.Name] = new GameSetting
+                {
+                    Name = legacy.Name,
+                    Paths = paths,
+                    Record = record,
+                    CustomIcon = ExtractCustomIcon(paths)
+                };
+            }
+        }
+    }
+
+    // Extracts the executable icon for a custom (non-catalog) game, mirroring what the "Add Custom"
+    // flow does. Catalog games' stored paths are executable patterns (not real files) so extraction
+    // returns null for them; their CDN icon is filled in by the catalog reconciliation by name instead.
+    private static string? ExtractCustomIcon(List<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            string? icon = IconUtils.ExtractExeIconBase64(path);
+            if (icon != null) return icon;
+        }
+        return null;
     }
 
     // Migration 0009: Rename clipClearSelectionsAfterCreatingClip -> clipClearSegmentsAfterCreatingClip
@@ -319,50 +443,11 @@ internal static class MigrationService
     }
 
     // Migration 0004: Convert Game.path to Game.paths array
+    // Obsolete: the legacy whitelist/blacklist (including the singular `path` field) are now converted
+    // into the unified Games list during settings load, so there is nothing left to migrate here.
     private static void Apply_0004_GamePathToPaths()
     {
-        try
-        {
-            bool needsSave = false;
-
-            // Migrate whitelist
-            foreach (var game in Settings.Instance.Whitelist)
-            {
-                if (game.Paths.Count == 0 && !string.IsNullOrEmpty(game.Path))
-                {
-                    game.Paths.Add(game.Path);
-                    game.Path = string.Empty;
-                    needsSave = true;
-                    Log.Information("Migrated whitelist game '{Name}' from path to paths", game.Name);
-                }
-            }
-
-            // Migrate blacklist
-            foreach (var game in Settings.Instance.Blacklist)
-            {
-                if (game.Paths.Count == 0 && !string.IsNullOrEmpty(game.Path))
-                {
-                    game.Paths.Add(game.Path);
-                    game.Path = string.Empty;
-                    needsSave = true;
-                    Log.Information("Migrated blacklist game '{Name}' from path to paths", game.Name);
-                }
-            }
-
-            if (needsSave)
-            {
-                SettingsService.SaveSettings();
-                Log.Information("Game path to paths migration completed");
-            }
-            else
-            {
-                Log.Debug("No games needed migration from path to paths");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Failed to migrate game paths");
-        }
+        Log.Debug("Migration 0004 is obsolete (legacy game lists are migrated during settings load)");
     }
 
     // Migration 0005: Update clip settings to use CPU encoder by default instead of GPU
@@ -450,7 +535,6 @@ internal static class MigrationService
             int movedCount = 0;
             int errorCount = 0;
 
-            // Process each content type
             foreach (Content.ContentType type in Enum.GetValues(typeof(Content.ContentType)))
             {
                 string typeName = type.ToString().ToLower() + "s";
@@ -467,7 +551,6 @@ internal static class MigrationService
                 {
                     try
                     {
-                        // Read metadata to get game name and current file path
                         string metadataJson = File.ReadAllText(metadataFilePath);
                         var metadata = JsonSerializer.Deserialize<Content>(metadataJson);
 
@@ -479,14 +562,12 @@ internal static class MigrationService
 
                         string currentFilePath = metadata.FilePath;
 
-                        // Skip if file doesn't exist or path is empty
                         if (string.IsNullOrEmpty(currentFilePath) || !File.Exists(currentFilePath))
                         {
                             Log.Debug("Video file not found or path empty for metadata: {Path}", metadataFilePath);
                             continue;
                         }
 
-                        // Skip if already in a game subfolder
                         string currentDir = Path.GetDirectoryName(currentFilePath) ?? "";
                         string expectedFlatDir = videoFolder.Replace("\\", "/");
                         string actualDir = currentDir.Replace("\\", "/");
@@ -498,27 +579,22 @@ internal static class MigrationService
                             continue;
                         }
 
-                        // Get sanitized game name for folder
                         string gameName = metadata.Game ?? "Unknown";
                         string sanitizedGameName = StorageService.SanitizeGameNameForFolder(gameName);
 
-                        // Calculate new path
                         string fileName = Path.GetFileName(currentFilePath);
                         string newDir = Path.Combine(videoFolder, sanitizedGameName);
                         string newFilePath = Path.Combine(newDir, fileName);
 
-                        // Create directory if needed
                         if (!Directory.Exists(newDir))
                         {
                             Directory.CreateDirectory(newDir);
                             Log.Information("Created game folder: {Folder}", newDir);
                         }
 
-                        // Move the file
                         Log.Information("Moving {OldPath} to {NewPath}", currentFilePath, newFilePath);
                         File.Move(currentFilePath, newFilePath);
 
-                        // Update metadata with new file path
                         metadata.FilePath = newFilePath;
                         string updatedMetadataJson = JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true });
                         File.WriteAllText(metadataFilePath, updatedMetadataJson);
@@ -781,7 +857,6 @@ internal static class MigrationService
                         { FolderNames.LegacyHighlights, FolderNames.Highlights }
                     };
 
-                    // Move all subdirectories (content type folders)
                     foreach (var subDir in Directory.GetDirectories(sourcePath))
                     {
                         string subDirName = Path.GetFileName(subDir);
@@ -805,7 +880,6 @@ internal static class MigrationService
                             Directory.CreateDirectory(destSubDir);
                         }
 
-                        // Move all files from source subfolder to destination subfolder
                         foreach (var file in Directory.GetFiles(subDir))
                         {
                             string fileName = Path.GetFileName(file);

@@ -1,6 +1,6 @@
-using Segra.Backend.Core.Models;
 using Serilog;
 using System.Text.Json;
+using Segra.Backend.Core.Models;
 using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Games.WarThunder
@@ -206,7 +206,8 @@ namespace Segra.Backend.Games.WarThunder
 
         private static void AddBookmark(BookmarkType type)
         {
-            if (AppState.Instance.Recording == null)
+            var recording = AppState.Instance.Recording;
+            if (recording == null)
             {
                 Log.Debug($"[WT] No recording active, skipping {type} bookmark");
                 return;
@@ -216,9 +217,9 @@ namespace Segra.Backend.Games.WarThunder
             var bookmark = new Bookmark
             {
                 Type = type,
-                Time = (DateTime.Now - AppState.Instance.Recording.StartTime) - compensation
+                Time = (DateTime.Now - recording.StartTime) - compensation
             };
-            AppState.Instance.Recording.Bookmarks.Add(bookmark);
+            recording.AddBookmark(bookmark);
             Log.Information($"[WT] BOOKMARK ADDED: {type} at {bookmark.Time}");
         }
     }

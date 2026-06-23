@@ -1,21 +1,20 @@
-using Segra.Backend.Recorder;
 using Serilog;
-using System.Net.Http.Headers;
+using Velopack;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using Velopack;
 using Velopack.Sources;
+using Segra.Backend.Recorder;
+using System.Net.Http.Headers;
+using System.Text.Json.Serialization;
 
 namespace Segra.Backend.App
 {
     public static class UpdateService
     {
-        // Store the update information
         public static UpdateInfo? LatestUpdateInfo { get; private set; } = null;
-        public static GithubSource Source = new GithubSource("https://github.com/Segergren/Segra", null, false);
-        public static GithubSource BetaSource = new GithubSource("https://github.com/Segergren/Segra", null, true);
-        public static UpdateManager UpdateManager { get; private set; } = new UpdateManager(Source);
+        public static GithubSource Source = new("https://github.com/Segergren/Segra", null, false);
+        public static GithubSource BetaSource = new("https://github.com/Segergren/Segra", null, true);
+        public static UpdateManager UpdateManager { get; private set; } = new(Source);
 
         // Serializes Velopack operations that share the on-disk .velopack_lock.
         private static readonly SemaphoreSlim _updateGate = new(1, 1);
@@ -78,13 +77,11 @@ namespace Segra.Backend.App
                     return false;
                 }
 
-                // Store the update info for later use
                 LatestUpdateInfo = newVersion;
 
                 // Fetch latest release notes immediately so the UI has fresh data while showing the update
                 _ = Task.Run(() => GetReleaseNotes(forceCheck: true));
 
-                // Get target version string
                 string targetVersion = newVersion.TargetFullRelease.Version.ToString();
 
                 // Notify frontend that update download is starting
@@ -253,7 +250,6 @@ namespace Segra.Backend.App
             {
                 Log.Information("Getting release notes from GitHub API");
 
-                // Get current version
                 NuGet.Versioning.SemanticVersion currentVersion;
                 if (UpdateManager.CurrentVersion != null)
                 {
@@ -267,7 +263,6 @@ namespace Segra.Backend.App
 
                 Log.Information($"Current version: {currentVersion}");
 
-                // Create HttpClient for GitHub API
                 using var httpClient = new HttpClient();
                 httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
                 httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Segra", currentVersion.ToString()));

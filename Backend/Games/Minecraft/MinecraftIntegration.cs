@@ -1,5 +1,5 @@
-using Segra.Backend.Core.Models;
 using Serilog;
+using Segra.Backend.Core.Models;
 using System.Text.RegularExpressions;
 
 namespace Segra.Backend.Games.Minecraft

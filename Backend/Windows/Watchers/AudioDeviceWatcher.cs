@@ -1,5 +1,5 @@
-using NAudio.CoreAudioApi.Interfaces;
 using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 
 namespace Segra.Backend.Windows.Watchers
 {

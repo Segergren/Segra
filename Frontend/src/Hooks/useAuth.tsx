@@ -192,10 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       setUser(authUser);
       saveSession(newSession);
-      sendMessageToBackend('Login', {
-        accessToken: newSession.access_token,
-        refreshToken: newSession.refresh_token,
-      });
+      // Backend login state is synced by the WebSocket onOpen handler once the connection is ready.
 
       // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -209,10 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (storedUser) {
         setSession(stored);
         setUser(storedUser);
-        sendMessageToBackend('Login', {
-          accessToken: stored.access_token,
-          refreshToken: stored.refresh_token,
-        });
+        // Backend login state is synced by the WebSocket onOpen handler once the connection is ready.
       }
     }
   }, []);

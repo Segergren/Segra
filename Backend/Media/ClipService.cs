@@ -1,29 +1,30 @@
-using System.Diagnostics;
-using System.Globalization;
+using Serilog;
 using System.Text.Json;
 using Segra.Backend.App;
-using Segra.Backend.Core.Models;
-using Segra.Backend.Services;
+using Segra.Backend.Core;
+using System.Diagnostics;
 using Segra.Backend.Shared;
+using System.Globalization;
+using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
-using Serilog;
 using static Segra.Backend.Shared.GeneralUtils;
 
 namespace Segra.Backend.Media
 {
     public static class ClipService
     {
-        // Dictionary to store active FFmpeg processes
-        private static readonly Dictionary<int, List<Process>> ActiveFFmpegProcesses = new Dictionary<int, List<Process>>();
+        private static readonly Dictionary<int, List<Process>> ActiveFFmpegProcesses = new();
         // Clip IDs that were explicitly cancelled by the user, so their FFmpeg failures are not surfaced as errors
-        private static readonly HashSet<int> CancelledClipIds = new HashSet<int>();
-        // Lock for thread safety
-        private static readonly object ProcessLock = new object();
+        private static readonly HashSet<int> CancelledClipIds = new();
+        private static readonly object ProcessLock = new();
 
-        public static async Task CreateClips(List<Segment> segments)
+        public static async Task CreateClips(List<Segment> segments, bool createSeparateClips = false)
         {
             int id = Guid.NewGuid().GetHashCode();
             List<string> tempClipFiles = new List<string>();
+            List<Segment> extractedSegments = new List<Segment>();
+            List<List<string>?> extractedSegmentTrackNames = new List<List<string>?>();
+            List<string> outputFilePaths = new List<string>();
             string? concatFilePath = null;
             string? outputFilePath = null;
 
@@ -115,7 +116,6 @@ namespace Segra.Backend.Media
                         _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = currentProgress, segments });
                     });
 
-                    // Verify the temp file was created successfully
                     if (!File.Exists(tempFileName))
                     {
                         Log.Error($"Failed to create temp clip file: {tempFileName}");
@@ -124,6 +124,8 @@ namespace Segra.Backend.Media
 
                     processedDuration += clipDuration;
                     tempClipFiles.Add(tempFileName);
+                    extractedSegments.Add(segment);
+                    extractedSegmentTrackNames.Add(segmentTrackNames);
                     segmentIndex++;
                 }
 
@@ -136,79 +138,117 @@ namespace Segra.Backend.Media
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 96, segments });
 
-                string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
-                outputFilePath = PathUtils.Combine(outputFolder, outputFileName);
-
-                if (tempClipFiles.Count == 1)
+                if (createSeparateClips)
                 {
-                    File.Move(tempClipFiles[0], outputFilePath);
-                    tempClipFiles.Clear();
+                    string batchTimestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
+                    for (int i = 0; i < tempClipFiles.Count; i++)
+                    {
+                        var segment = extractedSegments[i];
+                        string segmentGameFolder = StorageService.SanitizeGameNameForFolder(segment.Game ?? "Unknown");
+                        string segmentOutputFolder = PathUtils.Combine(videoFolder, FolderNames.Clips, segmentGameFolder);
+                        Directory.CreateDirectory(segmentOutputFolder);
+
+                        string outputFileName = $"{batchTimestamp}_segment-{i + 1:000}.mp4";
+                        string segmentOutputFilePath = GetUniqueOutputFilePath(PathUtils.Combine(segmentOutputFolder, outputFileName));
+                        outputFilePaths.Add(segmentOutputFilePath);
+                        File.Move(tempClipFiles[i], segmentOutputFilePath);
+                        tempClipFiles[i] = string.Empty;
+
+                        await EnsureFileReady(segmentOutputFilePath);
+                        var segmentAudioTrackNames = Settings.Instance.ClipKeepSeparateAudioTracks
+                            ? extractedSegmentTrackNames[i]
+                            : null;
+                        await ContentService.CreateMetadataFile(segmentOutputFilePath, Content.ContentType.Clip, segment.Game ?? "Unknown", null, segment.Title, igdbId: segment.IgdbId, audioTrackNames: segmentAudioTrackNames);
+                        await ContentService.CreateThumbnail(segmentOutputFilePath, Content.ContentType.Clip);
+                        await ContentService.CreateWaveformFile(segmentOutputFilePath, Content.ContentType.Clip);
+                    }
                 }
                 else
                 {
-                    concatFilePath = PathUtils.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
-                    await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(FFmpegService.BuildConcatListLine));
+                    string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
+                    outputFilePath = GetUniqueOutputFilePath(PathUtils.Combine(outputFolder, outputFileName));
+                    outputFilePaths.Add(outputFilePath);
 
-                    try
+                    if (tempClipFiles.Count == 1)
                     {
-                        string mapAllArg = unionAudioLayout != null ? "-map 0 " : "";
-                        string concatMetadataArgs = "";
-                        // When multi-track is active, re-encode audio during concat to fix
-                        // DTS misalignment between streams (different seek offsets cause
-                        // slightly different AAC frame counts per stream).
-                        // Video is always stream-copied.
-                        string codecArg = unionAudioLayout != null
-                            ? $"-c:v copy -c:a aac -b:a {Settings.Instance.ClipAudioQuality} "
-                            : "-c copy ";
-                        if (unionAudioLayout != null)
-                        {
-                            concatMetadataArgs = string.Join(" ", unionAudioLayout.Select((name, i) => $"-metadata:s:a:{i} title=\"{name}\"")) + " ";
-                        }
-                        await FFmpegService.RunWithProgress(id,
-                            $"-y -f concat -safe 0 -i \"{concatFilePath}\" {mapAllArg}{codecArg}{concatMetadataArgs}-avoid_negative_ts make_zero -movflags +faststart \"{outputFilePath}\"",
-                            totalDuration,
-                            progress => { },
-                            process =>
-                            {
-                                lock (ProcessLock)
-                                {
-                                    if (!ActiveFFmpegProcesses.ContainsKey(id))
-                                    {
-                                        ActiveFFmpegProcesses[id] = new List<Process>();
-                                    }
-                                    ActiveFFmpegProcesses[id].Add(process);
-                                    Log.Information($"[Clip {id}] Tracking concatenation FFmpeg process (PID: {process.Id})");
-                                }
-                            }
-                        );
+                        File.Move(tempClipFiles[0], outputFilePath);
+                        tempClipFiles.Clear();
                     }
-                    finally
+                    else
                     {
-                        lock (ProcessLock)
+                        concatFilePath = PathUtils.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
+                        await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(FFmpegService.BuildConcatListLine));
+
+                        try
                         {
-                            ActiveFFmpegProcesses.Remove(id);
+                            string mapAllArg = unionAudioLayout != null ? "-map 0 " : "";
+                            string concatMetadataArgs = "";
+                            // When multi-track is active, re-encode audio during concat to fix
+                            // DTS misalignment between streams (different seek offsets cause
+                            // slightly different AAC frame counts per stream).
+                            // Video is always stream-copied.
+                            string codecArg = unionAudioLayout != null
+                                ? $"-c:v copy -c:a aac -b:a {Settings.Instance.ClipAudioQuality} "
+                                : "-c copy ";
+                            if (unionAudioLayout != null)
+                            {
+                                concatMetadataArgs = string.Join(" ", unionAudioLayout.Select((name, i) => $"-metadata:s:a:{i} title=\"{name}\"")) + " ";
+                            }
+                            await FFmpegService.RunWithProgress(id,
+                                $"-y -f concat -safe 0 -i \"{concatFilePath}\" {mapAllArg}{codecArg}{concatMetadataArgs}-avoid_negative_ts make_zero -movflags +faststart \"{outputFilePath}\"",
+                                totalDuration,
+                                progress => { },
+                                process =>
+                                {
+                                    lock (ProcessLock)
+                                    {
+                                        if (!ActiveFFmpegProcesses.ContainsKey(id))
+                                        {
+                                            ActiveFFmpegProcesses[id] = new List<Process>();
+                                        }
+                                        ActiveFFmpegProcesses[id].Add(process);
+                                        Log.Information($"[Clip {id}] Tracking concatenation FFmpeg process (PID: {process.Id})");
+                                    }
+                                }
+                            );
+                        }
+                        finally
+                        {
+                            lock (ProcessLock)
+                            {
+                                ActiveFFmpegProcesses.Remove(id);
+                            }
                         }
                     }
                 }
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 97, segments });
 
-                if (!File.Exists(outputFilePath))
+                if (!createSeparateClips)
                 {
-                    throw new Exception("Failed to create final clip file");
-                }
+                    if (!File.Exists(outputFilePath))
+                    {
+                        throw new Exception("Failed to create final clip file");
+                    }
 
-                await EnsureFileReady(outputFilePath);
+                    await EnsureFileReady(outputFilePath);
+                }
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 98, segments });
 
-                await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Clip, firstSegment?.Game!, null, firstSegment?.Title, igdbId: firstSegment?.IgdbId, audioTrackNames: unionAudioLayout);
-                await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Clip);
-                await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Clip);
+                if (!createSeparateClips)
+                {
+                    await ContentService.CreateMetadataFile(outputFilePath!, Content.ContentType.Clip, firstSegment?.Game!, null, firstSegment?.Title, igdbId: firstSegment?.IgdbId, audioTrackNames: unionAudioLayout);
+                    await ContentService.CreateThumbnail(outputFilePath!, Content.ContentType.Clip);
+                    await ContentService.CreateWaveformFile(outputFilePath!, Content.ContentType.Clip);
+                }
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, segments });
 
-                await SettingsService.LoadContentFromFolderIntoState();
+                // Load silently then await the state send before progress=100 removes the loading card,
+                // so the clip is on screen first (avoids a skeleton-removed-before-content flicker).
+                await SettingsService.LoadContentFromFolderIntoState(sendToFrontend: false);
+                await MessageService.SendStateToFrontend("Clip created");
                 await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 100, segments });
             }
             catch (Exception ex)
@@ -236,6 +276,7 @@ namespace Segra.Backend.Media
                 {
                     SafeDelete(outputFilePath);
                 }
+                outputFilePaths.ForEach(SafeDelete);
 
                 if (!wasCancelled)
                 {
@@ -250,7 +291,6 @@ namespace Segra.Backend.Media
                             "error");
                     }
 
-                    // Notify frontend of failure
                     await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = cardError });
                 }
             }
@@ -268,6 +308,59 @@ namespace Segra.Backend.Media
                 {
                     CancelledClipIds.Remove(id);
                 }
+            }
+        }
+
+        public static async void CancelClip(int clipId)
+        {
+            Log.Information($"[Clip {clipId}] Cancel requested");
+
+            bool wasCancelled = false;
+
+            lock (ProcessLock)
+            {
+                if (ActiveFFmpegProcesses.TryGetValue(clipId, out var processes))
+                {
+                    // Mark as cancelled so the resulting FFmpeg failure isn't surfaced as an error
+                    CancelledClipIds.Add(clipId);
+                    Log.Information($"[Clip {clipId}] Found {processes.Count} active process(es) to cancel");
+
+                    foreach (var process in processes.ToList())
+                    {
+                        try
+                        {
+                            int processId = process.Id; // Capture ID before killing
+
+                            if (!process.HasExited)
+                            {
+                                Log.Information($"[Clip {clipId}] Killing FFmpeg process (PID: {processId})");
+                                process.Kill(true); // Force kill the process and child processes
+                                Log.Information($"[Clip {clipId}] Successfully killed process (PID: {processId})");
+                            }
+                            else
+                            {
+                                Log.Information($"[Clip {clipId}] Process (PID: {processId}) already exited");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error($"[Clip {clipId}] Error killing FFmpeg process: {ex.Message}");
+                        }
+                    }
+
+                    ActiveFFmpegProcesses.Remove(clipId);
+                    Log.Information($"[Clip {clipId}] Removed from active processes after cancellation");
+                    wasCancelled = true;
+                }
+                else
+                {
+                    Log.Warning($"[Clip {clipId}] No active processes found to cancel (may have already completed)");
+                }
+            }
+
+            if (wasCancelled)
+            {
+                await MessageService.SendFrontendMessage("ClipProgress", new { id = clipId, progress = 100, segments = new List<Segment>() });
             }
         }
 
@@ -610,60 +703,6 @@ namespace Segra.Backend.Media
             }
         }
 
-
-        public static async void CancelClip(int clipId)
-        {
-            Log.Information($"[Clip {clipId}] Cancel requested");
-
-            bool wasCancelled = false;
-
-            lock (ProcessLock)
-            {
-                if (ActiveFFmpegProcesses.TryGetValue(clipId, out var processes))
-                {
-                    // Mark as cancelled so the resulting FFmpeg failure isn't surfaced as an error
-                    CancelledClipIds.Add(clipId);
-                    Log.Information($"[Clip {clipId}] Found {processes.Count} active process(es) to cancel");
-
-                    foreach (var process in processes.ToList())
-                    {
-                        try
-                        {
-                            int processId = process.Id; // Capture ID before killing
-
-                            if (!process.HasExited)
-                            {
-                                Log.Information($"[Clip {clipId}] Killing FFmpeg process (PID: {processId})");
-                                process.Kill(true); // Force kill the process and child processes
-                                Log.Information($"[Clip {clipId}] Successfully killed process (PID: {processId})");
-                            }
-                            else
-                            {
-                                Log.Information($"[Clip {clipId}] Process (PID: {processId}) already exited");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.Error($"[Clip {clipId}] Error killing FFmpeg process: {ex.Message}");
-                        }
-                    }
-
-                    ActiveFFmpegProcesses.Remove(clipId);
-                    Log.Information($"[Clip {clipId}] Removed from active processes after cancellation");
-                    wasCancelled = true;
-                }
-                else
-                {
-                    Log.Warning($"[Clip {clipId}] No active processes found to cancel (may have already completed)");
-                }
-            }
-
-            if (wasCancelled)
-            {
-                await MessageService.SendFrontendMessage("ClipProgress", new { id = clipId, progress = 100, segments = new List<Segment>() });
-            }
-        }
-
         private static List<string>? BuildUnionAudioLayout(List<List<string>?> perSegmentTrackNames)
         {
             var union = new List<string> { "Full Mix" };
@@ -709,6 +748,23 @@ namespace Segra.Backend.Media
         {
             try { File.Delete(path); }
             catch (Exception ex) { Log.Information($"Error deleting file {path}: {ex.Message}"); }
+        }
+
+        private static string GetUniqueOutputFilePath(string filePath)
+        {
+            if (!File.Exists(filePath))
+                return filePath;
+
+            string directory = Path.GetDirectoryName(filePath) ?? string.Empty;
+            string fileName = Path.GetFileNameWithoutExtension(filePath);
+            string extension = Path.GetExtension(filePath);
+
+            for (int i = 1; ; i++)
+            {
+                string candidate = PathUtils.Combine(directory, $"{fileName}_{i}{extension}");
+                if (!File.Exists(candidate))
+                    return candidate;
+            }
         }
 
         private static string WithAtrim(string filterChain, string durationStr)
