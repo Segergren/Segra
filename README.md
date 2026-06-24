@@ -61,7 +61,13 @@ Segra is **GPLv2 licensed**.
 ---
 
 ## 🔐 Code Signing Policy
-Free code signing provided by **[SignPath.io](https://signpath.io)**, certificate by **[SignPath Foundation](https://signpath.org)**.
+<table>
+  <tr>
+    <td><a href="https://signpath.org/" target="_blank"><img src="https://avatars.githubusercontent.com/u/34448643" height="30" alt="SignPath logo" /></a></td>
+    <td>free code signing on Windows provided by <a href="https://signpath.io/" target="_blank">SignPath.io</a>, certificate by <a href="https://signpath.org/" target="_blank">SignPath Foundation</a></td>
+  </tr>
+</table>
+
 
 **Team roles**
 
