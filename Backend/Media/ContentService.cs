@@ -392,7 +392,7 @@ namespace Segra.Backend.Media
                         {
                             // Only delete if the folder is empty and is a game subfolder (not the root video type folder)
                             string contentRoot = Settings.Instance.ContentFolder;
-                            string[] rootFolders = { FolderNames.Sessions, FolderNames.Buffers, FolderNames.Clips, FolderNames.Highlights };
+                            string[] rootFolders = { FolderNames.Sessions, FolderNames.Buffers, FolderNames.Clips, FolderNames.Highlights, FolderNames.Lowlights };
                             bool isGameSubfolder = rootFolders.Any(rf =>
                                 videoDirectory.StartsWith(Path.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase) &&
                                 !videoDirectory.Equals(Path.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase));

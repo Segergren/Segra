@@ -5,6 +5,7 @@ import Sessions from './Pages/sessions';
 import Clips from './Pages/clips';
 import ReplayBuffer from './Pages/replay-buffer';
 import Highlights from './Pages/highlights';
+import Lowlights from './Pages/lowlights';
 import { SettingsProvider } from './Context/SettingsContext';
 import { AppStateProvider } from './Context/AppStateContext';
 import Video from './Pages/video';
@@ -23,6 +24,7 @@ import { ContentMigrationProvider } from './Context/ContentMigrationContext';
 import { WebSocketProvider } from './Context/WebSocketContext';
 import { ClippingProvider } from './Context/ClippingContext';
 import { AiHighlightsProvider } from './Context/AiHighlightsContext';
+import { AiLowlightsProvider } from './Context/AiLowlightsContext';
 import { CompressionProvider } from './Context/CompressionContext';
 import { UpdateProvider } from './Context/UpdateContext';
 import { ObsDownloadProvider } from './Context/ObsDownloadContext';
@@ -116,6 +118,8 @@ function App() {
         return <Clips />;
       case 'Highlights':
         return <Highlights />;
+      case 'Lowlights':
+        return <Lowlights />;
       case 'Settings':
         return <Settings />;
       default:
@@ -153,13 +157,15 @@ export default function AppWrapper() {
                           <ContentMigrationProvider>
                             <ClippingProvider>
                               <AiHighlightsProvider>
-                                <CompressionProvider>
-                                  <UpdateProvider>
-                                    <ObsDownloadProvider>
-                                      <App />
-                                    </ObsDownloadProvider>
-                                  </UpdateProvider>
-                                </CompressionProvider>
+                                <AiLowlightsProvider>
+                                  <CompressionProvider>
+                                    <UpdateProvider>
+                                      <ObsDownloadProvider>
+                                        <App />
+                                      </ObsDownloadProvider>
+                                    </UpdateProvider>
+                                  </CompressionProvider>
+                                </AiLowlightsProvider>
                               </AiHighlightsProvider>
                             </ClippingProvider>
                           </ContentMigrationProvider>

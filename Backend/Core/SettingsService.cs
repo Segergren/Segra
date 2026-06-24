@@ -689,6 +689,37 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            // Update EnableLowlights
+            if (settings.EnableLowlights != updatedSettings.EnableLowlights)
+            {
+                Log.Information($"EnableLowlights changed from '{settings.EnableLowlights}' to '{updatedSettings.EnableLowlights}'");
+                settings.EnableLowlights = updatedSettings.EnableLowlights;
+                hasChanges = true;
+            }
+
+            // Update AutoGenerateLowlights
+            if (settings.AutoGenerateLowlights != updatedSettings.AutoGenerateLowlights)
+            {
+                Log.Information($"AutoGenerateLowlights changed from '{settings.AutoGenerateLowlights}' to '{updatedSettings.AutoGenerateLowlights}'");
+                settings.AutoGenerateLowlights = updatedSettings.AutoGenerateLowlights;
+                hasChanges = true;
+            }
+
+            // Update LowlightPaddingBefore
+            if (settings.LowlightPaddingBefore != updatedSettings.LowlightPaddingBefore)
+            {
+                Log.Information($"LowlightPaddingBefore changed from '{settings.LowlightPaddingBefore}' to '{updatedSettings.LowlightPaddingBefore}'");
+                settings.LowlightPaddingBefore = updatedSettings.LowlightPaddingBefore;
+                hasChanges = true;
+            }
+
+            // Update LowlightPaddingAfter
+            if (settings.LowlightPaddingAfter != updatedSettings.LowlightPaddingAfter)
+            {
+                Log.Information($"LowlightPaddingAfter changed from '{settings.LowlightPaddingAfter}' to '{updatedSettings.LowlightPaddingAfter}'");
+                settings.LowlightPaddingAfter = updatedSettings.LowlightPaddingAfter;
+                hasChanges = true;
+            }
             if (settings.ReceiveBetaUpdates != updatedSettings.ReceiveBetaUpdates)
             {
                 Log.Information($"ReceiveBetaUpdates changed from '{settings.ReceiveBetaUpdates}' to '{updatedSettings.ReceiveBetaUpdates}'");

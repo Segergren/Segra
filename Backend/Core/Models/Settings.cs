@@ -15,6 +15,7 @@ namespace Segra.Backend.Core.Models
             "Replay Buffer",
             "Clips",
             "Highlights",
+            "Lowlights",
             "Settings"
         };
 
@@ -48,6 +49,10 @@ namespace Segra.Backend.Core.Models
         private bool _autoGenerateHighlights = true;
         private double _highlightPaddingBefore = 4;
         private double _highlightPaddingAfter = 4;
+        private bool _enableLowlights = false;
+        private bool _autoGenerateLowlights = true;
+        private double _lowlightPaddingBefore = 4;
+        private double _lowlightPaddingAfter = 4;
         private bool _runOnStartup = false;
         private StartupWindowMode _startupWindowMode = StartupWindowMode.Minimized;
         private bool _receiveBetaUpdates = false;
@@ -374,6 +379,19 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("enableLowlights")]
+        public bool EnableLowlights
+        {
+            get => _enableLowlights;
+            set
+            {
+                if (_enableLowlights != value)
+                {
+                    _enableLowlights = value;
+                }
+            }
+        }
+
         [JsonPropertyName("autoGenerateHighlights")]
         public bool AutoGenerateHighlights
         {
@@ -409,6 +427,45 @@ namespace Segra.Backend.Core.Models
                 if (_highlightPaddingAfter != value)
                 {
                     _highlightPaddingAfter = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("autoGenerateLowlights")]
+        public bool AutoGenerateLowlights
+        {
+            get => _autoGenerateLowlights;
+            set
+            {
+                if (_autoGenerateLowlights != value)
+                {
+                    _autoGenerateLowlights = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("lowlightPaddingBefore")]
+        public double LowlightPaddingBefore
+        {
+            get => _lowlightPaddingBefore;
+            set
+            {
+                if (_lowlightPaddingBefore != value)
+                {
+                    _lowlightPaddingBefore = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("lowlightPaddingAfter")]
+        public double LowlightPaddingAfter
+        {
+            get => _lowlightPaddingAfter;
+            set
+            {
+                if (_lowlightPaddingAfter != value)
+                {
+                    _lowlightPaddingAfter = value;
                 }
             }
         }
@@ -1088,7 +1145,8 @@ namespace Segra.Backend.Core.Models
             Session,
             Buffer,
             Clip,
-            Highlight
+            Highlight,
+            Lowlight
         }
 
         public ContentType Type { get; set; } = ContentType.Session;

@@ -34,6 +34,7 @@ const MENU_ICONS: Record<MenuItemId, LucideIcon> = {
   'Replay Buffer': History,
   Clips: Clapperboard,
   Highlights: Crown,
+  Lowlights: Eye,
   Settings: SettingsIcon,
 };
 
