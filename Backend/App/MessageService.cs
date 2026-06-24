@@ -225,6 +225,7 @@ namespace Segra.Backend.App
                                 });
                             }
 
+                            await UpdateService.SendCurrentUpdateProgressToFrontend();
                             _ = Task.Run(() => UpdateService.GetReleaseNotes());
                             break;
                         case "SetVideoLocation":
