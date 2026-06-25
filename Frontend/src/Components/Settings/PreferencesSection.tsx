@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { VolumeX, Volume2 } from 'lucide-react';
+import { Minimize2, VolumeX, Volume2, X } from 'lucide-react';
 import CloudBadge from '../CloudBadge';
 import DropdownSelect from '../DropdownSelect';
 import { CloseButtonAction, Settings as SettingsType, StartupWindowMode } from '../../Models/types';
@@ -23,6 +23,39 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
   return (
     <div className="bg-base-300 px-4 py-3 rounded-lg space-y-3 border border-custom">
       {/* Enabled-by-default toggles */}
+      <div className="flex flex-col pb-3 border-b border-custom">
+        <span className="font-medium">Close Button Action</span>
+        <span className="text-sm text-gray-400 mt-1">
+          Choose what happens when you click the window's close (X) button.
+        </span>
+        <div className="inline-flex w-fit mt-3 rounded-lg border border-base-400 bg-base-300 p-1">
+          <button
+            type="button"
+            className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors ${
+              settings.closeButtonAction === 'Exit'
+                ? 'bg-primary text-base-300'
+                : 'text-gray-300 hover:bg-white/10 hover:text-primary'
+            }`}
+            onClick={() => updateSettings({ closeButtonAction: 'Exit' as CloseButtonAction })}
+          >
+            <X size={15} className="shrink-0" />
+            <span>Close App</span>
+          </button>
+          <button
+            type="button"
+            className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors ${
+              settings.closeButtonAction === 'Minimize'
+                ? 'bg-primary text-base-300'
+                : 'text-gray-300 hover:bg-white/10 hover:text-primary'
+            }`}
+            onClick={() => updateSettings({ closeButtonAction: 'Minimize' as CloseButtonAction })}
+          >
+            <Minimize2 size={15} className="shrink-0" />
+            <span>Minimize to Tray</span>
+          </button>
+        </div>
+      </div>
+
       <div className="flex flex-col">
         <label className="flex items-center gap-2">
           <input
@@ -62,21 +95,6 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-
-      <div className="flex flex-col">
-        <span className="font-medium">Close Button Action</span>
-        <div className="w-44 pt-2">
-          <DropdownSelect
-            size="sm"
-            items={[
-              { value: 'Minimize', label: 'Minimize to Tray' },
-              { value: 'Exit', label: 'Close App' },
-            ]}
-            value={settings.closeButtonAction}
-            onChange={(val) => updateSettings({ closeButtonAction: val as CloseButtonAction })}
-          />
-        </div>
       </div>
       <div className="flex items-center">
         <label className="flex items-center gap-2">
