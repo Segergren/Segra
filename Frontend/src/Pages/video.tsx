@@ -12,6 +12,7 @@ import { useSegments } from '../Context/SegmentsContext';
 import { useUploads } from '../Context/UploadContext';
 import { useModal } from '../Context/ModalContext';
 import UploadModal from '../Components/UploadModal';
+import ConfirmationModal from '../Components/ConfirmationModal';
 import type { LucideIcon } from 'lucide-react';
 import { Icon } from 'lucide-react';
 import { crosshair2Dot, soccerBall } from '@lucide/lab';
@@ -199,6 +200,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const { session } = useAuth();
   const { uploads } = useUploads();
   const { openModal, closeModal } = useModal();
+  const { setSelectedVideo } = useSelectedVideo();
   const {
     segments,
     addSegment,
@@ -1480,6 +1482,26 @@ export default function VideoComponent({ video }: { video: Content }) {
     setTimeout(() => setFileCopied(false), 1500);
   };
 
+  const handleDeleteVideo = () => {
+    openModal(
+      <ConfirmationModal
+        title="Delete Video"
+        description={`Are you sure you want to delete "${video.title || video.fileName}"? This cannot be undone.`}
+        confirmText="Delete"
+        onCancel={closeModal}
+        onConfirm={() => {
+          sendMessageToBackend('DeleteContent', {
+            FileName: video.fileName,
+            ContentType: video.type,
+          });
+          closeModal();
+          setSelectedVideo(null);
+        }}
+      />,
+      { size: 'md' },
+    );
+  };
+
   const [selectedBookmarkTypes, setSelectedBookmarkTypes] = useState<Set<BookmarkType>>(
     new Set(Object.values(BookmarkType)),
   );
@@ -2161,30 +2183,19 @@ export default function VideoComponent({ video }: { video: Content }) {
                 </div>
               );
             })()}
-          <div className="flex items-center justify-between gap-4 py-1 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center border rounded-lg join bg-base-300 border-base-400">
-                <button
-                  onClick={() => skipTime(-5)}
-                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
-                >
-                  <RotateCcw className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={handlePlayPause}
-                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
-                  data-tip={isPlaying ? 'Pause' : 'Play'}
-                >
-                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                </button>
-                <button
-                  onClick={() => skipTime(5)}
-                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
-                  data-tip="Forward 5s"
-                >
-                  <RotateCw className="w-5 h-5" />
-                </button>
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 py-1 shrink-0 xl:grid xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-4">
+            <div className="flex flex-wrap items-center order-1 min-w-0 gap-3">
+              <Button
+                variant="danger"
+                size="sm"
+                icon
+                className="h-10"
+                onClick={handleDeleteVideo}
+                data-tip="Delete video"
+                aria-label="Delete video"
+              >
+                <Trash2 className="w-5 h-5" />
+              </Button>
               {(video.type === 'Clip' || video.type === 'Highlight') && (
                 <>
                   {!settings.airplaneMode && (
@@ -2271,33 +2282,58 @@ export default function VideoComponent({ video }: { video: Content }) {
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="order-2 flex items-center justify-center border rounded-lg join bg-base-300 border-base-400">
+              <button
+                onClick={() => skipTime(-5)}
+                className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                data-tip="Rewind 5s"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handlePlayPause}
+                className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                data-tip={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={() => skipTime(5)}
+                className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                data-tip="Forward 5s"
+              >
+                <RotateCw className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end order-3 min-w-0 gap-3">
               {(video.type === 'Session' || video.type === 'Buffer') && (
                 <>
-                  {availableBookmarkTypes.length > 0 && (
-                    <div className="flex items-center h-10 gap-0 px-0 border rounded-lg bg-base-300 join border-base-400">
-                      {availableBookmarkTypes.map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => toggleBookmarkType(type)}
-                          className={`btn btn-sm btn-secondary border-none transition-colors join-item px-2 ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
-                        >
-                          {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
-                            className: 'w-5 h-5',
-                          })}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 rounded-lg bg-base-300">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="h-10 hover:text-accent"
+                  <div className="flex items-center h-10 gap-0 px-0 overflow-hidden border rounded-lg bg-base-300 border-base-400">
+                    {availableBookmarkTypes.length > 0 && (
+                      <>
+                        {availableBookmarkTypes.map((type) => (
+                          <button
+                            key={type}
+                            onClick={() => toggleBookmarkType(type)}
+                            className={`flex h-full items-center justify-center px-2 transition-colors hover:text-accent ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
+                          >
+                            {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
+                              className: 'w-5 h-5',
+                            })}
+                          </button>
+                        ))}
+                        <div className="w-px h-5 mx-1 bg-base-400" />
+                      </>
+                    )}
+                    <button
+                      className="flex items-center justify-center h-full px-3 text-gray-300 transition-colors hover:text-accent"
                       onClick={handleAddBookmark}
+                      data-tip="Add bookmark"
+                      aria-label="Add bookmark"
                     >
                       <BookmarkPlus className="w-5 h-5" />
-                    </Button>
+                    </button>
                   </div>
                 </>
               )}
