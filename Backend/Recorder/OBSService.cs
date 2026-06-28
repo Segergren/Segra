@@ -1959,6 +1959,11 @@ namespace Segra.Backend.Recorder
 
         public static void DisposeSources()
         {
+            // Dispose these first, while the scene is still alive, so SceneItem.Remove() can run
+            // (the helpers no-op once _displayItem/_gameCaptureItem are null).
+            DisposeDisplaySource();
+            DisposeGameCaptureSource();
+
             if (_mainScene != null)
             {
                 try
@@ -1973,6 +1978,10 @@ namespace Segra.Backend.Recorder
 
                 try
                 {
+                    // Remove() is required, not just Dispose(): OBS's main canvas holds a strong
+                    // reference to the scene, so without it the scene (and every audio source still
+                    // parented to it) leaks and accumulates across recordings.
+                    _mainScene.Remove();
                     _mainScene.Dispose();
                     Log.Information("Scene disposed");
                 }
@@ -1982,14 +1991,6 @@ namespace Segra.Backend.Recorder
                 }
                 _mainScene = null;
             }
-
-            // Clear scene item references
-            _gameCaptureItem = null;
-            _displayItem = null;
-
-            // Now dispose sources
-            DisposeDisplaySource();
-            DisposeGameCaptureSource();
 
             // Dispose mic sources
             foreach (var micSource in _micSources)
