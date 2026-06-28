@@ -2231,7 +2231,14 @@ export default function VideoComponent({ video }: { video: Content }) {
                     onClick={handleCreateClip}
                   >
                     <Clapperboard className="w-5 h-5" />
-                    <span>{clipOutputMode === 'separate' ? 'Create Clips' : 'Create Clip'}</span>
+                    <span className="grid justify-items-start">
+                      <span className="col-start-1 row-start-1 invisible" aria-hidden="true">
+                        Create Clips
+                      </span>
+                      <span className="col-start-1 row-start-1">
+                        {clipOutputMode === 'separate' ? 'Create Clips' : 'Create Clip'}
+                      </span>
+                    </span>
                   </Button>
                   <div className="indicator">
                     <Button
@@ -2326,7 +2333,7 @@ export default function VideoComponent({ video }: { video: Content }) {
         </div>
         {(video.type === 'Session' || video.type === 'Buffer') && (
           <div className="flex flex-col h-full pt-4 pl-4 pr-1 border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
-            <div className="flex-1 p-1 mt-1 overflow-y-scroll">
+            <div className="flex-1 p-1 overflow-y-scroll">
               {segments.map((seg, index) => (
                 <SegmentCard
                   key={seg.id}
@@ -2367,13 +2374,13 @@ export default function VideoComponent({ video }: { video: Content }) {
                 <span className="ml-2 text-sm">Auto-Clear Segments</span>
               </label>
             </div>
-            <div className="grid grid-cols-2 gap-1 p-1 mb-3 mr-3 rounded-lg bg-base-200 border border-base-400">
+            <div className="join flex mb-3 mr-3">
               <button
                 type="button"
-                className={`h-8 cursor-pointer rounded-md text-xs font-medium transition-colors ${
+                className={`btn btn-secondary join-item flex-1 h-9 min-h-9 text-xs font-semibold border-base-400 hover:border-base-400 hover:text-primary ${
                   clipOutputMode === 'combined'
-                    ? 'bg-primary text-primary-content'
-                    : 'text-gray-300 hover:bg-white/10'
+                    ? 'bg-base-300 hover:bg-base-300 text-primary'
+                    : 'bg-base-200 hover:bg-base-200 text-gray-300'
                 }`}
                 onClick={() => setClipOutputMode('combined')}
               >
@@ -2381,17 +2388,17 @@ export default function VideoComponent({ video }: { video: Content }) {
               </button>
               <button
                 type="button"
-                className={`h-8 cursor-pointer rounded-md text-xs font-medium transition-colors ${
+                className={`btn btn-secondary join-item flex-1 h-9 min-h-9 text-xs font-semibold border-base-400 hover:border-base-400 hover:text-primary ${
                   clipOutputMode === 'separate'
-                    ? 'bg-primary text-primary-content'
-                    : 'text-gray-300 hover:bg-white/10'
+                    ? 'bg-base-300 hover:bg-base-300 text-primary'
+                    : 'bg-base-200 hover:bg-base-200 text-gray-300'
                 }`}
                 onClick={() => setClipOutputMode('separate')}
               >
                 Separate
               </button>
             </div>
-            <div className="flex items-center h-10 gap-0 px-0 mb-2 mr-3 rounded-lg bg-base-300 tooltip">
+            <div className="flex items-center h-10 gap-0 px-0 mb-3 mr-3 rounded-lg bg-base-300 tooltip">
               <Button
                 variant="primary"
                 size="sm"
