@@ -104,18 +104,12 @@ namespace Segra.Backend.Games
 
                 OBSService.OnVoiceChatAppStarted(exePath);
 
-                if (AppState.Instance.PreRecording != null && GameUtils.IsGameExePath(exePath))
+                // Capture once: teardown can null PreRecording on another thread between the check and the dereference.
+                var preRecording = AppState.Instance.PreRecording;
+                if (preRecording != null && GameUtils.IsGameExePath(exePath))
                 {
-                    AppState.Instance.PreRecording.Exe = exePath;
-                    if (OBSService.GameCaptureSource != null)
-                    {
-                        string fileName = Path.GetFileName(exePath);
-
-                        ObsKit.NET.Core.Settings gameCaptureSettings = OBSService.GameCaptureSource.GetSettings();
-                        gameCaptureSettings.Set("window", $"*:*:{fileName}");
-                        Log.Information($"Updated game capture source to: {fileName}");
-                        OBSService.GameCaptureSource.Update(gameCaptureSettings);
-                    }
+                    preRecording.Exe = exePath;
+                    OBSService.UpdateGameCaptureWindow(exePath);
                 }
 
                 if (ShouldRecordGame(exePath))
@@ -125,7 +119,7 @@ namespace Segra.Backend.Games
             }
             catch (Exception ex)
             {
-                Log.Error($"[OnProcessStarted] Exception: {ex.Message}");
+                Log.Error(ex, "[OnProcessStarted] Exception");
             }
         }
 

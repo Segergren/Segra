@@ -1928,6 +1928,29 @@ namespace Segra.Backend.Recorder
             }
         }
 
+        /// <summary>
+        /// Repoints the game capture source at a newly launched game executable. Safe to call during
+        /// teardown: the source may be disposed/nulled on another thread, so it is guarded and captured once.
+        /// </summary>
+        public static void UpdateGameCaptureWindow(string exePath)
+        {
+            try
+            {
+                if (_isStoppingOrStopped) return;
+
+                var source = GameCaptureSource;
+                if (source == null) return;
+
+                string fileName = Path.GetFileName(exePath);
+                source.Update(s => s.Set("window", $"*:*:{fileName}"));
+                Log.Information($"Updated game capture source to: {fileName}");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to update game capture window for {exePath}: {ex.Message}");
+            }
+        }
+
         public static void DisposeSources()
         {
             if (_mainScene != null)
