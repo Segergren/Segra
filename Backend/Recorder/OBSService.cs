@@ -1609,6 +1609,13 @@ namespace Segra.Backend.Recorder
                     string fileName = Path.GetFileNameWithoutExtension(filePath);
                     _ = AiService.CreateHighlight(fileName);
                 }
+
+                // If the recording is not a replay buffer recording, AI is enabled, user is authenticated, and auto generate lowlights is enabled -> analyze the video!
+                if (Settings.Instance.EnableLowlights && Settings.Instance.AutoGenerateLowlights && !isReplayBufferMode && bookmarks.Any(b => b.Type.IncludeInLowlight()))
+                {
+                    string fileName = Path.GetFileNameWithoutExtension(filePath);
+                    _ = AiService.CreateLowlight(fileName);
+                }
             }
             finally
             {

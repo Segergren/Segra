@@ -97,6 +97,10 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement aiClipParameterElement);
                             _ = Task.Run(() => HandleCreateAiClip(aiClipParameterElement));
                             break;
+                        case "CreateLowlight":
+                            root.TryGetProperty("Parameters", out JsonElement lowlightParameterElement);
+                            _ = Task.Run(() => HandleCreateLowlight(lowlightParameterElement));
+                            break;
                         case "CompressVideo":
                             root.TryGetProperty("Parameters", out JsonElement compressParameterElement);
                             _ = Task.Run(() => HandleCompressVideo(compressParameterElement));
@@ -316,6 +320,12 @@ namespace Segra.Backend.App
                 Log.Error($"Unhandled exception in message handler: {ex.Message}");
                 Log.Error($"Stack trace: {ex.StackTrace}");
             }
+        }
+        private static async Task HandleCreateLowlight(JsonElement message)
+        {
+            Log.Information($"{message}");
+            message.TryGetProperty("FileName", out JsonElement fileNameElement);
+            await AiService.CreateLowlight(fileNameElement.GetString()!);
         }
 
         public static async Task HandleDeleteContent(JsonElement message)

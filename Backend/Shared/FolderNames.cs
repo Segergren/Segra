@@ -13,6 +13,7 @@ namespace Segra.Backend.Shared
         public const string Buffers = "Replay Buffers";
         public const string Clips = "Clips";
         public const string Highlights = "Highlights";
+        public const string Lowlights = "Lowlights";
 
         // Legacy folder names (for migration purposes)
         public const string LegacySessions = "sessions";
@@ -47,6 +48,7 @@ namespace Segra.Backend.Shared
                 Content.ContentType.Buffer => Buffers,
                 Content.ContentType.Clip => Clips,
                 Content.ContentType.Highlight => Highlights,
+                Content.ContentType.Lowlight => Lowlights,
                 _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown content type")
             };
         }
@@ -126,6 +128,8 @@ namespace Segra.Backend.Shared
                 return Content.ContentType.Clip;
             if (normalizedPath.Contains($"/{Highlights.ToLower()}/"))
                 return Content.ContentType.Highlight;
+            if (normalizedPath.Contains($"/{Lowlights.ToLower()}/"))
+                return Content.ContentType.Lowlight;
 
             // Check legacy folder names for backwards compatibility
             if (normalizedPath.Contains($"/{LegacySessions}/"))
