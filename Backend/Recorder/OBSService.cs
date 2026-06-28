@@ -655,6 +655,12 @@ namespace Segra.Backend.Recorder
                 _hdrEncoderId = null;
             }
 
+            // Clean slate before creating new objects: dispose any stale scene/sources/encoders left by a
+            // skipped or partial teardown. No-op on the normal path where StopRecording already cleaned up.
+            DisposeOutput();
+            DisposeSources();
+            DisposeEncoders();
+
             // Configure video settings specifically for this recording/buffer
             ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customResolution: eff.Resolution);
 
