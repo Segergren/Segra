@@ -12,6 +12,11 @@ import ContentFilters, { SortOption } from './ContentFilters';
 import { useModal } from '../Context/ModalContext';
 import { useImports } from '../Context/ImportContext';
 import Button from './Button';
+import {
+  filterAndSortContent,
+  readSelectedGames,
+  readSortOption,
+} from './SectionView';
 
 // Escape a filename for use inside a CSS attribute-selector string. Windows
 // filenames can't contain " or \, but escape defensively all the same.
@@ -56,23 +61,9 @@ export default function ContentPage({
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const contentItems = state.content.filter((video) => video.type === contentType);
-  const [selectedGames, setSelectedGames] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${sectionId}-filters`);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [selectedGames, setSelectedGames] = useState<string[]>(() => readSelectedGames(sectionId));
 
-  const [sortOption, setSortOption] = useState<SortOption>(() => {
-    try {
-      const saved = localStorage.getItem(`${sectionId}-sort`);
-      return saved ? JSON.parse(saved) : 'newest';
-    } catch {
-      return 'newest';
-    }
-  });
+  const [sortOption, setSortOption] = useState<SortOption>(() => readSortOption(sectionId));
 
   const uniqueGames = useMemo(() => {
     const games = contentItems.map((item) => item.game);
@@ -84,44 +75,10 @@ export default function ContentPage({
     return uniqueGameList;
   }, [contentItems]);
 
-  const filteredItems = useMemo(() => {
-    let filtered = [...contentItems];
-
-    if (selectedGames.length > 0) {
-      filtered = filtered.filter((item) => {
-        if (selectedGames.includes('Imported') && item.isImported) {
-          return true;
-        }
-        return selectedGames.filter((g) => g !== 'Imported').includes(item.game);
-      });
-    }
-
-    filtered.sort((a, b) => {
-      switch (sortOption) {
-        case 'newest':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case 'oldest':
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        case 'size':
-          return (b.fileSizeKb ?? 0) - (a.fileSizeKb ?? 0);
-        case 'duration': {
-          const toSecs = (dur: string) =>
-            dur.split(':').reduce((acc, t) => 60 * acc + (parseInt(t, 10) || 0), 0);
-          return toSecs(b.duration) - toSecs(a.duration);
-        }
-        case 'game': {
-          const byGame = a.game.localeCompare(b.game);
-          return byGame !== 0
-            ? byGame
-            : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }
-        default:
-          return 0;
-      }
-    });
-
-    return filtered;
-  }, [contentItems, selectedGames, sortOption]);
+  const filteredItems = useMemo(
+    () => filterAndSortContent(contentItems, selectedGames, sortOption),
+    [contentItems, selectedGames, sortOption],
+  );
 
   const handleGameFilterChange = (games: string[]) => {
     setSelectedGames(games);
