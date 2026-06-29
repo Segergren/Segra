@@ -504,6 +504,13 @@ namespace Segra.Backend.App
 
             Window.RegisterWindowClosingHandler((sender, eventArgs) =>
             {
+                if (Settings.Instance.CloseButtonAction == CloseButtonAction.Exit)
+                {
+                    Shutdown();
+                    Environment.Exit(0);
+                    return false;
+                }
+
                 HideApplicationWindow();
                 return true;
             });
