@@ -47,6 +47,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
             qualityOverride: null,
             recordingModeOverride: null,
             discardSessionsWithoutBookmarksOverride: null,
+            enableHdrOverride: null,
           } as GameSetting,
         ];
     updateSettings({ games });

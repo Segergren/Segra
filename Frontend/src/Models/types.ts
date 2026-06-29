@@ -177,6 +177,7 @@ export interface GameSetting {
   qualityOverride: GameQualityOverride | null;
   recordingModeOverride: GameRecordingModeOverride | null;
   discardSessionsWithoutBookmarksOverride: boolean | null;
+  enableHdrOverride: boolean | null; // null inherits the global enableHdr setting
 }
 
 export interface GameIntegrationSettings {

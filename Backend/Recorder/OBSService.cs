@@ -616,7 +616,7 @@ namespace Segra.Backend.Recorder
             _hdrEncoderId = null;
             try
             {
-                if (!Settings.Instance.EnableHdr)
+                if (!eff.EnableHdr)
                 {
                     Log.Information("HDR recording is disabled in settings; recording in SDR.");
                 }

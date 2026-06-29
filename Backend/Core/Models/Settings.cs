@@ -1315,6 +1315,12 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("discardSessionsWithoutBookmarksOverride")]
         public bool? DiscardSessionsWithoutBookmarksOverride { get; set; }
+
+        // When set, overrides the global EnableHdr setting for this game. Lets a game that injects
+        // HDR which OBS can't capture correctly (e.g. RTX HDR) be forced to SDR without changing the
+        // global toggle. Null means the game inherits the global EnableHdr setting.
+        [JsonPropertyName("enableHdrOverride")]
+        public bool? EnableHdrOverride { get; set; }
     }
 
     // Mirrors the global video quality settings. When Preset is "low"/"standard"/"high" the concrete

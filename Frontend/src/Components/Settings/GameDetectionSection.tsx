@@ -209,6 +209,7 @@ export default function GameDetectionSection() {
       qualityOverride: null,
       recordingModeOverride: null,
       discardSessionsWithoutBookmarksOverride: null,
+      enableHdrOverride: null,
     });
     setSearchQuery('');
     setShowDropdown(false);
@@ -229,6 +230,7 @@ export default function GameDetectionSection() {
             qualityOverride: null,
             recordingModeOverride: null,
             discardSessionsWithoutBookmarksOverride: null,
+            enableHdrOverride: null,
           })
         }
         onClose={closeModal}
@@ -610,6 +612,28 @@ function GamePanel({
             }
           />
           <span>Discard Session Recordings Without Manual Bookmarks</span>
+        </label>
+      </OverrideSection>
+
+      {/* HDR override */}
+      <OverrideSection
+        title="Record in HDR"
+        description="Override whether this game is recorded in HDR when captured on an HDR display. Useful for games that inject HDR which OBS cannot capture correctly (e.g. RTX HDR)."
+        enabled={game.enableHdrOverride != null}
+        onToggle={(enabled) =>
+          onUpdate({
+            enableHdrOverride: enabled ? settings.enableHdr : null,
+          })
+        }
+      >
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-primary checkbox-sm"
+            checked={game.enableHdrOverride ?? false}
+            onChange={(e) => onUpdate({ enableHdrOverride: e.target.checked })}
+          />
+          <span>Record in HDR</span>
         </label>
       </OverrideSection>
     </div>

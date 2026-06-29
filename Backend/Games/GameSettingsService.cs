@@ -22,6 +22,7 @@ namespace Segra.Backend.Games
         public int ReplayBufferDuration { get; set; } = 30;
         public int ReplayBufferMaxSize { get; set; } = 1000;
         public bool DiscardSessionsWithoutBookmarks { get; set; }
+        public bool EnableHdr { get; set; } = true;
     }
 
     public static class GameSettingsService
@@ -64,7 +65,8 @@ namespace Segra.Backend.Games
                 RecordingMode = s.RecordingMode,
                 ReplayBufferDuration = s.ReplayBufferDuration,
                 ReplayBufferMaxSize = s.ReplayBufferMaxSize,
-                DiscardSessionsWithoutBookmarks = s.DiscardSessionsWithoutBookmarks
+                DiscardSessionsWithoutBookmarks = s.DiscardSessionsWithoutBookmarks,
+                EnableHdr = s.EnableHdr
             };
 
             var match = FindForExePath(exePath);
@@ -82,6 +84,11 @@ namespace Segra.Backend.Games
             if (match.DiscardSessionsWithoutBookmarksOverride.HasValue)
             {
                 eff.DiscardSessionsWithoutBookmarks = match.DiscardSessionsWithoutBookmarksOverride.Value;
+            }
+
+            if (match.EnableHdrOverride.HasValue)
+            {
+                eff.EnableHdr = match.EnableHdrOverride.Value;
             }
 
             return eff;
