@@ -9,6 +9,7 @@ using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace Segra.Backend.Games
 {
@@ -242,9 +243,9 @@ namespace Segra.Backend.Games
                 return false;
             }
 
-            // 5. Launcher-based detection (Steam, EA, Epic, Ubisoft)
-            string[] launcherMarkers = { "/steamapps/common/", "/EA Games/", "/Epic Games/", "/Ubisoft/" };
-            string[] launcherNames = { "Steam", "EA", "Epic", "Ubisoft" };
+            // 5. Launcher-based detection (Steam, EA, Epic, Ubisoft, Xbox)
+            string[] launcherMarkers = { "/steamapps/common/", "/EA Games/", "/Epic Games/", "/Ubisoft/", "/XboxGames/" };
+            string[] launcherNames = { "Steam", "EA", "Epic", "Ubisoft", "Xbox" };
 
             for (int i = 0; i < launcherMarkers.Length; i++)
             {
@@ -649,6 +650,10 @@ namespace Segra.Backend.Games
             string? ubisoftName = AttemptUbisoftGamesLookup(exePath);
             if (!string.IsNullOrEmpty(ubisoftName)) return ubisoftName;
 
+            //Then try Xbox Games lookup
+            string? xboxName = AttemptXboxGamesLookup(exePath);
+            if (!string.IsNullOrEmpty(xboxName)) return xboxName;
+
             // Fall back to filename
             return Path.GetFileNameWithoutExtension(exePath);
         }
@@ -768,6 +773,34 @@ namespace Segra.Backend.Games
                 {
                     return fileDescription;
                 }
+
+                return null;
+            }
+            catch { return null; }
+        }
+
+        private static string? AttemptXboxGamesLookup(string exeFilePath)
+        {
+            try
+            {
+                string normalized = exeFilePath.Replace("\\", "/");
+                var splitAroundContent = Regex.Split(normalized, "/Content/", RegexOptions.IgnoreCase);
+                if (splitAroundContent.Length < 2) return null;
+
+                string folder = splitAroundContent[0].TrimEnd('/', '\\');
+                if (string.IsNullOrEmpty(folder)) return null;
+
+                string contentDir = folder + "/Content";
+                if (!Directory.Exists(contentDir)) return null;
+
+                string configFile = contentDir + "/MicrosoftGame.config";
+                if (!File.Exists(configFile)) return null;
+
+                XDocument config = XDocument.Load(configFile);
+                var displayNameAttribute = config.Root
+                    ?.Element(XName.Get("ShellVisuals", config.Root.GetDefaultNamespace().NamespaceName))
+                    ?.Attribute(XName.Get("DefaultDisplayName", config.Root.GetDefaultNamespace().NamespaceName));
+                if (displayNameAttribute != null) return displayNameAttribute.Value;
 
                 return null;
             }
