@@ -44,6 +44,7 @@ namespace Segra.Backend.Core.Models
         private bool _forceMonoInputSources = false;
         private Display? _selectedDisplay = null;
         private DisplayCaptureMethod _displayCaptureMethod = DisplayCaptureMethod.Auto;
+        private WindowState? _lastWindowState = null;
         private bool _enableAi = true;
         private bool _autoGenerateHighlights = true;
         private double _highlightPaddingBefore = 4;
@@ -359,6 +360,17 @@ namespace Segra.Backend.Core.Models
                 {
                     _displayCaptureMethod = value;
                 }
+            }
+        }
+
+        // Last known main-window position, restored on next launch. Backend-only.
+        [JsonPropertyName("lastWindowState")]
+        public WindowState? LastWindowState
+        {
+            get => _lastWindowState;
+            set
+            {
+                _lastWindowState = value;
             }
         }
 

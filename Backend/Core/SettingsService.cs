@@ -639,6 +639,14 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if ((settings.LastWindowState == null && updatedSettings.LastWindowState != null) ||
+                (settings.LastWindowState != null && updatedSettings.LastWindowState == null) ||
+                (settings.LastWindowState != null && updatedSettings.LastWindowState != null && !settings.LastWindowState.Equals(updatedSettings.LastWindowState)))
+            {
+                settings.LastWindowState = updatedSettings.LastWindowState;
+                hasChanges = true;
+            }
+
             if ((settings.SelectedDisplay == null && updatedSettings.SelectedDisplay != null) ||
                 (settings.SelectedDisplay != null && updatedSettings.SelectedDisplay == null) ||
                 (settings.SelectedDisplay != null && updatedSettings.SelectedDisplay != null && !settings.SelectedDisplay.Equals(updatedSettings.SelectedDisplay)))
