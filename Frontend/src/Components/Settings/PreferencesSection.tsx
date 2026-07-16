@@ -31,27 +31,27 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
         <div className="inline-flex w-fit mt-3 rounded-lg border border-base-400 bg-base-300 p-1">
           <button
             type="button"
-            className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors ${
-              settings.closeButtonAction === 'Exit'
-                ? 'bg-primary text-base-300'
-                : 'text-gray-300 hover:bg-white/10 hover:text-primary'
-            }`}
-            onClick={() => updateSettings({ closeButtonAction: 'Exit' as CloseButtonAction })}
-          >
-            <X size={15} className="shrink-0" />
-            <span>Close App</span>
-          </button>
-          <button
-            type="button"
-            className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors ${
+            className={`inline-flex h-8 items-center gap-2 rounded-md px-3 cursor-pointer text-sm font-semibold transition-colors ${
               settings.closeButtonAction === 'Minimize'
                 ? 'bg-primary text-base-300'
-                : 'text-gray-300 hover:bg-white/10 hover:text-primary'
+                : 'text-gray-300 hover:text-primary'
             }`}
             onClick={() => updateSettings({ closeButtonAction: 'Minimize' as CloseButtonAction })}
           >
             <Minimize2 size={15} className="shrink-0" />
-            <span>Minimize to Tray</span>
+            <span className="leading-none">Minimize to Tray</span>
+          </button>
+          <button
+            type="button"
+            className={`inline-flex h-8 items-center gap-2 rounded-md px-3 cursor-pointer text-sm font-semibold transition-colors ${
+              settings.closeButtonAction === 'Exit'
+                ? 'bg-primary text-base-300'
+                : 'text-gray-300 hover:text-primary'
+            }`}
+            onClick={() => updateSettings({ closeButtonAction: 'Exit' as CloseButtonAction })}
+          >
+            <X size={15} className="shrink-0" />
+            <span className="leading-none">Close App</span>
           </button>
         </div>
       </div>

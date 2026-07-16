@@ -178,6 +178,8 @@ export interface GameSetting {
   qualityOverride: GameQualityOverride | null;
   recordingModeOverride: GameRecordingModeOverride | null;
   discardSessionsWithoutBookmarksOverride: boolean | null;
+  enableHdrOverride: boolean | null;
+  volumeOverride: number | null; // Multiplier on top of the configured device volume (0-2)
 }
 
 export interface GameIntegrationSettings {

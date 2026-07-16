@@ -616,7 +616,7 @@ namespace Segra.Backend.Recorder
             _hdrEncoderId = null;
             try
             {
-                if (!Settings.Instance.EnableHdr)
+                if (!eff.EnableHdr)
                 {
                     Log.Information("HDR recording is disabled in settings; recording in SDR.");
                 }
@@ -685,6 +685,7 @@ namespace Segra.Backend.Recorder
                 {
                     GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
                     GameCaptureSource.SetWindow($"*:*:{fileName}");
+                    GameCaptureSource.Volume = eff.VolumeMultiplier;
 
                     // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
                     // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
@@ -876,12 +877,12 @@ namespace Segra.Backend.Recorder
                             ? AudioOutputCapture.FromDefault(sourceName)
                             : AudioOutputCapture.FromDevice(deviceSetting.Id, sourceName);
 
-                        desktopSource.Volume = deviceSetting.Volume;
+                        desktopSource.Volume = deviceSetting.Volume * eff.VolumeMultiplier;
 
                         _mainScene!.AddSource(desktopSource);
                         _desktopSources.Add(desktopSource);
 
-                        Log.Information($"Added output device: {deviceSetting.Name} ({deviceSetting.Id}) as {sourceName} with volume {deviceSetting.Volume}");
+                        Log.Information($"Added output device: {deviceSetting.Name} ({deviceSetting.Id}) as {sourceName} with volume {desktopSource.Volume}");
                     }
                 }
             }

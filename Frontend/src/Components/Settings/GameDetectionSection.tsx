@@ -9,7 +9,16 @@ import {
   RecordingMode,
 } from '../../Models/types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Gamepad2, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import {
+  Search,
+  Gamepad2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  VolumeX,
+  Volume2,
+} from 'lucide-react';
 import { useModal } from '../../Context/ModalContext';
 import CustomGameModal from '../CustomGameModal';
 import DropdownSelect from '../DropdownSelect';
@@ -209,6 +218,8 @@ export default function GameDetectionSection() {
       qualityOverride: null,
       recordingModeOverride: null,
       discardSessionsWithoutBookmarksOverride: null,
+      enableHdrOverride: null,
+      volumeOverride: null,
     });
     setSearchQuery('');
     setShowDropdown(false);
@@ -229,6 +240,8 @@ export default function GameDetectionSection() {
             qualityOverride: null,
             recordingModeOverride: null,
             discardSessionsWithoutBookmarksOverride: null,
+            enableHdrOverride: null,
+            volumeOverride: null,
           })
         }
         onClose={closeModal}
@@ -417,6 +430,7 @@ function GamePanel({
 }) {
   const q = game.qualityOverride;
   const mode = game.recordingModeOverride;
+  const [draggingVolume, setDraggingVolume] = useState<number | null>(null);
 
   // Quality override helpers ------------------------------------------------
   const enableQuality = () =>
@@ -611,6 +625,58 @@ function GamePanel({
           />
           <span>Discard Session Recordings Without Manual Bookmarks</span>
         </label>
+      </OverrideSection>
+
+      {/* HDR recording override */}
+      <OverrideSection
+        title="HDR Recording"
+        description="Override whether HDR recording is enabled for this game (e.g. disable it for games where HDR injection tools break capture)."
+        enabled={game.enableHdrOverride != null}
+        onToggle={(enabled) => onUpdate({ enableHdrOverride: enabled ? settings.enableHdr : null })}
+      >
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-primary checkbox-sm"
+            checked={game.enableHdrOverride ?? false}
+            onChange={(e) => onUpdate({ enableHdrOverride: e.target.checked })}
+          />
+          <span>Record in HDR when the display supports it</span>
+        </label>
+      </OverrideSection>
+
+      {/* Recording volume override */}
+      <OverrideSection
+        title="Recording Volume"
+        description="Override the captured game/system audio volume for this game, without changing your own in-game or Windows volume."
+        enabled={game.volumeOverride != null}
+        onToggle={(enabled) => onUpdate({ volumeOverride: enabled ? 1.0 : null })}
+      >
+        <div className="flex items-center gap-3">
+          <VolumeX className="w-4 h-4 text-gray-400 shrink-0" />
+          <input
+            type="range"
+            min="0"
+            max="2"
+            step="0.02"
+            value={draggingVolume ?? game.volumeOverride ?? 1.0}
+            onChange={(e) => setDraggingVolume(parseFloat(e.target.value))}
+            onMouseDown={(e) => setDraggingVolume(parseFloat(e.currentTarget.value))}
+            onMouseUp={(e) => {
+              onUpdate({ volumeOverride: parseFloat(e.currentTarget.value) });
+              setDraggingVolume(null);
+            }}
+            onTouchEnd={() => {
+              onUpdate({ volumeOverride: draggingVolume ?? game.volumeOverride ?? 1.0 });
+              setDraggingVolume(null);
+            }}
+            className="range range-xs range-primary w-48 [--range-fill:0]"
+          />
+          <Volume2 className="w-4 h-4 text-gray-400 shrink-0" />
+          <span className="text-xs w-10 text-right">
+            {Math.round((draggingVolume ?? game.volumeOverride ?? 1.0) * 100)}%
+          </span>
+        </div>
       </OverrideSection>
     </div>
   );
