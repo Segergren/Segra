@@ -40,14 +40,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.10" />
     <PackageReference Include="NAudio" Version="2.3.0" />
     <PackageReference Include="NuGet.Versioning" Version="7.6.0" />
     <PackageReference Include="Photino.NET" Version="4.0.16" />
     <PackageReference Include="Photino.NET.Server" Version="4.0.12" />
-    <PackageReference Include="Serilog" Version="4.3.1" />
+    <PackageReference Include="Serilog" Version="4.4.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
-    <PackageReference Include="System.Management" Version="10.0.8" />
+    <PackageReference Include="System.Management" Version="10.0.10" />
     <PackageReference Include="Velopack" Version="1.2.0" />
     <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
     <PackageReference Include="ObsKit.NET" Version="1.4.1" />

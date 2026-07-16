@@ -16,13 +16,7 @@ import MenuCustomizationSection from '../Components/Settings/MenuCustomizationSe
 import AdvancedSection from '../Components/Settings/AdvancedSection';
 
 type SectionId =
-  | 'account'
-  | 'recording'
-  | 'clips'
-  | 'games'
-  | 'storage'
-  | 'preferences'
-  | 'advanced';
+  'account' | 'recording' | 'clips' | 'games' | 'storage' | 'preferences' | 'advanced';
 
 const ALL_NAV_ITEMS: { id: SectionId; label: string }[] = [
   { id: 'account', label: 'Account' },
