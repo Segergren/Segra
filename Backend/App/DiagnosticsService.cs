@@ -2,12 +2,10 @@ using Serilog;
 using System.Linq;
 using System.Reflection;
 using System.Diagnostics;
-using System.Globalization;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 
 namespace Segra.Backend.App
 {
@@ -29,7 +27,6 @@ namespace Segra.Backend.App
                 LogGameDetection();
                 LogAccountAndMisc();
                 LogClipExport();
-                LogRecentErrors();
 
                 Log.Information("============ END DIAGNOSTIC SNAPSHOT ============");
             }
@@ -264,82 +261,6 @@ namespace Segra.Backend.App
             19 => "SCM",
             _ => $"Unknown({code})"
         };
-
-        private static readonly Regex LogHeaderRegex = new(
-            @"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} [+-]\d{2}:\d{2}) \[(\w{3})\] ",
-            RegexOptions.Compiled);
-
-        private static void LogRecentErrors()
-        {
-            const int maxEntries = 50;
-            var cutoff = DateTimeOffset.Now.AddHours(-24);
-            Log.Information($"--- Recent errors (last 24h, max {maxEntries}) ---");
-
-            try
-            {
-                string logPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "Segra", "logs.log");
-
-                if (!File.Exists(logPath))
-                {
-                    Log.Information("Log file not found");
-                    return;
-                }
-
-                var entries = new List<List<string>>();
-                List<string>? currentEntry = null;
-
-                using var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                using var reader = new StreamReader(fs);
-                string? line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    var match = LogHeaderRegex.Match(line);
-                    if (match.Success)
-                    {
-                        currentEntry = null;
-                        if (match.Groups[2].Value != "ERR") continue;
-                        if (!DateTimeOffset.TryParseExact(
-                                match.Groups[1].Value,
-                                "yyyy-MM-dd HH:mm:ss.fff zzz",
-                                CultureInfo.InvariantCulture,
-                                DateTimeStyles.None,
-                                out var ts))
-                        {
-                            continue;
-                        }
-                        if (ts < cutoff) continue;
-
-                        currentEntry = new List<string> { line };
-                        entries.Add(currentEntry);
-                    }
-                    else if (currentEntry != null)
-                    {
-                        // Continuation (exception stack trace)
-                        currentEntry.Add(line);
-                    }
-                }
-
-                int total = entries.Count;
-                var recent = total > maxEntries
-                    ? entries.GetRange(total - maxEntries, maxEntries)
-                    : entries;
-
-                Log.Information($"Found {total} error entr{(total == 1 ? "y" : "ies")} in last 24h, showing last {recent.Count}");
-                foreach (var entry in recent)
-                {
-                    foreach (var l in entry)
-                    {
-                        Log.Information($"  {l}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Information($"Recent errors: error reading log ({ex.Message})");
-            }
-        }
 
         private static string DriveTypeName(uint code) => code switch
         {
