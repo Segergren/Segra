@@ -732,10 +732,20 @@ namespace Segra.Backend.Recorder
 
         public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null)
         {
-            // Wait for pending StopRecording to complete before starting. Prevents race conditions where a new recording starts before cleanup finishes
+            // Held for the whole call (not just a wait-then-release at entry) so Start and Stop can never interleave.
             _stopRecordingSemaphore.Wait();
-            _stopRecordingSemaphore.Release();
+            try
+            {
+                return StartRecordingCore(name, exePath, startManually, pid);
+            }
+            finally
+            {
+                _stopRecordingSemaphore.Release();
+            }
+        }
 
+        private static bool StartRecordingCore(string name, string exePath, bool startManually, int? pid)
+        {
             if (!IsOBSInstalled())
             {
                 Log.Information("OBS is not installed. Skipping recording.");

@@ -162,6 +162,20 @@ namespace Segra.Backend.App
                 return;
             }
 
+            // Stop any active recording first so OBS finalizes cleanly, mirroring Program.cs's shutdown path.
+            if (Core.Models.AppState.Instance.Recording != null || Core.Models.AppState.Instance.PreRecording != null)
+            {
+                Log.Information("Active recording detected while applying update; stopping it first.");
+                try
+                {
+                    Task.Run(() => OBSService.StopRecording()).GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error stopping recording before applying update");
+                }
+            }
+
             // Shutdown OBS before restarting to unload graphics-hook64.dll from game processes.
             // ApplyUpdatesAndRestart kills the process immediately, bypassing Program.Shutdown().
             OBSService.Shutdown();
