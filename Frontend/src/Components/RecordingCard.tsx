@@ -57,7 +57,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
   useEffect(() => {
     const handleMessage = (event: CustomEvent) => {
       const method = event.detail?.method;
-      if (method === 'BookmarkCreated' || method === 'ReplayBufferSaved') {
+      if (method === 'BookmarkCreated' || method === 'ReplayBufferSaveStarted') {
         setShowShockwave(true);
         setTimeout(() => setShowShockwave(false), 600);
       } else if (method === 'RecordingPreviewState') {

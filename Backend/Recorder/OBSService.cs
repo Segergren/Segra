@@ -126,7 +126,30 @@ namespace Segra.Backend.Recorder
             ["obs_qsv11"] = new[] { "obs_qsv11_hevc", "obs_qsv11_av1" },
         };
 
-        private static bool _replaySaved = false;
+        // Correlates the one in-flight replay save with OBS's 'saved' signal. The signal
+        // carries no path or identity and OBS has no failure signal at all, so only one save
+        // may be in flight at a time (_replaySaveSemaphore) and completion is delivered
+        // through the request's task: the saved file path on success, null on failure.
+        private static ReplaySaveRequest? _activeReplaySave;
+        private static readonly object _replaySaveLock = new();
+        private static readonly SemaphoreSlim _replaySaveSemaphore = new(1, 1);
+
+        // True when a save timed out with its OBS-side mux state unknown. Until the old mux
+        // resolves (late 'saved' signal, failure line, or output teardown), arming a new
+        // request is unsafe: the old mux's signal would resolve it with the wrong file.
+        // Guarded by _replaySaveLock.
+        private static bool _previousSaveIndeterminate;
+
+        private sealed class ReplaySaveRequest
+        {
+            // Recording context captured when the save was requested; a save to slow storage
+            // (e.g. a network share) can outlive the game session that produced it.
+            public required string Game { get; init; }
+            public int? IgdbId { get; init; }
+            public List<string>? AudioTrackNames { get; init; }
+            public string? FailureReason;
+            public readonly TaskCompletionSource<string?> Signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
 
         // Signal connection for replay buffer saved event
         private static SignalConnection? _replaySavedConnection;
@@ -156,82 +179,224 @@ namespace Segra.Backend.Recorder
 
         public static async Task<bool> SaveReplayBuffer()
         {
-            // Check if replay buffer is active before trying to save
-            if (_bufferOutput == null || !_bufferOutput.IsActive)
+            // One save at a time: OBS defers a save requested while a previous one is still
+            // muxing, and its 'saved' signal carries no identity, so correlation is only sound
+            // with a single save in flight. Concurrent requests queue here and run in order.
+            await _replaySaveSemaphore.WaitAsync();
+            try
             {
-                Log.Warning("Cannot save replay buffer: buffer is not active");
-                return false;
-            }
+                if (_bufferOutput == null || !_bufferOutput.IsActive)
+                {
+                    Log.Warning("Cannot save replay buffer: buffer is not active");
+                    return false;
+                }
 
-            Log.Information("Attempting to save replay buffer...");
-            _replaySaved = false;
+                string? exePath = AppState.Instance.Recording?.ExePath;
+                var request = new ReplaySaveRequest
+                {
+                    Game = AppState.Instance.Recording?.Game ?? "Unknown",
+                    IgdbId = !string.IsNullOrEmpty(exePath) ? GameUtils.GetIgdbIdFromExePath(exePath) : null,
+                    AudioTrackNames = AppState.Instance.Recording?.AudioTrackNames
+                };
+
+                lock (_replaySaveLock)
+                    _activeReplaySave = request;
+
+                // A previously timed-out save left OBS's mux state unknown; arming a request
+                // now would let that old mux's 'saved' signal resolve it with the wrong file.
+                if (!await WaitForPriorSaveResolutionAsync(GetReplaySaveExpectedTimeout()))
+                {
+                    Log.Warning("Cannot save replay buffer: a previous save is still unresolved.");
+                    await MessageService.ShowModal("Replay Save Failed", "A previous replay save is still being written. Try again once it finishes.", "error");
+                    return false;
+                }
+
+                Log.Information("Attempting to save replay buffer...");
+                try
+                {
+                    _bufferOutput.Save();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to save replay buffer: {ex.Message}");
+                    return false;
+                }
+
+                string? savedPath = await WaitForReplaySavedAsync(request);
+
+                if (string.IsNullOrEmpty(savedPath))
+                {
+                    string reason = request.FailureReason ?? "OBS did not confirm the replay was written. See the logs for details.";
+                    Log.Error($"Replay buffer save failed: {reason}");
+                    await MessageService.ShowModal("Replay Save Failed", reason, "error");
+                    return false;
+                }
+
+                savedPath = PathUtils.Normalize(savedPath);
+                Log.Information($"Replay buffer saved to: {savedPath}");
+
+                // The file is fully written at this point; let the frontend confirm the save.
+                _ = MessageService.SendFrontendMessage("ReplayBufferSaved", new { });
+
+                // Ensure file is fully written to disk/network before thumbnail generation
+                await EnsureFileReady(savedPath);
+
+                // Create metadata for the buffer recording
+                await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, request.Game, igdbId: request.IgdbId, audioTrackNames: request.AudioTrackNames);
+                await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer);
+                await ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer);
+
+                // Reload content list to include the new buffer file
+                await SettingsService.LoadContentFromFolderIntoState(true);
+
+                Log.Information("Replay buffer save process completed successfully");
+
+                // Restart replay buffer so subsequent saves only include new footage, unless a
+                // recording stop began while the save was completing.
+                if (!_isStoppingOrStopped)
+                    await ResetReplayBuffer();
+
+                return true;
+            }
+            finally
+            {
+                lock (_replaySaveLock)
+                    _activeReplaySave = null;
+                _replaySaveSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Waits for OBS to finish writing the replay. The 'saved' signal fires only after the
+        /// mux process has written the entire file, which is paced by the destination - on a
+        /// network share this can take minutes. OBS has no failure signal, so this wait is
+        /// resolved by OnReplaySaved (success), a mux failure line in the OBS log
+        /// (ProcessLogQueueAsync), buffer teardown (DisposeOutput), or the backstop below.
+        /// </summary>
+        private static async Task<string?> WaitForReplaySavedAsync(ReplaySaveRequest request)
+        {
+            TimeSpan expected = GetReplaySaveExpectedTimeout();
+            TimeSpan backstop = TimeSpan.FromMinutes(15);
+
+            Task<string?> signal = request.Signal.Task;
 
             try
             {
-                _bufferOutput.Save();
+                return await signal.WaitAsync(expected);
             }
-            catch (Exception ex)
+            catch (TimeoutException) { }
+
+            Log.Warning($"Replay save not confirmed after {expected.TotalSeconds:F0}s; the destination may be slow (network share?). Waiting up to {backstop.TotalMinutes:F0} minutes.");
+
+            try
             {
-                Log.Warning($"Failed to save replay buffer: {ex.Message}");
-                return false;
+                return await signal.WaitAsync(backstop - expected);
             }
+            catch (TimeoutException) { }
 
-            // Wait for the save callback to complete (up to 5 seconds)
-            Log.Information("Waiting for replay buffer saved callback...");
-            int attempts = 0;
-            while (!_replaySaved && attempts < 50)
+            // OBS never told us how the save ended, so its mux may still be writing; mark the
+            // state indeterminate so the next save waits for it instead of arming a request
+            // the old mux's 'saved' signal would resolve with the wrong file.
+            FailActiveReplaySave($"The replay was still being written after {backstop.TotalMinutes:F0} minutes.", obsSideStateUnknown: true);
+            return await signal;
+        }
+
+        /// <summary>
+        /// How long a legitimate save is expected to take: worst case flushes the whole buffer,
+        /// assuming conservative ~5 MB/s sustained write for slow/network storage.
+        /// </summary>
+        private static TimeSpan GetReplaySaveExpectedTimeout()
+        {
+            int maxSizeMb = _activeEffectiveSettings?.ReplayBufferMaxSize ?? Settings.Instance.ReplayBufferMaxSize;
+            return TimeSpan.FromSeconds(Math.Clamp(maxSizeMb / 5.0, 60d, 600d));
+        }
+
+        /// <summary>
+        /// Fails the in-flight replay save, if any. Used when OBS logs a mux error (there is
+        /// no failure signal) and when the buffer output is torn down mid-save. Pass
+        /// obsSideStateUnknown when the OBS-side mux may still be running (backstop timeout).
+        /// </summary>
+        private static void FailActiveReplaySave(string reason, bool obsSideStateUnknown = false)
+        {
+            lock (_replaySaveLock)
             {
-                await Task.Delay(100);
-                attempts++;
-            }
+                if (_activeReplaySave == null || _activeReplaySave.Signal.Task.IsCompleted)
+                    return;
 
-            if (!_replaySaved)
+                _activeReplaySave.FailureReason = reason;
+                _activeReplaySave.Signal.TrySetResult(null);
+
+                if (obsSideStateUnknown)
+                    _previousSaveIndeterminate = true;
+            }
+        }
+
+        /// <summary>
+        /// Waits for a previously timed-out save's OBS-side mux to resolve (late 'saved'
+        /// signal, failure line, or teardown). Returns false if it is still unresolved.
+        /// </summary>
+        private static async Task<bool> WaitForPriorSaveResolutionAsync(TimeSpan limit)
+        {
+            long deadline = Environment.TickCount64 + (long)limit.TotalMilliseconds;
+            while (true)
             {
-                Log.Warning("Replay buffer may not have saved correctly");
-                return false;
+                lock (_replaySaveLock)
+                {
+                    if (!_previousSaveIndeterminate)
+                        return true;
+                }
+
+                if (Environment.TickCount64 >= deadline)
+                    return false;
+
+                await Task.Delay(500);
             }
+        }
 
-            string? savedPath = _bufferOutput.GetLastReplayPath();
-
-            // Retry a few times if path is not immediately available
-            for (int i = 0; i < 10 && string.IsNullOrEmpty(savedPath); i++)
+        /// <summary>
+        /// Called when OBS logs a replay-mux failure line (scoped to 'replay_buffer_output' by
+        /// the caller). Fails the in-flight save, or resolves a previously indeterminate one.
+        /// </summary>
+        private static void OnReplayMuxFailureLine(string logLine)
+        {
+            lock (_replaySaveLock)
             {
-                savedPath = _bufferOutput.GetLastReplayPath();
-                if (string.IsNullOrEmpty(savedPath))
-                    await Task.Delay(100);
+                if (_activeReplaySave != null && !_activeReplaySave.Signal.Task.IsCompleted)
+                {
+                    _activeReplaySave.FailureReason = $"OBS reported a write failure: {logLine}";
+                    _activeReplaySave.Signal.TrySetResult(null);
+                }
+                else if (_previousSaveIndeterminate)
+                {
+                    // The mux errored out, so nothing is writing anymore; new saves may proceed.
+                    Log.Warning("A previously timed-out replay save has now failed in OBS.");
+                    _previousSaveIndeterminate = false;
+                }
             }
+        }
 
-            if (string.IsNullOrEmpty(savedPath))
+        /// <summary>
+        /// Lets an in-flight replay save finish before the buffer is stopped. Disposing the
+        /// output blocks on the mux thread anyway (libobs joins it in destroy), so this wait
+        /// is nearly free and turns a would-be orphaned file into a proper clip. The limit
+        /// matches what the save flow itself considers normal for this buffer size.
+        /// </summary>
+        private static async Task WaitForInFlightReplaySaveAsync()
+        {
+            Task<string?>? pending;
+            lock (_replaySaveLock)
+                pending = _activeReplaySave?.Signal.Task;
+
+            if (pending == null || pending.IsCompleted)
+                return;
+
+            TimeSpan limit = GetReplaySaveExpectedTimeout();
+            Log.Information($"Waiting up to {limit.TotalSeconds:F0}s for the in-flight replay save before stopping the replay buffer...");
+            try
             {
-                Log.Error("Replay buffer path is null or empty");
-                return false;
+                await pending.WaitAsync(limit);
             }
-
-            savedPath = PathUtils.Normalize(savedPath);
-            Log.Information($"Replay buffer saved to: {savedPath}");
-            string game = AppState.Instance.Recording?.Game ?? "Unknown";
-            string? exePath = AppState.Instance.Recording?.ExePath;
-            int? igdbId = !string.IsNullOrEmpty(exePath) ? GameUtils.GetIgdbIdFromExePath(exePath) : null;
-
-            // Ensure file is fully written to disk/network before thumbnail generation
-            await EnsureFileReady(savedPath);
-
-            // Create metadata for the buffer recording
-            await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, game, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording?.AudioTrackNames);
-            await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer);
-            await ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer);
-
-            // Reload content list to include the new buffer file
-            await SettingsService.LoadContentFromFolderIntoState(true);
-
-            Log.Information("Replay buffer save process completed successfully");
-
-            // Restart replay buffer so subsequent saves only include new footage
-            await ResetReplayBuffer();
-
-            _replaySaved = false;
-
-            return true;
+            catch (TimeoutException) { }
         }
 
         /// <summary>
@@ -240,30 +405,46 @@ namespace Segra.Backend.Recorder
         /// </summary>
         private static async Task ResetReplayBuffer()
         {
-            if (_bufferOutput == null)
+            // Take the stop semaphore so StopRecording cannot dispose the output between our
+            // checks and Stop/Start. If a stop already holds it, skip the reset entirely.
+            if (!await _stopRecordingSemaphore.WaitAsync(0))
+            {
+                Log.Information("Skipping replay buffer reset: a recording stop is in progress.");
                 return;
-
-            Log.Information("Resetting replay buffer...");
-
-            bool stopped = _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
-
-            if (!stopped)
-            {
-                Log.Warning("Replay buffer did not stop within timeout for reset. Forcing stop.");
-                _bufferOutput.ForceStop();
-                await Task.Delay(500);
             }
 
-            bool started = _bufferOutput.Start();
+            try
+            {
+                var buffer = _bufferOutput;
+                if (buffer == null || _isStoppingOrStopped)
+                    return;
 
-            if (!started)
-            {
-                string error = _bufferOutput.LastError ?? "Unknown error";
-                Log.Error($"Failed to restart replay buffer after reset: {error}");
+                Log.Information("Resetting replay buffer...");
+
+                bool stopped = buffer.Stop(waitForCompletion: true, timeoutMs: 30000);
+
+                if (!stopped)
+                {
+                    Log.Warning("Replay buffer did not stop within timeout for reset. Forcing stop.");
+                    buffer.ForceStop();
+                    await Task.Delay(500);
+                }
+
+                bool started = buffer.Start();
+
+                if (!started)
+                {
+                    string error = buffer.LastError ?? "Unknown error";
+                    Log.Error($"Failed to restart replay buffer after reset: {error}");
+                }
+                else
+                {
+                    Log.Information("Replay buffer restarted successfully");
+                }
             }
-            else
+            finally
             {
-                Log.Information("Replay buffer restarted successfully");
+                _stopRecordingSemaphore.Release();
             }
         }
 
@@ -299,6 +480,22 @@ namespace Segra.Backend.Recorder
                     if (formattedMessage.Contains("existing hook found"))
                     {
                         _isStillHookedAfterUnhook = true;
+                    }
+
+                    // The replay mux thread has no failure signal; these warn lines from
+                    // obs-ffmpeg-mux.c are the only evidence a replay save failed. Fail the
+                    // pending save immediately instead of waiting out the timeout. Scoped to
+                    // the replay output's log prefix ("[ffmpeg muxer: 'replay_buffer_output']")
+                    // so a session/HLS muxer failure can't kill a healthy replay save.
+                    if ((_activeReplaySave != null || _previousSaveIndeterminate) &&
+                        formattedMessage.Contains("'replay_buffer_output'") &&
+                        (formattedMessage.Contains("Failed to create process pipe") ||
+                         formattedMessage.Contains("Could not write headers for file") ||
+                         formattedMessage.Contains("Could not write packet for file") ||
+                         formattedMessage.Contains("Failed to create muxer thread") ||
+                         formattedMessage.Contains("Could not save buffer because encoders paused")))
+                    {
+                        OnReplayMuxFailureLine(formattedMessage.Trim());
                     }
 
                     // Parse window dimensions from OBS game capture logs
@@ -1372,6 +1569,9 @@ namespace Segra.Backend.Recorder
 
                 if (isReplayBufferMode && _bufferOutput != null)
                 {
+                    // Let an in-flight replay save finish before stopping the buffer.
+                    await WaitForInFlightReplaySaveAsync();
+
                     // Stop replay buffer
                     Log.Information("Stopping replay buffer...");
                     bool successfullyStopped = _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
@@ -1485,6 +1685,9 @@ namespace Segra.Backend.Recorder
                     // Stop replay buffer first if running
                     if (_bufferOutput != null)
                     {
+                        // Let an in-flight replay save finish before stopping the buffer.
+                        await WaitForInFlightReplaySaveAsync();
+
                         Log.Information("Hybrid: Stopping replay buffer...");
                         bool successfullyStopped = _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
 
@@ -1697,8 +1900,41 @@ namespace Segra.Backend.Recorder
 
         private static void OnReplaySaved(nint calldata)
         {
-            _replaySaved = true;
             Log.Information("Replay buffer saved callback received");
+
+            // Resolve the path here, on the signal: get_last_replay only returns a value when
+            // no mux is in flight, so this is the one moment it is guaranteed to be this save's.
+            string? path = null;
+            try
+            {
+                path = _bufferOutput?.GetLastReplayPath();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to read last replay path: {ex.Message}");
+            }
+
+            lock (_replaySaveLock)
+            {
+                if (_activeReplaySave == null || _activeReplaySave.Signal.Task.IsCompleted)
+                {
+                    // A save whose request was already abandoned finished late. Leave the file
+                    // for the orphaned-file recovery scan; new saves may proceed again.
+                    Log.Warning($"Replay 'saved' signal arrived with no pending request (file: {path ?? "unknown"}); leaving it for recovery.");
+                    _previousSaveIndeterminate = false;
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(path))
+                {
+                    _activeReplaySave.FailureReason = "OBS reported the replay as saved but did not return its path.";
+                    _activeReplaySave.Signal.TrySetResult(null);
+                }
+                else
+                {
+                    _activeReplaySave.Signal.TrySetResult(path);
+                }
+            }
         }
 
         /// <summary>
@@ -2282,6 +2518,14 @@ namespace Segra.Backend.Recorder
         /// </summary>
         public static void DisposeOutput()
         {
+            // The 'saved' signal cannot be delivered past this point; fail any pending save so
+            // its waiter doesn't sit out the backstop. If OBS still completes the file during
+            // disposal, the orphaned-file recovery scan picks it up. Disposing the output also
+            // joins any in-flight mux thread, so nothing stays unresolved on the OBS side.
+            FailActiveReplaySave("The recording stopped before the replay finished saving. If the file completed, it can be recovered when Segra restarts.");
+            lock (_replaySaveLock)
+                _previousSaveIndeterminate = false;
+
             _replaySavedConnection?.Dispose();
             _replaySavedConnection = null;
 

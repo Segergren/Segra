@@ -167,7 +167,10 @@ namespace Segra.Backend.Windows.Input
                     if (recording != null && (recordingMode == RecordingMode.Buffer || recordingMode == RecordingMode.Hybrid))
                     {
                         Log.Information("Saving replay buffer...");
-                        _ = MessageService.SendFrontendMessage("ReplayBufferSaved", new { });
+                        // Immediate keypress acknowledgment (sound + shockwave); the separate
+                        // "ReplayBufferSaved" event is sent by SaveReplayBuffer once OBS
+                        // confirms the file is actually written.
+                        _ = MessageService.SendFrontendMessage("ReplayBufferSaveStarted", new { });
                         Task.Run(OBSService.SaveReplayBuffer);
                         Task.Run(PlayBookmarkSound);
                     }
