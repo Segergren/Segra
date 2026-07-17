@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { Content } from '../Models/types';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAuth } from '../Hooks/useAuth.tsx';
-import { Upload } from 'lucide-react';
+import { Upload, Globe, EyeOff } from 'lucide-react';
 import Button from './Button';
+import DropdownSelect from './DropdownSelect';
 
 interface UploadModalProps {
   video: Content;
@@ -17,7 +18,15 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
   const { session } = useAuth();
   const [title, setTitle] = useState(video.title || '');
   const [description, setDescription] = useState('');
-  const visibility: 'Public' | 'Unlisted' = 'Public';
+  const [visibility, setVisibility] = useState<'Public' | 'Unlisted'>(() =>
+    localStorage.getItem('uploadVisibility') === 'Unlisted' ? 'Unlisted' : 'Public',
+  );
+
+  const handleVisibilityChange = (value: string) => {
+    const next = value === 'Unlisted' ? 'Unlisted' : 'Public';
+    setVisibility(next);
+    localStorage.setItem('uploadVisibility', next);
+  };
   const [titleError, setTitleError] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,7 +70,9 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
         <div className="modal-body pt-3">
           <div className="form-control w-full">
             <label className="label">
-              <span className="label-text text-base-content">Title</span>
+              <span className="label-text text-base-content">
+                Title <span className="text-error">*</span>
+              </span>
             </label>
             <input
               ref={titleInputRef}
@@ -93,7 +104,38 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
               className="textarea textarea-bordered bg-base-300 w-full focus:outline focus:outline-1 focus:outline-white focus:outline-offset-0 resize-none"
-              placeholder="Add a description (optional)"
+              placeholder="Add a description"
+            />
+          </div>
+
+          <div className="form-control w-full mt-4">
+            <label className="label">
+              <span className="label-text text-base-content">Visibility</span>
+            </label>
+            <DropdownSelect
+              items={[
+                {
+                  value: 'Public',
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <Globe size={16} />
+                      Public
+                    </span>
+                  ),
+                },
+                {
+                  value: 'Unlisted',
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <EyeOff size={16} />
+                      Unlisted
+                    </span>
+                  ),
+                },
+              ]}
+              value={visibility}
+              onChange={handleVisibilityChange}
+              align="start"
             />
           </div>
 
@@ -101,7 +143,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
             <label className="label cursor-pointer justify-start gap-2">
               <input
                 type="checkbox"
-                tabIndex={3}
+                tabIndex={4}
                 className="checkbox checkbox-primary focus:!outline focus:!outline-1 focus:!outline-white focus:!outline-offset-2"
                 checked={clipShowInBrowserAfterUpload}
                 onChange={(e) => updateSettings({ clipShowInBrowserAfterUpload: e.target.checked })}
@@ -112,14 +154,14 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
                   }
                 }}
               />
-              <span className="label-text text-base-content">Open in Browser After Upload</span>
+              <span className="label-text text-base-content">Open in Browser</span>
             </label>
           </div>
         </div>
         <div className="modal-action mt-6">
           <Button
             variant="primary"
-            tabIndex={4}
+            tabIndex={5}
             className="w-full focus:!outline focus:!outline-1 focus:!outline-white focus:!outline-offset-2"
             onClick={handleUpload}
             disabled={session === null}

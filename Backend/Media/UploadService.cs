@@ -103,6 +103,7 @@ namespace Segra.Backend.Media
                 AddOptionalContent(formData, message, "Title");
                 AddOptionalContent(formData, message, "Description");
                 AddOptionalContent(formData, message, "IgdbId");
+                AddOptionalContent(formData, message, "Visibility");
 
                 await MessageService.SendFrontendMessage("UploadProgress", new
                 {
