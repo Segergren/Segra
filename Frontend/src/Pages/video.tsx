@@ -425,6 +425,8 @@ export default function VideoComponent({ video }: { video: Content }) {
   );
   const [resizingSegmentId, setResizingSegmentId] = useState<number | null>(null);
   const [resizeDirection, setResizeDirection] = useState<'start' | 'end' | null>(null);
+  // Read at resize-end (the mouseup handler's effect doesn't depend on the state).
+  const resizeDirectionRef = useRef<'start' | 'end' | null>(null);
   const resizeCandidateRef = useRef<{
     id: number;
     direction: 'start' | 'end';
@@ -1177,6 +1179,9 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   const handleSegmentDrag = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!scrollContainerRef.current) return;
+    // Grabbing a resize handle bubbles into the segment body and arms the drag
+    // candidate too; don't let a resize turn into a drag.
+    if (resizingSegmentId != null || resizeCandidateRef.current != null) return;
     if ((e.buttons & 1) !== 1 && dragState.id == null) return;
     const rect = scrollContainerRef.current.getBoundingClientRect();
     const dragPos = e.clientX - rect.left + scrollContainerRef.current.scrollLeft;
@@ -1378,6 +1383,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       if (delta <= 3) return; // not enough movement
       setResizingSegmentId(cand.id);
       setResizeDirection(cand.direction);
+      resizeDirectionRef.current = cand.direction;
       setIsInteracting(true);
     }
 
@@ -1408,6 +1414,8 @@ export default function VideoComponent({ video }: { video: Content }) {
   };
 
   const handleSegmentResizeEnd = () => {
+    const direction = resizeDirectionRef.current;
+    resizeDirectionRef.current = null;
     setResizingSegmentId(null);
     setResizeDirection(null);
     resizeCandidateRef.current = null;
@@ -1415,7 +1423,10 @@ export default function VideoComponent({ video }: { video: Content }) {
     if (latestDraggedSegmentRef.current) {
       const seg = latestDraggedSegmentRef.current;
       latestDraggedSegmentRef.current = null;
-      void refreshSegmentThumbnail(seg);
+      // Thumbnail is the start frame, so only refresh when the start edge moved.
+      if (direction === 'start') {
+        void refreshSegmentThumbnail(seg);
+      }
     }
   };
 
