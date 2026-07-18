@@ -1453,5 +1453,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("gta")]
         public GameIntegrationSettings Gta { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("mecchaChameleon")]
+        public GameIntegrationSettings MecchaChameleon { get; set; } = new GameIntegrationSettings(true);
     }
 }

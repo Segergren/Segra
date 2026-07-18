@@ -9,6 +9,7 @@ import { useContentMigration } from './Context/ContentMigrationContext';
 import { useClipping } from './Context/ClippingContext';
 import { useUpdate } from './Context/UpdateContext';
 import { useObsDownload } from './Context/ObsDownloadContext';
+import { useOcrDownload } from './Context/OcrDownloadContext';
 import { useAiHighlights } from './Context/AiHighlightsContext';
 import UploadCard from './Components/UploadCard';
 import ImportCard from './Components/ImportCard';
@@ -52,6 +53,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { updateInfo } = useUpdate();
   const { aiProgress } = useAiHighlights();
   const { obsDownloadProgress } = useObsDownload();
+  const { ocrDownloadProgress, ocrDownloadStatus } = useOcrDownload();
   const { migrations: contentMigrations, isMigrating } = useContentMigration();
   const [buttonCooldown, setButtonCooldown] = useState(false);
 
@@ -294,6 +296,22 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           )}
         </div>
       )}
+
+      {/* OCR Engine Download Section (first-use, background; ~400MB native runtime) */}
+      {ocrDownloadStatus === 'downloading' &&
+        ocrDownloadProgress !== null &&
+        ocrDownloadProgress < 100 && (
+          <div className="mb-4 flex flex-col items-center px-4">
+            <p className="text-center text-sm text-gray-300 mb-2">Downloading OCR engine</p>
+            <div className="w-full bg-base-200 rounded-full h-1.5">
+              <div
+                className="h-1.5 rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${ocrDownloadProgress}%` }}
+              ></div>
+            </div>
+            <p className="text-gray-500 text-xs mt-1">{ocrDownloadProgress}%</p>
+          </div>
+        )}
 
       {/* Start and Stop Buttons */}
       <div className="mb-4 px-4">

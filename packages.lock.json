@@ -37,6 +37,12 @@
         "resolved": "1.5.0",
         "contentHash": "6mxnTB+FzdI2m9OwuJNb0BldZOIKCbWWVOp6gk8UQvtj9SZnS5ydfNobPDW0lYiJXagVztg0R+t2KW6X9+OPzA=="
       },
+      "OpenCvSharp4": {
+        "type": "Direct",
+        "requested": "[4.13.0.20260627, )",
+        "resolved": "4.13.0.20260627",
+        "contentHash": "nYk95jkyYY9f0sF5KqZ3OB1SWkmqsfV7eN0ROiQds/rxpSn0v1G0QIedMbwuqbdPhvQnOIG2DDmpkLnHEJMh8Q=="
+      },
       "Photino.NET": {
         "type": "Direct",
         "requested": "[4.0.16, )",
@@ -51,6 +57,34 @@
         "requested": "[4.0.12, )",
         "resolved": "4.0.12",
         "contentHash": "m6tUz9CAOkvPWo48xnJj7HZGh8OvEQTpJ1zf96HkT4DB17R1u6xqYRWg55jH5u/HJOgYngHfMYiGcxpTNXwRGQ=="
+      },
+      "Sdcb.PaddleInference": {
+        "type": "Direct",
+        "requested": "[3.3.1, )",
+        "resolved": "3.3.1",
+        "contentHash": "HHH+006iIA/NANcJLoQhrT5nlC1T2j600aZ1r+0Y+eoI+lucMkvIbtLww8zRB0rGtW6bsuukLnoaUpmBOLjRKQ=="
+      },
+      "Sdcb.PaddleOCR": {
+        "type": "Direct",
+        "requested": "[3.3.1, )",
+        "resolved": "3.3.1",
+        "contentHash": "G2rUVdPtyOp5FHosuo/w9SKmynLnxxgIACv9Hz+YZLFsUakGZfxL8exIrFirRImqjhW9xgKNu/r866cwK1MFEw==",
+        "dependencies": {
+          "OpenCvSharp4": "4.11.0.20250507",
+          "Sdcb.PaddleInference": "3.3.1",
+          "YamlDotNet": "16.3.0"
+        }
+      },
+      "Sdcb.PaddleOCR.Models.Online": {
+        "type": "Direct",
+        "requested": "[3.3.1, )",
+        "resolved": "3.3.1",
+        "contentHash": "AlXhee4VdtpsvtMzWXXjBvtmLvEqaldNJ5NoVRcLbrODWBuCdOPuE6SmDYpEV0iCJIwhaUqaAq53/VNjgdv2Gg==",
+        "dependencies": {
+          "Sdcb.PaddleOCR": "3.3.1",
+          "Sdcb.PaddleOCR.Models.Shared": "2.7.0.1",
+          "SharpCompress": "0.48.1"
+        }
       },
       "Serilog": {
         "type": "Direct",
@@ -153,6 +187,16 @@
         "resolved": "4.0.22",
         "contentHash": "VIHipEOe4CZ7HElZE8zTwcvANOsCZ2yak/4nQ4LXzjdlwIjdbY8htmHfNR6rRPgWlCfTfT349GCa6V6Id2/Xyg=="
       },
+      "Sdcb.PaddleOCR.Models.Shared": {
+        "type": "Transitive",
+        "resolved": "2.7.0.1",
+        "contentHash": "b1h41loXb9w3sgcXRBMtsMPkYI1bN/r+eKpKkFrsopEdUpUQXNRhr2GZ0SqNq9SbN7YzMacVTE4H1O6hBZqx0A=="
+      },
+      "SharpCompress": {
+        "type": "Transitive",
+        "resolved": "0.48.1",
+        "contentHash": "SqGaVniGG943Gph/gHhUQUiZPyC7y0tXZyMf0/B2oGsMav9dqs7JJOuUA+xOkwKYaWM2TM7aZQjNK91f4bX71A=="
+      },
       "SharpGen.Runtime": {
         "type": "Transitive",
         "resolved": "2.4.2-beta",
@@ -170,6 +214,11 @@
         "type": "Transitive",
         "resolved": "2.1.0",
         "contentHash": "KK+SjNSuKdP+zbavekubi+vaeb1Jo4k87ZF6CMkVWjr6RjJwc8peVtmgzXXDIMy4ZC3ZISyk3llY3q65ISOkBQ=="
+      },
+      "YamlDotNet": {
+        "type": "Transitive",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       }
     },
     "net10.0-windows10.0.19041/win-x64": {

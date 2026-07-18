@@ -10,13 +10,21 @@ using global::Windows.Graphics.Imaging;
 namespace Segra.Backend.Games
 {
     /// <summary>
-    /// Base class for game integrations that use OCR to detect on-screen events.
-    /// Subclasses only need to provide configuration via <see cref="GetConfig"/>.
+    /// Base class for game integrations that use OCR to detect on-screen events. Subclasses only
+    /// need to provide configuration via <see cref="GetConfig"/>; this class owns the poll loop,
+    /// keyword matching, and bookmark creation.
+    ///
+    /// Two OCR backends are supported, chosen per integration via <see cref="OcrConfig.UsePaddleOcr"/>:
+    ///   - the built-in Windows.Media.Ocr (default) — fast, no download, but only reliable on clean
+    ///     text, so its path binarizes (grayscale + <see cref="OcrConfig.Threshold"/>) first;
+    ///   - <see cref="PaddleOcrEngine"/> — downloaded on first use (~400MB native runtime), reads
+    ///     stylized, colored overlay text far better, at a higher CPU cost. Opt in only where the
+    ///     built-in engine can't cope (e.g. MECCHA CHAMELEON's colored kill feed).
     /// </summary>
     internal abstract class OcrIntegration : Integration, IDisposable
     {
         private CancellationTokenSource? _cts;
-        private readonly OcrEngine _ocrEngine;
+        private readonly OcrEngine? _ocrEngine;
         private readonly OcrConfig _config;
         private readonly Dictionary<BookmarkType, DateTime> _lastEventTime;
         private readonly Dictionary<BookmarkType, PendingEvent> _pendingEvents = new();
@@ -32,6 +40,14 @@ namespace Segra.Backend.Games
             public required string LogPrefix { get; init; }
             public required CropRegion CropRegion { get; init; }
             public required IReadOnlyList<OcrKeyword> Keywords { get; init; }
+
+            /// <summary>
+            /// When true, recognition uses the downloaded <see cref="PaddleOcrEngine"/> (color, no
+            /// binarization). When false (default), uses the built-in Windows.Media.Ocr on a
+            /// binarized crop. <see cref="Threshold"/> only applies to the built-in path.
+            /// </summary>
+            public bool UsePaddleOcr { get; init; }
+
             public int Threshold { get; init; } = 150;
             public int PollIntervalMs { get; init; } = 250;
             public TimeSpan EventCooldown { get; init; } = TimeSpan.FromSeconds(5);
@@ -46,21 +62,39 @@ namespace Segra.Backend.Games
             public required string Text { get; init; }
             public required BookmarkType BookmarkType { get; init; }
             public IReadOnlyList<string> ExcludeFragments { get; init; } = [];
+
+            /// <summary>
+            /// Optional: when set, called with the full OCR text once <see cref="Text"/> is matched,
+            /// to decide which <see cref="BookmarkType"/> (if any) the event actually represents —
+            /// e.g. disambiguating a shared kill-feed line ("X found Y") by checking which side the
+            /// local player is on. Returning null means "matched, but not an event for us" and the
+            /// frame is skipped (no bookmark, no cooldown applied). When set, <see cref="PossibleTypes"/>
+            /// must list every <see cref="BookmarkType"/> this resolver can return, so cooldowns are
+            /// tracked correctly.
+            /// </summary>
+            public Func<string, BookmarkType?>? Resolver { get; init; }
+            public IReadOnlyList<BookmarkType> PossibleTypes { get; init; } = [];
         }
 
         protected abstract OcrConfig GetConfig();
 
         protected OcrIntegration()
         {
-            _ocrEngine = OcrEngine.TryCreateFromUserProfileLanguages()
-                         ?? OcrEngine.TryCreateFromLanguage(new global::Windows.Globalization.Language("en-US"))
-                         ?? throw new InvalidOperationException("No OCR engine available");
-
             _config = GetConfig();
 
-            // Initialize per-event-type cooldown tracking from configured keywords
+            // The built-in Windows OCR engine is only needed for the non-Paddle path.
+            if (!_config.UsePaddleOcr)
+            {
+                _ocrEngine = OcrEngine.TryCreateFromUserProfileLanguages()
+                             ?? OcrEngine.TryCreateFromLanguage(new global::Windows.Globalization.Language("en-US"))
+                             ?? throw new InvalidOperationException("No OCR engine available");
+            }
+
+            // Initialize per-event-type cooldown tracking from configured keywords.
+            // Resolver-based keywords can resolve to any of several types (see PossibleTypes),
+            // so all of them need a cooldown entry, not just the keyword's default BookmarkType.
             _lastEventTime = _config.Keywords
-                .Select(k => k.BookmarkType)
+                .SelectMany(k => k.Resolver != null && k.PossibleTypes.Count > 0 ? k.PossibleTypes : [k.BookmarkType])
                 .Distinct()
                 .ToDictionary(bt => bt, _ => DateTime.MinValue);
         }
@@ -98,6 +132,16 @@ namespace Segra.Backend.Games
                     break;
 
                 await Task.Delay(1000, token).ConfigureAwait(false);
+            }
+
+            // For Paddle-backed integrations, ensure the engine is downloaded + loaded before polling.
+            // This can take a while on first use (~400MB native runtime), during which recording
+            // proceeds normally; if it fails, we skip OCR entirely rather than disturb the recording.
+            if (_config.UsePaddleOcr &&
+                !await PaddleOcrEngine.EnsureReadyAsync(token).ConfigureAwait(false))
+            {
+                Log.Warning($"[{_config.LogPrefix}] OCR engine unavailable, skipping OCR for this recording");
+                return;
             }
 
             Log.Information($"[{_config.LogPrefix}] Game capture source hooked, starting OCR monitor");
@@ -151,11 +195,21 @@ namespace Segra.Backend.Games
 
         private async Task ProcessScreenshot(byte[] pixels, uint width, uint height)
         {
-            int w = (int)width;
-            int h = (int)height;
+            string text = _config.UsePaddleOcr
+                ? PaddleOcrEngine.Recognize(pixels, (int)width, (int)height)
+                : await RecognizeWithWindowsOcr(pixels, (int)width, (int)height).ConfigureAwait(false);
+
+            HandleText(text ?? "");
+        }
+
+        /// <summary>
+        /// Built-in OCR path: grayscale + threshold the crop to isolate bright notification text,
+        /// then hand it to Windows.Media.Ocr. Returns the recognized text (empty on failure).
+        /// </summary>
+        private async Task<string> RecognizeWithWindowsOcr(byte[] pixels, int w, int h)
+        {
             int threshold = _config.Threshold;
 
-            // Preprocess: grayscale + threshold to isolate bright notification text
             using var bitmap = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             var bmpData = bitmap.LockBits(
                 new Rectangle(0, 0, w, h),
@@ -190,56 +244,14 @@ namespace Segra.Backend.Games
                 bitmap.UnlockBits(bmpData);
             }
 
-            // Convert Bitmap to SoftwareBitmap for Windows OCR
             var softwareBitmap = await BitmapToSoftwareBitmap(bitmap).ConfigureAwait(false);
             if (softwareBitmap == null)
-                return;
+                return "";
 
             using (softwareBitmap)
             {
-                var result = await _ocrEngine.RecognizeAsync(softwareBitmap);
-                var text = result.Text;
-
-                // Process pending events even when OCR text is empty
-                ProcessPendingEvents(text ?? "");
-
-                if (string.IsNullOrWhiteSpace(text))
-                    return;
-
-                Log.Debug($"[{_config.LogPrefix}] OCR text: {text}");
-
-                foreach (var keyword in _config.Keywords)
-                {
-                    if (!FuzzyContains(text, keyword.Text))
-                        continue;
-
-                    var now = DateTime.UtcNow;
-                    if (now - _lastEventTime[keyword.BookmarkType] < _config.EventCooldown)
-                        break;
-
-                    if (keyword.ExcludeFragments.Count > 0)
-                    {
-                        // If exclude fragment already visible on this frame, skip entirely
-                        if (keyword.ExcludeFragments.Any(f => text.Contains(f, StringComparison.OrdinalIgnoreCase)))
-                            break;
-
-                        // Defer: wait for ExcludeCheckWindow before confirming
-                        if (!_pendingEvents.ContainsKey(keyword.BookmarkType))
-                        {
-                            _pendingEvents[keyword.BookmarkType] = new PendingEvent(
-                                keyword.Text, keyword.ExcludeFragments, now, DateTime.Now);
-                            Log.Debug($"[{_config.LogPrefix}] Pending '{keyword.Text}' detection, waiting for confirmation");
-                        }
-                    }
-                    else
-                    {
-                        // No exclude fragments — confirm immediately
-                        _lastEventTime[keyword.BookmarkType] = now;
-                        AddBookmark(keyword.BookmarkType);
-                        Log.Information($"[{_config.LogPrefix}] Detected '{keyword.Text}' in OCR text -> {keyword.BookmarkType}");
-                    }
-                    break;
-                }
+                var result = await _ocrEngine!.RecognizeAsync(softwareBitmap);
+                return result.Text ?? "";
             }
         }
 
@@ -259,6 +271,57 @@ namespace Segra.Backend.Games
                 BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
 
             return softwareBitmap;
+        }
+
+        private void HandleText(string text)
+        {
+            // Process pending events even when OCR text is empty
+            ProcessPendingEvents(text);
+
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+
+            Log.Debug($"[{_config.LogPrefix}] OCR text: {text}");
+
+            foreach (var keyword in _config.Keywords)
+            {
+                if (!FuzzyContains(text, keyword.Text))
+                    continue;
+
+                // Resolver keywords can match the text but decide it isn't an event for us
+                // (e.g. neither side of a shared kill-feed line is the local player) — in
+                // that case, skip this frame without starting a cooldown and keep polling.
+                var resolvedType = keyword.Resolver != null ? keyword.Resolver(text) : keyword.BookmarkType;
+                if (resolvedType == null)
+                    break;
+
+                var now = DateTime.UtcNow;
+                if (now - _lastEventTime[resolvedType.Value] < _config.EventCooldown)
+                    break;
+
+                if (keyword.ExcludeFragments.Count > 0)
+                {
+                    // If exclude fragment already visible on this frame, skip entirely
+                    if (keyword.ExcludeFragments.Any(f => text.Contains(f, StringComparison.OrdinalIgnoreCase)))
+                        break;
+
+                    // Defer: wait for ExcludeCheckWindow before confirming
+                    if (!_pendingEvents.ContainsKey(resolvedType.Value))
+                    {
+                        _pendingEvents[resolvedType.Value] = new PendingEvent(
+                            keyword.Text, keyword.ExcludeFragments, now, DateTime.Now);
+                        Log.Debug($"[{_config.LogPrefix}] Pending '{keyword.Text}' detection, waiting for confirmation");
+                    }
+                }
+                else
+                {
+                    // No exclude fragments — confirm immediately
+                    _lastEventTime[resolvedType.Value] = now;
+                    AddBookmark(resolvedType.Value);
+                    Log.Information($"[{_config.LogPrefix}] Detected '{keyword.Text}' in OCR text -> {resolvedType.Value}");
+                }
+                break;
+            }
         }
 
         /// <summary>
@@ -315,7 +378,7 @@ namespace Segra.Backend.Games
         /// <summary>
         /// Computes the Levenshtein edit distance between two strings.
         /// </summary>
-        private static int LevenshteinDistance(string s, string t)
+        protected static int LevenshteinDistance(string s, string t)
         {
             int n = s.Length, m = t.Length;
             if (n == 0) return m;

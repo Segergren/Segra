@@ -26,6 +26,7 @@ import { AiHighlightsProvider } from './Context/AiHighlightsContext';
 import { CompressionProvider } from './Context/CompressionContext';
 import { UpdateProvider } from './Context/UpdateContext';
 import { ObsDownloadProvider } from './Context/ObsDownloadContext';
+import { OcrDownloadProvider } from './Context/OcrDownloadContext';
 import { ReleaseNote } from './Models/WebSocketMessages';
 import { ScrollProvider } from './Context/ScrollContext';
 import { ModalProvider } from './Context/ModalContext';
@@ -156,7 +157,9 @@ export default function AppWrapper() {
                                 <CompressionProvider>
                                   <UpdateProvider>
                                     <ObsDownloadProvider>
-                                      <App />
+                                      <OcrDownloadProvider>
+                                        <App />
+                                      </OcrDownloadProvider>
                                     </ObsDownloadProvider>
                                   </UpdateProvider>
                                 </CompressionProvider>

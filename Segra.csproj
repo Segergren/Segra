@@ -51,6 +51,18 @@
     <PackageReference Include="Velopack" Version="1.2.0" />
     <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
     <PackageReference Include="ObsKit.NET" Version="1.5.0" />
+
+    <!-- PaddleOCR (game-event OCR), CPU-only. Used only where the built-in Windows.Media.Ocr can't
+         read stylized/colored overlay text (currently MECCHA CHAMELEON). MANAGED ASSEMBLIES ONLY —
+         the ~400MB native runtime (Sdcb.PaddleInference.runtime.win64.mkl + OpenCvSharp4.runtime.win)
+         and the OCR model are deliberately NOT referenced/bundled. PaddleOcrEngine downloads them on
+         first use into AppData and loads the native DLLs from there via AddDllDirectory. The managed
+         assemblies below P/Invoke by bare DLL name, so they build fine without the native packages
+         present. Do NOT add the *.runtime.* packages here — that would bloat the installer by ~400MB. -->
+    <PackageReference Include="Sdcb.PaddleOCR" Version="3.3.1" />
+    <PackageReference Include="Sdcb.PaddleInference" Version="3.3.1" />
+    <PackageReference Include="Sdcb.PaddleOCR.Models.Online" Version="3.3.1" />
+    <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260627" />
   </ItemGroup>
 
   <ItemGroup>

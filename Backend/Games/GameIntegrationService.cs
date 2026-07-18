@@ -9,6 +9,7 @@ using Segra.Backend.Games.RocketLeague;
 using Segra.Backend.Games.CounterStrike2;
 using Segra.Backend.Games.GrandTheftAuto;
 using Segra.Backend.Games.LeagueOfLegends;
+using Segra.Backend.Games.MecchaChameleon;
 using Segra.Backend.Games.RunescapeDragonwilds;
 
 namespace Segra.Backend.Games
@@ -28,6 +29,7 @@ namespace Segra.Backend.Games
         private const int GTA_V_IGDB_ID = 1020;
         private const int FIVEM_IGDB_ID = 146553;
         private const int RAGE_MP_IGDB_ID = 212734;
+        private const int MECCHA_CHAMELEON_IGDB_ID = 405028;
 
         private static Integration? _gameIntegration;
         private static readonly SemaphoreSlim _lock = new(1, 1);
@@ -69,6 +71,8 @@ namespace Segra.Backend.Games
                           || gameName?.Contains("FiveM", StringComparison.OrdinalIgnoreCase) == true
                           || gameName?.Contains("Rage Multiplayer", StringComparison.OrdinalIgnoreCase) == true) && integrations.Gta.Enabled)
                     _gameIntegration = new GtaIntegration();
+                else if ((igdbId == MECCHA_CHAMELEON_IGDB_ID || gameName?.Equals("MECCHA CHAMELEON", StringComparison.OrdinalIgnoreCase) == true) && integrations.MecchaChameleon.Enabled)
+                    _gameIntegration = new MecchaChameleonIntegration();
 
                 if (_gameIntegration == null)
                     return;

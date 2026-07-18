@@ -86,6 +86,14 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     bookmarks: ['Deaths'],
     backgroundImage: 'https://segra.tv/api/games/cover/ar3en0',
   },
+  {
+    id: 'mecha-chameleon',
+    name: 'MECCHA CHAMELEON',
+    settingsKey: 'mecchaChameleon',
+    bookmarks: ['Kills', 'Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/ar6118',
+    isBeta: true,
+  },
 ];
 
 const getBookmarkBadgeClass = (bookmark: string): string => {
