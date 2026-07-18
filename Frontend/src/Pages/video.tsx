@@ -453,6 +453,10 @@ export default function VideoComponent({ video }: { video: Content }) {
     () => [...segments].sort((a, b) => a.startTime - b.startTime),
     [segments],
   );
+  const totalSegmentsDuration = useMemo(
+    () => segments.reduce((sum, s) => sum + Math.max(0, s.endTime - s.startTime), 0),
+    [segments],
+  );
   const segmentsRef = useRef(segments);
   useEffect(() => {
     segmentsRef.current = segments;
@@ -2359,6 +2363,16 @@ export default function VideoComponent({ video }: { video: Content }) {
                   }
                 />
               ))}
+              {clipOutputMode === 'combined' && segments.length > 0 && (
+                <div className="flex items-center justify-center pb-1">
+                  <span
+                    className="text-sm font-medium text-gray-300 opacity-50 tabular-nums"
+                    title="Total length of all segments"
+                  >
+                    {formatTime(totalSegmentsDuration)}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between my-3 mr-3">
               <label className="flex items-center cursor-pointer">
