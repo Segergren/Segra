@@ -124,12 +124,25 @@ namespace Segra.Backend.Games
             if (recognizer == null)
                 return "";
 
-            // Wrap the BGRA buffer, drop alpha to BGR (PaddleOCR requires 3 or 1 channels).
-            using var bgra = Mat.FromPixelData(height, width, MatType.CV_8UC4, bgraPixels);
-            using var bgr = new Mat();
-            Cv2.CvtColor(bgra, bgr, ColorConversionCodes.BGRA2BGR);
+            // Inference is CPU-heavy native work that shares cores with the game and OBS. Drop this
+            // thread's priority for the duration so that, on a saturated CPU, the OS scheduler starves
+            // OCR (letting each run just take a little longer) rather than the game/encode threads.
+            var thread = Thread.CurrentThread;
+            var previousPriority = thread.Priority;
+            thread.Priority = ThreadPriority.BelowNormal;
+            try
+            {
+                // Wrap the BGRA buffer, drop alpha to BGR (PaddleOCR requires 3 or 1 channels).
+                using var bgra = Mat.FromPixelData(height, width, MatType.CV_8UC4, bgraPixels);
+                using var bgr = new Mat();
+                Cv2.CvtColor(bgra, bgr, ColorConversionCodes.BGRA2BGR);
 
-            return recognizer.Run(bgr).Text;
+                return recognizer.Run(bgr).Text;
+            }
+            finally
+            {
+                thread.Priority = previousPriority;
+            }
         }
 
         private static bool NativeRuntimeInstalled =>
