@@ -4,7 +4,6 @@ using NAudio.Wave;
 using ObsKit.NET.Scenes;
 using Segra.Backend.App;
 using ObsKit.NET.Outputs;
-using ObsKit.NET.Signals;
 using ObsKit.NET.Sources;
 using Segra.Backend.Core;
 using System.Diagnostics;
@@ -19,6 +18,7 @@ using ObsKit.NET.Native.Types;
 using Segra.Backend.Core.Models;
 using System.Threading.Channels;
 using NAudio.Wave.SampleProviders;
+using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Display;
 using Segra.Backend.Windows.Storage;
 using System.Text.RegularExpressions;
@@ -30,18 +30,6 @@ namespace Segra.Backend.Recorder
     public static partial class OBSService
     {
         private const uint OBS_SOURCE_FLAG_FORCE_MONO = 1u << 1; // from obs.h
-
-        // OBS output stop codes (from libobs/obs-defs.h), passed as "code" in the output "stop" signal
-        private const int OBS_OUTPUT_SUCCESS = 0;
-        private const int OBS_OUTPUT_BAD_PATH = -1;
-        private const int OBS_OUTPUT_CONNECT_FAILED = -2;
-        private const int OBS_OUTPUT_INVALID_STREAM = -3;
-        private const int OBS_OUTPUT_ERROR = -4;
-        private const int OBS_OUTPUT_DISCONNECTED = -5;
-        private const int OBS_OUTPUT_UNSUPPORTED = -6;
-        private const int OBS_OUTPUT_NO_SPACE = -7;
-        private const int OBS_OUTPUT_ENCODE_ERROR = -8;
-        private const int OBS_OUTPUT_HDR_DISABLED = -9;
 
         [GeneratedRegex(@"BufferDesc\.Width:\s*(\d+)")]
         private static partial Regex BufferDescWidthRegex();
@@ -112,20 +100,6 @@ namespace Segra.Backend.Recorder
         private const int HdrWindowWaitAttempts = 120;
         private const int HdrWindowWaitDelayMs = 500; // ~60s, matching StartRecording's dimension-resolution wait
 
-        // Encoders that can produce 10-bit HDR. H.264/AVC and x264 cannot encode HDR.
-        private static readonly string[] HdrHevcEncoders = { "jim_hevc_nvenc", "obs_nvenc_hevc_tex", "h265_texture_amf", "obs_qsv11_hevc" };
-        private static readonly string[] HdrAv1Encoders = { "jim_av1_nvenc", "obs_nvenc_av1_tex", "av1_texture_amf", "obs_qsv11_av1" };
-
-        // Maps a user-selected H.264 encoder to the same vendor's HDR-capable encoders (HEVC then AV1).
-        private static readonly Dictionary<string, string[]> HdrEncoderSubstitutes = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["jim_nvenc"] = new[] { "jim_hevc_nvenc", "jim_av1_nvenc" },
-            ["obs_nvenc_h264_tex"] = new[] { "obs_nvenc_hevc_tex", "obs_nvenc_av1_tex", "jim_hevc_nvenc", "jim_av1_nvenc" },
-            ["h264_texture_amf"] = new[] { "h265_texture_amf", "av1_texture_amf" },
-            ["obs_qsv11_v2"] = new[] { "obs_qsv11_hevc", "obs_qsv11_av1" },
-            ["obs_qsv11"] = new[] { "obs_qsv11_hevc", "obs_qsv11_av1" },
-        };
-
         // Correlates the one in-flight replay save with OBS's 'saved' signal. The signal
         // carries no path or identity and OBS has no failure signal at all, so only one save
         // may be in flight at a time (_replaySaveSemaphore) and completion is delivered
@@ -150,13 +124,6 @@ namespace Segra.Backend.Recorder
             public string? FailureReason;
             public readonly TaskCompletionSource<string?> Signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
-
-        // Signal connection for replay buffer saved event
-        private static SignalConnection? _replaySavedConnection;
-
-        // Signal connections for unexpected output stops (disk full, encoder errors, etc.)
-        private static SignalConnection? _outputStoppedConnection;
-        private static SignalConnection? _bufferStoppedConnection;
 
         // Ensures an unexpected stop is handled once even if multiple outputs stop together (e.g. hybrid mode)
         private static int _unexpectedStopHandled = 0;
@@ -610,6 +577,18 @@ namespace Segra.Backend.Recorder
                 AppState.Instance.HasLoadedObs = true;
                 Log.Information("OBS initialized successfully!");
 
+                // Hotkeys register through OBS's own hotkey system, so this can only run
+                // once OBS is initialized. A failure here must not be reported as an OBS
+                // initialization failure - OBS itself is already up at this point.
+                try
+                {
+                    KeybindCaptureService.Start();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to register keybind hotkeys");
+                }
+
                 _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
                 _ = GameDetectionService.StartAsync();
                 GameDetectionService.ForegroundHook.Start();
@@ -638,6 +617,8 @@ namespace Segra.Backend.Recorder
             try
             {
                 Log.Information("Shutting down OBS...");
+
+                KeybindCaptureService.Stop();
 
                 // Manually clean up all resources since AutoDispose is false
                 DisposeOutput();
@@ -839,7 +820,7 @@ namespace Segra.Backend.Recorder
                     if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
                     {
                         string userEncoderId = eff.Codec?.InternalEncoderId ?? string.Empty;
-                        string? hdrEncoderId = ResolveHdrEncoder(userEncoderId, AppState.Instance.Codecs);
+                        string? hdrEncoderId = EncoderInfo.FindHdrCapable(userEncoderId)?.Id;
                         if (hdrEncoderId != null)
                         {
                             _isHdrRecording = true;
@@ -963,7 +944,7 @@ namespace Segra.Backend.Recorder
             using var videoEncoderSettings = new ObsKit.NET.Core.Settings();
             videoEncoderSettings.Set("preset", "Quality");
             // HEVC needs the Main 10 profile for 10-bit HDR; AV1 derives bit depth from the P010 input.
-            videoEncoderSettings.Set("profile", _isHdrRecording && IsHevcEncoder(encoderId) ? "main10" : "high");
+            videoEncoderSettings.Set("profile", _isHdrRecording && EncoderInfo.Get(encoderId)?.Codec == "hevc" ? "main10" : "high");
             videoEncoderSettings.Set("use_bufsize", true);
             videoEncoderSettings.Set("rate_control", eff.RateControl);
             videoEncoderSettings.Set("keyint_sec", 1);
@@ -1244,11 +1225,11 @@ namespace Segra.Backend.Recorder
                     _bufferOutput.WithAudioEncoder(_audioEncoders[t], track: t);
                 }
 
-                // Connect signal handler for replay saved
-                _replaySavedConnection = _bufferOutput!.ConnectSignal(OutputSignal.Saved, OnReplaySaved);
+                // Connect handler for replay saved
+                _bufferOutput!.Saved += OnReplaySaved;
 
                 // Detect unexpected stops (e.g. disk full mid-recording) so we can notify the user
-                _bufferStoppedConnection = _bufferOutput!.ConnectSignal(OutputSignal.Stop, OnOutputStopped);
+                _bufferOutput!.Stopped += OnOutputStopped;
             }
 
             if (isSessionMode || isHybridMode)
@@ -1257,18 +1238,22 @@ namespace Segra.Backend.Recorder
 
                 uint recordTracksMask = (1u << trackCount) - 1u;
 
-                bool useHybridMp4 = SupportsHybridMp4();
-                Log.Information($"Using recording output type: {(useHybridMp4 ? "mp4_output" : "ffmpeg_muxer")} (Hybrid MP4: {useHybridMp4})");
-
-                if (useHybridMp4)
+                // Try Hybrid MP4 (crash-resilient, chapter markers; OBS 30.2+) and fall back to
+                // the plain ffmpeg muxer if this OBS build doesn't register mp4_output. The
+                // output is already a working ffmpeg_muxer recorder at this point (constructed
+                // that way, with the .mp4 path already set), so a failed SetFormat needs no
+                // further fallback construction - just leave it as-is.
+                bool useHybridMp4 = true;
+                _output = new RecordingOutput("simple_output", videoOutputPath);
+                try
                 {
-                    _output = new RecordingOutput("simple_output", videoOutputPath);
                     _output.SetFormat(RecordingFormat.HybridMp4);
                 }
-                else
+                catch (NotSupportedException)
                 {
-                    _output = new RecordingOutput("simple_output", videoOutputPath, "mp4");
+                    useHybridMp4 = false;
                 }
+                Log.Information($"Using recording output type: {(useHybridMp4 ? "mp4_output" : "ffmpeg_muxer")} (Hybrid MP4: {useHybridMp4})");
                 _output.Update(s => s.Set("tracks", (long)recordTracksMask));
 
                 _output.WithVideoEncoder(_videoEncoder);
@@ -1278,7 +1263,7 @@ namespace Segra.Backend.Recorder
                 }
 
                 // Detect unexpected stops (e.g. disk full mid-recording) so we can notify the user
-                _outputStoppedConnection = _output.ConnectSignal(OutputSignal.Stop, OnOutputStopped);
+                _output.Stopped += OnOutputStopped;
             }
 
             // Overwrite the file name with the hooked executable name if using game hook
@@ -1510,41 +1495,6 @@ namespace Segra.Backend.Recorder
             videoEncoderSettings.Set("bf", bf);
             if (bf < 2)
                 Log.Information($"NVENC b-frames limited to {bf} ({encoderId} supports max {maxBFrames} on this GPU)");
-        }
-
-        private static bool IsHevcEncoder(string encoderId) =>
-            HdrHevcEncoders.Contains(encoderId, StringComparer.OrdinalIgnoreCase);
-
-        private static bool IsHdrCapableEncoder(string encoderId) =>
-            HdrHevcEncoders.Contains(encoderId, StringComparer.OrdinalIgnoreCase) ||
-            HdrAv1Encoders.Contains(encoderId, StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>
-        /// Returns an available HDR-capable (10-bit HEVC/AV1) encoder for an HDR recording, or null
-        /// if none is available. Keeps the user's encoder if it already supports HDR; otherwise
-        /// substitutes the same vendor's HEVC (preferred) or AV1 encoder, falling back to any
-        /// available HEVC/AV1 encoder (e.g. for software-encoder users who still have a GPU path).
-        /// </summary>
-        private static string? ResolveHdrEncoder(string userEncoderId, List<Codec> availableCodecs)
-        {
-            bool Available(string id) =>
-                availableCodecs.Any(c => string.Equals(c.InternalEncoderId, id, StringComparison.OrdinalIgnoreCase));
-
-            if (!string.IsNullOrEmpty(userEncoderId) && IsHdrCapableEncoder(userEncoderId) && Available(userEncoderId))
-                return userEncoderId;
-
-            if (!string.IsNullOrEmpty(userEncoderId) && HdrEncoderSubstitutes.TryGetValue(userEncoderId, out var substitutes))
-            {
-                foreach (var candidate in substitutes)
-                    if (Available(candidate)) return candidate;
-            }
-
-            foreach (var candidate in HdrHevcEncoders)
-                if (Available(candidate)) return candidate;
-            foreach (var candidate in HdrAv1Encoders)
-                if (Available(candidate)) return candidate;
-
-            return null;
         }
 
         public static async Task StopRecording()
@@ -1908,21 +1858,14 @@ namespace Segra.Backend.Recorder
             }
         }
 
-        private static void OnReplaySaved(nint calldata)
+        private static void OnReplaySaved(object? sender, ReplaySavedEventArgs e)
         {
             Log.Information("Replay buffer saved callback received");
 
-            // Resolve the path here, on the signal: get_last_replay only returns a value when
-            // no mux is in flight, so this is the one moment it is guaranteed to be this save's.
-            string? path = null;
-            try
-            {
-                path = _bufferOutput?.GetLastReplayPath();
-            }
-            catch (Exception ex)
-            {
-                Log.Warning($"Failed to read last replay path: {ex.Message}");
-            }
+            // ReplayBuffer.Saved resolves the path on the signal itself: get_last_replay only
+            // returns a value when no mux is in flight, so this is the one moment it is
+            // guaranteed to be this save's.
+            string? path = e.Path;
 
             lock (_replaySaveLock)
             {
@@ -1948,42 +1891,40 @@ namespace Segra.Backend.Recorder
         }
 
         /// <summary>
-        /// Fires whenever an output stops. OBS reports OBS_OUTPUT_SUCCESS (0) for normal stops
-        /// (including ones Segra initiates). Any negative code means OBS stopped the output on its
-        /// own (disk full, encoder error, etc.), so we tear down our state and notify the user.
+        /// Fires whenever an output stops. OBS reports Success for normal stops (including ones
+        /// Segra initiates). Any other code means OBS stopped the output on its own (disk full,
+        /// encoder error, etc.), so we tear down our state and notify the user.
         /// Runs on an OBS thread, so heavy work is dispatched off it.
         /// </summary>
-        private static void OnOutputStopped(nint calldata)
+        private static void OnOutputStopped(object? sender, OutputStoppedEventArgs e)
         {
-            int code = (int)Calldata.GetInt(calldata, "code");
-
-            if (code == OBS_OUTPUT_SUCCESS)
+            if (e.IsSuccess)
                 return;
+
+            var code = e.Code;
 
             // Segra already initiated the stop; the teardown is running, so don't double-handle.
             if (_isStoppingOrStopped)
             {
-                Log.Warning($"Output stopped with code {code} ({GetOutputCodeName(code)}) while already stopping.");
+                Log.Warning($"Output stopped with code {code} while already stopping.");
                 return;
             }
 
             // In hybrid mode both outputs can stop together (same drive), so only handle the first.
             if (Interlocked.CompareExchange(ref _unexpectedStopHandled, 1, 0) != 0)
             {
-                Log.Warning($"Output stopped with code {code} ({GetOutputCodeName(code)}); an unexpected stop is already being handled.");
+                Log.Warning($"Output stopped with code {code}; an unexpected stop is already being handled.");
                 return;
             }
 
-            // Capture the output's error text while it is still alive (we're on the OBS thread).
             // OBS only reports a coarse code (e.g. the MP4/ffmpeg muxer reports a full disk as
-            // OBS_OUTPUT_ENCODE_ERROR), so the actual cause - "No space left on device", a path/
-            // permission problem, an encoder error, etc. - lives only in this string. We surface it
-            // directly rather than guessing from the code.
-            string? lastError = _output?.LastError;
-            if (string.IsNullOrEmpty(lastError))
-                lastError = _bufferOutput?.LastError;
+            // EncodeError), so the actual cause - "No space left on device", a path/permission
+            // problem, an encoder error, etc. - lives only in this string. We surface it directly
+            // rather than guessing from the code. e.LastError comes from the output that actually
+            // fired this signal, straight from obs_output_get_last_error at the moment it stopped.
+            string? lastError = e.LastError;
 
-            Log.Error($"OBS stopped the recording output unexpectedly (code {code}: {GetOutputCodeName(code)}); last error: {lastError ?? "(none)"}");
+            Log.Error($"OBS stopped the recording output unexpectedly (code {code}); last error: {lastError ?? "(none)"}");
             _ = Task.Run(() => HandleUnexpectedOutputStop(code, lastError));
         }
 
@@ -1991,7 +1932,7 @@ namespace Segra.Backend.Recorder
         /// Notifies the user about an unexpected output stop with a Segra-friendly message,
         /// then brings Segra's recording state in line with OBS (which already tore the output down).
         /// </summary>
-        private static async Task HandleUnexpectedOutputStop(int code, string? lastError)
+        private static async Task HandleUnexpectedOutputStop(ObsOutputStopCode code, string? lastError)
         {
             try
             {
@@ -2022,13 +1963,13 @@ namespace Segra.Backend.Recorder
         /// The string is matched first because the code is unreliable (e.g. the MP4 muxer reports a
         /// full disk as OBS_OUTPUT_ENCODE_ERROR with "No space left on device" only in the string).
         /// </summary>
-        private static (string Title, string Description) MapOutputStopToMessage(int code, string? lastError)
+        private static (string Title, string Description) MapOutputStopToMessage(ObsOutputStopCode code, string? lastError)
         {
             string e = lastError ?? string.Empty;
             bool Has(string sub) => e.Contains(sub, StringComparison.OrdinalIgnoreCase);
 
             // Out of disk space: muxer subprocess stderr "Error writing to '<path>', No space left on device"
-            if (code == OBS_OUTPUT_NO_SPACE || Has("No space left on device") || Has("ENOSPC"))
+            if (code == ObsOutputStopCode.NoSpace || Has("No space left on device") || Has("ENOSPC"))
             {
                 return ("Recording stopped: out of disk space",
                     "The drive ran out of space while recording, so the recording was stopped and may be incomplete. Free up some space and try again.");
@@ -2042,7 +1983,7 @@ namespace Segra.Backend.Recorder
             }
 
             // Cannot write to the recording folder: "Unable to write to %1", "Couldn't open '<path>', Permission denied"
-            if (code == OBS_OUTPUT_BAD_PATH || Has("Unable to write to") || Has("Couldn't open") ||
+            if (code == ObsOutputStopCode.BadPath || Has("Unable to write to") || Has("Couldn't open") ||
                 Has("Permission denied") || Has("Access is denied"))
             {
                 return ("Recording stopped: cannot write to folder",
@@ -2057,7 +1998,7 @@ namespace Segra.Backend.Recorder
             }
 
             // HDR enabled but the encoder cannot encode it (OBS reports codec-specific strings).
-            if (code == OBS_OUTPUT_HDR_DISABLED || Has("Rec. 2100") || Has("10bitUnsupported") ||
+            if (code == ObsOutputStopCode.HdrDisabled || Has("Rec. 2100") || Has("10bitUnsupported") ||
                 Has("8bitUnsupportedHdr") || Has("HdrUnsupported"))
             {
                 return ("Recording stopped: HDR not supported by encoder",
@@ -2065,7 +2006,7 @@ namespace Segra.Backend.Recorder
             }
 
             // Output settings not supported by the selected encoder/format
-            if (code == OBS_OUTPUT_UNSUPPORTED)
+            if (code == ObsOutputStopCode.Unsupported)
             {
                 return ("Recording stopped: unsupported settings",
                     "The recording stopped because the current output settings are not supported. Try a different encoder or format in settings, then start again.");
@@ -2078,8 +2019,8 @@ namespace Segra.Backend.Recorder
                     "An error occurred while writing the recording, so it was stopped and may be incomplete. Check the log for more details.");
             }
 
-            // Remaining encoder failures surface as OBS_OUTPUT_ENCODE_ERROR without a recognizable string
-            if (code == OBS_OUTPUT_ENCODE_ERROR)
+            // Remaining encoder failures surface as EncodeError without a recognizable string
+            if (code == ObsOutputStopCode.EncodeError)
             {
                 return ("Recording stopped: encoder error",
                     "The video encoder failed while recording, so the recording was stopped. Update your graphics drivers or try a different encoder in settings, then start again.");
@@ -2088,21 +2029,6 @@ namespace Segra.Backend.Recorder
             return ("Recording stopped unexpectedly",
                 "Recording was stopped unexpectedly and the file may be incomplete. Check the log for more details.");
         }
-
-        private static string GetOutputCodeName(int code) => code switch
-        {
-            OBS_OUTPUT_SUCCESS => "OBS_OUTPUT_SUCCESS",
-            OBS_OUTPUT_BAD_PATH => "OBS_OUTPUT_BAD_PATH",
-            OBS_OUTPUT_CONNECT_FAILED => "OBS_OUTPUT_CONNECT_FAILED",
-            OBS_OUTPUT_INVALID_STREAM => "OBS_OUTPUT_INVALID_STREAM",
-            OBS_OUTPUT_ERROR => "OBS_OUTPUT_ERROR",
-            OBS_OUTPUT_DISCONNECTED => "OBS_OUTPUT_DISCONNECTED",
-            OBS_OUTPUT_UNSUPPORTED => "OBS_OUTPUT_UNSUPPORTED",
-            OBS_OUTPUT_NO_SPACE => "OBS_OUTPUT_NO_SPACE",
-            OBS_OUTPUT_ENCODE_ERROR => "OBS_OUTPUT_ENCODE_ERROR",
-            OBS_OUTPUT_HDR_DISABLED => "OBS_OUTPUT_HDR_DISABLED",
-            _ => $"UNKNOWN ({code})"
-        };
 
         private static void SetForceMono(Source source, bool forceMono)
         {
@@ -2449,8 +2375,8 @@ namespace Segra.Backend.Recorder
                     }
                     finally
                     {
-                        // Segra-initiated graceful stop: OBS finalizes the file, then the output's
-                        // stop signal fires with OBS_OUTPUT_SUCCESS and is ignored by OnOutputStopped.
+                        // Segra-initiated graceful stop: OBS finalizes the file, then Output.Stopped
+                        // fires with ObsOutputStopCode.Success and is ignored by OnOutputStopped.
                         await StopRecording();
                     }
                 });
@@ -2524,7 +2450,8 @@ namespace Segra.Backend.Recorder
         }
 
         /// <summary>
-        /// Clears output references and signal connections. Outputs are manually disposed since AutoDispose is false.
+        /// Clears output references. Outputs are manually disposed since AutoDispose is false;
+        /// disposing an Output/ReplayBuffer also disconnects its Stopped/Saved subscriptions.
         /// </summary>
         public static void DisposeOutput()
         {
@@ -2535,15 +2462,6 @@ namespace Segra.Backend.Recorder
             FailActiveReplaySave("The recording stopped before the replay finished saving. If the file completed, it can be recovered when Segra restarts.");
             lock (_replaySaveLock)
                 _previousSaveIndeterminate = false;
-
-            _replaySavedConnection?.Dispose();
-            _replaySavedConnection = null;
-
-            _outputStoppedConnection?.Dispose();
-            _outputStoppedConnection = null;
-
-            _bufferStoppedConnection?.Dispose();
-            _bufferStoppedConnection = null;
 
             try { _output?.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing output: {ex.Message}"); }
             _output = null;
@@ -2894,13 +2812,19 @@ namespace Segra.Backend.Recorder
             var encoderTypes = Obs.EnumerateEncoderTypes().ToList();
             int idx = 0;
 
+            // Several of our curated encoder ids (e.g. jim_nvenc, obs_qsv11_v2) are marked
+            // deprecated/internal by libobs despite being the ones we actually use, so this
+            // must stay a per-id EncoderInfo lookup rather than EncoderInfo.GetVideoEncoders()
+            // (which filters those out). Look up once via a map instead of once per encoder -
+            // EncoderInfo.Get() re-enumerates every registered encoder internally.
+            var encoderInfoById = EncoderInfo.GetAll(includeInternal: true)
+                .ToDictionary(e => e.Id, StringComparer.OrdinalIgnoreCase);
+
             foreach (var encoderId in encoderTypes)
             {
                 EncoderFriendlyNames.TryGetValue(encoderId, out var name);
                 string friendlyName = name ?? encoderId;
-                bool isHardware = encoderId.Contains("nvenc", StringComparison.OrdinalIgnoreCase) ||
-                                  encoderId.Contains("amf", StringComparison.OrdinalIgnoreCase) ||
-                                  encoderId.Contains("qsv", StringComparison.OrdinalIgnoreCase);
+                bool isHardware = encoderInfoById.TryGetValue(encoderId, out var info) && info.IsHardware;
 
                 Log.Information($"{idx} - {friendlyName} | {encoderId} | {(isHardware ? "Hardware" : "Software")}");
                 if (name != null)
@@ -2982,20 +2906,6 @@ namespace Segra.Backend.Recorder
             }
 
             return selectedCodec;
-        }
-
-        public static bool SupportsHybridMp4()
-        {
-            string? versionToCheck = Settings.Instance.SelectedOBSVersion ?? InstalledOBSVersion;
-
-            if (string.IsNullOrEmpty(versionToCheck))
-                return true;
-
-            string cleanVersion = versionToCheck.Split('-')[0].Trim();
-            if (Version.TryParse(cleanVersion, out Version? version))
-                return version >= new Version(30, 2);
-
-            return true;
         }
 
     }

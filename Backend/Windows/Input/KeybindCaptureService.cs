@@ -1,141 +1,155 @@
 using Serilog;
+using ObsKit.NET;
 using NAudio.Wave;
+using ObsKit.NET.Hotkeys;
 using Segra.Backend.App;
-using System.Diagnostics;
 using NAudio.CoreAudioApi;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
+using ObsKit.NET.Native.Types;
 using NAudio.Wave.SampleProviders;
-using System.Runtime.InteropServices;
+using ObsKeys = ObsKit.NET.Core.ObsKeys;
 
 namespace Segra.Backend.Windows.Input
 {
+    /// <summary>
+    /// Registers Segra's user-configurable keybindings as OBS hotkeys via ObsKit.NET.
+    /// libobs polls global key state on its own background thread, so bound combinations
+    /// fire system-wide with no OS hook of our own. Hotkeys can only be registered once
+    /// OBS is initialized, so <see cref="Start"/> must be called from
+    /// <see cref="OBSService.InitializeAsync"/> (after Obs.Initialize succeeds), not at
+    /// app launch, and <see cref="Stop"/> from <see cref="OBSService.Shutdown"/>.
+    /// </summary>
     internal class KeybindCaptureService
     {
-        private const int WH_KEYBOARD_LL = 13;
-        private const int WM_KEYDOWN = 0x0100;
-        private const int WM_SYSKEYDOWN = 0x0104;
-        private const int VK_CONTROL = 0x11;
-        private const int VK_ALT = 0x12;
+        // VK codes for the modifier keys the frontend lets users combine with a main key.
         private const int VK_SHIFT = 0x10;
-        private const int KEY_PRESSED_MASK = 0x8000;
+        private const int VK_CONTROL = 0x11;
+        private const int VK_ALT = 0x12; // VK_MENU
+        private const int VK_LWIN = 0x5B;
+        private const int VK_RWIN = 0x5C;
 
-        private static LowLevelKeyboardProc _proc = HookCallback;
-        private static IntPtr _hookID = IntPtr.Zero;
-        private static List<Keybind>? _cachedKeybindings;
-        private static HashSet<int>? _boundMainKeys;
+        private static readonly object _lock = new();
+        private static readonly List<RegisteredHotkey> _registered = [];
 
-        public static void Start()
-        {
-            RefreshKeybindingsCache();
-            _hookID = SetHook(_proc);
-            Application.Run();
-        }
+        /// <summary>
+        /// Registers hotkeys for all currently-enabled keybindings. Call once OBS is initialized.
+        /// </summary>
+        public static void Start() => RefreshKeybindingsCache();
 
+        /// <summary>
+        /// Unregisters all hotkeys. Call before/at OBS shutdown.
+        /// </summary>
         public static void Stop()
         {
-            UnhookWindowsHookEx(_hookID);
+            lock (_lock)
+            {
+                foreach (var hotkey in _registered)
+                    hotkey.Dispose();
+                _registered.Clear();
+            }
         }
 
+        /// <summary>
+        /// Re-registers all hotkeys from the current settings. Call whenever
+        /// <c>Settings.Instance.Keybindings</c> changes.
+        /// </summary>
         public static void RefreshKeybindingsCache()
         {
-            var keybindings = Settings.Instance.Keybindings?.Where(k => k.Enabled).ToList();
-            _cachedKeybindings = keybindings;
-
-            if (keybindings != null && keybindings.Count > 0)
+            if (!OBSService.IsInitialized)
             {
-                _boundMainKeys = new HashSet<int>();
-                foreach (var kb in keybindings)
+                Log.Information("Keybindings changed before OBS initialization; will apply once OBS starts.");
+                return;
+            }
+
+            var keybindings = Settings.Instance.Keybindings?.Where(k => k.Enabled).ToList() ?? [];
+
+            lock (_lock)
+            {
+                foreach (var hotkey in _registered)
+                    hotkey.Dispose();
+                _registered.Clear();
+
+                foreach (var keybind in keybindings)
                 {
-                    foreach (var key in kb.Keys)
+                    if (!TryBuildCombination(keybind.Keys, out var combination))
                     {
-                        if (key != VK_CONTROL && key != VK_ALT && key != VK_SHIFT)
+                        Log.Warning($"Skipping keybind for {keybind.Action}: only one non-modifier key plus Ctrl/Alt/Shift/Win is supported.");
+                        continue;
+                    }
+
+                    try
+                    {
+                        var hotkey = Obs.RegisterHotkey($"segra_{keybind.Action}", keybind.Action.ToString(), pressed =>
                         {
-                            _boundMainKeys.Add(key);
-                        }
+                            if (pressed)
+                                HandleKeybindAction(keybind.Action);
+                        });
+                        hotkey.Bind(combination);
+                        _registered.Add(hotkey);
                     }
-                }
-            }
-            else
-            {
-                _boundMainKeys = null;
-            }
-        }
-
-        private static IntPtr SetHook(LowLevelKeyboardProc proc)
-        {
-            ProcessModule curModule = Process.GetCurrentProcess().MainModule!;
-            return SetWindowsHookEx(
-                WH_KEYBOARD_LL,
-                proc,
-                GetModuleHandle(curModule.ModuleName),
-                0
-            );
-        }
-
-        private delegate IntPtr LowLevelKeyboardProc(
-            int nCode, IntPtr wParam, IntPtr lParam);
-
-        private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
-        {
-            if (nCode >= 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN))
-            {
-                var boundKeys = _boundMainKeys;
-                if (boundKeys == null || boundKeys.Count == 0)
-                {
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                int vkCode = Marshal.ReadInt32(lParam);
-
-                if (!boundKeys.Contains(vkCode))
-                {
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                var keybindings = _cachedKeybindings!;
-
-                // Unrelated held keys (e.g. W while moving in a game) must not block a match,
-                // but when both F8 and Ctrl+F8 are bound, Ctrl+F8 should only fire the latter.
-                int maxMatchedKeyCount = 0;
-                foreach (var keybind in keybindings)
-                {
-                    if (DoKeysMatch(keybind.Keys, vkCode) && keybind.Keys.Count > maxMatchedKeyCount)
+                    catch (Exception ex)
                     {
-                        maxMatchedKeyCount = keybind.Keys.Count;
-                    }
-                }
-
-                foreach (var keybind in keybindings)
-                {
-                    if (keybind.Keys.Count == maxMatchedKeyCount && DoKeysMatch(keybind.Keys, vkCode))
-                    {
-                        HandleKeybindAction(keybind.Action);
+                        Log.Warning(ex, $"Failed to register hotkey for {keybind.Action}");
                     }
                 }
             }
-
-            return CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
 
-        private static bool DoKeysMatch(List<int> keybindKeys, int triggerVkCode)
+        /// <summary>
+        /// Converts a keybind's raw Win32 virtual-key codes into an OBS key combination.
+        /// Segra's keybind model allows any set of VK codes; ObsKeyCombination supports at
+        /// most one non-modifier key plus Ctrl/Alt/Shift/Win, so combinations with more than
+        /// one non-modifier key are rejected (unsupported by design, not silently dropped).
+        /// </summary>
+        private static bool TryBuildCombination(List<int> keys, out ObsKeyCombination combination)
         {
-            bool containsTrigger = false;
-            foreach (var key in keybindKeys)
-            {
-                if (key == triggerVkCode)
-                {
-                    containsTrigger = true;
-                    continue;
-                }
+            combination = default;
+            var modifiers = ObsKeyModifiers.None;
+            ObsKey? mainKey = null;
 
-                // GetAsyncKeyState reflects the physical state; GetKeyState is stale on
-                // this thread because it never receives keyboard messages.
-                if ((GetAsyncKeyState(key) & KEY_PRESSED_MASK) == 0)
+            foreach (var vk in keys)
+            {
+                switch (vk)
+                {
+                    case VK_CONTROL:
+                        modifiers |= ObsKeyModifiers.Control;
+                        break;
+                    case VK_ALT:
+                        modifiers |= ObsKeyModifiers.Alt;
+                        break;
+                    case VK_SHIFT:
+                        modifiers |= ObsKeyModifiers.Shift;
+                        break;
+                    case VK_LWIN:
+                    case VK_RWIN:
+                        modifiers |= ObsKeyModifiers.Command;
+                        break;
+                    default:
+                        var key = ObsKeys.FromVirtualKey(vk);
+                        if (key == ObsKey.None)
+                            return false;
+                        if (mainKey != null && mainKey != key)
+                            return false; // more than one non-modifier key: unsupported
+                        mainKey = key;
+                        break;
+                }
+            }
+
+            if (mainKey == null)
+            {
+                // No non-modifier key (e.g. a lone "Win" binding, which the frontend allows -
+                // it only excludes Shift/Ctrl/Alt from becoming the main key, not Win).
+                // ObsKeyCombination supports modifier-only combinations via ObsKey.None.
+                if (modifiers == ObsKeyModifiers.None)
                     return false;
+
+                combination = new ObsKeyCombination(ObsKey.None, modifiers);
+                return true;
             }
 
-            return containsTrigger;
+            combination = new ObsKeyCombination(mainKey.Value, modifiers);
+            return true;
         }
 
         private static void HandleKeybindAction(KeybindAction action)
@@ -216,23 +230,5 @@ namespace Segra.Backend.Windows.Input
             while (waveOut.PlaybackState == PlaybackState.Playing)
                 Thread.Sleep(10);
         }
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern IntPtr SetWindowsHookEx(int idHook,
-            LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern IntPtr CallNextHookEx(IntPtr hhk,
-            int nCode, IntPtr wParam, IntPtr lParam);
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern IntPtr GetModuleHandle(string lpModuleName);
-
-        [DllImport("user32.dll")]
-        private static extern short GetAsyncKeyState(int nVirtKey);
     }
 }

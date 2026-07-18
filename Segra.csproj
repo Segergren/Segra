@@ -50,7 +50,7 @@
     <PackageReference Include="System.Management" Version="10.0.10" />
     <PackageReference Include="Velopack" Version="1.2.0" />
     <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
-    <PackageReference Include="ObsKit.NET" Version="1.4.1" />
+    <PackageReference Include="ObsKit.NET" Version="1.5.0" />
   </ItemGroup>
 
   <ItemGroup>

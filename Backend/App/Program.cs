@@ -9,7 +9,6 @@ using System.Diagnostics;
 using Segra.Backend.Shared;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
-using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Power;
 using Segra.Backend.Windows.Storage;
 using Segra.Backend.Windows.GameMode;
@@ -261,10 +260,9 @@ namespace Segra.Backend.App
                 Task.Run(GameModeService.EnforceDisabledIfEnabled);
 
                 // Run the OBS Initializer in a separate thread and application to make sure someting on the main thread doesn't block
+                // (KeybindCaptureService.Start() is called from OBSService.InitializeAsync once OBS is
+                // ready, since hotkeys register through OBS's own hotkey system.)
                 Task.Run(() => Application.Run(new OBSWindow()));
-
-                // Global keybind hook (low-level keyboard hook + message loop) — runs for the lifetime of the app.
-                Task.Run(KeybindCaptureService.Start);
 
                 if (!startMinimized)
                 {
