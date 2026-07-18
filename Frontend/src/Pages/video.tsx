@@ -1118,6 +1118,26 @@ export default function VideoComponent({ video }: { video: Content }) {
     return { majorTicks, minorTicks };
   }, [duration, pixelsPerSecond]);
 
+  // Grab the frame currently shown in the <video> as an instant thumbnail.
+  // Returns undefined if the frame isn't ready or the canvas would be tainted.
+  const captureCurrentFrame = (): string | undefined => {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth || !v.videoHeight || v.readyState < 2) return undefined;
+    try {
+      const targetWidth = 480;
+      const scale = Math.min(1, targetWidth / v.videoWidth);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(v.videoWidth * scale);
+      canvas.height = Math.round(v.videoHeight * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return undefined;
+      ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.7);
+    } catch {
+      return undefined;
+    }
+  };
+
   // Add a new segment at the current video position
   const handleAddSegment = async () => {
     if (!videoRef.current) return;
@@ -1127,13 +1147,17 @@ export default function VideoComponent({ video }: { video: Content }) {
     const segmentDuration = Math.min(120, Math.max(6, visibleDuration * 0.1));
     const end = Math.min(start + segmentDuration, duration);
 
+    // Use the frame already on screen as an instant thumbnail; the server
+    // thumbnail crossfades in once fetched.
+    const instantThumbnail = captureCurrentFrame();
+
     const newSegment: Segment = {
       id: Date.now(),
       type: video.type,
       startTime: start,
       endTime: end,
-      thumbnailDataUrl: undefined,
-      isLoading: true,
+      thumbnailDataUrl: instantThumbnail,
+      isLoading: !instantThumbnail,
       fileName: video.fileName,
       filePath: video.filePath,
       game: video.game,
@@ -1147,8 +1171,12 @@ export default function VideoComponent({ video }: { video: Content }) {
             : undefined,
     };
     addSegment(newSegment);
-    // Kick off thumbnail generation; uses latest state and guards against stale overwrites
-    refreshSegmentThumbnail(newSegment);
+    // The instant frame capture is good enough for the initial thumbnail, so
+    // only fall back to ffmpeg generation if the capture failed. Later moves
+    // and resizes regenerate via ffmpeg as usual.
+    if (!instantThumbnail) {
+      refreshSegmentThumbnail(newSegment);
+    }
   };
 
   // Create a clip from current segments
@@ -1653,6 +1681,7 @@ export default function VideoComponent({ video }: { video: Content }) {
             <div className={videoWrapperClassName}>
               <video
                 autoPlay
+                crossOrigin="anonymous"
                 className="w-full h-full object-contain"
                 src={getVideoPath()}
                 ref={videoRef}
