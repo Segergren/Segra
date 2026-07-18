@@ -54,7 +54,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Resources\**" />
+    <EmbeddedResource Include="Resources\**" Exclude="Resources\wwwroot\**" />
+    <FrontendSourceFiles Include="Frontend\src\**\*;Frontend\public\**\*;Frontend\index.html;Frontend\package.json;Frontend\package-lock.json;Frontend\vite.config.*;Frontend\tsconfig*.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -116,6 +117,32 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <Target
+    Name="BuildFrontendAssets"
+    Inputs="@(FrontendSourceFiles)"
+    Outputs="Resources\wwwroot\index.html">
+    <Exec WorkingDirectory="Frontend" Command="npm ci" Condition="!Exists('Frontend\node_modules')" />
+    <Exec WorkingDirectory="Frontend" Command="npm run build" />
+    <MakeDir Directories="Resources\wwwroot" />
+    <ItemGroup>
+      <PackagedFrontendFiles Include="Resources\wwwroot\**\*" Exclude="Resources\wwwroot\.gitkeep" />
+      <FrontendDistFiles Include="Frontend\dist\**\*" />
+    </ItemGroup>
+    <Delete Files="@(PackagedFrontendFiles)" />
+    <Copy
+      SourceFiles="@(FrontendDistFiles)"
+      DestinationFiles="@(FrontendDistFiles->'Resources\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <Target
+    Name="IncludeFrontendAssets"
+    BeforeTargets="_CalculateEmbeddedFilesManifestInputs"
+    DependsOnTargets="BuildFrontendAssets">
+    <ItemGroup>
+      <EmbeddedResource Include="Resources\wwwroot\**\*" />
+    </ItemGroup>
+  </Target>
 
   <Target Name="EnsureResourcesBeforeCompile" BeforeTargets="_GenerateCompileInputs" DependsOnTargets="PrepareResources" />
 

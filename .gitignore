@@ -357,4 +357,6 @@ MigrationBackup/
 .vscode/extensions.json
 .DS_Store
 /Resources/FFmpeg/ffmpeg.exe
+/Resources/wwwroot/*
+!/Resources/wwwroot/.gitkeep
 .playwright-mcp/
