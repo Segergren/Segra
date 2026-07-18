@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SegmentCardProps } from '../Models/types';
 import { useDrag, useDrop } from 'react-dnd';
 import { Headphones } from 'lucide-react';
@@ -62,6 +62,25 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
     };
 
     const { startTime, endTime, thumbnailDataUrl, isLoading } = segment;
+
+    // Fade the first thumbnail in and crossfade later ones over the current
+    // image, instead of flashing a loading state.
+    const [baseSrc, setBaseSrc] = useState(thumbnailDataUrl);
+    const [baseVisible, setBaseVisible] = useState(!!thumbnailDataUrl);
+    const [incomingSrc, setIncomingSrc] = useState<string | null>(null);
+    const [incomingVisible, setIncomingVisible] = useState(false);
+
+    useEffect(() => {
+      if (!thumbnailDataUrl || thumbnailDataUrl === baseSrc) return;
+      if (!baseSrc) {
+        // First thumbnail: mount it hidden and fade it in.
+        setBaseSrc(thumbnailDataUrl);
+        setBaseVisible(false);
+        return;
+      }
+      setIncomingSrc(thumbnailDataUrl);
+      setIncomingVisible(false);
+    }, [thumbnailDataUrl, baseSrc]);
     const hasAudioTracks =
       audioTrackNames && audioTrackNames.length > 1 && onMutedAudioTracksChange;
     const mutedTracks = segment.mutedAudioTracks ?? [];
@@ -103,20 +122,44 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
           removeSegment(segment.id);
         }}
       >
-        {isLoading ? (
-          <div className="flex items-center justify-center bg-base-100 bg-opacity-75 rounded-xl w-full aspect-video">
-            <span className="loading loading-spinner loading-md text-accent" />
-            <div className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
-              {formatTime(startTime)} - {formatTime(endTime)}
-            </div>
-          </div>
-        ) : thumbnailDataUrl ? (
+        {baseSrc ? (
           <figure className="relative rounded-xl overflow-hidden">
-            <img src={thumbnailDataUrl} alt="Segment" className="w-full" />
+            <img
+              src={baseSrc}
+              alt="Segment"
+              className={`w-full transition-opacity duration-300 ${
+                baseVisible ? 'opacity-100' : 'opacity-0'
+              }`}
+              onLoad={() => requestAnimationFrame(() => setBaseVisible(true))}
+            />
+            {incomingSrc && (
+              <img
+                src={incomingSrc}
+                alt="Segment"
+                className={`absolute inset-0 w-full transition-opacity duration-300 ${
+                  incomingVisible ? 'opacity-100' : 'opacity-0'
+                }`}
+                onLoad={() => requestAnimationFrame(() => setIncomingVisible(true))}
+                onTransitionEnd={() => {
+                  setBaseSrc(incomingSrc);
+                  setBaseVisible(true);
+                  setIncomingSrc(null);
+                  setIncomingVisible(false);
+                }}
+              />
+            )}
             <div className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
               {formatTime(startTime)} - {formatTime(endTime)}
             </div>
           </figure>
+        ) : isLoading || thumbnailDataUrl ? (
+          // Reserve 16:9 space while the first thumbnail loads so it fades in
+          // without shifting the layout.
+          <div className="relative w-full aspect-video rounded-xl bg-base-100/40">
+            <div className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
+              {formatTime(startTime)} - {formatTime(endTime)}
+            </div>
+          </div>
         ) : (
           <div className="h-32 bg-gray-700 flex items-center justify-center text-white">
             <span>No thumbnail</span>

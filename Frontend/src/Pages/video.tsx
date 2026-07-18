@@ -473,8 +473,9 @@ export default function VideoComponent({ video }: { video: Content }) {
     // Read the latest segment from state (may be undefined immediately after add)
     const current = segmentsRef.current.find((s) => s.id === id);
 
-    // Mark loading on latest state if present (new segment already has isLoading=true)
-    if (current) {
+    // Only show the loading spinner for the first fetch. When a thumbnail
+    // already exists, keep it visible and let the card crossfade to the new one.
+    if (current && !current.thumbnailDataUrl) {
       updateSegment({ ...current, isLoading: true });
     }
 
