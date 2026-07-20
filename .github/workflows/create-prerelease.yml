@@ -414,6 +414,12 @@ jobs:
         # enter the graph and can't fail NU1102 on the Linux runner.
         run: dotnet publish Segra.csproj -c Release -f net10.0 -r linux-x64 --self-contained -o publish -p:TargetFrameworks=net10.0 -p:Version=${{ needs.version.outputs.new_version }}
 
+      - name: Stage a physical wwwroot
+        # The AppImage runs from a read-only mount. The frontend is embedded, but ASP.NET (PhotinoServer)
+        # creates its webroot at startup if missing, which throws on the read-only mount. Shipping the dir
+        # (with the frontend) means it already exists, so nothing is created at runtime.
+        run: mkdir -p publish/wwwroot && cp -r Frontend/dist/* publish/wwwroot/
+
       - name: Install Velopack CLI
         run: dotnet tool install -g vpk --version 1.2.0
 

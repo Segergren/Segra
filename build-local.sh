@@ -89,6 +89,11 @@ else
     dotnet publish Segra.csproj -c Release --self-contained \
         -r linux-x64 -f net10.0 -p:TargetFrameworks=net10.0 -o publish
 
+    # The AppImage runs from a read-only mount. The frontend is embedded, but ASP.NET (PhotinoServer)
+    # creates its webroot at startup if missing, which throws on the read-only mount. Ship the dir so it
+    # already exists at runtime.
+    mkdir -p publish/wwwroot && cp -r Frontend/dist/* publish/wwwroot/ 2>/dev/null || true
+
     # Emit the Linux launcher. It resolves the OBS runtime (a bundled ./lib copy if present,
     # otherwise a system obs-studio install), curates plugins for headless use, and exports the
     # loader path + OBS paths before starting the app. Named run.sh (not "segra") so it never
