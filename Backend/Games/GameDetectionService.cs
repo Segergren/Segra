@@ -30,6 +30,10 @@ namespace Segra.Backend.Games
         private static HashSet<int> _knownPids = new();
         private static System.Threading.Timer? _procPollTimer;
         private static int _pollInProgress;
+        // Steam/Proton install dir of the game being recorded. Proton runs the game's Windows .exe under
+        // Wine, so its Linux PIDs are volatile; every process in the session shares this path, so we track
+        // it to detect when the game closes (instead of a single PID that may exit mid-session).
+        private static string? _recordingSteamInstallPath;
 #endif
 
         public static async Task StartAsync()
@@ -159,10 +163,30 @@ namespace Segra.Backend.Games
                 foreach (int pid in current)
                 {
                     if (_knownPids.Contains(pid)) continue;
-                    HandleProcessStarted(pid, ResolveProcessPath(pid));
+                    string exePath = ResolveProcessPath(pid);
+                    bool wasRecording = AppState.Instance.Recording != null;
+                    HandleProcessStarted(pid, exePath);
+                    // If this process just started a Steam/Proton recording, remember the game's install
+                    // dir so we can stop when it closes (its Wine PIDs come and go, but all share the dir).
+                    if (!wasRecording && AppState.Instance.Recording != null && _recordingSteamInstallPath == null)
+                        _recordingSteamInstallPath = SteamInstallDirFromExe(exePath);
                 }
 
-                if (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null)
+                if (AppState.Instance.Recording == null && AppState.Instance.PreRecording == null)
+                {
+                    _recordingSteamInstallPath = null;
+                }
+                else if (_recordingSteamInstallPath != null)
+                {
+                    // Proton game: stop once no process carries this install path anymore.
+                    if (!AnyProcessHasSteamInstall(current, _recordingSteamInstallPath))
+                    {
+                        Log.Information("[OnTrackedProcessExited] Steam/Proton game closed. Stopping recording.");
+                        _recordingSteamInstallPath = null;
+                        _ = Task.Run(OBSService.StopRecording);
+                    }
+                }
+                else
                 {
                     foreach (int pid in _knownPids)
                     {
@@ -227,6 +251,76 @@ namespace Segra.Backend.Games
             {
                 Log.Error($"[HandleProcessStopped] Exception: {ex.Message}");
             }
+        }
+
+        // A Steam Proton/Wine game shows up here only as a Wine/runtime wrapper; the real game is a
+        // Windows .exe. These are the wrapper binaries to look past.
+        private static bool LooksLikeSteamRuntimeProcess(string exePath) =>
+            !string.IsNullOrEmpty(exePath) &&
+            (exePath.Contains("preloader", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("pressure-vessel", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("wineserver", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("/SteamLinuxRuntime", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("/steamapps/common/Proton", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("/ubuntu12_32/", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("/ubuntu12_64/", StringComparison.OrdinalIgnoreCase));
+
+        // Reads a single variable from /proc/<pid>/environ (NUL-separated KEY=VALUE entries).
+        private static string? ReadProcEnvVar(int pid, string key)
+        {
+            try
+            {
+                foreach (var entry in File.ReadAllText($"/proc/{pid}/environ").Split('\0'))
+                    if (entry.StartsWith(key + "=", StringComparison.Ordinal))
+                        return entry[(key.Length + 1)..];
+            }
+            catch { /* process may have exited or environ is unreadable */ }
+            return null;
+        }
+
+        // For a Proton/Wine process, resolve the real game .exe under STEAM_COMPAT_INSTALL_PATH: prefer a
+        // catalog-known exe, otherwise the largest (the main binary, not a small launcher/redist).
+        private static string? ResolveSteamGameExe(int pid)
+        {
+            string? install = ReadProcEnvVar(pid, "STEAM_COMPAT_INSTALL_PATH");
+            if (string.IsNullOrEmpty(install) || !Directory.Exists(install)) return null;
+            try
+            {
+                string? biggest = null; long biggestLen = -1;
+                foreach (var exe in Directory.EnumerateFiles(install, "*.exe", SearchOption.AllDirectories))
+                {
+                    string norm = PathUtils.Normalize(exe);
+                    if (GameUtils.IsGameExePath(norm)) return norm; // catalog hit wins immediately
+                    long len = new FileInfo(exe).Length;
+                    if (len > biggestLen) { biggestLen = len; biggest = norm; }
+                }
+                return biggest;
+            }
+            catch { return null; }
+        }
+
+        // The '.../steamapps/common/<Game>' dir for a resolved game exe, or null if not a Steam path.
+        private static string? SteamInstallDirFromExe(string exePath)
+        {
+            const string marker = "/steamapps/common/";
+            int i = exePath.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (i < 0) return null;
+            int after = i + marker.Length;
+            int slash = exePath.IndexOf('/', after);
+            return slash < 0 ? null : exePath[..slash];
+        }
+
+        // True while any live process still belongs to the given game's Proton session (they all carry
+        // STEAM_COMPAT_INSTALL_PATH). Only reached while recording a Proton game, so scanning environ is fine.
+        private static bool AnyProcessHasSteamInstall(HashSet<int> pids, string installDir)
+        {
+            foreach (int pid in pids)
+            {
+                string? p = ReadProcEnvVar(pid, "STEAM_COMPAT_INSTALL_PATH");
+                if (p != null && PathUtils.Normalize(p).Equals(installDir, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
         }
 #endif
 
@@ -494,20 +588,25 @@ namespace Segra.Backend.Games
 
 #if !WINDOWS
             // Linux: the exe is the target of the /proc/<pid>/exe symlink.
+            string procExe = string.Empty;
             try
             {
-                string linkPath = $"/proc/{pid}/exe";
-                var fsi = new FileInfo(linkPath);
+                var fsi = new FileInfo($"/proc/{pid}/exe");
                 string? target = fsi.LinkTarget;
                 if (!string.IsNullOrEmpty(target))
-                {
-                    // LinkTarget may be relative; resolve against /proc/<pid>/cwd is unreliable, so
-                    // prefer the fully-resolved target when available.
-                    return fsi.ResolveLinkTarget(true)?.FullName ?? target;
-                }
+                    // LinkTarget may be relative; prefer the fully-resolved target when available.
+                    procExe = fsi.ResolveLinkTarget(true)?.FullName ?? target;
             }
             catch { /* process may have exited or be inaccessible */ }
-            return string.Empty;
+
+            // Steam Proton/Wine games only expose a Wine preloader here (which matches no game); resolve
+            // the real Windows .exe under STEAM_COMPAT_INSTALL_PATH so detection works.
+            if (LooksLikeSteamRuntimeProcess(procExe))
+            {
+                string? gameExe = ResolveSteamGameExe(pid);
+                if (!string.IsNullOrEmpty(gameExe)) return gameExe;
+            }
+            return procExe;
 #else
             // Strategy 1: Try QueryFullProcessImageName (works for most processes including elevated)
             string path = ResolvePathViaQueryFullProcessImageName(pid);
