@@ -1,7 +1,8 @@
 name: Publish APT Repo
 
 # Builds the Segra .deb and publishes a signed apt repository to GitHub Pages so installed clients
-# auto-update via `apt`. Runs when a NON-prerelease GitHub release is published (betas are skipped).
+# auto-update via `apt`. Runs on every published GitHub release: prereleases go to the 'beta' suite,
+# real releases to 'stable'.
 #
 # Prerequisites (one-time):
 #   1. Generate a GPG signing key; commit its PUBLIC key to packaging/linux/segra-archive-keyring.gpg
@@ -42,14 +43,21 @@ jobs:
         run: |
           # Prereleases go to the 'beta' suite, real releases to 'stable'; the .deb version uses '~' for
           # pre-release parts so apt orders 1.7.0~beta.4 < 1.7.0.
+          # semver (dash) form drives npm/dotnet; deb (tilde) form drives the .deb name + apt ordering.
+          # npm and MSBuild reject '~', so the two forms must not be conflated.
           if [ -n "${{ github.event.release.tag_name }}" ]; then
             TAG='${{ github.event.release.tag_name }}'
-            NUM="${TAG#v}"; NUM="${NUM/-beta./~beta.}"; NUM="${NUM/-rc./~rc.}"
+            SEMVER="${TAG#v}"                                     # 1.7.0-beta.4 (semver, for npm/dotnet)
+            NUM="${SEMVER/-beta./~beta.}"; NUM="${NUM/-rc./~rc.}" # 1.7.0~beta.4 (deb; apt orders it < 1.7.0)
             echo "num=${NUM}" >> "$GITHUB_OUTPUT"
+            echo "semver=${SEMVER}" >> "$GITHUB_OUTPUT"
             echo "ref=${TAG}" >> "$GITHUB_OUTPUT"
             [ "${{ github.event.release.prerelease }}" = "true" ] && echo "suite=beta" >> "$GITHUB_OUTPUT" || echo "suite=stable" >> "$GITHUB_OUTPUT"
           else
-            echo "num=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            NUM='${{ github.event.inputs.version }}'              # may be supplied in either form
+            SEMVER="${NUM/~beta./-beta.}"; SEMVER="${SEMVER/~rc./-rc.}"
+            echo "num=${NUM}" >> "$GITHUB_OUTPUT"
+            echo "semver=${SEMVER}" >> "$GITHUB_OUTPUT"
             echo "ref=${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
             echo "suite=${{ github.event.inputs.channel }}" >> "$GITHUB_OUTPUT"
           fi
@@ -72,16 +80,16 @@ jobs:
 
       - name: Build frontend (versioned) + stage wwwroot
         run: |
-          (cd Frontend && npm ci && npm version "${{ steps.v.outputs.num }}" --no-git-tag-version --allow-same-version && npm run build)
+          (cd Frontend && npm ci && npm version "${{ steps.v.outputs.semver }}" --no-git-tag-version --allow-same-version && npm run build)
           mkdir -p Resources/wwwroot && rm -rf Resources/wwwroot/* && cp -r Frontend/dist/* Resources/wwwroot/
 
       - name: Publish (linux-x64)
         run: |
-          dotnet publish Segra.csproj -c Release -f net10.0 -r linux-x64 --self-contained -o publish -p:TargetFrameworks=net10.0 -p:Version=${{ steps.v.outputs.num }}
+          dotnet publish Segra.csproj -c Release -f net10.0 -r linux-x64 --self-contained -o publish -p:TargetFrameworks=net10.0 -p:Version=${{ steps.v.outputs.semver }}
           mkdir -p publish/wwwroot && cp -r Frontend/dist/* publish/wwwroot/
 
       - name: Build the .deb
-        run: SEGRA_VERSION=${{ steps.v.outputs.num }} bash build-deb.sh publish
+        run: SEGRA_VERSION=${{ steps.v.outputs.num }} SEGRA_APT_SUITE=${{ steps.v.outputs.suite }} bash build-deb.sh publish
 
       - name: Import GPG signing key
         env:

@@ -48,10 +48,16 @@ else
     echo "note: packaging/linux/segra-archive-keyring.gpg missing; building without apt-repo registration (no auto-update)."
 fi
 
+# apt suites this package registers on install. Beta packages also track stable so a later stable
+# release upgrades beta users; stable packages track stable only.
+APT_SUITES="${SEGRA_APT_SUITE:-stable}"
+[ "$APT_SUITES" = "beta" ] && APT_SUITES="stable beta"
+
 # Control metadata + maintainer scripts.
 install -d "$PKGROOT/DEBIAN"
 sed "s/@VERSION@/$VERSION/" packaging/linux/control.in > "$PKGROOT/DEBIAN/control"
-install -m755 packaging/linux/postinst "$PKGROOT/DEBIAN/postinst"
+sed "s/@APT_SUITES@/$APT_SUITES/" packaging/linux/postinst > "$PKGROOT/DEBIAN/postinst"
+chmod 755 "$PKGROOT/DEBIAN/postinst"
 install -m755 packaging/linux/postrm  "$PKGROOT/DEBIAN/postrm"
 
 mkdir -p output
