@@ -83,9 +83,11 @@ if [[ $selected -eq 0 ]]; then
     echo "Executable: $WIN_DIR\\publish\\Segra.exe"
 else
     # -------- Linux --------
-    # -p:EnableWindowsTargeting=true lets the Linux TFM restore/build from a Windows dev box.
+    # -p:TargetFrameworks=net10.0 restricts the restore to the Linux TFM, so the Windows TFM's packages
+    # (System.Management -> System.CodeDom) never enter the graph (they don't resolve on a clean Linux
+    # host, and aren't needed for the Linux build).
     dotnet publish Segra.csproj -c Release --self-contained \
-        -r linux-x64 -f net10.0 -p:EnableWindowsTargeting=true -o publish
+        -r linux-x64 -f net10.0 -p:TargetFrameworks=net10.0 -o publish
 
     # Emit the Linux launcher. It resolves the OBS runtime (a bundled ./lib copy if present,
     # otherwise a system obs-studio install), curates plugins for headless use, and exports the
