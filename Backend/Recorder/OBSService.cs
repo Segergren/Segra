@@ -2667,6 +2667,17 @@ namespace Segra.Backend.Recorder
                 ?? versions.First();
 
             string url = versionToDownload.Url;
+
+            // The versions API serves a GitHub contents-API URL (JSON metadata, not the file); resolve the
+            // real download_url from it via the same helper the Windows flow uses. A direct .tar.gz/.zip URL
+            // (e.g. the mock/staging server) is used as-is.
+            if (url.Contains("api.github.com", StringComparison.OrdinalIgnoreCase)
+                && url.Contains("/contents/", StringComparison.OrdinalIgnoreCase))
+            {
+                using var metaClient = new HttpClient();
+                url = (await FetchGitHubFileMetadataAsync(metaClient, url, versionToDownload.Version)).DownloadUrl;
+            }
+
             Log.Information($"Downloading Linux OBS runtime {versionToDownload.Version} from {url}");
 
             string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
@@ -2861,28 +2872,8 @@ namespace Segra.Backend.Recorder
                 {
                     httpClient.Timeout = Timeout.InfiniteTimeSpan;
 
-                    // First, fetch the metadata from GitHub
-                    httpClient.DefaultRequestHeaders.Add("User-Agent", "Segra");
-                    httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3.json");
-
-                    Log.Information($"Fetching metadata for OBS version {versionToDownload.Version} from {metadataUrl}");
-                    var response = await httpClient.GetAsync(metadataUrl);
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        Log.Error($"Failed to fetch metadata from {metadataUrl}. Status: {response.StatusCode}");
-                        throw new Exception($"Failed to fetch file metadata: {response.ReasonPhrase}");
-                    }
-
-                    var jsonResponse = await response.Content.ReadAsStringAsync();
-                    var metadata = System.Text.Json.JsonSerializer.Deserialize<GitHubFileMetadata>(jsonResponse);
-
-                    if (metadata?.DownloadUrl == null)
-                    {
-                        Log.Error("Download URL not found in the API response.");
-                        throw new Exception("Invalid API response: Missing download URL.");
-                    }
-
+                    // Fetch the metadata from GitHub to resolve the real download URL + hash.
+                    var metadata = await FetchGitHubFileMetadataAsync(httpClient, metadataUrl, versionToDownload.Version);
                     string remoteHash = metadata.Sha;
                     string actualDownloadUrl = metadata.DownloadUrl;
 
@@ -2988,6 +2979,31 @@ namespace Segra.Backend.Recorder
             Log.Error("No OBS versions available to install the recorder (version server unreachable).");
             throw new InvalidOperationException("No OBS versions available to install the recorder.");
 #endif
+        }
+
+        // Resolves a GitHub contents-API URL to the file's metadata (download_url + sha). Shared by the
+        // Windows OBS zip download and the Linux runtime download.
+        private static async Task<GitHubFileMetadata> FetchGitHubFileMetadataAsync(HttpClient client, string metadataUrl, string versionLabel)
+        {
+            client.DefaultRequestHeaders.UserAgent.TryParseAdd("Segra");
+            client.DefaultRequestHeaders.Accept.TryParseAdd("application/vnd.github.v3.json");
+
+            Log.Information($"Fetching metadata for OBS version {versionLabel} from {metadataUrl}");
+            var response = await client.GetAsync(metadataUrl);
+            if (!response.IsSuccessStatusCode)
+            {
+                Log.Error($"Failed to fetch metadata from {metadataUrl}. Status: {response.StatusCode}");
+                throw new Exception($"Failed to fetch file metadata: {response.ReasonPhrase}");
+            }
+
+            var metadata = System.Text.Json.JsonSerializer.Deserialize<GitHubFileMetadata>(
+                await response.Content.ReadAsStringAsync());
+            if (metadata?.DownloadUrl == null)
+            {
+                Log.Error("Download URL not found in the API response.");
+                throw new Exception("Invalid API response: Missing download URL.");
+            }
+            return metadata;
         }
 
         private class GitHubFileMetadata
