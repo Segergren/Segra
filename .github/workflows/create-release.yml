@@ -334,7 +334,9 @@ jobs:
           cp -r Frontend/dist/* Resources/wwwroot/
 
       - name: Publish (linux-x64)
-        run: dotnet publish -c Release -f net10.0 -r linux-x64 --self-contained -o publish -p:Version=${{ steps.ver.outputs.num }}
+        # Target the csproj (not the solution) and set EnableWindowsTargeting so the multi-TFM restore
+        # can resolve the Windows TFM's packages (System.Management -> System.CodeDom) on a Linux runner.
+        run: dotnet publish Segra.csproj -c Release -f net10.0 -r linux-x64 --self-contained -o publish -p:EnableWindowsTargeting=true -p:Version=${{ steps.ver.outputs.num }}
 
       - name: Install Velopack CLI
         run: dotnet tool install -g vpk --version 1.2.0
