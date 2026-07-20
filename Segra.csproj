@@ -1,14 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- Multi-target: the Windows TFM keeps WinForms/WinRT/DirectX; the plain net10.0 TFM
+       builds for Linux. Windows-only source files and packages are gated by TFM below. -->
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFrameworks>net10.0-windows10.0.19041.0;net10.0</TargetFrameworks>
     <Platforms>x64</Platforms>
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <DefineConstants>TRACE;WINDOWS</DefineConstants>
-    <UseWindowsForms>true</UseWindowsForms>
 
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
@@ -24,13 +22,10 @@
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageIcon>icon.png</PackageIcon>
-    <ApplicationIcon>icon.ico</ApplicationIcon>
     <AssemblyName>Segra</AssemblyName>
     <RootNamespace>Segra</RootNamespace>
+    <!-- Needed so the Windows dev box can restore/build the net10.0-windows TFM. Harmless on Linux. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
-    <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 
     <!-- Exclude leftover build output from the removed Inspector sub-project. Its generated
@@ -39,18 +34,80 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);Inspector\**</DefaultItemExcludes>
   </PropertyGroup>
 
+  <!-- Windows-only build settings -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <OutputType>WinExe</OutputType>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <!-- Linux-only build settings -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
+    <DefineConstants>$(DefineConstants);LINUX</DefineConstants>
+    <!-- System.Drawing.Common compiles cross-platform (throws only at runtime off-Windows, which
+         the existing try/catch call sites handle), so Resources.Designer.cs and IconUtils build
+         unchanged. CA1416 (platform-compat) warnings for those unreachable paths are expected. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <!-- Cross-platform packages (both TFMs) -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.10" />
-    <PackageReference Include="NAudio" Version="2.3.0" />
     <PackageReference Include="NuGet.Versioning" Version="7.6.0" />
     <PackageReference Include="Photino.NET" Version="4.0.16" />
     <PackageReference Include="Photino.NET.Server" Version="4.0.12" />
     <PackageReference Include="Serilog" Version="4.4.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
-    <PackageReference Include="System.Management" Version="10.0.10" />
     <PackageReference Include="Velopack" Version="1.2.0" />
-    <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
     <PackageReference Include="ObsKit.NET" Version="1.5.0" />
+  </ItemGroup>
+
+  <!-- Windows-only packages (NAudio/WASAPI, WMI, DirectX) -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="System.Management" Version="10.0.10" />
+    <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
+  </ItemGroup>
+
+  <!-- Linux needs System.Drawing.Common (Windows gets it via WinForms) and
+       System.Resources.Extensions for the non-string (icon/bitmap) resx resources. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.0" />
+  </ItemGroup>
+
+  <!-- Windows-only source files (WASAPI/WMI/WinForms/WinRT/registry/DirectX). Excluded from the
+       Linux compile; their call sites are guarded by #if WINDOWS or routed through Backend/Platform. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Compile Remove="Backend\Windows\Audio\AudioDeviceService.cs" />
+    <Compile Remove="Backend\Windows\Watchers\AudioDeviceWatcher.cs" />
+    <Compile Remove="Backend\Windows\Watchers\DisplayWatcher.cs" />
+    <Compile Remove="Backend\Windows\Display\DisplayService.cs" />
+    <Compile Remove="Backend\Windows\Display\HdrDetectionService.cs" />
+    <Compile Remove="Backend\Windows\Display\WindowUtils.cs" />
+    <Compile Remove="Backend\Windows\GameMode\GameModeService.cs" />
+    <Compile Remove="Backend\Windows\Power\PowerModeMonitor.cs" />
+    <Compile Remove="Backend\Windows\WebView2\WebView2RuntimeService.cs" />
+    <Compile Remove="Backend\App\NotifyIconService.cs" />
+    <Compile Remove="Backend\Recorder\OBSWindow.cs" />
+    <Compile Remove="Backend\Recorder\NvencCapsService.cs" />
+    <Compile Remove="Backend\Games\OcrIntegration.cs" />
+    <Compile Remove="Backend\Games\GrandTheftAuto\GtaIntegration.cs" />
+    <Compile Remove="Backend\Games\RocketLeague\RocketLeagueIntegration.cs" />
+    <Compile Remove="Backend\Platform\Windows\**\*.cs" />
+  </ItemGroup>
+
+  <!-- Linux-only platform implementations. Excluded from the Windows compile. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <Compile Remove="Backend\Platform\Linux\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -81,6 +138,10 @@
 
   <ItemGroup>
     <Content Include="icon.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <!-- Linux uses the PNG for the Photino window icon (icon.ico is Windows-only). -->
+    <Content Include="icon.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

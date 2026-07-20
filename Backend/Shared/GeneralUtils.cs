@@ -1,7 +1,9 @@
 using Serilog;
-using Vortice.DXCore;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+#if WINDOWS
+using Vortice.DXCore;
+#endif
 
 namespace Segra.Backend.Shared
 {
@@ -43,6 +45,7 @@ namespace Segra.Backend.Shared
                 return _cachedGpuVendor.Value;
             }
 
+#if WINDOWS
             // Try DXCore first - more reliable but requires Windows 10 build 19041 or later
             try
             {
@@ -206,6 +209,42 @@ namespace Segra.Backend.Shared
                 Log.Error($"Error detecting GPU vendor: {ex.Message}");
                 return GpuVendor.Unknown;
             }
+#else
+            // Linux: read PCI vendor IDs of the DRM render nodes from sysfs.
+            try
+            {
+                foreach (var cardDir in Directory.GetDirectories("/sys/class/drm", "card?"))
+                {
+                    string vendorPath = Path.Combine(cardDir, "device", "vendor");
+                    if (!File.Exists(vendorPath)) continue;
+
+                    string vendorId = File.ReadAllText(vendorPath).Trim().ToLowerInvariant();
+                    switch (vendorId)
+                    {
+                        case "0x10de":
+                            Log.Information("Detected NVIDIA GPU (PCI 0x10de)");
+                            _cachedGpuVendor = GpuVendor.Nvidia;
+                            return GpuVendor.Nvidia;
+                        case "0x1002":
+                        case "0x1022":
+                            Log.Information("Detected AMD GPU (PCI 0x1002)");
+                            _cachedGpuVendor = GpuVendor.AMD;
+                            return GpuVendor.AMD;
+                        case "0x8086":
+                            Log.Information("Detected Intel GPU (PCI 0x8086)");
+                            _cachedGpuVendor = GpuVendor.Intel;
+                            return GpuVendor.Intel;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error detecting GPU vendor on Linux: {ex.Message}");
+            }
+
+            Log.Warning("Could not identify GPU vendor, will default to CPU encoding if GPU encoding is selected");
+            return GpuVendor.Unknown;
+#endif
         }
 
         private static readonly string[] SensitiveProperties =

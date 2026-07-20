@@ -69,14 +69,29 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           versionCheckHandled.current = true;
           const backendVersion = data.content?.version;
 
-          if (backendVersion && backendVersion !== __APP_VERSION__) {
-            console.log(
-              `Version mismatch: Backend ${backendVersion}, Frontend ${__APP_VERSION__}. Reloading...`,
-            );
-            // Store the old version before reloading
-            localStorage.setItem('oldAppVersion', __APP_VERSION__);
-            window.location.reload();
-            return;
+          // Only reload when the running frontend is a real, versioned build. Reloading is meant to
+          // pick up a freshly-updated frontend after an app update; a dev/preview build (e.g.
+          // "Developer Preview") can never match a packaged backend version, so reloading would loop
+          // forever. Requiring a semver-looking frontend version avoids that without relying on
+          // localStorage/URL persistence (which the embedded WebKitGTK webview does not keep reliably).
+          const frontendIsVersioned = /^\d+\.\d+/.test(__APP_VERSION__);
+          if (backendVersion && backendVersion !== __APP_VERSION__ && frontendIsVersioned) {
+            // Belt-and-suspenders: also guard via a URL param so even two mismatched real versions
+            // can only trigger a single reload.
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('reloadedForVersion') === backendVersion) {
+              console.warn(
+                `Version mismatch persists after reload (backend ${backendVersion}, frontend ${__APP_VERSION__}); not reloading again.`,
+              );
+            } else {
+              console.log(
+                `Version mismatch: Backend ${backendVersion}, Frontend ${__APP_VERSION__}. Reloading...`,
+              );
+              localStorage.setItem('oldAppVersion', __APP_VERSION__);
+              params.set('reloadedForVersion', backendVersion);
+              window.location.search = params.toString();
+              return;
+            }
           }
         }
 

@@ -8,12 +8,35 @@ A quick, practical guide to get you developing on both the backend (C#/.NET) and
 - Bug fixes and small improvements don't require a prior issue, though one is still welcome for anything non-trivial.
 
 ## Requirements
-- Windows 10 (build 19041 / version 2004) or newer
-- .NET SDK 10.0.x (Windows targeting)
+- Windows 10 (build 19041 / version 2004) or newer, **or** a modern Linux distro (see below)
+- .NET SDK 10.0.x
 - Git
 - Node.js 20+ and npm (for frontend tooling, git hooks, and the frontend dev server)
 - IDEs (pick what you like):
   - Visual Studio Code + C# Dev Kit OR Visual Studio
+
+### Platform targets
+The project multi-targets `net10.0-windows10.0.19041.0` (Windows) and `net10.0` (Linux). Game-capture,
+HDR, the WinRT OCR game integrations, and Game Mode are Windows-only; Linux records via OBS/PipeWire
+desktop capture.
+
+### Building
+Use `./build-local.sh` and pick **Windows** or **Linux** with the Up/Down arrows (or set
+`SEGRA_BUILD_TARGET=windows|linux` to skip the menu). On Linux with the Velopack CLI installed
+(`dotnet tool install -g vpk`), the script also produces a `.AppImage` under `output/`.
+
+A `linux-x64` build can be cross-compiled from Windows, but running/recording needs a Linux host with:
+`libwebkit2gtk-4.1`, `gtk3`, `pipewire` + `wireplumber`, `xdg-desktop-portal` (+ a backend), `zenity`,
+`pulseaudio-utils`, `x11-xserver-utils`, `xclip`, `ffmpeg`, and `gstreamer1.0-libav` +
+`gstreamer1.0-plugins-{good,bad}` (for in-app H.264/AAC playback). `xrandr`/`pactl`/`xclip` are optional
+and no-op if missing. Display capture uses `xshm_input` on X11 and the PipeWire portal source on Wayland.
+
+### Linux OBS runtime
+Segra resolves its recorder at launch (`Backend/Platform/Linux/LinuxObsRuntime.cs`), preferring a bundle
+downloaded from the API, then one shipped with the app, then a system `obs-studio` install, and re-execs
+once to apply `LD_LIBRARY_PATH`. The download client queries
+`https://segra.tv/api/obs/versions?isLinux=true` (override with `SEGRA_OBS_VERSIONS_URL`). Bundles are
+built by `download_obs.py` (the Linux option assembles them from the obsproject PPA `.deb`).
 
 ## Repo Layout
 - `Segra.sln` — solution root

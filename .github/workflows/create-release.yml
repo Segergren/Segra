@@ -114,7 +114,7 @@ jobs:
           if ($restoreJob.State -ne 'Completed') { throw "dotnet restore job failed (state: $($restoreJob.State))" }
 
       - name: Publish the App
-        run: dotnet publish -c Release --self-contained -r win-x64 -o publish --no-restore -p:Version=${{ steps.extract_final_version.outputs.final_version_number }}
+        run: dotnet publish -c Release -f net10.0-windows10.0.19041.0 --self-contained -r win-x64 -o publish --no-restore -p:Version=${{ steps.extract_final_version.outputs.final_version_number }}
         shell: pwsh
 
       - name: Upload Segra binaries for signing (Pass 1)
@@ -258,15 +258,25 @@ jobs:
           retention-days: 1
 
   create_github_release:
-    needs: build_and_release
+    # Wait for both builds, but publish as long as the Windows build succeeded (the Linux job is
+    # continue-on-error, so a Linux failure can't block the Windows release).
+    needs: [build_and_release, build_linux]
+    if: ${{ !cancelled() && needs.build_and_release.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write # Required to create a release
     steps:
-      - name: Download Final Build Artifact
+      - name: Download Final Build Artifact (Windows)
         uses: actions/download-artifact@v8
         with:
           name: Segra-Final-Build
+
+      - name: Download Linux Build Artifact
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: Segra-Linux
+          path: linux
 
       - name: Create Final GitHub Release
         uses: softprops/action-gh-release@v3
@@ -281,6 +291,71 @@ jobs:
             ./releases.win.json
             ./assets.win.json
             ./Segra-${{ needs.build_and_release.outputs.final_version_number }}-full.nupkg
+            ./linux/*.AppImage
+            ./linux/releases.linux.json
+            ./linux/assets.linux.json
+            ./linux/*linux*full.nupkg
+
+  # Linux AppImage: builds in parallel with the Windows job (no dependency on it), Velopack-packs to the
+  # "linux" channel, and uploads the result as an artifact that create_github_release publishes into the
+  # same release. continue-on-error so a Linux failure never fails the run or blocks the Windows release.
+  build_linux:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Compute final version from the prerelease tag
+        id: ver
+        run: |
+          rc='${{ github.event.inputs.rc_tag }}'
+          num=$(echo "$rc" | sed -E 's/-(rc|beta)\.[0-9]+$//' | sed 's/^v//')
+          echo "num=$num" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Code at Prerelease Tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.rc_tag }}
+          submodules: recursive
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build frontend (versioned) and stage into Resources/wwwroot
+        run: |
+          (cd Frontend && npm ci && npm version "${{ steps.ver.outputs.num }}" --no-git-tag-version --allow-same-version && npm run build)
+          mkdir -p Resources/wwwroot
+          rm -rf Resources/wwwroot/*
+          cp -r Frontend/dist/* Resources/wwwroot/
+
+      - name: Publish (linux-x64)
+        run: dotnet publish -c Release -f net10.0 -r linux-x64 --self-contained -o publish -p:Version=${{ steps.ver.outputs.num }}
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk --version 1.2.0
+
+      - name: Package AppImage (linux channel)
+        run: |
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          chmod +x publish/Segra || true
+          vpk pack -u Segra -v ${{ steps.ver.outputs.num }} \
+            -p publish -e Segra -o output-linux --packTitle "Segra" \
+            -i Resources/icon.png --channel linux
+          echo "=== Velopack Linux output (verify asset names on first run) ==="
+          ls -la output-linux
+
+      - name: Upload Linux build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Segra-Linux
+          path: ./output-linux
+          if-no-files-found: error
+          retention-days: 1
 
   # Separate, non-blocking job so the release job goes green without waiting on VirusTotal.
   virustotal:

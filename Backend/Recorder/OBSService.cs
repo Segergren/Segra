@@ -1,29 +1,29 @@
 using Serilog;
 using ObsKit.NET;
-using NAudio.Wave;
 using ObsKit.NET.Scenes;
 using Segra.Backend.App;
 using ObsKit.NET.Outputs;
 using ObsKit.NET.Sources;
 using Segra.Backend.Core;
 using System.Diagnostics;
-using NAudio.CoreAudioApi;
 using ObsKit.NET.Encoders;
 using Segra.Backend.Games;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
+using Segra.Backend.Platform;
 using System.Net.Http.Json;
 using System.IO.Compression;
 using ObsKit.NET.Native.Types;
 using Segra.Backend.Core.Models;
 using System.Threading.Channels;
-using NAudio.Wave.SampleProviders;
 using Segra.Backend.Windows.Input;
-using Segra.Backend.Windows.Display;
 using Segra.Backend.Windows.Storage;
 using System.Text.RegularExpressions;
 using static Segra.Backend.App.MessageService;
 using static Segra.Backend.Shared.GeneralUtils;
+#if WINDOWS
+using Segra.Backend.Windows.Display;
+#endif
 
 namespace Segra.Backend.Recorder
 {
@@ -52,7 +52,7 @@ namespace Segra.Backend.Recorder
         private static ReplayBuffer? _bufferOutput;
 
         public static GameCapture? GameCaptureSource { get; set; }
-        private static MonitorCapture? _displaySource;
+        private static Source? _displaySource;
         private static readonly List<AudioInputCapture> _micSources = [];
         private static readonly List<AudioOutputCapture> _desktopSources = [];
         private static readonly List<(string Name, string Window, Source Source)> _voiceChatSources = [];
@@ -513,21 +513,32 @@ namespace Segra.Backend.Recorder
             catch (Exception ex)
             {
                 Log.Error($"OBS installation failed: {ex.Message}");
+#if WINDOWS
                 await MessageService.ShowModal(
                     "Recorder Error",
                     "The recorder installation failed. Please check your internet connection and try again. If you have any games running, please close them and restart Segra.",
                     "error",
                     "Could not install recorder"
                 );
+#else
+                await MessageService.ShowModal(
+                    "Recorder not found",
+                    "Segra's Linux recorder needs OBS Studio's libraries (libobs). Install OBS with your package manager, for example:\n\n    sudo apt install obs-studio\n\nThen restart Segra.",
+                    "error",
+                    "OBS Studio not found"
+                );
+#endif
                 AppState.Instance.HasLoadedObs = true;
                 return;
             }
 
+#if WINDOWS
             // Probe NVENC capabilities in the background (cached in AppData until the GPU,
             // driver or OBS bundle changes) so encoder setup can disable unsupported features
             // like b-frames. The test exe ships with the OBS bundle, so this must run after
             // CheckIfExistsOrDownloadAsync.
             NvencCapsService.StartProbe();
+#endif
 
             if (Obs.IsInitialized)
                 throw new Exception("Error: OBS is already initialized.");
@@ -538,12 +549,26 @@ namespace Segra.Backend.Recorder
             try
             {
                 // Initialize OBS using ObsKit.NET fluent API
+#if WINDOWS
+                string obsModulePath = "./obs-plugins/64bit/";
+                string obsModuleDataPath = "./data/obs-plugins/%module%/";
+                string obsDataPath = "./data/libobs/";
+#else
+                // The launcher/re-exec resolves the OBS runtime and passes paths via env vars.
+                string obsModulePath = Environment.GetEnvironmentVariable("SEGRA_OBS_MODULE_PATH") ?? "./obs-plugins/";
+                string obsModuleDataPath = Environment.GetEnvironmentVariable("SEGRA_OBS_MODULE_DATA_PATH") ?? "./data/obs-plugins/%module%/";
+                string obsDataPath = Environment.GetEnvironmentVariable("SEGRA_OBS_DATA_PATH") ?? "./data/libobs/";
+                Log.Information($"Linux OBS runtime: data='{obsDataPath}', modules='{obsModulePath}'");
+#endif
                 _obsContext = Obs.Initialize(config =>
                 {
                     config
                         .WithLocale("en-US")
-                        .WithDataPath("./data/libobs/")
-                        .WithModulePath("./obs-plugins/64bit/", "./data/obs-plugins/%module%/")
+                        .WithDataPath(obsDataPath)
+                        .WithModulePath(obsModulePath, obsModuleDataPath)
+#if !WINDOWS
+                        .ForHeadlessOperation()
+#endif
                         .WithVideo(v => v
                             .Resolution(1920, 1080)
                             .Fps(60))
@@ -802,6 +827,7 @@ namespace Segra.Backend.Recorder
             // switch to an HDR-capable encoder when the captured display is in HDR mode.
             _isHdrRecording = false;
             _hdrEncoderId = null;
+#if WINDOWS
             try
             {
                 if (!eff.EnableHdr)
@@ -842,6 +868,7 @@ namespace Segra.Backend.Recorder
                 _isHdrRecording = false;
                 _hdrEncoderId = null;
             }
+#endif
 
             // Clean slate before creating new objects: dispose any stale scene/sources/encoders left by a
             // skipped or partial teardown. No-op on the normal path where StopRecording already cleaned up.
@@ -863,6 +890,7 @@ namespace Segra.Backend.Recorder
                 // Use base dimensions for bounds - scene canvas is at base resolution
                 _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
             }
+#if WINDOWS
             else
             {
                 // Add display capture first (bottom layer - fallback)
@@ -932,6 +960,15 @@ namespace Segra.Backend.Recorder
                     return false;
                 }
             }
+#else
+            else
+            {
+                // Linux: graphics-hook game_capture does not exist; record the desktop via PipeWire.
+                Log.Information("Linux game recording - using desktop (PipeWire) capture");
+                AddMonitorCapture();
+                _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+            }
+#endif
 
             // Set scene as program output (channel 0)
             Obs.SetOutputSource(_mainScene);
@@ -1332,7 +1369,7 @@ namespace Segra.Backend.Recorder
 
             RecordingPreviewService.OnRecordingStarted((uint)eff.FrameRate);
 
-            NotifyIconService.SetNotifyIconStatus(NotifyIconState.Recording);
+            PlatformServices.Tray.SetRecording(true);
 
             StartDiskSpaceMonitor();
 
@@ -1355,6 +1392,7 @@ namespace Segra.Backend.Recorder
 
             int monitorIndex = ResolveSelectedMonitorIndex(warnIfNotFound: true);
 
+#if WINDOWS
             var captureMethod = Settings.Instance.DisplayCaptureMethod switch
             {
                 DisplayCaptureMethod.DXGI => MonitorCaptureMethod.DesktopDuplication,
@@ -1365,10 +1403,31 @@ namespace Segra.Backend.Recorder
             _displaySource = MonitorCapture.FromMonitor(monitorIndex, "display")
                 .SetCaptureMethod(captureMethod);
 
+            Log.Information($"Display capture added for monitor {monitorIndex} using {Settings.Instance.DisplayCaptureMethod} method");
+#else
+            // Linux: on X11 use OBS's xshm screen capture. The PipeWire desktop-portal source is
+            // Wayland-oriented and yields black frames on X11, so only use it when actually on Wayland.
+            bool isWayland = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
+            if (isWayland)
+            {
+                _displaySource = MonitorCapture.FromMonitor(monitorIndex, "display");
+                Log.Information($"Display capture added for monitor {monitorIndex} using PipeWire (portal)");
+            }
+            else
+            {
+                var xshm = new Source("xshm_input", "display");
+                xshm.Update(s =>
+                {
+                    s.Set("screen", monitorIndex);
+                    s.Set("show_cursor", true);
+                });
+                _displaySource = xshm;
+                Log.Information($"Display capture added for screen {monitorIndex} using X11 (xshm)");
+            }
+#endif
+
             // Add to scene (display is behind game capture in layer order)
             _displayItem = _mainScene.AddSource(_displaySource);
-
-            Log.Information($"Display capture added for monitor {monitorIndex} using {Settings.Instance.DisplayCaptureMethod} method");
         }
 
         /// <summary>
@@ -1385,8 +1444,16 @@ namespace Segra.Backend.Recorder
             }
 
             int monitorIndex = ResolveSelectedMonitorIndex(warnIfNotFound: true);
-            _displaySource.SetMonitor(monitorIndex);
-            Log.Information($"Updated live display capture to monitor {monitorIndex}");
+            if (_displaySource is MonitorCapture monitorCapture)
+            {
+                monitorCapture.SetMonitor(monitorIndex);
+                Log.Information($"Updated live display capture to monitor {monitorIndex}");
+            }
+            else
+            {
+                // xshm/other source types: no in-place monitor switch; applies on next recording.
+                Log.Information("Monitor selection changed; will apply on the next recording.");
+            }
         }
 
         /// <summary>
@@ -1418,6 +1485,7 @@ namespace Segra.Backend.Recorder
         /// AddMonitorCapture makes (the selected display if found, otherwise the first display).
         /// Used to decide whether to record in HDR.
         /// </summary>
+#if WINDOWS
         private static string? GetCaptureTargetDeviceId()
         {
             var displays = AppState.Instance.Displays;
@@ -1478,15 +1546,18 @@ namespace Segra.Backend.Recorder
             bool fallbackHdr = HdrDetectionService.IsDisplayHdrActive(fallbackDeviceId);
             return displays.Any(d => HdrDetectionService.IsDisplayHdrActive(d.DeviceId) != fallbackHdr);
         }
+#endif
 
         /// <summary>
         /// Clamps b-frames to what the GPU's NVENC block supports for this codec, based on the
         /// obs-nvenc-test probe result. OBS defaults to 2 b-frames regardless of hardware, and
         /// support is per codec: the GTX 1650 (TU117) for example handles H.264 b-frames but not
         /// HEVC b-frames, making every encode fail with "B-frames not supported on the current HW" (#151).
+        /// On Linux the NVENC probe is not run, so this is a no-op.
         /// </summary>
         private static void ApplyNvencBFrameLimit(ObsKit.NET.Core.Settings videoEncoderSettings, string encoderId)
         {
+#if WINDOWS
             int? maxBFrames = NvencCapsService.GetMaxBFrames(encoderId);
             if (maxBFrames == null)
                 return;
@@ -1495,6 +1566,7 @@ namespace Segra.Backend.Recorder
             videoEncoderSettings.Set("bf", bf);
             if (bf < 2)
                 Log.Information($"NVENC b-frames limited to {bf} ({encoderId} supports max {maxBFrames} on this GPU)");
+#endif
         }
 
         public static async Task StopRecording()
@@ -1553,7 +1625,7 @@ namespace Segra.Backend.Recorder
                     DisposeSources();
                     DisposeEncoders();
 
-                    NotifyIconService.SetNotifyIconStatus(NotifyIconState.Idle);
+                    PlatformServices.Tray.SetRecording(false);
 
                     Log.Information("Replay buffer stopped and disposed.");
 
@@ -1588,7 +1660,7 @@ namespace Segra.Backend.Recorder
                     DisposeSources();
                     DisposeEncoders();
 
-                    NotifyIconService.SetNotifyIconStatus(NotifyIconState.Idle);
+                    PlatformServices.Tray.SetRecording(false);
 
                     Log.Information("Recording stopped and disposed.");
 
@@ -1689,7 +1761,7 @@ namespace Segra.Backend.Recorder
                     DisposeSources();
                     DisposeEncoders();
 
-                    NotifyIconService.SetNotifyIconStatus(NotifyIconState.Idle);
+                    PlatformServices.Tray.SetRecording(false);
 
                     Log.Information("Hybrid: All outputs stopped and disposed.");
 
@@ -2470,11 +2542,19 @@ namespace Segra.Backend.Recorder
             _bufferOutput = null;
         }
 
+        // ?isLinux=true selects the Linux recorder bundles; the default serves the Windows OBS zips.
+#if WINDOWS
+        private const string ObsVersionsUrl = "https://segra.tv/api/obs/versions";
+#else
+        private const string ObsVersionsUrl = "https://segra.tv/api/obs/versions?isLinux=true";
+#endif
+
         public static async Task AvailableOBSVersionsAsync()
         {
             try
             {
-                string url = "https://segra.tv/api/obs/versions";
+                // SEGRA_OBS_VERSIONS_URL overrides the endpoint (useful for staging / local testing).
+                string url = Environment.GetEnvironmentVariable("SEGRA_OBS_VERSIONS_URL") ?? ObsVersionsUrl;
                 List<Core.Models.OBSVersion>? response = null;
                 using (HttpClient client = new())
                 {
@@ -2547,14 +2627,173 @@ namespace Segra.Backend.Recorder
 
         public static bool IsOBSInstalled()
         {
-            string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "obs.dll");
-            return File.Exists(dllPath);
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+#if WINDOWS
+            return File.Exists(Path.Combine(baseDir, "obs.dll"));
+#else
+            // The launcher / re-exec resolves a runtime and exports SEGRA_OBS_DATA_PATH when it
+            // succeeds; treat that as installed. Otherwise detect a downloaded bundle, a bundled
+            // libobs, or a system obs-studio install.
+            string? dataPath = Environment.GetEnvironmentVariable("SEGRA_OBS_DATA_PATH");
+            if (!string.IsNullOrEmpty(dataPath) && Directory.Exists(dataPath))
+                return true;
+
+            return File.Exists(Path.Combine(Platform.Linux.LinuxObsRuntime.DownloadedBundleDir(), "lib", "libobs.so.0"))
+                || File.Exists(Path.Combine(baseDir, "lib", "libobs.so.0"))
+                || File.Exists(Path.Combine(baseDir, "libobs.so.0"))
+                || LinuxSystemLibObsPath() != null;
+#endif
         }
+
+#if !WINDOWS
+        // Downloads the Linux recorder bundle from the API, extracts it, and re-execs to apply it.
+        // Expects OBSVersion.Url to be a direct .tar.gz or .zip URL.
+        private static async Task DownloadLinuxObsRuntimeAsync()
+        {
+            if (AppState.Instance.AvailableOBSVersions == null || AppState.Instance.AvailableOBSVersions.Count == 0)
+                await AvailableOBSVersionsAsync();
+
+            var versions = AppState.Instance.AvailableOBSVersions;
+            if (versions == null || versions.Count == 0)
+            {
+                Log.Error("No Linux OBS runtime bundles available from the API.");
+                throw new Exception("linux-obs-unavailable");
+            }
+
+            string? selectedVersion = Settings.Instance.SelectedOBSVersion;
+            var versionToDownload = (!string.IsNullOrEmpty(selectedVersion)
+                    ? versions.FirstOrDefault(v => v.Version == selectedVersion) : null)
+                ?? versions.Where(v => !v.IsBeta).OrderByDescending(v => v.Version).FirstOrDefault()
+                ?? versions.First();
+
+            string url = versionToDownload.Url;
+            Log.Information($"Downloading Linux OBS runtime {versionToDownload.Version} from {url}");
+
+            string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
+            Directory.CreateDirectory(appDataDir);
+            bool isZip = url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
+            string archivePath = Path.Combine(appDataDir, isZip ? "obs-linux-download.zip" : "obs-linux-download.tar.gz");
+
+            using (var httpClient = new HttpClient())
+            {
+                httpClient.Timeout = Timeout.InfiniteTimeSpan;
+                using var resp = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                resp.EnsureSuccessStatusCode();
+                long totalBytes = resp.Content.Headers.ContentLength ?? -1L;
+                using var contentStream = await resp.Content.ReadAsStreamAsync();
+                using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+                var buffer = new byte[8192];
+                long totalRead = 0; int bytesRead, lastProgress = -1;
+                while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
+                {
+                    await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
+                    totalRead += bytesRead;
+                    if (totalBytes > 0)
+                    {
+                        int progress = (int)((totalRead * 100) / totalBytes);
+                        if (progress != lastProgress)
+                        {
+                            lastProgress = progress;
+                            await SendFrontendMessage("ObsDownloadProgress", new { progress, status = "downloading" });
+                        }
+                    }
+                }
+            }
+
+            Log.Information("Download complete; extracting Linux OBS runtime...");
+            string dest = Platform.Linux.LinuxObsRuntime.DownloadedBundleDir();
+            if (Directory.Exists(dest)) Directory.Delete(dest, true);
+            Directory.CreateDirectory(dest);
+
+            if (isZip)
+                ZipFile.ExtractToDirectory(archivePath, dest, overwriteFiles: true);
+            else
+            {
+                using var fs = File.OpenRead(archivePath);
+                using var gz = new System.IO.Compression.GZipStream(fs, System.IO.Compression.CompressionMode.Decompress);
+                System.Formats.Tar.TarFile.ExtractToDirectory(gz, dest, overwriteFiles: true);
+            }
+
+            FlattenSingleTopDir(dest);
+            EnsureExecutable(Path.Combine(dest, "bin", "ffmpeg"));
+            EnsureExecutable(Path.Combine(dest, "ffmpeg"));
+            try { File.Delete(archivePath); } catch { /* ignore */ }
+
+            if (!File.Exists(Path.Combine(dest, "lib", "libobs.so.0")))
+            {
+                Log.Error("Downloaded Linux OBS bundle has no lib/libobs.so.0 (unexpected layout).");
+                throw new Exception("linux-obs-bad-bundle");
+            }
+
+            Log.Information($"Linux OBS runtime ready at {dest}; restarting to apply.");
+            await ShowModal("Recorder ready", "The recorder finished downloading. Segra will restart to apply it.", "info");
+            await Task.Delay(500);
+
+            // Re-exec so LD_LIBRARY_PATH / PATH / GStreamer plugin path pick up the new runtime.
+            Platform.Linux.LinuxObsRuntime.ConfigureAndReexecIfNeeded();
+        }
+
+        private static void EnsureExecutable(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                    File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+                        | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+            }
+            catch { /* best effort */ }
+        }
+
+        // If the archive extracted everything under a single top-level folder, move it up so lib/ is at root.
+        private static void FlattenSingleTopDir(string dest)
+        {
+            if (File.Exists(Path.Combine(dest, "lib", "libobs.so.0"))) return;
+            var subdirs = Directory.GetDirectories(dest);
+            var files = Directory.GetFiles(dest);
+            if (subdirs.Length == 1 && files.Length == 0)
+            {
+                string inner = subdirs[0];
+                foreach (var e in Directory.GetFileSystemEntries(inner))
+                    Directory.Move(e, Path.Combine(dest, Path.GetFileName(e)));
+                Directory.Delete(inner, true);
+            }
+        }
+
+        // Locate a system-installed libobs (obs-studio package) across common library directories.
+        private static string? LinuxSystemLibObsPath()
+        {
+            string[] dirs =
+            {
+                "/usr/lib/x86_64-linux-gnu",
+                "/usr/lib64",
+                "/usr/lib",
+                "/usr/local/lib",
+                "/usr/local/lib/x86_64-linux-gnu",
+            };
+            foreach (var d in dirs)
+            {
+                var p = Path.Combine(d, "libobs.so.0");
+                if (File.Exists(p)) return p;
+            }
+            return null;
+        }
+#endif
 
         public static async Task CheckIfExistsOrDownloadAsync(bool isUpdate = false)
         {
             Log.Information("Checking if OBS is installed");
 
+#if !WINDOWS
+            // Linux: use an already-resolved runtime (downloaded/bundled/system), else download the bundle.
+            if (IsOBSInstalled())
+            {
+                Log.Information("OBS runtime found (downloaded, bundled, or system)");
+                _ = AvailableOBSVersionsAsync();
+                return;
+            }
+
+            await DownloadLinuxObsRuntimeAsync();
+#else
             if (isUpdate)
             {
                 // We need to reinstall the Segra app to apply the update, because all OBS resources are placed in the app directory
@@ -2748,6 +2987,7 @@ namespace Segra.Backend.Recorder
             // Throw so InitializeAsync shows the recorder-error modal instead of failing silently.
             Log.Error("No OBS versions available to install the recorder (version server unreachable).");
             throw new InvalidOperationException("No OBS versions available to install the recorder.");
+#endif
         }
 
         private class GitHubFileMetadata
@@ -2765,19 +3005,9 @@ namespace Segra.Backend.Recorder
             if (stream == null)
                 throw new ArgumentException($"Resource '{resourceName}' not found or not a stream.");
 
-            using var reader = new WaveFileReader(stream);
-            var sampleProvider = reader.ToSampleProvider();
-            var volumeProvider = new VolumeSampleProvider(sampleProvider)
-            {
-                Volume = Settings.Instance.SoundEffectsVolume
-            };
-
-            using var waveOut = new WasapiOut(AudioClientShareMode.Shared, 100);
-            waveOut.Init(volumeProvider);
-            waveOut.Play();
-
-            while (waveOut.PlaybackState == PlaybackState.Playing)
-                Thread.Sleep(10);
+            using var ms = new MemoryStream();
+            stream.CopyTo(ms);
+            PlatformServices.Sound.Play(ms.ToArray(), Settings.Instance.SoundEffectsVolume);
         }
 
 
