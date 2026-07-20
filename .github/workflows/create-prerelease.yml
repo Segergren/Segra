@@ -423,7 +423,7 @@ jobs:
           chmod +x publish/Segra || true
           vpk pack -u Segra -v ${{ needs.version.outputs.new_version }} \
             -p publish -e Segra -o output-linux --packTitle "Segra" \
-            -i Resources/icon.png --channel linux
+            -i icon.png --channel linux
           echo "=== Velopack Linux output (verify asset names on first run) ==="
           ls -la output-linux
 
