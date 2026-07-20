@@ -1,0 +1,13 @@
+Package: segra
+Version: @VERSION@
+Architecture: amd64
+Maintainer: Segergren <olle.segergren@gmail.com>
+Section: video
+Priority: optional
+Homepage: https://segra.tv
+Depends: libwebkit2gtk-4.1-0, gstreamer1.0-libav, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, ffmpeg, pipewire, wireplumber, xdg-desktop-portal, xdg-desktop-portal-gtk, zenity, pulseaudio-utils
+Recommends: libgdiplus, x11-xserver-utils, xclip
+Description: Segra game clip recorder
+ Segra records your gameplay and lets you clip and share it. The recorder
+ (OBS/libobs) is downloaded automatically on first launch, so the package
+ itself stays small.

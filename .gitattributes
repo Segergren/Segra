@@ -60,3 +60,12 @@
 obs.zip filter=lfs diff=lfs merge=lfs -text
 Obs/*.zip filter=lfs diff=lfs merge=lfs -text
 Obs/*.tar.gz filter=lfs diff=lfs merge=lfs -text
+
+# Shell scripts and Linux .deb packaging must stay LF (they run on Linux / inside the package).
+*.sh text eol=lf
+packaging/linux/postinst text eol=lf
+packaging/linux/postrm text eol=lf
+packaging/linux/segra.desktop text eol=lf
+packaging/linux/control.in text eol=lf
+# The apt signing key is binary; never line-ending-normalize it.
+packaging/linux/segra-archive-keyring.gpg binary

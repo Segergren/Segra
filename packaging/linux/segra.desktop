@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Segra
+GenericName=Game Recorder
+Comment=Record and clip your gameplay
+Exec=/usr/bin/segra %U
+Icon=segra
+Terminal=false
+Categories=AudioVideo;Recorder;GTK;
+Keywords=record;clip;gameplay;capture;screen;
+StartupWMClass=Segra
