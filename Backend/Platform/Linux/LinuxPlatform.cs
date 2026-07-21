@@ -24,32 +24,55 @@ namespace Segra.Backend.Platform.Linux
         public List<AudioDevice> GetOutputDevices() => Enumerate("sinks");
         public IPlatformWatcher CreateWatcher() => new NoopWatcher();
 
-        // Enumerate PipeWire/PulseAudio endpoints via `pactl`. The first entry is always a
-        // "Default" pseudo-device (id "default") so OBS's *_capture FromDefault path works even
-        // when pactl is unavailable.
+        // Enumerate PipeWire/PulseAudio endpoints via `pactl`. We deliberately do NOT prepend a
+        // synthetic "Default" entry: the frontend already supplies a virtual "Default Device", and
+        // OBS resolves the default through the "default" device id (AudioInputCapture.FromDefault),
+        // not through this list - a backend default here just produced a duplicate default row.
         private static List<AudioDevice> Enumerate(string kind)
         {
-            var devices = new List<AudioDevice>
-            {
-                new AudioDevice { Id = "default", Name = "Default", IsDefault = true }
-            };
+            var devices = new List<AudioDevice>();
 
             try
             {
-                string output = LinuxProcess.RunCapture("pactl", $"list short {kind}");
-                foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                // `list short` exposes only the node name (e.g. alsa_output.pci-...), not a
+                // human-readable one. The long form gives both: Name (a stable node id we keep as
+                // the device Id) and Description (the friendly name shown in the UI).
+                string output = LinuxProcess.RunCapture("pactl", $"list {kind}");
+
+                string? nodeName = null;
+                string? description = null;
+
+                void Flush()
                 {
-                    // Format: <index>\t<name>\t<driver>\t<sample-spec>\t<state>
-                    var parts = line.Split('\t');
-                    if (parts.Length < 2) continue;
-                    string name = parts[1].Trim();
-                    if (string.IsNullOrEmpty(name) || devices.Any(d => d.Id == name)) continue;
-                    devices.Add(new AudioDevice { Id = name, Name = name, IsDefault = false });
+                    if (!string.IsNullOrEmpty(nodeName) && !devices.Any(d => d.Id == nodeName))
+                    {
+                        devices.Add(new AudioDevice
+                        {
+                            Id = nodeName,
+                            Name = string.IsNullOrEmpty(description) ? nodeName : description,
+                            IsDefault = false
+                        });
+                    }
+                    nodeName = null;
+                    description = null;
                 }
+
+                foreach (var raw in output.Split('\n'))
+                {
+                    string line = raw.Trim();
+                    // "Sink #N" / "Source #N" starts a new endpoint block; flush the previous one.
+                    if (line.StartsWith("Sink #") || line.StartsWith("Source #"))
+                        Flush();
+                    else if (nodeName == null && line.StartsWith("Name:"))
+                        nodeName = line["Name:".Length..].Trim();
+                    else if (description == null && line.StartsWith("Description:"))
+                        description = line["Description:".Length..].Trim();
+                }
+                Flush();
             }
             catch (Exception ex)
             {
-                Log.Warning($"pactl audio enumeration failed (using default only): {ex.Message}");
+                Log.Warning($"pactl audio enumeration failed: {ex.Message}");
             }
 
             return devices;

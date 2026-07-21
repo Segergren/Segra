@@ -84,14 +84,17 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     // Listen for WebSocket messages
     window.addEventListener('websocket-message', handleWebSocketMessage as EventListener);
 
-    // Check if there's an old version stored (set during app update)
+    // Check if there's an old version stored (set on the one reload after an app update). Only open
+    // "What's New" when it is a real version string, so a stray/empty value can never force the modal.
     const oldVersion = localStorage.getItem('oldAppVersion');
     if (oldVersion) {
       localStorage.removeItem('oldAppVersion');
-      // Small delay to ensure modal system is ready
-      setTimeout(() => {
-        openReleaseNotesModal(oldVersion);
-      }, 1000);
+      if (/^\d+\.\d+/.test(oldVersion)) {
+        // Small delay to ensure modal system is ready
+        setTimeout(() => {
+          openReleaseNotesModal(oldVersion);
+        }, 1000);
+      }
     }
 
     return () => {

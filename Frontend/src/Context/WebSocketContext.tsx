@@ -69,27 +69,25 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           versionCheckHandled.current = true;
           const backendVersion = data.content?.version;
 
-          // Only reload when the running frontend is a real, versioned build. Reloading is meant to
-          // pick up a freshly-updated frontend after an app update; a dev/preview build (e.g.
-          // "Developer Preview") can never match a packaged backend version, so reloading would loop
-          // forever. Requiring a semver-looking frontend version avoids that without relying on
-          // localStorage/URL persistence (which the embedded WebKitGTK webview does not keep reliably).
-          const frontendIsVersioned = /^\d+\.\d+/.test(__APP_VERSION__);
-          if (backendVersion && backendVersion !== __APP_VERSION__ && frontendIsVersioned) {
-            // Belt-and-suspenders: also guard via a URL param so even two mismatched real versions
-            // can only trigger a single reload.
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('reloadedForVersion') === backendVersion) {
-              console.warn(
-                `Version mismatch persists after reload (backend ${backendVersion}, frontend ${__APP_VERSION__}); not reloading again.`,
-              );
-            } else {
-              console.log(
-                `Version mismatch: Backend ${backendVersion}, Frontend ${__APP_VERSION__}. Reloading...`,
-              );
-              localStorage.setItem('oldAppVersion', __APP_VERSION__);
-              params.set('reloadedForVersion', backendVersion);
-              window.location.search = params.toString();
+          // Reloading exists to pick up a freshly-updated frontend when the app updates itself while
+          // running. We decide from a PERSISTED record of the version we actually loaded - not from
+          // the build-time __APP_VERSION__ constant. On Linux the frontend is served from the
+          // packaged wwwroot and its build constant may never equal the backend's packaged version
+          // (e.g. an unstamped "Developer Preview" build), which made the old constant-comparison
+          // reload on every single launch. Comparing against a stored value is self-correcting:
+          // after one reload it matches and stops. If localStorage is unavailable it simply never
+          // reloads, which is harmless (the packaged frontend is already current).
+          if (backendVersion) {
+            const loaded = localStorage.getItem('loadedAppVersion');
+            if (loaded == null) {
+              // First launch on this machine (or cleared storage): adopt, never reload.
+              localStorage.setItem('loadedAppVersion', backendVersion);
+            } else if (loaded !== backendVersion) {
+              // The backend was updated under a running frontend: reload once for the new UI.
+              console.log(`App version changed: ${loaded} -> ${backendVersion}. Reloading once...`);
+              localStorage.setItem('loadedAppVersion', backendVersion);
+              localStorage.setItem('oldAppVersion', loaded);
+              window.location.reload();
               return;
             }
           }

@@ -979,47 +979,58 @@ namespace Segra.Backend.Recorder
             Log.Information($"Using encoder: {encoderId}{(_isHdrRecording ? " (HDR)" : "")}");
 
             using var videoEncoderSettings = new ObsKit.NET.Core.Settings();
-            videoEncoderSettings.Set("preset", "Quality");
-            // HEVC needs the Main 10 profile for 10-bit HDR; AV1 derives bit depth from the P010 input.
-            videoEncoderSettings.Set("profile", _isHdrRecording && EncoderInfo.Get(encoderId)?.Codec == "hevc" ? "main10" : "high");
-            videoEncoderSettings.Set("use_bufsize", true);
-            videoEncoderSettings.Set("rate_control", eff.RateControl);
             videoEncoderSettings.Set("keyint_sec", 1);
 
-            switch (eff.RateControl)
+            // Encoder families expose different settings schemas, so each is configured on its own
+            // terms rather than configuring one and patching for the others. VAAPI (the Linux GPU
+            // path) is the second family; NVENC/QSV/AMF/x264 share the schema below.
+            if (IsVaapiEncoder(encoderId))
             {
-                case "CBR":
-                    int targetBitrateKbps = eff.Bitrate * 1000;
-                    videoEncoderSettings.Set("bitrate", targetBitrateKbps);
-                    videoEncoderSettings.Set("max_bitrate", targetBitrateKbps);
-                    videoEncoderSettings.Set("bufsize", targetBitrateKbps);
-                    break;
-
-                case "VBR":
-                    int minBitrateKbps = eff.MinBitrate * 1000;
-                    int maxBitrateKbps = eff.MaxBitrate * 1000;
-                    videoEncoderSettings.Set("bitrate", minBitrateKbps);
-                    videoEncoderSettings.Set("max_bitrate", maxBitrateKbps);
-                    videoEncoderSettings.Set("bufsize", maxBitrateKbps);
-                    break;
-
-                case "CRF":
-                    // Software x264 path mainly; no explicit bitrate
-                    videoEncoderSettings.Set("crf", eff.CrfValue);
-                    break;
-
-                case "CQP":
-                    // Hardware encoders (NVENC/QSV/AMF) often use cqp/cq; provide both cqp and qp for compatibility
-                    videoEncoderSettings.Set("cqp", eff.CqLevel);
-                    videoEncoderSettings.Set("qp", eff.CqLevel);
-                    break;
-
-                default:
-                    AppState.Instance.PreRecording = null;
-                    throw new Exception("Unsupported Rate Control method.");
+                ConfigureVaapiVideoEncoder(videoEncoderSettings, encoderId, eff);
             }
+            else
+            {
+                videoEncoderSettings.Set("preset", "Quality");
+                // HEVC needs the Main 10 profile for 10-bit HDR; AV1 derives bit depth from the P010 input.
+                videoEncoderSettings.Set("profile", _isHdrRecording && EncoderInfo.Get(encoderId)?.Codec == "hevc" ? "main10" : "high");
+                videoEncoderSettings.Set("use_bufsize", true);
+                videoEncoderSettings.Set("rate_control", eff.RateControl);
 
-            ApplyNvencBFrameLimit(videoEncoderSettings, encoderId);
+                switch (eff.RateControl)
+                {
+                    case "CBR":
+                        int targetBitrateKbps = eff.Bitrate * 1000;
+                        videoEncoderSettings.Set("bitrate", targetBitrateKbps);
+                        videoEncoderSettings.Set("max_bitrate", targetBitrateKbps);
+                        videoEncoderSettings.Set("bufsize", targetBitrateKbps);
+                        break;
+
+                    case "VBR":
+                        int minBitrateKbps = eff.MinBitrate * 1000;
+                        int maxBitrateKbps = eff.MaxBitrate * 1000;
+                        videoEncoderSettings.Set("bitrate", minBitrateKbps);
+                        videoEncoderSettings.Set("max_bitrate", maxBitrateKbps);
+                        videoEncoderSettings.Set("bufsize", maxBitrateKbps);
+                        break;
+
+                    case "CRF":
+                        // Software x264 path mainly; no explicit bitrate
+                        videoEncoderSettings.Set("crf", eff.CrfValue);
+                        break;
+
+                    case "CQP":
+                        // Hardware encoders (NVENC/QSV/AMF) often use cqp/cq; provide both cqp and qp for compatibility
+                        videoEncoderSettings.Set("cqp", eff.CqLevel);
+                        videoEncoderSettings.Set("qp", eff.CqLevel);
+                        break;
+
+                    default:
+                        AppState.Instance.PreRecording = null;
+                        throw new Exception("Unsupported Rate Control method.");
+                }
+
+                ApplyNvencBFrameLimit(videoEncoderSettings, encoderId);
+            }
 
             try
             {
@@ -1567,6 +1578,51 @@ namespace Segra.Backend.Recorder
             if (bf < 2)
                 Log.Information($"NVENC b-frames limited to {bf} ({encoderId} supports max {maxBFrames} on this GPU)");
 #endif
+        }
+
+        // The Linux GPU encoders are FFmpeg VAAPI (ffmpeg_vaapi_tex / hevc_ffmpeg_vaapi_tex / av1_...).
+        private static bool IsVaapiEncoder(string encoderId) =>
+            encoderId.Contains("vaapi", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Configures the FFmpeg VAAPI encoder (the Linux GPU path). Its settings schema differs from
+        /// the NVENC/QSV/AMF/x264 family: an <em>integer</em> AVCodecContext "profile" (not the
+        /// "high"/"main10" strings), the VBR ceiling read from "maxrate" (not "max_bitrate"), and only
+        /// CBR/VBR/CQP rate control. Mismatched keys make libavcodec fail to open the codec with
+        /// "Function not implemented".
+        /// </summary>
+        private static void ConfigureVaapiVideoEncoder(ObsKit.NET.Core.Settings s, string encoderId, EffectiveRecordingSettings eff)
+        {
+            // Integer AVCodecContext.profile values (libavcodec AV_PROFILE_*). OBS auto-upgrades HEVC
+            // Main -> Main10 for P010, but we pick the right one up front anyway.
+            const int H264_HIGH = 100, HEVC_MAIN = 1, HEVC_MAIN_10 = 2, AV1_MAIN = 0;
+            string codec = EncoderInfo.Get(encoderId)?.Codec ?? "h264";
+            int profile = codec switch
+            {
+                "hevc" => _isHdrRecording ? HEVC_MAIN_10 : HEVC_MAIN,
+                "av1" => AV1_MAIN,
+                _ => H264_HIGH,
+            };
+            s.Set("profile", profile);
+
+            // VAAPI supports CBR / VBR / CQP; map the x264-only CRF mode onto CQP.
+            string rc = eff.RateControl == "CRF" ? "CQP" : eff.RateControl;
+            s.Set("rate_control", rc);
+
+            switch (rc)
+            {
+                case "CBR":
+                    s.Set("bitrate", eff.Bitrate * 1000);
+                    break;
+                case "VBR":
+                    // "maxrate" is VAAPI's VBR ceiling (kbps); "bitrate" is the target.
+                    s.Set("bitrate", eff.MinBitrate * 1000);
+                    s.Set("maxrate", eff.MaxBitrate * 1000);
+                    break;
+                case "CQP":
+                    s.Set("qp", eff.RateControl == "CRF" ? eff.CrfValue : eff.CqLevel);
+                    break;
+            }
         }
 
         public static async Task StopRecording()
@@ -3045,6 +3101,14 @@ namespace Segra.Backend.Recorder
                 ["obs_qsv11_hevc"] = "Intel QSV H.265",
                 ["obs_qsv11_av1"] = "Intel QSV AV1",
 
+                // ── VAAPI (Linux hardware) ─────────────────────────
+                // The texture ('_tex') variants carry OBS_ENCODER_CAP_PASS_TEXTURE, so
+                // EncoderInfo reports IsHardware=true; the non-tex variants are internal
+                // (software) and are intentionally left out so they don't appear under GPU.
+                ["ffmpeg_vaapi_tex"] = "VAAPI H.264",
+                ["hevc_ffmpeg_vaapi_tex"] = "VAAPI H.265",
+                ["av1_ffmpeg_vaapi_tex"] = "VAAPI AV1",
+
                 // ── CPU / software paths ───────────────────────────
                 ["obs_x264"] = "Software x264",
                 ["ffmpeg_openh264"] = "Software OpenH264",
@@ -3131,6 +3195,17 @@ namespace Segra.Backend.Recorder
                     selectedCodec = availableCodecs.FirstOrDefault(
                         c => c.InternalEncoderId.Equals(
                             "h264_texture_amf",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    );
+                }
+
+                // If not found, try VAAPI H.264 (Linux hardware)
+                if (selectedCodec == null)
+                {
+                    selectedCodec = availableCodecs.FirstOrDefault(
+                        c => c.InternalEncoderId.Equals(
+                            "ffmpeg_vaapi_tex",
                             StringComparison.OrdinalIgnoreCase
                         )
                     );

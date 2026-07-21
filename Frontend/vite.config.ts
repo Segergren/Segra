@@ -1,7 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { version } from './package.json';
+import { version as pkgVersion } from './package.json';
 import tailwindcss from '@tailwindcss/vite';
+
+// Packaged builds pass the real release version via SEGRA_VERSION so the frontend's __APP_VERSION__
+// matches the backend's packaged version (used for "What's New" release-note gating). A bare local
+// build has no SEGRA_VERSION and falls back to package.json ("Developer Preview").
+const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+const version = env?.SEGRA_VERSION || pkgVersion;
 
 // https://vite.dev/config/
 export default defineConfig({
