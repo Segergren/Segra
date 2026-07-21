@@ -124,7 +124,7 @@ namespace Segra.Backend.Windows.Input
                         modifiers |= ObsKeyModifiers.Command;
                         break;
                     default:
-                        var key = ObsKeys.FromVirtualKey(vk);
+                        var key = ObsKeys.FromWindowsVirtualKey(vk);
                         if (key == ObsKey.None)
                             return false;
                         if (mainKey != null && mainKey != key)
