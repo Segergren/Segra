@@ -169,22 +169,11 @@ LAUNCHER
         echo "note: packaging/linux/obs-helpers missing; NVENC and recording muxing will not work."
     fi
 
-    # Build a Velopack AppImage installer when the vpk CLI is available and we're on Linux.
-    # (vpk's Linux packer only runs on Linux; install it with: dotnet tool install -g vpk)
-    if command -v vpk >/dev/null 2>&1 && [[ "$(uname -s)" == "Linux" ]]; then
-        echo ""
-        echo "=== Packaging AppImage (Velopack) ==="
-        VER="${SEGRA_VERSION:-1.0.0}"
-        rm -rf output
-        # The app self-configures its OBS runtime on launch (Backend/Platform/Linux/LinuxObsRuntime.cs),
-        # so the AppImage's main executable is just Segra; obs-studio is a runtime dependency on the host.
-        vpk pack -u Segra -v "$VER" -p publish -e Segra -o output --packTitle "Segra" -i icon.png \
-            && echo "Installer: $SCRIPT_DIR/output/  (*.AppImage)" \
-            || echo "vpk pack failed (continuing without an installer)."
-    else
-        echo ""
-        echo "(No AppImage: install the Velopack CLI ('dotnet tool install -g vpk') and run this on Linux to produce an installer.)"
-    fi
+    # Distributable packaging is the Flatpak (one artifact for every distro, OBS bundled in). This
+    # script produces a runnable publish/ for quick local dev; build the shippable package with
+    # ./build-flatpak.sh.
+    echo ""
+    echo "=== For a distributable package, run: ./build-flatpak.sh ==="
 
     echo ""
     echo "=== Done! ==="

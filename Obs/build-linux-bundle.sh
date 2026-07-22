@@ -16,8 +16,9 @@
 #   packaging/linux/obs-helpers/{obs-nvenc-test,obs-ffmpeg-mux}
 #                                           the two subprocess helpers OBS resolves next to the main
 #                                           executable (readlink /proc/self/exe -> dirname). They are
-#                                           shipped WITH the app (see build-local.sh / build-deb.sh),
-#                                           not in this bundle, because that is where OBS looks for them.
+#                                           shipped WITH the app (see build-flatpak.sh, which places them
+#                                           beside the Segra binary), not in this bundle, because that is
+#                                           where OBS looks for them.
 set -euo pipefail
 
 VERSION="${1:-}"
@@ -56,7 +57,10 @@ for so in "$LIBSRC/obs-plugins/"*.so; do
     [ -e "$so" ] || continue
     b="$(basename "$so")"
     case "$b" in
-        obs-browser.so|obs-websocket.so|frontend-tools.so|obs-vst.so|decklink*.so|*-ui.so) ;;
+        # obs-browser + its Chromium Embedded Framework support libs (libcef.so alone is ~230 MB), plus
+        # websocket/UI/vst/decklink — none needed by a headless recorder.
+        obs-browser.so|obs-websocket.so|frontend-tools.so|obs-vst.so|decklink*.so|*-ui.so|\
+        libcef.so|libGLESv2.so|libvk_swiftshader.so|libEGL.so) ;;
         *) cp -a "$so" "$OUT/obs-plugins/" ;;
     esac
 done

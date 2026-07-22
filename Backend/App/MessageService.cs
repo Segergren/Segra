@@ -207,10 +207,18 @@ namespace Segra.Backend.App
                             {
                                 string appVersion = UpdateService.UpdateManager.CurrentVersion.ToString();
 
-                                // Send version to frontend to prevent mismatch
+                                // Send version to frontend to prevent mismatch. canSelfUpdate tells the
+                                // UI whether the in-app (Velopack) updater applies: on Windows it does;
+                                // on Linux the Flatpak / system package manager owns updates, so the UI
+                                // shows update guidance instead of a self-updater.
                                 await SendFrontendMessage("AppVersion", new
                                 {
-                                    version = appVersion
+                                    version = appVersion,
+#if WINDOWS
+                                    canSelfUpdate = true,
+#else
+                                    canSelfUpdate = false,
+#endif
                                 });
                             }
 

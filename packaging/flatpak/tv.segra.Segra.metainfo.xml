@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>tv.segra.Segra</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+
+  <name>Segra</name>
+  <summary>Record and clip your gameplay</summary>
+
+  <description>
+    <p>
+      Segra records your gameplay and lets you clip, highlight, and share it. It captures with OBS
+      (libobs) using hardware encoders — NVENC on NVIDIA and VAAPI on AMD/Intel — and includes a replay
+      buffer, automatic game detection, and a built-in clip editor.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">tv.segra.Segra.desktop</launchable>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Recorder</category>
+  </categories>
+
+  <keywords>
+    <keyword>record</keyword>
+    <keyword>clip</keyword>
+    <keyword>gameplay</keyword>
+    <keyword>capture</keyword>
+    <keyword>replay</keyword>
+  </keywords>
+
+  <url type="homepage">https://segra.tv</url>
+  <url type="bugtracker">https://github.com/Segergren/Segra/issues</url>
+
+  <developer id="tv.segra">
+    <name>Segergren</name>
+  </developer>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="1.7.0" date="2026-07-22"/>
+  </releases>
+</component>

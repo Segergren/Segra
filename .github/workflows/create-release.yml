@@ -291,14 +291,12 @@ jobs:
             ./releases.win.json
             ./assets.win.json
             ./Segra-${{ needs.build_and_release.outputs.final_version_number }}-full.nupkg
-            ./linux/*.AppImage
-            ./linux/releases.linux.json
-            ./linux/assets.linux.json
-            ./linux/*linux*full.nupkg
+            ./linux/Segra.flatpak
 
-  # Linux AppImage: builds in parallel with the Windows job (no dependency on it), Velopack-packs to the
-  # "linux" channel, and uploads the result as an artifact that create_github_release publishes into the
-  # same release. continue-on-error so a Linux failure never fails the run or blocks the Windows release.
+  # Linux Flatpak: builds in parallel with the Windows job (no dependency on it) and uploads
+  # output/Segra.flatpak as an artifact that create_github_release publishes into the same release.
+  # OBS (libobs + plugins + data + helpers) is bundled inside the Flatpak, so nothing is downloaded at
+  # runtime. continue-on-error so a Linux failure never fails the run or blocks the Windows release.
   build_linux:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -326,43 +324,26 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Build frontend (versioned) and stage into Resources/wwwroot
+      - name: Install Flatpak toolchain + OBS media deps
+        # The media libs (FFmpeg 6, x264, jansson, rist, srt + codecs) must be present so build-flatpak.sh
+        # can copy OBS's ldd closure into the Flatpak (the runtime ships FFmpeg 7, which OBS can't use).
         run: |
-          (cd Frontend && npm ci && npm version "${{ steps.ver.outputs.num }}" --no-git-tag-version --allow-same-version && npm run build)
-          mkdir -p Resources/wwwroot
-          rm -rf Resources/wwwroot/*
-          cp -r Frontend/dist/* Resources/wwwroot/
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder \
+            ffmpeg libavcodec-extra libx264-164 libjansson4 librist4 libsrt1.5-gnutls
+          flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
 
-      - name: Publish (linux-x64)
-        # TargetFrameworks=net10.0 restricts the restore to the Linux TFM so the Windows TFM's packages
-        # (System.Management -> System.CodeDom, framework-provided on Windows but not on Linux) never
-        # enter the graph and can't fail NU1102 on the Linux runner.
-        run: dotnet publish Segra.csproj -c Release -f net10.0 -r linux-x64 --self-contained -o publish -p:TargetFrameworks=net10.0 -p:Version=${{ steps.ver.outputs.num }}
-
-      - name: Stage a physical wwwroot
-        # The AppImage runs from a read-only mount. The frontend is embedded, but ASP.NET (PhotinoServer)
-        # creates its webroot at startup if missing, which throws on the read-only mount. Shipping the dir
-        # (with the frontend) means it already exists, so nothing is created at runtime.
-        run: mkdir -p publish/wwwroot && cp -r Frontend/dist/* publish/wwwroot/
-
-      - name: Install Velopack CLI
-        run: dotnet tool install -g vpk --version 1.2.0
-
-      - name: Package AppImage (linux channel)
-        run: |
-          export PATH="$PATH:$HOME/.dotnet/tools"
-          chmod +x publish/Segra || true
-          vpk pack -u Segra -v ${{ steps.ver.outputs.num }} \
-            -p publish -e Segra -o output-linux --packTitle "Segra" \
-            -i icon.png --channel linux
-          echo "=== Velopack Linux output (verify asset names on first run) ==="
-          ls -la output-linux
+      - name: Build Flatpak (OBS bundled)
+        # build-flatpak.sh publishes the app, assembles OBS from OBS's official Ubuntu-24.04 build via
+        # Obs/build-linux-bundle.sh, installs the GNOME 47 runtime + ffmpeg-full, and exports
+        # output/Segra.flatpak.
+        run: SEGRA_VERSION=${{ steps.ver.outputs.num }} ./build-flatpak.sh
 
       - name: Upload Linux build artifact
         uses: actions/upload-artifact@v7
         with:
           name: Segra-Linux
-          path: ./output-linux
+          path: ./output/Segra.flatpak
           if-no-files-found: error
           retention-days: 1
 
