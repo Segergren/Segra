@@ -27,8 +27,24 @@ namespace Segra.Backend.Recorder
         private static uint _recordingFps;
         private static bool _recordingActive;
         private static bool _enabled;
-        private static readonly ImageCodecInfo? _jpegCodec =
-            ImageCodecInfo.GetImageEncoders().FirstOrDefault(c => c.MimeType == "image/jpeg");
+        // The JPEG preview uses System.Drawing/GDI+, which needs libgdiplus on Linux. Resolve it
+        // lazily and defensively so a missing GDI+ never throws from this type's static constructor
+        // (which would break OnRecordingStarted/OnRecordingStopped and thus every recording). When
+        // null, the preview simply cannot be enabled; recording is unaffected.
+        private static readonly ImageCodecInfo? _jpegCodec = TryGetJpegCodec();
+
+        private static ImageCodecInfo? TryGetJpegCodec()
+        {
+            try
+            {
+                return ImageCodecInfo.GetImageEncoders().FirstOrDefault(c => c.MimeType == "image/jpeg");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Recording preview unavailable (no JPEG/GDI+ codec): {ex.Message}");
+                return null;
+            }
+        }
 
         /// <summary>
         /// Whether the preview is currently streaming frames.
@@ -92,6 +108,12 @@ namespace Segra.Backend.Recorder
 
         private static bool StartSubscriptionLocked()
         {
+            if (_jpegCodec == null)
+            {
+                Log.Warning("Cannot enable recording preview: no JPEG encoder available on this platform.");
+                return false;
+            }
+
             DisposeSubscriptionLocked();
 
             uint divisor = _recordingFps == 0 ? 1u : Math.Max(1u, _recordingFps / (uint)TargetFps);

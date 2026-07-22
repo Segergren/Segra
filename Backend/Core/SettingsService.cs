@@ -5,11 +5,13 @@ using Segra.Backend.Media;
 using Segra.Backend.Shared;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
+using Segra.Backend.Platform;
 using Segra.Backend.Windows.Input;
-using Segra.Backend.Windows.Display;
 using Segra.Backend.Windows.Storage;
-using Segra.Backend.Windows.GameMode;
 using System.Text.Json.Serialization;
+#if WINDOWS
+using Segra.Backend.Windows.GameMode;
+#endif
 
 namespace Segra.Backend.Core
 {
@@ -154,7 +156,7 @@ namespace Segra.Backend.Core
                     }
                 }
 
-                Settings.Instance.RunOnStartup = StartupService.GetStartupStatus();
+                Settings.Instance.RunOnStartup = PlatformServices.Startup.GetStartupStatus();
                 AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
 
                 Log.Information("Settings loaded from {0}", SettingsFilePath);
@@ -358,7 +360,9 @@ namespace Segra.Backend.Core
                 // Enabling the option proactively disables Game Mode; disabling it leaves Game Mode untouched.
                 if (settings.DisableWindowsGameMode)
                 {
+#if WINDOWS
                     GameModeService.EnforceDisabledIfEnabled();
+#endif
                 }
                 hasChanges = true;
             }
@@ -878,28 +882,15 @@ namespace Segra.Backend.Core
 
         public static void GetPrimaryMonitorResolution(out uint boundsWidth, out uint boundsHeight)
         {
-            // Try to get physical resolution (DPI-aware)
-            if (DisplayService.GetPrimaryMonitorPhysicalResolution(out boundsWidth, out boundsHeight))
+            if (PlatformServices.Display.GetPrimaryMonitorPhysicalResolution(out boundsWidth, out boundsHeight))
             {
-                if (Screen.PrimaryScreen != null)
-                {
-                    Log.Information($"Physical resolution: {boundsWidth}x{boundsHeight} (logical: {Screen.PrimaryScreen.Bounds.Width}x{Screen.PrimaryScreen.Bounds.Height})");
-                }
+                Log.Information($"Primary monitor resolution: {boundsWidth}x{boundsHeight}");
                 return;
             }
 
-            if (Screen.PrimaryScreen != null)
-            {
-                boundsWidth = (uint)Screen.PrimaryScreen.Bounds.Width;
-                boundsHeight = (uint)Screen.PrimaryScreen.Bounds.Height;
-                Log.Warning("Using logical resolution as fallback");
-            }
-            else
-            {
-                boundsWidth = 1920;
-                boundsHeight = 1080;
-                Log.Warning("Primary screen not found, defaulting to 1920x1080");
-            }
+            boundsWidth = 1920;
+            boundsHeight = 1080;
+            Log.Warning("Could not query primary monitor resolution, defaulting to 1920x1080");
         }
 
         public static void GetResolution(string resolution, out uint width, out uint height)

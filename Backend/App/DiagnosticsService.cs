@@ -68,6 +68,31 @@ namespace Segra.Backend.App
         {
             Log.Information("--- System hardware ---");
 
+#if !WINDOWS
+            // Linux: read CPU/memory from procfs; GPU vendor from the detection helper.
+            try
+            {
+                if (File.Exists("/proc/cpuinfo"))
+                {
+                    var model = File.ReadLines("/proc/cpuinfo")
+                        .FirstOrDefault(l => l.StartsWith("model name"));
+                    if (model != null)
+                        Log.Information($"CPU: {model.Split(':', 2).Last().Trim()} ({Environment.ProcessorCount} logical)");
+                }
+                if (File.Exists("/proc/meminfo"))
+                {
+                    var memTotal = File.ReadLines("/proc/meminfo").FirstOrDefault(l => l.StartsWith("MemTotal"));
+                    if (memTotal != null && long.TryParse(new string(memTotal.Where(char.IsDigit).ToArray()), out long kb))
+                        Log.Information($"Total physical memory: {kb / 1024.0 / 1024.0:F2} GB");
+                }
+                Log.Information($"GPU vendor: {Shared.GeneralUtils.DetectGpuVendor()}");
+            }
+            catch (Exception ex)
+            {
+                Log.Information($"System hardware: error reading ({ex.Message})");
+            }
+            return;
+#else
             try
             {
                 using var cpuSearcher = new System.Management.ManagementObjectSearcher(
@@ -131,12 +156,32 @@ namespace Segra.Backend.App
             {
                 Log.Information($"GPU adapters: error reading ({ex.Message})");
             }
+#endif
         }
 
         private static void LogDrives()
         {
             Log.Information("--- Drives ---");
 
+#if !WINDOWS
+            // Linux: enumerate mounted drives via the cross-platform DriveInfo API.
+            try
+            {
+                var drives = DriveInfo.GetDrives().Where(d => d.IsReady).ToList();
+                Log.Information($"Drives ({drives.Count}):");
+                foreach (var d in drives)
+                {
+                    double totalGb = d.TotalSize / 1024.0 / 1024.0 / 1024.0;
+                    double freeGb = d.AvailableFreeSpace / 1024.0 / 1024.0 / 1024.0;
+                    Log.Information($"  - {d.Name} ({d.DriveType}, {d.DriveFormat}) total={totalGb:F2} GB, free={freeGb:F2} GB");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Information($"Drives: error reading ({ex.Message})");
+            }
+            return;
+#else
             // Physical disks via MSFT_PhysicalDisk (accurate media/bus type, uint64 size)
             try
             {
@@ -226,6 +271,7 @@ namespace Segra.Backend.App
             {
                 Log.Information($"Logical drives: error reading ({ex.Message})");
             }
+#endif
         }
 
         private static string MediaTypeName(ushort code) => code switch
@@ -306,7 +352,9 @@ namespace Segra.Backend.App
             Log.Information($"Replay buffer: duration={s.ReplayBufferDuration}s, maxSize={s.ReplayBufferMaxSize}MB");
             Log.Information($"Display capture method: {s.DisplayCaptureMethod}");
             Log.Information($"GPU vendor: {AppState.Instance.GpuVendor}");
+#if WINDOWS
             Log.Information($"NVENC capabilities: {NvencCapsService.GetCapsSummaryOrNull() ?? "<none>"}");
+#endif
             Log.Information($"Available codecs ({AppState.Instance.Codecs.Count}):");
             foreach (var codec in AppState.Instance.Codecs)
             {

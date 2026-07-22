@@ -69,14 +69,27 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           versionCheckHandled.current = true;
           const backendVersion = data.content?.version;
 
-          if (backendVersion && backendVersion !== __APP_VERSION__) {
-            console.log(
-              `Version mismatch: Backend ${backendVersion}, Frontend ${__APP_VERSION__}. Reloading...`,
-            );
-            // Store the old version before reloading
-            localStorage.setItem('oldAppVersion', __APP_VERSION__);
-            window.location.reload();
-            return;
+          // Reloading exists to pick up a freshly-updated frontend when the app updates itself while
+          // running. We decide from a PERSISTED record of the version we actually loaded - not from
+          // the build-time __APP_VERSION__ constant. On Linux the frontend is served from the
+          // packaged wwwroot and its build constant may never equal the backend's packaged version
+          // (e.g. an unstamped "Developer Preview" build), which made the old constant-comparison
+          // reload on every single launch. Comparing against a stored value is self-correcting:
+          // after one reload it matches and stops. If localStorage is unavailable it simply never
+          // reloads, which is harmless (the packaged frontend is already current).
+          if (backendVersion) {
+            const loaded = localStorage.getItem('loadedAppVersion');
+            if (loaded == null) {
+              // First launch on this machine (or cleared storage): adopt, never reload.
+              localStorage.setItem('loadedAppVersion', backendVersion);
+            } else if (loaded !== backendVersion) {
+              // The backend was updated under a running frontend: reload once for the new UI.
+              console.log(`App version changed: ${loaded} -> ${backendVersion}. Reloading once...`);
+              localStorage.setItem('loadedAppVersion', backendVersion);
+              localStorage.setItem('oldAppVersion', loaded);
+              window.location.reload();
+              return;
+            }
           }
         }
 

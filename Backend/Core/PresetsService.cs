@@ -1,7 +1,7 @@
 using Serilog;
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
-using Segra.Backend.Windows.Display;
+using Segra.Backend.Platform;
 
 namespace Segra.Backend.Core
 {
@@ -58,7 +58,7 @@ namespace Segra.Backend.Core
                 case "high":
                     return new VideoPresetValues
                     {
-                        Resolution = DisplayService.HasDisplayWithMinHeight(1440) ? "1440p" : "1080p",
+                        Resolution = PlatformServices.Display.HasDisplayWithMinHeight(1440) ? "1440p" : "1080p",
                         FrameRate = 60,
                         RateControl = "VBR",
                         CqLevel = isAmd ? 18 : 20,

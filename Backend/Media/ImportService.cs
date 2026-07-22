@@ -40,45 +40,9 @@ namespace Segra.Backend.Media
                         return;
                 }
 
-                // Open file dialog on dedicated STA thread to avoid reentrancy issues with WebView2
-                string[]? selectedFiles = null;
-
-                var tcs = new TaskCompletionSource<string[]?>();
-
-                var staThread = new Thread(() =>
-                {
-                    try
-                    {
-                        using var openFileDialog = new OpenFileDialog
-                        {
-                            Filter = "MP4 Video Files (*.mp4)|*.mp4",
-                            Title = "Import MP4 Video Files",
-                            CheckFileExists = true,
-                            CheckPathExists = true,
-                            Multiselect = true,
-                            // Keep the process working directory pinned to the app directory.
-                            RestoreDirectory = true
-                        };
-
-                        if (openFileDialog.ShowDialog() == DialogResult.OK)
-                        {
-                            tcs.SetResult(openFileDialog.FileNames);
-                        }
-                        else
-                        {
-                            tcs.SetResult(null);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        tcs.SetException(ex);
-                    }
-                });
-
-                staThread.SetApartmentState(ApartmentState.STA);
-                staThread.Start();
-
-                selectedFiles = await tcs.Task;
+                // The platform dialog runs on its own thread (STA on Windows / zenity on Linux).
+                string[]? selectedFiles = await Platform.PlatformServices.Dialogs.PickFilesAsync(
+                    "Import MP4 Video Files", "MP4 Video Files (*.mp4)", "mp4");
 
                 if (selectedFiles == null || selectedFiles.Length == 0)
                 {

@@ -1,8 +1,6 @@
 using Serilog;
 using System.Text;
-using System.Security;
 using System.Text.Json;
-using System.Management;
 using System.Diagnostics;
 using Segra.Backend.Shared;
 using Segra.Backend.Recorder;
@@ -10,17 +8,33 @@ using Segra.Backend.Core.Models;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+#if WINDOWS
+using System.Security;
+using System.Management;
+#endif
 
 namespace Segra.Backend.Games
 {
     public static class GameDetectionService
     {
         public static bool PreventRetryRecording { get; set; } = false;
+#if WINDOWS
         private static ManagementEventWatcher? processStartWatcher;
         private static ManagementEventWatcher? processStopWatcher;
+#endif
         private static readonly Dictionary<string, string> deviceToDrive = new();
         private static bool _running;
         private static System.Threading.Timer? _processCheckTimer;
+#if !WINDOWS
+        // Snapshot of PIDs seen on the previous /proc scan, to synthesize start/stop events.
+        private static HashSet<int> _knownPids = new();
+        private static System.Threading.Timer? _procPollTimer;
+        private static int _pollInProgress;
+        // Steam/Proton install dir of the game being recorded. Proton runs the game's Windows .exe under
+        // Wine, so its Linux PIDs are volatile; every process in the session shares this path, so we track
+        // it to detect when the game closes (instead of a single PID that may exit mid-session).
+        private static string? _recordingSteamInstallPath;
+#endif
 
         public static async Task StartAsync()
         {
@@ -44,6 +58,7 @@ namespace Segra.Backend.Games
             });
         }
 
+#if WINDOWS
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
 
@@ -62,14 +77,28 @@ namespace Segra.Backend.Games
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool QueryFullProcessImageName(IntPtr hProcess, int dwFlags, StringBuilder lpExeName, ref int lpdwSize);
+#endif
 
         // Paths that resolve to system locations or known non-game tooling are ignored by the watchers.
-        private static bool IsIrrelevantProcessPath(string exePath) =>
-            string.IsNullOrEmpty(exePath)
-            || exePath.StartsWith("C:/Windows/System32/")
-            || exePath.StartsWith("C:/Windows/SysWOW64/")
-            || exePath.StartsWith("C:/Program Files/Git/");
+        private static bool IsIrrelevantProcessPath(string exePath)
+        {
+            if (string.IsNullOrEmpty(exePath)) return true;
+#if WINDOWS
+            return exePath.StartsWith("C:/Windows/System32/")
+                || exePath.StartsWith("C:/Windows/SysWOW64/")
+                || exePath.StartsWith("C:/Program Files/Git/");
+#else
+            return exePath.StartsWith("/usr/")
+                || exePath.StartsWith("/bin/")
+                || exePath.StartsWith("/sbin/")
+                || exePath.StartsWith("/lib/")
+                || exePath.StartsWith("/lib64/")
+                || exePath.StartsWith("/proc/")
+                || exePath.StartsWith("/sys/");
+#endif
+        }
 
+#if WINDOWS
         private static void Start()
         {
             Log.Information("Starting process monitoring...");
@@ -99,6 +128,207 @@ namespace Segra.Backend.Games
                 int pid = Convert.ToInt32(processObj["Handle"]);
                 string exePath = ResolveProcessPath(pid);
 
+                HandleProcessStarted(pid, exePath);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[OnProcessStarted] Exception");
+            }
+        }
+#else
+        // Linux: poll /proc to synthesize process start/stop events (no WMI on Linux).
+        private static void Start()
+        {
+            Log.Information("Starting process monitoring (Linux /proc polling)...");
+
+            // Seed the known-PID set so we don't treat already-running processes as "started".
+            _knownPids = EnumerateProcPids();
+
+            _procPollTimer = new System.Threading.Timer(_ => PollProc(), null, 1500, 1500);
+            // Also keep the recording-alive watchdog running.
+            _processCheckTimer = new System.Threading.Timer(_ => CheckForGames(), null, 10000, 10000);
+
+            Log.Information("/proc poll timer and process check timer are now active.");
+        }
+
+        private static void PollProc()
+        {
+            // Skip if a previous scan is still running (ShouldRecordGame does disk I/O, which can
+            // outlast the timer interval); avoids two callbacks racing on _knownPids.
+            if (Interlocked.Exchange(ref _pollInProgress, 1) == 1) return;
+            try
+            {
+                var current = EnumerateProcPids();
+
+                foreach (int pid in current)
+                {
+                    if (_knownPids.Contains(pid)) continue;
+                    string exePath = ResolveProcessPath(pid);
+                    bool wasRecording = AppState.Instance.Recording != null;
+                    HandleProcessStarted(pid, exePath);
+                    // If this process just started a Steam/Proton recording, remember the game's install
+                    // dir so we can stop when it closes (its Wine PIDs come and go, but all share the dir).
+                    if (!wasRecording && AppState.Instance.Recording != null && _recordingSteamInstallPath == null)
+                        _recordingSteamInstallPath = SteamInstallDirFromExe(exePath);
+                }
+
+                if (AppState.Instance.Recording == null && AppState.Instance.PreRecording == null)
+                {
+                    _recordingSteamInstallPath = null;
+                }
+                else if (_recordingSteamInstallPath != null)
+                {
+                    // Proton game: stop once no process carries this install path anymore.
+                    if (!AnyProcessHasSteamInstall(current, _recordingSteamInstallPath))
+                    {
+                        Log.Information("[OnTrackedProcessExited] Steam/Proton game closed. Stopping recording.");
+                        _recordingSteamInstallPath = null;
+                        _ = Task.Run(OBSService.StopRecording);
+                    }
+                }
+                else
+                {
+                    foreach (int pid in _knownPids)
+                    {
+                        if (current.Contains(pid)) continue;
+                        HandleProcessStopped(pid);
+                    }
+                }
+
+                // Any change in the process set is a good moment to allow a retry.
+                if (!current.SetEquals(_knownPids))
+                    PreventRetryRecording = false;
+
+                _knownPids = current;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[PollProc] Exception: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _pollInProgress, 0);
+            }
+        }
+
+        private static HashSet<int> EnumerateProcPids()
+        {
+            var pids = new HashSet<int>();
+            try
+            {
+                foreach (var dir in Directory.EnumerateDirectories("/proc"))
+                {
+                    string name = Path.GetFileName(dir);
+                    if (int.TryParse(name, out int pid))
+                        pids.Add(pid);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to enumerate /proc: {ex.Message}");
+            }
+            return pids;
+        }
+
+        // Linux stop path: resolve the exe once and compare against the tracked recording.
+        private static void HandleProcessStopped(int pid)
+        {
+            try
+            {
+                var recordingPid = AppState.Instance.Recording?.Pid;
+                var preRecordingPid = AppState.Instance.PreRecording?.Pid;
+
+                bool matchesRecordingPid = recordingPid.HasValue && pid == recordingPid.Value;
+                bool matchesPreRecordingPid = preRecordingPid.HasValue && pid == preRecordingPid.Value;
+
+                if (matchesRecordingPid || matchesPreRecordingPid)
+                {
+                    Log.Information($"[OnTrackedProcessExited] PID {pid} is no longer running. Stopping recording.");
+                    _ = Task.Run(OBSService.StopRecording);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[HandleProcessStopped] Exception: {ex.Message}");
+            }
+        }
+
+        // A Steam Proton/Wine game shows up here only as a Wine/runtime wrapper; the real game is a
+        // Windows .exe. These are the wrapper binaries to look past.
+        private static bool LooksLikeSteamRuntimeProcess(string exePath) =>
+            !string.IsNullOrEmpty(exePath) &&
+            (exePath.Contains("preloader", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("pressure-vessel", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("wineserver", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("/SteamLinuxRuntime", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("/steamapps/common/Proton", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("/ubuntu12_32/", StringComparison.OrdinalIgnoreCase)
+             || exePath.Contains("/ubuntu12_64/", StringComparison.OrdinalIgnoreCase));
+
+        // Reads a single variable from /proc/<pid>/environ (NUL-separated KEY=VALUE entries).
+        private static string? ReadProcEnvVar(int pid, string key)
+        {
+            try
+            {
+                foreach (var entry in File.ReadAllText($"/proc/{pid}/environ").Split('\0'))
+                    if (entry.StartsWith(key + "=", StringComparison.Ordinal))
+                        return entry[(key.Length + 1)..];
+            }
+            catch { /* process may have exited or environ is unreadable */ }
+            return null;
+        }
+
+        // For a Proton/Wine process, resolve the real game .exe under STEAM_COMPAT_INSTALL_PATH: prefer a
+        // catalog-known exe, otherwise the largest (the main binary, not a small launcher/redist).
+        private static string? ResolveSteamGameExe(int pid)
+        {
+            string? install = ReadProcEnvVar(pid, "STEAM_COMPAT_INSTALL_PATH");
+            if (string.IsNullOrEmpty(install) || !Directory.Exists(install)) return null;
+            try
+            {
+                string? biggest = null; long biggestLen = -1;
+                foreach (var exe in Directory.EnumerateFiles(install, "*.exe", SearchOption.AllDirectories))
+                {
+                    string norm = PathUtils.Normalize(exe);
+                    if (GameUtils.IsGameExePath(norm)) return norm; // catalog hit wins immediately
+                    long len = new FileInfo(exe).Length;
+                    if (len > biggestLen) { biggestLen = len; biggest = norm; }
+                }
+                return biggest;
+            }
+            catch { return null; }
+        }
+
+        // The '.../steamapps/common/<Game>' dir for a resolved game exe, or null if not a Steam path.
+        private static string? SteamInstallDirFromExe(string exePath)
+        {
+            const string marker = "/steamapps/common/";
+            int i = exePath.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (i < 0) return null;
+            int after = i + marker.Length;
+            int slash = exePath.IndexOf('/', after);
+            return slash < 0 ? null : exePath[..slash];
+        }
+
+        // True while any live process still belongs to the given game's Proton session (they all carry
+        // STEAM_COMPAT_INSTALL_PATH). Only reached while recording a Proton game, so scanning environ is fine.
+        private static bool AnyProcessHasSteamInstall(HashSet<int> pids, string installDir)
+        {
+            foreach (int pid in pids)
+            {
+                string? p = ReadProcEnvVar(pid, "STEAM_COMPAT_INSTALL_PATH");
+                if (p != null && PathUtils.Normalize(p).Equals(installDir, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+#endif
+
+        // Shared start-of-process handling, called from the WMI watcher (Windows) or /proc poll (Linux).
+        private static void HandleProcessStarted(int pid, string exePath)
+        {
+            try
+            {
                 if (IsIrrelevantProcessPath(exePath)) return;
 
                 Log.Information($"[OnProcessStarted] Application started: PID {pid}, Path: {exePath}");
@@ -120,10 +350,11 @@ namespace Segra.Backend.Games
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "[OnProcessStarted] Exception");
+                Log.Error(ex, "[HandleProcessStarted] Exception");
             }
         }
 
+#if WINDOWS
         private static void OnProcessStopped(object sender, EventArrivedEventArgs e)
         {
             if (AppState.Instance.Recording == null && AppState.Instance.PreRecording == null) return;
@@ -161,6 +392,7 @@ namespace Segra.Backend.Games
                 Log.Error($"[OnProcessStopped] Exception: {ex.Message}");
             }
         }
+#endif
 
         private static void StartGameRecording(int pid, string exePath)
         {
@@ -179,6 +411,7 @@ namespace Segra.Backend.Games
             OBSService.StartRecording(gameName, exePath, pid: pid);
         }
 
+#if WINDOWS
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
@@ -197,6 +430,7 @@ namespace Segra.Backend.Games
                 }
             }
         }
+#endif
 
         private static bool ShouldRecordGame(string exePath, string? fileDescription = null)
         {
@@ -328,9 +562,11 @@ namespace Segra.Backend.Games
                 FileVersionInfo fileInfo = FileVersionInfo.GetVersionInfo(exePath);
                 string fileDescription = fileInfo.FileDescription ?? string.Empty;
 
+#if WINDOWS
                 // Fallback: if FileVersionInfo returned empty, try Shell32 API
                 if (string.IsNullOrEmpty(fileDescription))
                     fileDescription = GetFileDescriptionViaShell(exePath);
+#endif
 
                 return fileDescription;
             }
@@ -350,6 +586,28 @@ namespace Segra.Backend.Games
         {
             if (pid <= 0) return string.Empty;
 
+#if !WINDOWS
+            // Linux: the exe is the target of the /proc/<pid>/exe symlink.
+            string procExe = string.Empty;
+            try
+            {
+                var fsi = new FileInfo($"/proc/{pid}/exe");
+                string? target = fsi.LinkTarget;
+                if (!string.IsNullOrEmpty(target))
+                    // LinkTarget may be relative; prefer the fully-resolved target when available.
+                    procExe = fsi.ResolveLinkTarget(true)?.FullName ?? target;
+            }
+            catch { /* process may have exited or be inaccessible */ }
+
+            // Steam Proton/Wine games only expose a Wine preloader here (which matches no game); resolve
+            // the real Windows .exe under STEAM_COMPAT_INSTALL_PATH so detection works.
+            if (LooksLikeSteamRuntimeProcess(procExe))
+            {
+                string? gameExe = ResolveSteamGameExe(pid);
+                if (!string.IsNullOrEmpty(gameExe)) return gameExe;
+            }
+            return procExe;
+#else
             // Strategy 1: Try QueryFullProcessImageName (works for most processes including elevated)
             string path = ResolvePathViaQueryFullProcessImageName(pid);
             if (!string.IsNullOrEmpty(path)) return path;
@@ -374,8 +632,10 @@ namespace Segra.Backend.Games
             if (!string.IsNullOrEmpty(path)) return path;
 
             return string.Empty;
+#endif
         }
 
+#if WINDOWS
         private static string ResolvePathViaQueryFullProcessImageName(int pid)
         {
             IntPtr hProcess = IntPtr.Zero;
@@ -450,6 +710,7 @@ namespace Segra.Backend.Games
                     return path.Replace(kv.Key, kv.Value);
             return path;
         }
+#endif
 
         private static void CheckForGames()
         {
@@ -472,6 +733,7 @@ namespace Segra.Backend.Games
                 // Skip if retry is prevented
                 if (PreventRetryRecording) return;
 
+#if WINDOWS
                 IntPtr foregroundWindow = GetForegroundWindow();
                 _ = GetWindowThreadProcessId(foregroundWindow, out uint foregroundPid);
 
@@ -502,6 +764,7 @@ namespace Segra.Backend.Games
                     Log.Information($"[ProcessCheck] Foreground window is a game: {processName}, Path: {foregroundExePath}");
                     StartGameRecording((int)foregroundPid, foregroundExePath);
                 }
+#endif
             }
             catch (Exception ex)
             {
@@ -535,6 +798,7 @@ namespace Segra.Backend.Games
             }
         }
 
+#if WINDOWS
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
@@ -625,6 +889,7 @@ namespace Segra.Backend.Games
 
             return string.Empty;
         }
+#endif
 
         private static string ExtractGameName(string exePath)
         {
@@ -815,6 +1080,14 @@ namespace Segra.Backend.Games
             return match.Success && match.Groups.Count > 1 ? match.Groups[1].Value.Trim() : string.Empty;
         }
 
+#if !WINDOWS
+        // Wayland forbids querying other clients' foreground window; /proc polling handles detection.
+        public static class ForegroundHook
+        {
+            public static void Start() { }
+            public static void Stop() { }
+        }
+#else
         // Get foreground updates
         public static class ForegroundHook
         {
@@ -997,5 +1270,6 @@ namespace Segra.Backend.Games
                 }
             }
         }
+#endif
     }
 }

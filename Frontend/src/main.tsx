@@ -1,6 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+// Bundle Roboto so the app renders the same font on every platform (WebView2 on Windows,
+// WebKitGTK on Linux) instead of falling back to whatever sans the OS happens to have.
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
 import './globals.css';
 import App from './App.tsx';
 import { SelectedVideoProvider } from './Context/SelectedVideoContext.tsx';

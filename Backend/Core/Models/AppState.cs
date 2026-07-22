@@ -2,9 +2,7 @@ using Serilog;
 using Segra.Backend.App;
 using Segra.Backend.Core;
 using Segra.Backend.Shared;
-using Segra.Backend.Windows.Audio;
-using Segra.Backend.Windows.Display;
-using Segra.Backend.Windows.Watchers;
+using Segra.Backend.Platform;
 using System.Text.Json.Serialization;
 using static Segra.Backend.Shared.GeneralUtils;
 
@@ -30,19 +28,19 @@ namespace Segra.Backend.Core.Models
         private int _maxDisplayHeight = 1080;
         private double _currentFolderSizeGb = 0;
 
-        private AudioDeviceWatcher? _deviceWatcher;
-        private DisplayWatcher? _displayWatcher;
+        private IPlatformWatcher? _deviceWatcher;
+        private IPlatformWatcher? _displayWatcher;
         private System.Threading.Timer? _audioDeviceDebounceTimer;
         private System.Threading.Timer? _displayDebounceTimer;
         private const int DebounceDelayMs = 3000;
 
         public void Initialize()
         {
-            _deviceWatcher = new();
-            _deviceWatcher.DevicesChanged += OnAudioDevicesChanged;
+            _deviceWatcher = PlatformServices.Audio.CreateWatcher();
+            _deviceWatcher.Changed += OnAudioDevicesChanged;
 
-            _displayWatcher = new();
-            _displayWatcher.DisplaysChanged += OnDisplaysChanged;
+            _displayWatcher = PlatformServices.Display.CreateWatcher();
+            _displayWatcher.Changed += OnDisplaysChanged;
 
             UpdateAudioDevices();
             UpdateDisplays();
@@ -243,13 +241,13 @@ namespace Segra.Backend.Core.Models
 
         public void UpdateAudioDevices()
         {
-            List<AudioDevice> inputDevices = AudioDeviceService.GetInputDevices();
+            List<AudioDevice> inputDevices = PlatformServices.Audio.GetInputDevices();
             if (!Enumerable.SequenceEqual(_inputDevices, inputDevices))
             {
                 _inputDevices = inputDevices;
             }
 
-            List<AudioDevice> outputDevices = AudioDeviceService.GetOutputDevices();
+            List<AudioDevice> outputDevices = PlatformServices.Audio.GetOutputDevices();
             if (!Enumerable.SequenceEqual(_outputDevices, outputDevices))
             {
                 _outputDevices = outputDevices;
@@ -309,14 +307,14 @@ namespace Segra.Backend.Core.Models
         {
             if (_deviceWatcher != null)
             {
-                _deviceWatcher.DevicesChanged -= OnAudioDevicesChanged;
+                _deviceWatcher.Changed -= OnAudioDevicesChanged;
                 _deviceWatcher.Dispose();
                 _deviceWatcher = null;
             }
 
             if (_displayWatcher != null)
             {
-                _displayWatcher.DisplaysChanged -= OnDisplaysChanged;
+                _displayWatcher.Changed -= OnDisplaysChanged;
                 _displayWatcher.Dispose();
                 _displayWatcher = null;
             }
@@ -357,7 +355,7 @@ namespace Segra.Backend.Core.Models
 
         private static void UpdateDisplays()
         {
-            bool hasChanged = DisplayService.LoadAvailableMonitorsIntoState();
+            bool hasChanged = PlatformServices.Display.LoadAvailableMonitorsIntoState();
             if (hasChanged)
             {
                 SendToFrontend("Display change detected");

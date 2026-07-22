@@ -1,0 +1,23 @@
+#!/bin/sh
+# Segra .deb post-install: register the apt repo for automatic updates and refresh desktop caches.
+set -e
+
+if [ "$1" = "configure" ]; then
+    # Register the Segra apt repo so `apt upgrade` / Update Manager keeps Segra current. Only do this
+    # when the signing key shipped with the package is present (skipped in unsigned test builds).
+    if [ -f /usr/share/keyrings/segra-archive-keyring.gpg ]; then
+        # @APT_SUITES@ is filled in at build time (build-deb.sh). A beta package registers both
+        # 'stable beta' so a later stable release upgrades beta users; a stable package registers
+        # 'stable' only, so stable users are never pulled onto a beta.
+        : > /etc/apt/sources.list.d/segra.list
+        for suite in @APT_SUITES@; do
+            echo "deb [signed-by=/usr/share/keyrings/segra-archive-keyring.gpg] https://segergren.github.io/Segra $suite main" >> /etc/apt/sources.list.d/segra.list
+        done
+    fi
+
+    chmod +x /opt/segra/Segra 2>/dev/null || true
+    update-desktop-database -q /usr/share/applications 2>/dev/null || true
+    gtk-update-icon-cache -qf /usr/share/icons/hicolor 2>/dev/null || true
+fi
+
+exit 0

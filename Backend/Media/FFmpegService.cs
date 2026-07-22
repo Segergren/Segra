@@ -115,12 +115,26 @@ namespace Segra.Backend.Media
 
     public static class FFmpegService
     {
+#if WINDOWS
         private const string FFmpegExecutable = "ffmpeg.exe";
+#else
+        private const string FFmpegExecutable = "ffmpeg";
+#endif
 
         /// <summary>
         /// Gets the path to the ffmpeg executable.
         /// </summary>
-        public static string GetFFmpegPath() => FFmpegExecutable;
+        public static string GetFFmpegPath()
+        {
+#if !WINDOWS
+            // Prefer a bundled ./ffmpeg next to the app (resolved to an absolute path, since a bare
+            // name is looked up on PATH, not the working directory); otherwise resolve via PATH.
+            string bundled = Path.Combine(AppContext.BaseDirectory, FFmpegExecutable);
+            return File.Exists(bundled) ? bundled : "ffmpeg";
+#else
+            return FFmpegExecutable;
+#endif
+        }
 
         /// <summary>
         /// Builds a single line for an FFmpeg concat-demuxer list file. The demuxer treats text
@@ -136,7 +150,35 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Checks if ffmpeg executable exists
         /// </summary>
-        public static bool FFmpegExists() => File.Exists(FFmpegExecutable);
+        public static bool FFmpegExists()
+        {
+#if !WINDOWS
+            if (File.Exists(Path.Combine(AppContext.BaseDirectory, FFmpegExecutable)))
+                return true;
+            // On Linux ffmpeg is typically on PATH rather than bundled in the app directory.
+            return IsOnPath("ffmpeg");
+#else
+            return File.Exists(FFmpegExecutable);
+#endif
+        }
+
+#if !WINDOWS
+        private static bool IsOnPath(string executable)
+        {
+            try
+            {
+                string? pathEnv = Environment.GetEnvironmentVariable("PATH");
+                if (string.IsNullOrEmpty(pathEnv)) return false;
+                foreach (var dir in pathEnv.Split(':', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (File.Exists(Path.Combine(dir, executable)))
+                        return true;
+                }
+            }
+            catch { /* ignore */ }
+            return false;
+        }
+#endif
 
         /// <summary>
         /// Runs ffmpeg with progress tracking and callbacks

@@ -1,13 +1,11 @@
 using Serilog;
 using ObsKit.NET;
-using NAudio.Wave;
 using ObsKit.NET.Hotkeys;
 using Segra.Backend.App;
-using NAudio.CoreAudioApi;
+using Segra.Backend.Platform;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
 using ObsKit.NET.Native.Types;
-using NAudio.Wave.SampleProviders;
 using ObsKeys = ObsKit.NET.Core.ObsKeys;
 
 namespace Segra.Backend.Windows.Input
@@ -126,7 +124,7 @@ namespace Segra.Backend.Windows.Input
                         modifiers |= ObsKeyModifiers.Command;
                         break;
                     default:
-                        var key = ObsKeys.FromVirtualKey(vk);
+                        var key = ObsKeys.FromWindowsVirtualKey(vk);
                         if (key == ObsKey.None)
                             return false;
                         if (mainKey != null && mainKey != key)
@@ -215,20 +213,7 @@ namespace Segra.Backend.Windows.Input
 
         private static void PlayBookmarkSound()
         {
-            using var audioStream = new MemoryStream(Properties.Resources.bookmark);
-            using var audioReader = new WaveFileReader(audioStream);
-            var sampleProvider = audioReader.ToSampleProvider();
-            var volumeProvider = new VolumeSampleProvider(sampleProvider)
-            {
-                Volume = Settings.Instance.SoundEffectsVolume
-            };
-
-            using var waveOut = new WasapiOut(AudioClientShareMode.Shared, 100);
-            waveOut.Init(volumeProvider);
-            waveOut.Play();
-
-            while (waveOut.PlaybackState == PlaybackState.Playing)
-                Thread.Sleep(10);
+            PlatformServices.Sound.Play(Properties.Resources.bookmark, Settings.Instance.SoundEffectsVolume);
         }
     }
 }
