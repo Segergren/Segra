@@ -1,0 +1,71 @@
+# Flatpak manifest for Segra — one artifact for every distro.
+#
+# The runtime provides glibc / GTK / WebKitGTK; this bundles the app plus the OBS recorder
+# (libobs + plugins + data + the obs-nvenc-test / obs-ffmpeg-mux helpers) so NOTHING is downloaded at
+# runtime and there is no host glibc/FFmpeg coupling — the class of bugs the download-based AppImage/.deb
+# suffered from simply cannot occur here.
+#
+# The app payload is pre-staged on the host by build-flatpak.sh into ../../flatpak-staging, then this
+# manifest just installs it (buildsystem: simple). OBS binaries come from OBS Studio's official
+# Ubuntu-24.04 build (glibc <= 2.34, FFmpeg 6), assembled by Obs/build-linux-bundle.sh.
+#
+# Build:  ./build-flatpak.sh         (wraps flatpak-builder + build-bundle)
+# Manual: flatpak-builder --user --install --force-clean --repo=repo \
+#           build-dir packaging/flatpak/tv.segra.Segra.yml
+#         flatpak build-bundle repo output/Segra.flatpak tv.segra.Segra
+app-id: tv.segra.Segra
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: segra
+
+finish-args:
+  # Windowing + input (Photino / WebKitGTK)
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  # Audio in/out
+  - --socket=pulseaudio
+  # Screen + camera capture go through PipeWire and the ScreenCast/Camera portals (same path OBS uses)
+  - --filesystem=xdg-run/pipewire-0
+  - --talk-name=org.freedesktop.portal.Desktop
+  # GPU + capture devices. --device=all (not just dri) exposes the /dev/nvidia* compute nodes NVENC/CUDA
+  # need, plus any capture cards. NVENC also uses the host-matched org.freedesktop.Platform.GL.nvidia
+  # extension, which Flathub installs automatically.
+  - --device=all
+  # Network: auth, update checks, game integrations
+  - --share=network
+  # Where recordings/clips are written (default content folder is under the user's Videos)
+  - --filesystem=xdg-videos
+
+# Full FFmpeg (H.264/H.265/AV1) for libobs' obs-ffmpeg / VAAPI encoders. Mounts at /app/lib/ffmpeg and
+# is auto-added to the library path. Its soname must match the OBS build (Ubuntu-24.04 OBS links FFmpeg
+# 6 / libavcodec.so.60); if a future runtime bumps FFmpeg and OBS fails to load its encoders, either pin
+# the runtime or build libobs from source in a module here.
+add-extensions:
+  org.freedesktop.Platform.ffmpeg-full:
+    directory: lib/ffmpeg
+    version: '24.08'
+    add-ld-path: .
+    no-autodownload: false
+    autodelete: false
+
+modules:
+  - name: segra
+    buildsystem: simple
+    build-commands:
+      # Mount point for the ffmpeg-full extension
+      - mkdir -p /app/lib/ffmpeg
+      # App payload (Segra + .NET runtime + wwwroot + OBS lib/obs-plugins/data + the two helpers)
+      - install -d /app/segra
+      - cp -a payload/. /app/segra/
+      - chmod +x /app/segra/Segra /app/segra/obs-nvenc-test /app/segra/obs-ffmpeg-mux
+      # Launcher on PATH as `segra` (the manifest command)
+      - install -Dm755 segra.sh /app/bin/segra
+      # Desktop integration
+      - install -Dm644 tv.segra.Segra.desktop /app/share/applications/tv.segra.Segra.desktop
+      - install -Dm644 tv.segra.Segra.metainfo.xml /app/share/metainfo/tv.segra.Segra.metainfo.xml
+      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/tv.segra.Segra.png
+    sources:
+      - type: dir
+        path: ../../flatpak-staging

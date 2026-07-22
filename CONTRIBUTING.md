@@ -22,33 +22,39 @@ desktop capture.
 
 ### Building
 Use `./build-local.sh` and pick **Windows** or **Linux** with the Up/Down arrows (or set
-`SEGRA_BUILD_TARGET=windows|linux` to skip the menu). On Linux with the Velopack CLI installed
-(`dotnet tool install -g vpk`), the script also produces a `.AppImage` under `output/`.
+`SEGRA_BUILD_TARGET=windows|linux` to skip the menu). The Linux target produces a runnable `publish/`
+for quick local dev (launch `publish/run.sh`).
 
-A `linux-x64` build can be cross-compiled from Windows, but running/recording needs a Linux host with:
+The Linux **distributable is a Flatpak** — one artifact for every distro, with OBS bundled inside. Build
+it with `./build-flatpak.sh` (needs `flatpak` + `flatpak-builder`); it produces `output/Segra.flatpak`.
+Windows still ships via Velopack (`vpk`).
+
+A `linux-x64` dev build can be cross-compiled from Windows, but running/recording needs a Linux host with:
 `libwebkit2gtk-4.1`, `gtk3`, `pipewire` + `wireplumber`, `xdg-desktop-portal` (+ a backend), `zenity`,
 `pulseaudio-utils`, `x11-xserver-utils`, `xclip`, `ffmpeg`, and `gstreamer1.0-libav` +
-`gstreamer1.0-plugins-{good,bad}` (for in-app H.264/AAC playback). `xrandr`/`pactl`/`xclip` are optional
-and no-op if missing. Display capture uses `xshm_input` on X11 and the PipeWire portal source on Wayland.
+`gstreamer1.0-plugins-{good,bad}` (for in-app H.264/AAC playback). The Flatpak gets all of this from its
+runtime, so an end user installing the Flatpak needs none of it. Display capture uses `xshm_input` on X11
+and the PipeWire portal source on Wayland.
 
-### Linux OBS runtime
-Segra resolves its recorder at launch (`Backend/Platform/Linux/LinuxObsRuntime.cs`), preferring a bundle
-downloaded from the API, then one shipped with the app, then a system `obs-studio` install, and re-execs
-once to apply `LD_LIBRARY_PATH`. The download client queries
-`https://segra.tv/api/obs/versions?isLinux=true` (override with `SEGRA_OBS_VERSIONS_URL`).
+### Linux packaging (Flatpak)
+The Flatpak (`packaging/flatpak/tv.segra.Segra.yml`) targets the GNOME 47 runtime and bundles the app
+plus the OBS recorder (`lib/` + `obs-plugins/` + `data/` + the two helpers) next to the `Segra` binary at
+`/app/segra`. A launcher (`packaging/flatpak/segra.sh`) exports `SEGRA_OBS_*` + `LD_LIBRARY_PATH`, which
+makes `LinuxObsRuntime` resolve the bundled OBS with no download and no re-exec. FFmpeg comes from the
+`org.freedesktop.Platform.ffmpeg-full` runtime extension.
 
-Bundles are built by `Obs/build-linux-bundle.sh <version>`, which assembles them from OBS Studio's
-**official Ubuntu-24.04 `.deb`** on GitHub releases. The 24.04 base is deliberate: a bundle inherits the
-glibc/FFmpeg floor of the distro it was built on, so building on 24.04 (glibc 2.39, FFmpeg 6) loads on
-24.04 LTS and everything newer. Building on a bleeding-edge base does not — a bundle built on 26.04
-referenced `GLIBC_2.43` and `libavcodec.so.62` and could not be `dlopen`'d on 24.04 at all. Always target
-the oldest release Segra supports.
+The OBS binaries are assembled by `Obs/build-linux-bundle.sh <version>` from OBS Studio's **official
+Ubuntu-24.04 `.deb`** on GitHub releases. The 24.04 base is deliberate: OBS built there needs at most
+`GLIBC_2.34` and links FFmpeg 6, so it loads under the runtime; a 26.04 build referenced `GLIBC_2.43` and
+`libavcodec.so.62` and would not `dlopen`. The same script refreshes
+`packaging/linux/obs-helpers/{obs-nvenc-test,obs-ffmpeg-mux}` — libobs resolves these next to the
+**running executable** (`readlink /proc/self/exe` → `dirname`), so `build-flatpak.sh` places them beside
+`Segra`. Without `obs-nvenc-test`, NVENC is reported unsupported; without `obs-ffmpeg-mux`, recordings and
+replay saves never mux to disk.
 
-The same script also refreshes `packaging/linux/obs-helpers/{obs-nvenc-test,obs-ffmpeg-mux}`. These two
-subprocess helpers are resolved by libobs next to the **running executable** (`readlink /proc/self/exe` →
-`dirname`), not in the OBS bundle, so they are shipped *with the app* (`build-local.sh` copies them beside
-`Segra` in the AppImage; `build-deb.sh` into `/opt/segra`). Without `obs-nvenc-test`, NVENC is reported
-unsupported; without `obs-ffmpeg-mux`, recordings and replay saves never mux to disk.
+> Note: the app still contains the older runtime-download path (`CheckIfExistsOrDownloadAsync`) and
+> Velopack update logic, which are dormant inside the Flatpak (OBS is found via the bundled `appDir`
+> layout, and Flatpak handles updates). They remain as the fallback for a raw `publish/` dev run.
 
 ## Repo Layout
 - `Segra.sln` — solution root
