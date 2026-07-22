@@ -159,6 +159,16 @@ LAUNCHER
     chmod +x publish/run.sh 2>/dev/null || true
     chmod +x publish/Segra 2>/dev/null || true
 
+    # OBS resolves its subprocess helpers next to the running executable (readlink /proc/self/exe ->
+    # dirname), NOT in the downloaded OBS bundle. Ship them beside Segra so NVENC probing
+    # (obs-nvenc-test) and recording/replay muxing (obs-ffmpeg-mux) work. Built by Obs/build-linux-bundle.sh.
+    if [ -d packaging/linux/obs-helpers ]; then
+        cp -a packaging/linux/obs-helpers/. publish/
+        chmod +x publish/obs-nvenc-test publish/obs-ffmpeg-mux 2>/dev/null || true
+    else
+        echo "note: packaging/linux/obs-helpers missing; NVENC and recording muxing will not work."
+    fi
+
     # Build a Velopack AppImage installer when the vpk CLI is available and we're on Linux.
     # (vpk's Linux packer only runs on Linux; install it with: dotnet tool install -g vpk)
     if command -v vpk >/dev/null 2>&1 && [[ "$(uname -s)" == "Linux" ]]; then

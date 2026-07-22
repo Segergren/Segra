@@ -29,6 +29,17 @@ install -d "$PKGROOT/opt/segra"
 cp -r "$PUBLISH"/. "$PKGROOT/opt/segra/"
 chmod +x "$PKGROOT/opt/segra/Segra"
 
+# OBS resolves its subprocess helpers next to the running executable (readlink /proc/self/exe ->
+# dirname), so they must sit beside /opt/segra/Segra: obs-nvenc-test (NVENC probe) and obs-ffmpeg-mux
+# (recording/replay muxing). Built by Obs/build-linux-bundle.sh. Copied here in case $PUBLISH did not
+# already include them.
+if [ -d packaging/linux/obs-helpers ]; then
+    cp -a packaging/linux/obs-helpers/. "$PKGROOT/opt/segra/"
+    chmod +x "$PKGROOT/opt/segra/obs-nvenc-test" "$PKGROOT/opt/segra/obs-ffmpeg-mux" 2>/dev/null || true
+else
+    echo "note: packaging/linux/obs-helpers missing; NVENC and recording muxing will not work." >&2
+fi
+
 # Launcher on PATH.
 install -d "$PKGROOT/usr/bin"
 cat > "$PKGROOT/usr/bin/segra" <<'LAUNCH'

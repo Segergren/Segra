@@ -35,8 +35,20 @@ and no-op if missing. Display capture uses `xshm_input` on X11 and the PipeWire 
 Segra resolves its recorder at launch (`Backend/Platform/Linux/LinuxObsRuntime.cs`), preferring a bundle
 downloaded from the API, then one shipped with the app, then a system `obs-studio` install, and re-execs
 once to apply `LD_LIBRARY_PATH`. The download client queries
-`https://segra.tv/api/obs/versions?isLinux=true` (override with `SEGRA_OBS_VERSIONS_URL`). Bundles are
-built by `download_obs.py` (the Linux option assembles them from the obsproject PPA `.deb`).
+`https://segra.tv/api/obs/versions?isLinux=true` (override with `SEGRA_OBS_VERSIONS_URL`).
+
+Bundles are built by `Obs/build-linux-bundle.sh <version>`, which assembles them from OBS Studio's
+**official Ubuntu-24.04 `.deb`** on GitHub releases. The 24.04 base is deliberate: a bundle inherits the
+glibc/FFmpeg floor of the distro it was built on, so building on 24.04 (glibc 2.39, FFmpeg 6) loads on
+24.04 LTS and everything newer. Building on a bleeding-edge base does not — a bundle built on 26.04
+referenced `GLIBC_2.43` and `libavcodec.so.62` and could not be `dlopen`'d on 24.04 at all. Always target
+the oldest release Segra supports.
+
+The same script also refreshes `packaging/linux/obs-helpers/{obs-nvenc-test,obs-ffmpeg-mux}`. These two
+subprocess helpers are resolved by libobs next to the **running executable** (`readlink /proc/self/exe` →
+`dirname`), not in the OBS bundle, so they are shipped *with the app* (`build-local.sh` copies them beside
+`Segra` in the AppImage; `build-deb.sh` into `/opt/segra`). Without `obs-nvenc-test`, NVENC is reported
+unsupported; without `obs-ffmpeg-mux`, recordings and replay saves never mux to disk.
 
 ## Repo Layout
 - `Segra.sln` — solution root
