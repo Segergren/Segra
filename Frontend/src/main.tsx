@@ -25,6 +25,12 @@ const queryClient = new QueryClient({
 // Clear query cache on sign out
 onSignOut(() => queryClient.clear());
 
+// Segra provides its own context menus where right-click actions are supported.
+document.addEventListener('contextmenu', (event) => {
+  event.preventDefault();
+  window.dispatchEvent(new Event('segra:close-content-context-menus'));
+});
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
