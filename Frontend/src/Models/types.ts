@@ -47,6 +47,8 @@ export interface State {
   gameList: GameListEntry[];
   maxDisplayHeight: number;
   currentFolderSizeGb: number;
+  recordingDriveUsedGb: number | null;
+  recordingDriveFreeGb: number | null;
   cacheFolder: string;
 }
 
@@ -340,6 +342,8 @@ export const initialState: State = {
   gameList: [],
   maxDisplayHeight: 1080,
   currentFolderSizeGb: 0,
+  recordingDriveUsedGb: null,
+  recordingDriveFreeGb: null,
   cacheFolder: '',
 };
 

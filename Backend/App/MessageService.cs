@@ -196,6 +196,9 @@ namespace Segra.Backend.App
                         case "StopRecording":
                             _ = Task.Run(OBSService.StopRecording);
                             break;
+                        case "RefreshStorageStats":
+                            StorageService.UpdateRecordingDriveSpaceInState();
+                            break;
                         case "NewConnection":
                             Log.Information("NewConnection command received.");
                             await SendSettingsToFrontend("New connection");

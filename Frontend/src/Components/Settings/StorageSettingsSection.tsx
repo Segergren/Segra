@@ -39,10 +39,32 @@ export default function StorageSettingsSection({
   const { isMigrating } = useContentMigration();
   const [localStorageLimit, setLocalStorageLimit] = useState<string>(String(settings.storageLimit));
   const { openModal, closeModal } = useModal();
+  const driveUsedGb = appState.recordingDriveUsedGb;
+  const driveFreeGb = appState.recordingDriveFreeGb;
+  const hasDriveSpace = driveUsedGb !== null && driveFreeGb !== null;
+  const driveTotalGb =
+    driveUsedGb !== null && driveFreeGb !== null ? driveUsedGb + driveFreeGb : null;
+  const driveUsedPercent =
+    driveTotalGb && driveTotalGb > 0 && driveUsedGb !== null
+      ? Math.min(100, (driveUsedGb / driveTotalGb) * 100)
+      : 0;
+  const driveFreePercent = 100 - driveUsedPercent;
+  const driveBarColor =
+    driveFreePercent <= 5 ? 'bg-error' : driveFreePercent <= 10 ? 'bg-warning' : 'bg-primary';
+
+  const formatGigabytes = (value: number) => {
+    if (value >= 100) return value.toFixed(0);
+    if (value >= 10) return value.toFixed(1);
+    return value.toFixed(2);
+  };
 
   useEffect(() => {
     setLocalStorageLimit(String(settings.storageLimit));
   }, [settings.storageLimit]);
+
+  useEffect(() => {
+    sendMessageToBackend('RefreshStorageStats');
+  }, []);
 
   // Content whose video file is stored outside the current recording path (left behind after
   // the recording path was changed). The migration button below offers to consolidate it.
@@ -204,6 +226,29 @@ export default function StorageSettingsSection({
             min="1"
             className="input input-bordered bg-base-200 w-full block outline-none focus:border-base-400"
           />
+        </div>
+
+        <div className="form-control">
+          <label className="label flex w-full justify-between px-0 pb-1">
+            <span className="label-text flex items-center gap-2 text-base-content">
+              Storage Usage
+            </span>
+            <span className="label-text-alt text-base-content/60">
+              {hasDriveSpace ? `${Math.round(driveUsedPercent)}% used` : 'Checking...'}
+            </span>
+          </label>
+          <div className="flex h-12 flex-col justify-center gap-1.5 rounded-lg border border-base-400 bg-base-200 px-3">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-base-400">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${driveBarColor}`}
+                style={{ width: `${driveUsedPercent}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-base-content/60 tabular-nums">
+              <span>{hasDriveSpace ? `${formatGigabytes(driveUsedGb)} GB used` : '— GB used'}</span>
+              <span>{hasDriveSpace ? `${formatGigabytes(driveFreeGb)} GB free` : '— GB free'}</span>
+            </div>
+          </div>
         </div>
       </div>
 
