@@ -137,7 +137,20 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
         </label>
       </div>
 
-      {/* Disabled-by-default toggles */}
+      {/* Deletion and cleanup toggles */}
+      <div className="flex items-center">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            name="confirmBeforeDeleting"
+            checked={settings.confirmBeforeDeleting}
+            onChange={(e) => updateSettings({ confirmBeforeDeleting: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <span className="cursor-pointer">Confirm Before Deleting</span>
+        </label>
+      </div>
+
       <div className="flex items-center">
         <label className="flex items-center gap-2">
           <input

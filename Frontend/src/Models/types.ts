@@ -319,6 +319,7 @@ export interface Settings {
   audioOutputMode: AudioOutputMode;
   videoQualityPreset: VideoQualityPreset;
   clipQualityPreset: ClipQualityPreset;
+  confirmBeforeDeleting: boolean;
   removeOriginalAfterCompression: boolean;
   discardSessionsWithoutBookmarks: boolean;
   disableWindowsGameMode: boolean; // When true, ensures Windows Game Mode stays off on startup
@@ -396,6 +397,7 @@ export const initialSettings: Settings = {
   audioOutputMode: 'All',
   videoQualityPreset: 'high',
   clipQualityPreset: 'standard',
+  confirmBeforeDeleting: false,
   removeOriginalAfterCompression: false,
   discardSessionsWithoutBookmarks: false,
   disableWindowsGameMode: false,

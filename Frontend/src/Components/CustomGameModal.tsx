@@ -4,6 +4,7 @@ import { isSelectedGameExecutableMessage } from '../Models/WebSocketMessages';
 import { FolderOpen, Plus } from 'lucide-react';
 import Button from './Button';
 import ConfirmationModal from './ConfirmationModal';
+import { useSettings } from '../Context/SettingsContext';
 
 export interface CustomGameResult {
   name: string;
@@ -29,6 +30,7 @@ interface SelectedExecutable {
 }
 
 export default function CustomGameModal({ onSave, onClose, initialName }: CustomGameModalProps) {
+  const settings = useSettings();
   const [selectedExes, setSelectedExes] = useState<SelectedExecutable[]>([]);
   const [customGameName, setCustomGameName] = useState(initialName ?? '');
   // Treat a prefilled name (e.g. from the search box) as user-provided so browsing an exe won't replace it.
@@ -96,6 +98,11 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
   };
 
   const handleRemoveCustomPath = (pathToRemove: string) => {
+    if (!settings.confirmBeforeDeleting) {
+      setSelectedExes((prev) => prev.filter((exe) => exe.path !== pathToRemove));
+      return;
+    }
+
     setPathPendingRemoval(pathToRemove);
   };
 

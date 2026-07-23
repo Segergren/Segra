@@ -1,6 +1,7 @@
 import { ReactNode, useCallback } from 'react';
 import ConfirmationModal from '../Components/ConfirmationModal';
 import { useModal } from '../Context/ModalContext';
+import { useSettings } from '../Context/SettingsContext';
 
 interface DeleteConfirmationOptions {
   title?: string;
@@ -11,6 +12,7 @@ interface DeleteConfirmationOptions {
 
 export function useDeleteConfirmation() {
   const { openModal, closeModal } = useModal();
+  const settings = useSettings();
 
   return useCallback(
     ({
@@ -19,6 +21,11 @@ export function useDeleteConfirmation() {
       confirmText = 'Delete',
       onConfirm,
     }: DeleteConfirmationOptions) => {
+      if (!settings.confirmBeforeDeleting) {
+        onConfirm();
+        return;
+      }
+
       openModal(
         <ConfirmationModal
           title={title}
@@ -33,6 +40,6 @@ export function useDeleteConfirmation() {
         { size: 'md' },
       );
     },
-    [closeModal, openModal],
+    [closeModal, openModal, settings.confirmBeforeDeleting],
   );
 }

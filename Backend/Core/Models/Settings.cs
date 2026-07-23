@@ -80,6 +80,7 @@ namespace Segra.Backend.Core.Models
         private bool _inputNoiseSuppression = true;
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "standard";
+        private bool _confirmBeforeDeleting = false;
         private bool _removeOriginalAfterCompression = false;
         private bool _discardSessionsWithoutBookmarks = false;
         private bool _disableWindowsGameMode = false;
@@ -834,6 +835,19 @@ namespace Segra.Backend.Core.Models
                 if (_clipQualityPreset != value)
                 {
                     _clipQualityPreset = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("confirmBeforeDeleting")]
+        public bool ConfirmBeforeDeleting
+        {
+            get => _confirmBeforeDeleting;
+            set
+            {
+                if (_confirmBeforeDeleting != value)
+                {
+                    _confirmBeforeDeleting = value;
                 }
             }
         }
