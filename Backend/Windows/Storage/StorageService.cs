@@ -76,6 +76,30 @@ namespace Segra.Backend.Windows.Storage
             }
         }
 
+        public static (double UsedGb, double FreeGb)? GetContentDriveSpaceGb()
+        {
+            try
+            {
+                string contentFolder = Settings.Instance.ContentFolder;
+                if (string.IsNullOrEmpty(contentFolder)) return null;
+
+                string? root = Path.GetPathRoot(contentFolder);
+                if (string.IsNullOrEmpty(root)) return null;
+
+                var drive = new DriveInfo(root);
+                if (!drive.IsReady || drive.TotalSize <= 0) return null;
+
+                double freeGb = drive.AvailableFreeSpace / (double)BYTES_PER_GB;
+                double usedGb = (drive.TotalSize - drive.AvailableFreeSpace) / (double)BYTES_PER_GB;
+                return (Math.Round(usedGb, 2), Math.Round(freeGb, 2));
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Error reading content drive space: {ex.Message}");
+                return null;
+            }
+        }
+
         // Checks the system (C:), recording (content folder) and temp drives.
         // Returns any drive that is at or above DriveFullThresholdPercent, deduplicated by drive root.
         public static List<FullDrive> GetFullDrives()
@@ -124,7 +148,29 @@ namespace Segra.Backend.Windows.Storage
         {
             double currentSizeGb = GetCurrentFolderSizeGb();
             AppState.Instance.SetCurrentFolderSizeGb(currentSizeGb, sendToFrontend);
+            UpdateRecordingDriveSpaceInState(sendToFrontend);
             Log.Information($"Updated folder size in state: {currentSizeGb:F2} GB");
+        }
+
+        public static void UpdateRecordingDriveSpaceInState(bool sendToFrontend = true)
+        {
+            var driveSpace = GetContentDriveSpaceGb();
+            AppState.Instance.SetRecordingDriveSpaceGb(
+                driveSpace?.UsedGb,
+                driveSpace?.FreeGb,
+                sendToFrontend
+            );
+
+            if (driveSpace != null)
+            {
+                Log.Information(
+                    $"Updated recording drive space in state: {driveSpace.Value.UsedGb:F2} GB used, {driveSpace.Value.FreeGb:F2} GB free"
+                );
+            }
+            else
+            {
+                Log.Warning("Recording drive space is unavailable");
+            }
         }
 
         public static async Task EnsureStorageBelowLimit()

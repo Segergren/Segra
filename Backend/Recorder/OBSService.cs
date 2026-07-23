@@ -2472,6 +2472,13 @@ namespace Segra.Backend.Recorder
         {
             try
             {
+                var driveSpace = StorageService.GetContentDriveSpaceGb();
+                AppState.Instance.SetRecordingDriveSpaceGb(
+                    driveSpace?.UsedGb,
+                    driveSpace?.FreeGb,
+                    sendToFrontend: true
+                );
+
                 long? freeBytes = StorageService.GetContentDriveFreeBytes();
                 if (freeBytes == null || freeBytes.Value >= GetRecordingFreeSpaceThresholdBytes())
                     return;

@@ -27,6 +27,8 @@ namespace Segra.Backend.Core.Models
         private bool _isCheckingForUpdates = false;
         private int _maxDisplayHeight = 1080;
         private double _currentFolderSizeGb = 0;
+        private double? _recordingDriveUsedGb = null;
+        private double? _recordingDriveFreeGb = null;
 
         private IPlatformWatcher? _deviceWatcher;
         private IPlatformWatcher? _displayWatcher;
@@ -232,6 +234,28 @@ namespace Segra.Backend.Core.Models
                 {
                     SendToFrontend("State update: CurrentFolderSizeGb");
                 }
+            }
+        }
+
+        [JsonPropertyName("recordingDriveUsedGb")]
+        public double? RecordingDriveUsedGb => _recordingDriveUsedGb;
+
+        [JsonPropertyName("recordingDriveFreeGb")]
+        public double? RecordingDriveFreeGb => _recordingDriveFreeGb;
+
+        public void SetRecordingDriveSpaceGb(double? usedGb, double? freeGb, bool sendToFrontend)
+        {
+            bool changed = _recordingDriveUsedGb != usedGb || _recordingDriveFreeGb != freeGb;
+            if (!changed)
+            {
+                return;
+            }
+
+            _recordingDriveUsedGb = usedGb;
+            _recordingDriveFreeGb = freeGb;
+            if (sendToFrontend)
+            {
+                SendToFrontend("State update: Recording drive space");
             }
         }
 
