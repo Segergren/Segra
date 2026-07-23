@@ -866,7 +866,8 @@ namespace Segra.Backend.Games
             try
             {
                 Guid iid = typeof(IShellItem2).GUID;
-                SHCreateItemFromParsingName(exePath, IntPtr.Zero, ref iid, out shellItem);
+                // SHCreateItemFromParsingName rejects forward-slash paths
+                SHCreateItemFromParsingName(exePath.Replace('/', '\\'), IntPtr.Zero, ref iid, out shellItem);
 
                 var key = PKEY_FileDescription;
                 int hr = shellItem.GetString(ref key, out string description);
