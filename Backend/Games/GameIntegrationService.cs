@@ -9,6 +9,7 @@ using Segra.Backend.Games.CounterStrike2;
 using Segra.Backend.Games.LeagueOfLegends;
 using Segra.Backend.Games.RunescapeDragonwilds;
 #if WINDOWS
+using Segra.Backend.Games.ApexLegends;
 using Segra.Backend.Games.RocketLeague;
 using Segra.Backend.Games.GrandTheftAuto;
 #endif
@@ -26,6 +27,7 @@ namespace Segra.Backend.Games
         private const int MINECRAFT_IGDB_ID = 135400;
         private const int RUNESCAPE_DRAGONWILDS_IGDB_ID = 337712;
         private const int WAR_THUNDER_IGDB_ID = 2165;
+        private const int APEX_LEGENDS_IGDB_ID = 114795;
 
         private const int GTA_V_IGDB_ID = 1020;
         private const int FIVEM_IGDB_ID = 146553;
@@ -57,6 +59,11 @@ namespace Segra.Backend.Games
 #if WINDOWS
                 else if ((igdbId == ROCKET_LEAGUE_IGDB_ID || gameName?.Equals("Rocket League", StringComparison.OrdinalIgnoreCase) == true) && integrations.RocketLeague.Enabled)
                     _gameIntegration = new RocketLeagueIntegration();
+                else if ((igdbId == APEX_LEGENDS_IGDB_ID
+                          || gameName?.Equals("Apex Legends", StringComparison.OrdinalIgnoreCase) == true
+                          || exePath?.EndsWith("r5apex.exe", StringComparison.OrdinalIgnoreCase) == true
+                          || exePath?.EndsWith("r5apex_dx12.exe", StringComparison.OrdinalIgnoreCase) == true) && integrations.ApexLegends.Enabled)
+                    _gameIntegration = new ApexLegendsIntegration();
 #endif
                 else if ((igdbId == DOTA2_IGDB_ID || gameName?.Equals("Dota 2", StringComparison.OrdinalIgnoreCase) == true) && integrations.Dota2.Enabled)
                     _gameIntegration = new Dota2Integration();
