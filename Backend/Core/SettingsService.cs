@@ -396,6 +396,12 @@ namespace Segra.Backend.Core
                     current.RocketLeague.Enabled = updated.RocketLeague.Enabled;
                     hasChanges = true;
                 }
+                if (current.ApexLegends.Enabled != updated.ApexLegends.Enabled)
+                {
+                    Log.Information($"GameIntegrations.ApexLegends.Enabled changed from '{current.ApexLegends.Enabled}' to '{updated.ApexLegends.Enabled}'");
+                    current.ApexLegends.Enabled = updated.ApexLegends.Enabled;
+                    hasChanges = true;
+                }
                 if (current.Gta.Enabled != updated.Gta.Enabled)
                 {
                     Log.Information($"GameIntegrations.Gta.Enabled changed from '{current.Gta.Enabled}' to '{updated.Gta.Enabled}'");

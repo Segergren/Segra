@@ -44,6 +44,14 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     backgroundImage: 'https://segra.tv/api/games/cover/ar5u6d',
   },
   {
+    id: 'apex-legends',
+    name: 'Apex Legends',
+    settingsKey: 'apexLegends',
+    bookmarks: ['Kills', 'Assists'],
+    backgroundImage: 'https://segra.tv/api/games/cover/coc1di',
+    isBeta: true,
+  },
+  {
     id: 'gta',
     name: 'Grand Theft Auto',
     settingsKey: 'gta',
@@ -196,7 +204,7 @@ export default function GameIntegrationsSection() {
           <GameIntegrationCard
             key={integration.id}
             integration={integration}
-            enabled={settings.gameIntegrations[integration.settingsKey].enabled}
+            enabled={settings.gameIntegrations[integration.settingsKey]?.enabled ?? true}
             showBackground={settings.showGameBackground}
             isRecording={appState.recording != null || appState.preRecording != null}
             onToggle={(enabled) => handleToggle(integration.settingsKey, enabled)}

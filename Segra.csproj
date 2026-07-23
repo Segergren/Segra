@@ -102,6 +102,7 @@
     <Compile Remove="Backend\Games\OcrIntegration.cs" />
     <Compile Remove="Backend\Games\GrandTheftAuto\GtaIntegration.cs" />
     <Compile Remove="Backend\Games\RocketLeague\RocketLeagueIntegration.cs" />
+    <Compile Remove="Backend\Games\ApexLegends\**\*.cs" />
     <Compile Remove="Backend\Platform\Windows\**\*.cs" />
   </ItemGroup>
 

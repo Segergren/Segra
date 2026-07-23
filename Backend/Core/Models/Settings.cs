@@ -1437,6 +1437,9 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("rocketLeague")]
         public GameIntegrationSettings RocketLeague { get; set; } = new GameIntegrationSettings(true);
 
+        [JsonPropertyName("apexLegends")]
+        public GameIntegrationSettings ApexLegends { get; set; } = new GameIntegrationSettings(true);
+
         [JsonPropertyName("dota2")]
         public GameIntegrationSettings Dota2 { get; set; } = new GameIntegrationSettings(true);
 
