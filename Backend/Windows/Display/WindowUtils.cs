@@ -571,14 +571,6 @@ namespace Segra.Backend.Windows.Display
                     height = (uint)logicalHeight;
                 }
 
-                // If this is the first attempt and we have a standard aspect ratio, return immediately
-                // This prevents unnecessary waiting for games that are already open
-                bool isStandardAspectRatio = IsStandardAspectRatio(width, height);
-                if (isStandardAspectRatio && stableWindowDimensionsAttempt == 1 && windowHandleAttempts == 1)
-                {
-                    return true;
-                }
-
                 // Check if dimensions match a display (fullscreen) - needs fewer stability checks.
                 // Allow a small pixel tolerance so off-by-one dimensions (e.g. 2560x1441 vs 2560x1440) still count.
                 // The logical comparison catches apps whose per-window DPI inflates the physical-pixel dims
@@ -592,6 +584,16 @@ namespace Segra.Backend.Windows.Display
                     || (monitorBounds.HasValue
                         && Math.Abs(logicalWidth - monitorBounds.Value.Width) <= fullscreenTolerance
                         && Math.Abs(logicalHeight - monitorBounds.Value.Height) <= fullscreenTolerance);
+
+                // If this is the first attempt and we have a standard aspect ratio, return immediately
+                // This prevents unnecessary waiting for games that are already open. Freshly started
+                // windowed processes don't qualify - their window is often a launcher/splash screen
+                bool isStandardAspectRatio = IsStandardAspectRatio(width, height);
+                if (isStandardAspectRatio && stableWindowDimensionsAttempt == 1 && windowHandleAttempts == 1
+                    && (processStartedLongAgo || isFullscreen))
+                {
+                    return true;
+                }
 
                 // Window dimensions are 0x0 or 1x1 when the window is not visible
                 if (width > 1 && height > 1)
