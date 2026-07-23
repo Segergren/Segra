@@ -25,7 +25,6 @@ import {
   Crown,
   Monitor,
   Play,
-  HardDrive,
   LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -55,24 +54,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { obsDownloadProgress } = useObsDownload();
   const { migrations: contentMigrations, isMigrating } = useContentMigration();
   const [buttonCooldown, setButtonCooldown] = useState(false);
-  const driveUsedGb = appState.recordingDriveUsedGb;
-  const driveFreeGb = appState.recordingDriveFreeGb;
-  const hasDriveSpace = driveUsedGb !== null && driveFreeGb !== null;
-  const driveTotalGb =
-    driveUsedGb !== null && driveFreeGb !== null ? driveUsedGb + driveFreeGb : null;
-  const driveUsedPercent =
-    driveTotalGb && driveTotalGb > 0 && driveUsedGb !== null
-      ? Math.min(100, (driveUsedGb / driveTotalGb) * 100)
-      : 0;
-  const driveFreePercent = 100 - driveUsedPercent;
-  const driveBarColor =
-    driveFreePercent <= 5 ? 'bg-error' : driveFreePercent <= 10 ? 'bg-warning' : 'bg-primary';
-
-  const formatGigabytes = (value: number) => {
-    if (value >= 100) return value.toFixed(0);
-    if (value >= 10) return value.toFixed(1);
-    return value.toFixed(2);
-  };
 
   const buttonRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [indicatorPosition, setIndicatorPosition] = useState({ top: 12 });
@@ -113,10 +94,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   // snaps the indicator to the correct row without animating from the default top.
   useEffect(() => {
     setIndicatorAnimated(true);
-  }, []);
-
-  useEffect(() => {
-    sendMessageToBackend('RefreshStorageStats');
   }, []);
 
   const aiProgressValues = Object.values(aiProgress);
@@ -321,27 +298,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
       {/* Start and Stop Buttons */}
       <div className="mb-4 px-4">
         <div className="flex flex-col items-center z-50">
-          <div className="w-full mb-2 px-2.5 py-2 rounded-lg border border-base-400">
-            <div className="flex items-center justify-between mb-1.5 text-xs">
-              <span className="flex items-center gap-1.5 text-gray-300 font-medium">
-                <HardDrive className="w-3.5 h-3.5" />
-                Storage
-              </span>
-              <span className="text-gray-500">
-                {hasDriveSpace ? `${Math.round(driveUsedPercent)}% used` : 'Checking...'}
-              </span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-base-400">
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${driveBarColor}`}
-                style={{ width: `${driveUsedPercent}%` }}
-              />
-            </div>
-            <div className="flex justify-between mt-1.5 text-[11px] text-gray-400 tabular-nums">
-              <span>{hasDriveSpace ? `${formatGigabytes(driveUsedGb)} GB used` : '— GB used'}</span>
-              <span>{hasDriveSpace ? `${formatGigabytes(driveFreeGb)} GB free` : '— GB free'}</span>
-            </div>
-          </div>
           <Button
             variant="primary"
             className="w-full h-12"
