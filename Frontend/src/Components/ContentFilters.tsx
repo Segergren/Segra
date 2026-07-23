@@ -10,6 +10,7 @@ export interface ContentFiltersProps {
   sectionId: string;
   selectedGames: string[];
   sortOption: SortOption;
+  showGameFilter: boolean;
 }
 
 export default function ContentFilters({
@@ -19,6 +20,7 @@ export default function ContentFilters({
   sectionId,
   selectedGames,
   sortOption,
+  showGameFilter,
 }: ContentFiltersProps) {
   // Persist changes to localStorage
   useEffect(() => {
@@ -69,70 +71,72 @@ export default function ContentFilters({
 
   return (
     <div className="flex items-center space-x-2">
-      {/* Filter dropdown */}
-      <div className="dropdown dropdown-end">
-        <button
-          disabled={uniqueGames.length === 0}
-          className={`btn btn-sm no-animation btn-secondary border border-base-400 h-8 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300 ${uniqueGames.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-        >
-          <ListFilter size={16} />
-          Filter
-          {selectedGames.length > 0 && (
-            <span className="badge badge-sm badge-primary text-base-300">
-              {selectedGames.length}
-            </span>
-          )}
-        </button>
-        <div
-          className="dropdown-content bg-base-300 border border-base-400 rounded-box z-999 w-64 p-3 mt-1 shadow"
-          tabIndex={0}
-        >
+      {/* Game filtering is only useful in the ungrouped default view. */}
+      {showGameFilter && (
+        <div className="dropdown dropdown-end">
           <button
-            className={`text-sm ml-2 mb-2 ${selectedGames.length > 0 ? 'text-primary cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`}
-            onClick={clearFilters}
+            disabled={uniqueGames.length === 0}
+            className={`btn btn-sm no-animation btn-secondary border border-base-400 h-8 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300 ${uniqueGames.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
           >
-            Clear all
-          </button>
-          <div className="max-h-60 overflow-y-auto">
-            {/* Special "Imported" filter at top - only show if there are imported items */}
-            {uniqueGames.includes('Imported') && (
-              <>
-                <div className="form-control">
-                  <label className="cursor-pointer flex w-full items-center justify-start gap-2 px-3 py-2.5 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-4 outline-none">
-                    <input
-                      type="checkbox"
-                      className="checkbox checkbox-sm checkbox-primary"
-                      checked={selectedGames.includes('Imported')}
-                      onChange={() => toggleGameSelection('Imported')}
-                    />
-                    <span className="label-text text-sm">Imported</span>
-                  </label>
-                </div>
-                <div className=" h-[1px] bg-base-400/60 my-1 mx-2.5 rounded"></div>
-              </>
+            <ListFilter size={16} />
+            Filter
+            {selectedGames.length > 0 && (
+              <span className="badge badge-sm badge-primary text-base-300">
+                {selectedGames.length}
+              </span>
             )}
-            {uniqueGames.length > 0 ? (
-              uniqueGames
-                .filter((game) => game !== 'Imported')
-                .map((game) => (
-                  <div key={game} className="form-control">
+          </button>
+          <div
+            className="dropdown-content bg-base-300 border border-base-400 rounded-box z-999 w-64 p-3 mt-1 shadow"
+            tabIndex={0}
+          >
+            <button
+              className={`text-sm ml-2 mb-2 ${selectedGames.length > 0 ? 'text-primary cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`}
+              onClick={clearFilters}
+            >
+              Clear all
+            </button>
+            <div className="max-h-60 overflow-y-auto">
+              {/* Special "Imported" filter at top - only show if there are imported items */}
+              {uniqueGames.includes('Imported') && (
+                <>
+                  <div className="form-control">
                     <label className="cursor-pointer flex w-full items-center justify-start gap-2 px-3 py-2.5 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-4 outline-none">
                       <input
                         type="checkbox"
                         className="checkbox checkbox-sm checkbox-primary"
-                        checked={selectedGames.includes(game)}
-                        onChange={() => toggleGameSelection(game)}
+                        checked={selectedGames.includes('Imported')}
+                        onChange={() => toggleGameSelection('Imported')}
                       />
-                      <span className="label-text text-sm">{game}</span>
+                      <span className="label-text text-sm">Imported</span>
                     </label>
                   </div>
-                ))
-            ) : (
-              <p className="text-sm text-base-content/70">No games available</p>
-            )}
+                  <div className=" h-[1px] bg-base-400/60 my-1 mx-2.5 rounded"></div>
+                </>
+              )}
+              {uniqueGames.length > 0 ? (
+                uniqueGames
+                  .filter((game) => game !== 'Imported')
+                  .map((game) => (
+                    <div key={game} className="form-control">
+                      <label className="cursor-pointer flex w-full items-center justify-start gap-2 px-3 py-2.5 text-white hover:bg-white/5 active:bg-base-200/20 rounded-lg transition-all duration-200 hover:pl-4 outline-none">
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm checkbox-primary"
+                          checked={selectedGames.includes(game)}
+                          onChange={() => toggleGameSelection(game)}
+                        />
+                        <span className="label-text text-sm">{game}</span>
+                      </label>
+                    </div>
+                  ))
+              ) : (
+                <p className="text-sm text-base-content/70">No games available</p>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Sort dropdown */}
       <div className="dropdown dropdown-end">

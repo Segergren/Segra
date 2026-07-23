@@ -108,7 +108,7 @@ export default function ContentPage({
   const filteredItems = useMemo(() => {
     let filtered = [...contentItems];
 
-    if (selectedGames.length > 0) {
+    if (contentViewMode === 'default' && selectedGames.length > 0) {
       filtered = filtered.filter((item) => {
         if (selectedGames.includes('Imported') && item.isImported) {
           return true;
@@ -142,7 +142,7 @@ export default function ContentPage({
     });
 
     return filtered;
-  }, [contentItems, selectedGames, sortOption]);
+  }, [contentItems, contentViewMode, selectedGames, sortOption]);
 
   const folderGroups = useMemo(() => {
     const groups = new Map<string, Content[]>();
@@ -497,6 +497,7 @@ export default function ContentPage({
             sectionId={sectionId}
             selectedGames={selectedGames}
             sortOption={sortOption}
+            showGameFilter={contentViewMode === 'default'}
           />
         </div>
       </div>
