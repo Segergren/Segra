@@ -24,6 +24,7 @@ import {
 import { useAiHighlights } from '../Context/AiHighlightsContext';
 import { useCompression } from '../Context/CompressionContext';
 import Button from './Button';
+import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 
 type VideoType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
 
@@ -60,6 +61,7 @@ export default function ContentCard({
   const { openModal, closeModal } = useModal();
   const { aiProgress } = useAiHighlights();
   const { compressionProgress, isCompressing } = useCompression();
+  const confirmDelete = useDeleteConfirmation();
 
   const isBeingCompressed = content?.filePath ? isCompressing(content.filePath) : false;
   const currentCompressionProgress = content?.filePath
@@ -293,7 +295,18 @@ export default function ContentCard({
       ContentType: type,
     };
 
-    sendMessageToBackend('DeleteContent', parameters);
+    const displayName = content!.title || content!.game || content!.fileName;
+    confirmDelete({
+      title: `Delete ${type.toLowerCase()}?`,
+      description: (
+        <>
+          Are you sure you want to permanently delete <strong>{displayName}</strong>?
+          <br />
+          <span className="text-sm text-gray-400">This action cannot be undone.</span>
+        </>
+      ),
+      onConfirm: () => sendMessageToBackend('DeleteContent', parameters),
+    });
   };
 
   const startRenaming = () => {

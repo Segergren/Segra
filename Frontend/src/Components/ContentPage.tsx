@@ -12,6 +12,7 @@ import ContentFilters, { SortOption } from './ContentFilters';
 import { useModal } from '../Context/ModalContext';
 import { useImports } from '../Context/ImportContext';
 import Button from './Button';
+import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 
 // Escape a filename for use inside a CSS attribute-selector string. Windows
 // filenames can't contain " or \, but escape defensively all the same.
@@ -40,6 +41,7 @@ export default function ContentPage({
   const { setSelectedVideo } = useSelectedVideo();
   const { scrollPositions, setScrollPosition } = useScroll();
   const { isModalOpen } = useModal();
+  const confirmDelete = useDeleteConfirmation();
   const { imports } = useImports();
   const containerRef = useRef<HTMLDivElement>(null);
   const isSettingScroll = useRef(false);
@@ -168,9 +170,16 @@ export default function ContentPage({
       ContentType: contentType,
     }));
 
-    sendMessageToBackend('DeleteMultipleContent', { Items: items });
-    setSelectedItems(new Set());
-  }, [selectedItems, contentType]);
+    const count = items.length;
+    confirmDelete({
+      title: `Delete ${count} ${count === 1 ? 'item' : 'items'}?`,
+      description: `Are you sure you want to permanently delete the selected ${count === 1 ? 'item' : `${count} items`}?\n\nThis action cannot be undone.`,
+      onConfirm: () => {
+        sendMessageToBackend('DeleteMultipleContent', { Items: items });
+        setSelectedItems(new Set());
+      },
+    });
+  }, [selectedItems, contentType, confirmDelete]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

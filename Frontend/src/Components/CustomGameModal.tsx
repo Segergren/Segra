@@ -3,6 +3,7 @@ import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { isSelectedGameExecutableMessage } from '../Models/WebSocketMessages';
 import { FolderOpen, Plus } from 'lucide-react';
 import Button from './Button';
+import ConfirmationModal from './ConfirmationModal';
 
 export interface CustomGameResult {
   name: string;
@@ -33,6 +34,7 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
   // Treat a prefilled name (e.g. from the search box) as user-provided so browsing an exe won't replace it.
   const [nameEdited, setNameEdited] = useState(!!initialName?.trim());
   const [isSelectingFile, setIsSelectingFile] = useState(false);
+  const [pathPendingRemoval, setPathPendingRemoval] = useState<string | null>(null);
   const autoOpenedRef = useRef(false);
 
   useEffect(() => {
@@ -94,7 +96,7 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
   };
 
   const handleRemoveCustomPath = (pathToRemove: string) => {
-    setSelectedExes((prev) => prev.filter((e) => e.path !== pathToRemove));
+    setPathPendingRemoval(pathToRemove);
   };
 
   const handleSave = () => {
@@ -115,6 +117,27 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
     });
     onClose();
   };
+
+  if (pathPendingRemoval) {
+    return (
+      <ConfirmationModal
+        title="Remove executable?"
+        description={
+          <>
+            Remove this executable from the custom game?
+            <br />
+            <span className="text-sm text-gray-400 break-all">{pathPendingRemoval}</span>
+          </>
+        }
+        confirmText="Remove"
+        onConfirm={() => {
+          setSelectedExes((prev) => prev.filter((e) => e.path !== pathPendingRemoval));
+          setPathPendingRemoval(null);
+        }}
+        onCancel={() => setPathPendingRemoval(null)}
+      />
+    );
+  }
 
   return (
     <>
