@@ -3,6 +3,8 @@ import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { isSelectedGameExecutableMessage } from '../Models/WebSocketMessages';
 import { FolderOpen, Plus } from 'lucide-react';
 import Button from './Button';
+import ConfirmationModal from './ConfirmationModal';
+import { useSettings } from '../Context/SettingsContext';
 
 export interface CustomGameResult {
   name: string;
@@ -28,11 +30,13 @@ interface SelectedExecutable {
 }
 
 export default function CustomGameModal({ onSave, onClose, initialName }: CustomGameModalProps) {
+  const settings = useSettings();
   const [selectedExes, setSelectedExes] = useState<SelectedExecutable[]>([]);
   const [customGameName, setCustomGameName] = useState(initialName ?? '');
   // Treat a prefilled name (e.g. from the search box) as user-provided so browsing an exe won't replace it.
   const [nameEdited, setNameEdited] = useState(!!initialName?.trim());
   const [isSelectingFile, setIsSelectingFile] = useState(false);
+  const [pathPendingRemoval, setPathPendingRemoval] = useState<string | null>(null);
   const autoOpenedRef = useRef(false);
 
   useEffect(() => {
@@ -94,7 +98,12 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
   };
 
   const handleRemoveCustomPath = (pathToRemove: string) => {
-    setSelectedExes((prev) => prev.filter((e) => e.path !== pathToRemove));
+    if (!settings.confirmBeforeDeleting) {
+      setSelectedExes((prev) => prev.filter((exe) => exe.path !== pathToRemove));
+      return;
+    }
+
+    setPathPendingRemoval(pathToRemove);
   };
 
   const handleSave = () => {
@@ -115,6 +124,27 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
     });
     onClose();
   };
+
+  if (pathPendingRemoval) {
+    return (
+      <ConfirmationModal
+        title="Remove executable?"
+        description={
+          <>
+            Remove this executable from the custom game?
+            <br />
+            <span className="text-sm text-gray-400 break-all">{pathPendingRemoval}</span>
+          </>
+        }
+        confirmText="Remove"
+        onConfirm={() => {
+          setSelectedExes((prev) => prev.filter((e) => e.path !== pathPendingRemoval));
+          setPathPendingRemoval(null);
+        }}
+        onCancel={() => setPathPendingRemoval(null)}
+      />
+    );
+  }
 
   return (
     <>

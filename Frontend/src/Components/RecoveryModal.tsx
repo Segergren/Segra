@@ -4,6 +4,8 @@ import { RecoveryFileData } from '../Models/WebSocketMessages';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useAppState } from '../Context/AppStateContext';
 import Button from './Button';
+import ConfirmationModal from './ConfirmationModal';
+import { useSettings } from '../Context/SettingsContext';
 
 interface RecoveryModalProps {
   files: RecoveryFileData[];
@@ -11,11 +13,13 @@ interface RecoveryModalProps {
 }
 
 export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
+  const settings = useSettings();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [remainingFiles, setRemainingFiles] = useState(files);
   const [gameOverrides, setGameOverrides] = useState<Record<string, string>>({});
   const [inputValue, setInputValue] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const appState = useAppState();
 
@@ -120,6 +124,24 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
     }
   };
 
+  if (isConfirmingDelete) {
+    return (
+      <ConfirmationModal
+        title="Delete recovered file?"
+        description={
+          <>
+            Are you sure you want to permanently delete <strong>{currentFile.fileName}</strong>?
+            <br />
+            <span className="text-sm text-gray-400">This action cannot be undone.</span>
+          </>
+        }
+        confirmText="Delete"
+        onConfirm={() => handleAction('delete')}
+        onCancel={() => setIsConfirmingDelete(false)}
+      />
+    );
+  }
+
   return (
     <>
       <div className="modal-header pb-4 border-b border-gray-700">
@@ -220,7 +242,12 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
         <Button variant="success" onClick={() => handleAction('recover')}>
           Recover
         </Button>
-        <Button variant="danger" onClick={() => handleAction('delete')}>
+        <Button
+          variant="danger"
+          onClick={() =>
+            settings.confirmBeforeDeleting ? setIsConfirmingDelete(true) : handleAction('delete')
+          }
+        >
           Delete
         </Button>
         <Button variant="primary" onClick={() => handleAction('skip')}>

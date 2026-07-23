@@ -339,6 +339,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.ConfirmBeforeDeleting != updatedSettings.ConfirmBeforeDeleting)
+            {
+                Log.Information($"ConfirmBeforeDeleting changed from '{settings.ConfirmBeforeDeleting}' to '{updatedSettings.ConfirmBeforeDeleting}'");
+                settings.ConfirmBeforeDeleting = updatedSettings.ConfirmBeforeDeleting;
+                hasChanges = true;
+            }
+
             if (settings.RemoveOriginalAfterCompression != updatedSettings.RemoveOriginalAfterCompression)
             {
                 Log.Information($"RemoveOriginalAfterCompression changed from '{settings.RemoveOriginalAfterCompression}' to '{updatedSettings.RemoveOriginalAfterCompression}'");

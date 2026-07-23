@@ -452,6 +452,7 @@ namespace Segra.Backend.App
             Log.Information($"Auto generate highlights: {s.AutoGenerateHighlights}");
             Log.Information($"Run on startup: {s.RunOnStartup}");
             Log.Information($"Receive beta updates: {s.ReceiveBetaUpdates}");
+            Log.Information($"Confirm before deleting: {s.ConfirmBeforeDeleting}");
             Log.Information($"Remove original after compression: {s.RemoveOriginalAfterCompression}");
             Log.Information($"Discard sessions without bookmarks: {s.DiscardSessionsWithoutBookmarks}");
         }
