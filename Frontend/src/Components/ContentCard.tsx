@@ -67,6 +67,7 @@ export default function ContentCard({
     : undefined;
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownTriggerRef = useRef<HTMLLabelElement>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [opened, setOpened] = useState(false);
@@ -357,6 +358,7 @@ export default function ContentCard({
 
     event.preventDefault();
     event.stopPropagation();
+    (document.activeElement as HTMLElement | null)?.blur();
     window.dispatchEvent(new Event('segra:close-content-context-menus'));
 
     const menuWidth = 208;
@@ -600,7 +602,13 @@ export default function ContentCard({
             ref={dropdownRef}
             className={`dropdown dropdown-end ${isBeingCompressed ? 'pointer-events-none opacity-50' : ''}`}
             onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              dropdownTriggerRef.current?.focus();
+            }}
             onFocus={() => {
+              window.dispatchEvent(new Event('segra:close-content-context-menus'));
               updateDropdownPosition();
               setIsDropdownOpen(true);
             }}
@@ -612,6 +620,7 @@ export default function ContentCard({
             }}
           >
             <label
+              ref={dropdownTriggerRef}
               tabIndex={isBeingCompressed ? -1 : 0}
               className="btn btn-ghost btn-sm btn-circle hover:bg-white/10 active:bg-white/10"
             >
