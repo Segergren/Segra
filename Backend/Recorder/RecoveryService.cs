@@ -1,29 +1,14 @@
 using Serilog;
 using System.Text.Json;
 using Segra.Backend.App;
-using Segra.Backend.Auth;
 using Segra.Backend.Core;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
-using System.Net.Http.Headers;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
-using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Recorder
 {
-    internal class AiIdentificationResponse
-    {
-        [JsonPropertyName("game_name")]
-        public string? GameName { get; set; }
-
-        [JsonPropertyName("ai_confidence")]
-        public double AiConfidence { get; set; }
-
-        [JsonPropertyName("game_name_confidence")]
-        public double? GameNameConfidence { get; set; }
-    }
-
     internal class RecoveryService
     {
         private static readonly Dictionary<string, OrphanedFile> _pendingRecoveries = new();
@@ -41,19 +26,6 @@ namespace Segra.Backend.Recorder
                     return;
 
                 Log.Information($"Found {orphanedFiles.Count} orphaned video file(s) without metadata");
-
-                // Only use AI for files that aren't already in a game subfolder
-                var filesNeedingAi = orphanedFiles.Where(f => string.IsNullOrEmpty(f.FolderGame)).ToList();
-                Dictionary<string, string>? aiIdentifiedGames = null;
-
-                if (filesNeedingAi.Count > 0)
-                {
-                    bool useAi = Settings.Instance.EnableAi && AuthService.IsAuthenticated();
-                    if (useAi)
-                    {
-                        aiIdentifiedGames = await IdentifyGamesWithAi(filesNeedingAi);
-                    }
-                }
 
                 var fileDataList = orphanedFiles.Select(orphanedFile =>
                 {
@@ -75,13 +47,7 @@ namespace Segra.Backend.Recorder
                         _ => orphanedFile.Type.ToString()
                     };
 
-                    // Use folder-derived game first, then AI as fallback
                     string? detectedGame = orphanedFile.FolderGame;
-                    if (string.IsNullOrEmpty(detectedGame) && aiIdentifiedGames != null && aiIdentifiedGames.TryGetValue(orphanedFile.FilePath, out string? aiGame))
-                    {
-                        detectedGame = aiGame;
-                    }
-
                     if (!string.IsNullOrEmpty(detectedGame))
                     {
                         _detectedGames[recoveryId] = detectedGame;
@@ -156,120 +122,6 @@ namespace Segra.Backend.Recorder
             catch (Exception ex)
             {
                 Log.Error($"Error handling recovery confirmation: {ex.Message}");
-            }
-        }
-
-        private static async Task<Dictionary<string, string>> IdentifyGamesWithAi(List<OrphanedFile> orphanedFiles)
-        {
-            var identifiedGames = new Dictionary<string, string>();
-
-            try
-            {
-                var playedGames = AppState.Instance.Content
-                    .Where(c => !string.IsNullOrEmpty(c.Game))
-                    .Select(c => c.Game)
-                    .Distinct()
-                    .ToList();
-
-                if (playedGames.Count == 0)
-                {
-                    Log.Information("No previously played games found, skipping AI identification");
-                    return identifiedGames;
-                }
-
-                string jwt = await AuthService.GetJwtAsync();
-                if (string.IsNullOrEmpty(jwt))
-                {
-                    Log.Warning("Failed to get JWT for AI identification");
-                    return identifiedGames;
-                }
-
-                using var httpClient = new HttpClient();
-                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
-                httpClient.Timeout = TimeSpan.FromSeconds(10);
-
-                var semaphore = new SemaphoreSlim(10, 10);
-                var tasks = orphanedFiles.Select(async orphanedFile =>
-                {
-                    await semaphore.WaitAsync();
-                    try
-                    {
-                        var identifiedGame = await IdentifySingleGameWithAi(httpClient, orphanedFile.FilePath, playedGames);
-                        if (!string.IsNullOrEmpty(identifiedGame))
-                        {
-                            lock (identifiedGames)
-                            {
-                                identifiedGames[orphanedFile.FilePath] = identifiedGame;
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
-                });
-
-                await Task.WhenAll(tasks);
-                Log.Information($"AI identified {identifiedGames.Count} out of {orphanedFiles.Count} orphaned files");
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error during AI game identification: {ex.Message}");
-            }
-
-            return identifiedGames;
-        }
-
-        private static async Task<string?> IdentifySingleGameWithAi(HttpClient httpClient, string videoFilePath, List<string> playedGames)
-        {
-            try
-            {
-                var duration = await FFmpegService.GetVideoDuration(videoFilePath);
-                double thumbnailTime = duration.TotalSeconds > 0 ? Math.Min(duration.TotalSeconds * 0.1, 5) : 0;
-
-                byte[] thumbnailBytes = await FFmpegService.GenerateThumbnail(videoFilePath, thumbnailTime, 720);
-                if (thumbnailBytes == null || thumbnailBytes.Length == 0)
-                {
-                    Log.Warning($"Failed to generate thumbnail for {Path.GetFileName(videoFilePath)}");
-                    return null;
-                }
-
-                using var content = new MultipartFormDataContent();
-                var imageContent = new ByteArrayContent(thumbnailBytes);
-                imageContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
-                content.Add(imageContent, "file", "thumbnail.jpg");
-
-                var gamesJson = JsonSerializer.Serialize(playedGames);
-                content.Add(new StringContent(gamesJson), "games");
-
-                var response = await httpClient.PostAsync("https://processing.segra.tv/ai/identify-game", content);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    Log.Warning($"AI identification failed for {Path.GetFileName(videoFilePath)}: {response.StatusCode}");
-                    return null;
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var aiResponse = JsonSerializer.Deserialize<AiIdentificationResponse>(responseJson);
-
-                if (aiResponse?.GameName != null && aiResponse.AiConfidence > 0)
-                {
-                    Log.Information($"AI identified {Path.GetFileName(videoFilePath)} as '{aiResponse.GameName}' (confidence: {aiResponse.AiConfidence})");
-                    return aiResponse.GameName;
-                }
-
-                return null;
-            }
-            catch (TaskCanceledException)
-            {
-                Log.Warning($"AI identification timed out for {Path.GetFileName(videoFilePath)}");
-                return null;
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error identifying game for {Path.GetFileName(videoFilePath)}: {ex.Message}");
-                return null;
             }
         }
 
