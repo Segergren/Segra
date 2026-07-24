@@ -455,7 +455,8 @@ namespace Segra.Backend.Games
                 return false;
             }
 
-            // 2. Check if the game is in the games.json list
+            // 2. Check if the game is in the games.json list by exe pattern (Steam-only entries
+            // record via the launcher heuristic below, after its guards)
             bool isKnownGame = GameUtils.IsGameExePath(exePath);
             if (isKnownGame)
             {
@@ -926,29 +927,8 @@ namespace Segra.Backend.Games
 
         private static string? AttemptSteamAcfLookup(string exeFilePath)
         {
-            try
-            {
-                string normalized = exeFilePath.Replace("\\", "/");
-                var splitAroundCommon = Regex.Split(normalized, "/steamapps/common/", RegexOptions.IgnoreCase);
-                if (splitAroundCommon.Length < 2) return null;
-
-                string folder = splitAroundCommon[1].Split('/')[0];
-                string prefix = splitAroundCommon[0].TrimEnd('/', '\\');
-                if (string.IsNullOrEmpty(prefix)) return null;
-
-                string steamAppsDir = prefix + "/steamapps";
-                if (!Directory.Exists(steamAppsDir)) return null;
-
-                foreach (string acfFile in Directory.GetFiles(steamAppsDir, "*.acf"))
-                {
-                    string contents = File.ReadAllText(acfFile);
-                    string acfDir = ExtractAcfField(contents, "installdir");
-                    string acfName = ExtractAcfField(contents, "name");
-                    if (acfDir.Equals(folder, StringComparison.OrdinalIgnoreCase)) return acfName;
-                }
-                return null;
-            }
-            catch { return null; }
+            string? name = SteamUtils.GetAppInfoFromExePath(exeFilePath)?.Name;
+            return string.IsNullOrEmpty(name) ? null : name;
         }
 
         private static string? AttemptEAGamesLookup(string exeFilePath)
@@ -1071,14 +1051,6 @@ namespace Segra.Backend.Games
                 return null;
             }
             catch { return null; }
-        }
-
-        private static string ExtractAcfField(string acfContent, string key)
-        {
-            if (string.IsNullOrEmpty(acfContent) || string.IsNullOrEmpty(key)) return string.Empty;
-            string pattern = $"\"{key}\"\\s+\"([^\"]+)\"";
-            var match = Regex.Match(acfContent, pattern, RegexOptions.IgnoreCase);
-            return match.Success && match.Groups.Count > 1 ? match.Groups[1].Value.Trim() : string.Empty;
         }
 
 #if !WINDOWS
