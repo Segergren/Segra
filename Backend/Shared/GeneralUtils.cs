@@ -210,31 +210,46 @@ namespace Segra.Backend.Shared
                 return GpuVendor.Unknown;
             }
 #else
-            // Linux: read PCI vendor IDs of the DRM render nodes from sysfs.
+            // Linux: read PCI vendor IDs of the DRM cards from sysfs. The order sysfs returns them in
+            // carries no meaning (a Ryzen APU + GeForce box lists the iGPU first), so collect them all
+            // and rank by encoder preference. Unlike DXCore on Windows there is no dependable
+            // "is integrated" bit to sort on: boot_vga can be the discrete card, and an APU's VRAM
+            // carve-out looks like a dGPU's.
             try
             {
-                foreach (var cardDir in Directory.GetDirectories("/sys/class/drm", "card?"))
+                // Vendor -> the first card it was seen on, kept so the log can name it.
+                var byVendor = new Dictionary<GpuVendor, string>();
+
+                foreach (string cardDir in Directory.GetDirectories("/sys/class/drm"))
                 {
+                    // Skips the connector entries (card1-DP-1) listed alongside the cards. Matching any
+                    // N also fixes the old "card?" glob, which stopped at card9.
+                    string card = Path.GetFileName(cardDir);
+                    if (!Regex.IsMatch(card, @"^card\d+$")) continue;
+
                     string vendorPath = Path.Combine(cardDir, "device", "vendor");
                     if (!File.Exists(vendorPath)) continue;
 
-                    string vendorId = File.ReadAllText(vendorPath).Trim().ToLowerInvariant();
-                    switch (vendorId)
+                    GpuVendor vendor = File.ReadAllText(vendorPath).Trim().ToLowerInvariant() switch
                     {
-                        case "0x10de":
-                            Log.Information("Detected NVIDIA GPU (PCI 0x10de)");
-                            _cachedGpuVendor = GpuVendor.Nvidia;
-                            return GpuVendor.Nvidia;
-                        case "0x1002":
-                        case "0x1022":
-                            Log.Information("Detected AMD GPU (PCI 0x1002)");
-                            _cachedGpuVendor = GpuVendor.AMD;
-                            return GpuVendor.AMD;
-                        case "0x8086":
-                            Log.Information("Detected Intel GPU (PCI 0x8086)");
-                            _cachedGpuVendor = GpuVendor.Intel;
-                            return GpuVendor.Intel;
-                    }
+                        "0x10de" => GpuVendor.Nvidia,
+                        "0x1002" or "0x1022" => GpuVendor.AMD,
+                        "0x8086" => GpuVendor.Intel,
+                        _ => GpuVendor.Unknown
+                    };
+                    if (vendor != GpuVendor.Unknown) byVendor.TryAdd(vendor, card);
+                }
+
+                foreach (GpuVendor vendor in new[] { GpuVendor.Nvidia, GpuVendor.AMD, GpuVendor.Intel })
+                {
+                    if (!byVendor.TryGetValue(vendor, out string? card)) continue;
+
+                    string others = string.Join(", ", byVendor.Where(e => e.Key != vendor)
+                                                             .Select(e => $"{e.Key} on {e.Value}"));
+                    Log.Information($"Detected {vendor} GPU on {card}" +
+                        (others.Length > 0 ? $"; preferred over {others}" : ""));
+                    _cachedGpuVendor = vendor;
+                    return vendor;
                 }
             }
             catch (Exception ex)
@@ -246,6 +261,50 @@ namespace Segra.Backend.Shared
             return GpuVendor.Unknown;
 #endif
         }
+
+#if !WINDOWS
+        // Drivers whose render nodes expose VAAPI *encoding*. NVIDIA's does not (nvidia-vaapi-driver
+        // is decode-only), so an NVIDIA node is never a candidate.
+        private static readonly string[] VaapiCapableDrivers = ["amdgpu", "radeon", "i915", "xe"];
+
+        /// <summary>
+        /// Path of a /dev/dri render node that can do VAAPI encoding, or null when there is none.
+        /// Deliberately independent of <see cref="DetectGpuVendor"/>: on an NVIDIA machine with an
+        /// AMD/Intel iGPU, the iGPU is what ffmpeg can actually encode on.
+        /// </summary>
+        public static string? FindVaapiRenderNode()
+        {
+            try
+            {
+                // Ordinal sort so the choice is stable across boots rather than following readdir order.
+                foreach (string dir in Directory.GetDirectories("/sys/class/drm").OrderBy(d => d, StringComparer.Ordinal))
+                {
+                    string name = Path.GetFileName(dir);
+                    if (!Regex.IsMatch(name, @"^renderD\d+$")) continue;
+
+                    string driverLink = Path.Combine(dir, "device", "driver");
+                    if (!Directory.Exists(driverLink)) continue;
+
+                    string driver = Path.GetFileName(
+                        Directory.ResolveLinkTarget(driverLink, returnFinalTarget: true)?.FullName ?? string.Empty);
+                    if (!VaapiCapableDrivers.Contains(driver, StringComparer.OrdinalIgnoreCase)) continue;
+
+                    string node = Path.Combine("/dev/dri", name);
+                    if (File.Exists(node))
+                    {
+                        Log.Information($"Using {node} ({driver}) for VAAPI encoding");
+                        return node;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Could not enumerate DRM render nodes: {ex.Message}");
+            }
+
+            return null;
+        }
+#endif
 
         private static readonly string[] SensitiveProperties =
         [

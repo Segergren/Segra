@@ -373,8 +373,43 @@ namespace Segra.Backend.Media
             string videoCodec;
             string qualityArgs;
             string presetArgs;
+            // VAAPI needs the device named before the input, and frames uploaded to it before the
+            // encoder sees them. Empty for every other encoder.
+            string hwDeviceArgs = "";
+            string hwFilterArgs = "";
             if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
             {
+#if !WINDOWS
+                // The ffmpeg we shell out to on Linux only ships the VAAPI hardware encoders, whatever
+                // the GPU vendor is, so the vendor switch below would name an encoder that does not
+                // exist and the export would fail outright.
+                string? vaapiNode = FindVaapiRenderNode();
+                if (vaapiNode != null)
+                {
+                    if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                        videoCodec = "hevc_vaapi";
+                    else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
+                        videoCodec = "av1_vaapi";   // only on devices with an AV1 encode block
+                    else
+                        videoCodec = "h264_vaapi";
+
+                    // CQP is VAAPI's constant-quality mode. It has no -preset, so the frontend's
+                    // preset does not apply.
+                    qualityArgs = $"-rc_mode CQP -qp {settings.ClipQualityGpu}";
+                    presetArgs = "";
+                    hwDeviceArgs = $"-vaapi_device {vaapiNode} ";
+                    hwFilterArgs = "-vf \"format=nv12,hwupload\" ";
+                }
+                else
+                {
+                    Log.Warning("No VAAPI-capable render node found; falling back to CPU encoding for this clip");
+                    videoCodec = settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase)
+                        ? "libx265"
+                        : "libx264";
+                    qualityArgs = $"-crf {settings.ClipQualityCpu}";
+                    presetArgs = $"-preset {settings.ClipPreset}";
+                }
+#else
                 // GPU encoder uses hardware-accelerated codecs based on GPU vendor
                 GpuVendor gpuVendor = DetectGpuVendor();
 
@@ -433,6 +468,7 @@ namespace Segra.Backend.Media
                         presetArgs = $"-preset {settings.ClipPreset}";
                         break;
                 }
+#endif
             }
             else
             {
@@ -670,8 +706,8 @@ namespace Segra.Backend.Media
             // The concat demuxer then uses the first clip's stream params for subsequent clips, playing
             // mismatched samples at the wrong rate (the reported "shrunken audio").
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
-            string arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+            string arguments = $"-y {hwDeviceArgs}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
+                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}{hwFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
                              $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");
