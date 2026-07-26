@@ -25,7 +25,7 @@ Use `./build-local.sh` and pick **Windows** or **Linux** with the Up/Down arrows
 `SEGRA_BUILD_TARGET=windows|linux` to skip the menu). The Linux target produces a runnable `publish/`
 for quick local dev (launch `publish/run.sh`).
 
-The Linux **distributable is a Flatpak** — one artifact for every distro, with OBS bundled inside. Build
+The Linux **distributable is a Flatpak**, one artifact for every distro, with OBS bundled inside. Build
 it with `./build-flatpak.sh` (needs `flatpak` + `flatpak-builder`); it produces `output/Segra.flatpak`.
 Windows still ships via Velopack (`vpk`).
 
@@ -47,7 +47,7 @@ The OBS binaries are assembled by `Obs/build-linux-bundle.sh <version>` from OBS
 Ubuntu-24.04 `.deb`** on GitHub releases. The 24.04 base is deliberate: OBS built there needs at most
 `GLIBC_2.34` and links FFmpeg 6, so it loads under the runtime; a 26.04 build referenced `GLIBC_2.43` and
 `libavcodec.so.62` and would not `dlopen`. The same script refreshes
-`packaging/linux/obs-helpers/{obs-nvenc-test,obs-ffmpeg-mux}` — libobs resolves these next to the
+`packaging/linux/obs-helpers/{obs-nvenc-test,obs-ffmpeg-mux}`. libobs resolves these next to the
 **running executable** (`readlink /proc/self/exe` → `dirname`), so `build-flatpak.sh` places them beside
 `Segra`. Without `obs-nvenc-test`, NVENC is reported unsupported; without `obs-ffmpeg-mux`, recordings and
 replay saves never mux to disk.

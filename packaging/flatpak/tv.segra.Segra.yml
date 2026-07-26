@@ -1,8 +1,8 @@
-# Flatpak manifest for Segra — one artifact for every distro.
+# Flatpak manifest for Segra, one artifact for every distro.
 #
 # The runtime provides glibc / GTK / WebKitGTK; this bundles the app plus the OBS recorder
 # (libobs + plugins + data + the obs-nvenc-test / obs-ffmpeg-mux helpers) so NOTHING is downloaded at
-# runtime and there is no host glibc/FFmpeg coupling — the class of bugs the download-based AppImage/.deb
+# runtime and there is no host glibc/FFmpeg coupling. The class of bugs the download-based AppImage/.deb
 # suffered from simply cannot occur here.
 #
 # The app payload is pre-staged on the host by build-flatpak.sh into ../../flatpak-staging, then this
@@ -37,6 +37,8 @@ finish-args:
   - --share=network
   # Game detection. Flatpak gives us our own PID namespace, so /proc holds only Segra's processes and
   # no game is ever seen. This lets FlatpakHost read the host's process list via flatpak-spawn --host.
+  # The same permission runs the session tools the runtime does not ship (zenity, pactl, xrandr, xclip)
+  # on the host.
   - --talk-name=org.freedesktop.Flatpak
   # Steam libraries, so a detected Proton game's install dir (STEAM_COMPAT_INSTALL_PATH) can be read to
   # resolve the real .exe. Default libraries live under home; extra ones usually on a mounted drive.
@@ -44,6 +46,9 @@ finish-args:
   - --filesystem=/run/media
   - --filesystem=/media
   - --filesystem=/mnt
+  # --filesystem=home deliberately excludes ~/.var/app, which is exactly where Flatpak Steam keeps its
+  # default library, so grant that tree explicitly (read-only: we only look for the game's .exe).
+  - --filesystem=~/.var/app/com.valvesoftware.Steam:ro
   # Where recordings/clips are written (default content folder is under the user's Videos)
   - --filesystem=xdg-videos
 

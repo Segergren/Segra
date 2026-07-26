@@ -1,5 +1,6 @@
 using Serilog;
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Segra.Backend.Auth;
@@ -212,24 +213,24 @@ namespace Segra.Backend.App
 
                             await SendGameList();
 
-                            if (UpdateService.UpdateManager.CurrentVersion != null)
-                            {
-                                string appVersion = UpdateService.UpdateManager.CurrentVersion.ToString();
+                            // Send version to frontend to prevent mismatch. canSelfUpdate tells the
+                            // UI whether the in-app (Velopack) updater applies: on Windows it does;
+                            // on Linux the Flatpak / system package manager owns updates, so the UI
+                            // shows update guidance instead of a self-updater. A Flatpak install has no
+                            // Velopack metadata at all, so fall back to the assembly version there.
+                            string appVersion = UpdateService.UpdateManager.CurrentVersion?.ToString()
+                                ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)
+                                ?? "0.0.0";
 
-                                // Send version to frontend to prevent mismatch. canSelfUpdate tells the
-                                // UI whether the in-app (Velopack) updater applies: on Windows it does;
-                                // on Linux the Flatpak / system package manager owns updates, so the UI
-                                // shows update guidance instead of a self-updater.
-                                await SendFrontendMessage("AppVersion", new
-                                {
-                                    version = appVersion,
+                            await SendFrontendMessage("AppVersion", new
+                            {
+                                version = appVersion,
 #if WINDOWS
-                                    canSelfUpdate = true,
+                                canSelfUpdate = true,
 #else
-                                    canSelfUpdate = false,
+                                canSelfUpdate = false,
 #endif
-                                });
-                            }
+                            });
 
                             await UpdateService.SendCurrentUpdateProgressToFrontend();
                             _ = Task.Run(() => UpdateService.GetReleaseNotes());

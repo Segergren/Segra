@@ -322,6 +322,16 @@ namespace Segra.Backend.Games
         // STEAM_COMPAT_INSTALL_PATH). Only reached while recording a Proton game, so scanning environ is fine.
         private static bool AnyProcessHasSteamInstall(HashSet<int> pids, string installDir)
         {
+            if (Platform.Linux.FlatpakHost.IsFlatpak)
+            {
+                // One host call for the whole process list: a flatpak-spawn per pid, several times a
+                // second, would fork hundreds of times per poll and starve the encoder.
+                var installPaths = Platform.Linux.FlatpakHost.ReadEnvVarValues("STEAM_COMPAT_INSTALL_PATH");
+                // A failed read must not look like the game exited.
+                if (installPaths == null) return true;
+                return installPaths.Any(p => PathUtils.Normalize(p).Equals(installDir, StringComparison.OrdinalIgnoreCase));
+            }
+
             foreach (int pid in pids)
             {
                 string? p = ReadProcEnvVar(pid, "STEAM_COMPAT_INSTALL_PATH");
@@ -792,6 +802,13 @@ namespace Segra.Backend.Games
         private static bool IsProcessRunning(int pid)
         {
             if (pid <= 0) return false;
+
+#if !WINDOWS
+            // Under Flatpak the tracked pid is a host pid, which never exists in our own PID namespace,
+            // so asking the runtime about it would report every recorded game as dead.
+            if (Platform.Linux.FlatpakHost.IsFlatpak)
+                return Platform.Linux.FlatpakHost.IsRunning(pid, TimeSpan.FromSeconds(2));
+#endif
 
             try
             {

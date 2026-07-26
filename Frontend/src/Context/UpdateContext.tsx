@@ -20,7 +20,7 @@ export interface UpdateProgress {
 interface UpdateContextType {
   updateInfo: UpdateProgress | null;
   releaseNotes: ReleaseNote[];
-  // False on Linux (Flatpak / package manager owns updates) — the UI shows update guidance instead of
+  // False on Linux (Flatpak / package manager owns updates); the UI shows update guidance instead of
   // an in-app updater. Defaults to true until the backend's AppVersion message arrives.
   canSelfUpdate: boolean;
   openReleaseNotesModal: (filterVersion?: string | null) => void;
@@ -71,7 +71,11 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
         setUpdateInfo(message.content);
       }
 
-      if (message.method === 'AppVersion' && message.content && typeof message.content.canSelfUpdate === 'boolean') {
+      if (
+        message.method === 'AppVersion' &&
+        message.content &&
+        typeof message.content.canSelfUpdate === 'boolean'
+      ) {
         setCanSelfUpdate(message.content.canSelfUpdate);
       }
 

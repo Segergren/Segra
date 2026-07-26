@@ -10,7 +10,7 @@
   <description>
     <p>
       Segra records your gameplay and lets you clip, highlight, and share it. It captures with OBS
-      (libobs) using hardware encoders — NVENC on NVIDIA and VAAPI on AMD/Intel — and includes a replay
+      (libobs) using hardware encoders (NVENC on NVIDIA and VAAPI on AMD/Intel) and includes a replay
       buffer, automatic game detection, and a built-in clip editor.
     </p>
   </description>

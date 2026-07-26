@@ -13,7 +13,7 @@ interface AdvancedSectionProps {
   updateSettings: (updates: Partial<SettingsType>) => void;
   openReleaseNotesModal: (version: string | null) => void;
   checkForUpdates: () => void;
-  // False on Linux (Flatpak) — show update guidance instead of the in-app updater controls.
+  // False on Linux (Flatpak): show update guidance instead of the in-app updater controls.
   canSelfUpdate: boolean;
 }
 

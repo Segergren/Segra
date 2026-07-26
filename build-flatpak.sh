@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds the Segra Flatpak — one artifact for every distro.
+# Builds the Segra Flatpak, one artifact for every distro.
 #
 #   SEGRA_VERSION=1.7.0 OBS_VERSION=32.2.0 ./build-flatpak.sh
 #
@@ -20,7 +20,7 @@ cd "$SCRIPT_DIR"
 VERSION="${SEGRA_VERSION:-1.0.0}"
 OBS_VERSION="${OBS_VERSION:-32.2.0}"
 # Exported so the csproj BuildFrontendAssets target (which re-runs `npm run build` during publish and
-# embeds the result) stamps the same version the backend reports — otherwise the embedded UI says
+# embeds the result) stamps the same version the backend reports; otherwise the embedded UI says
 # "Developer Preview".
 export SEGRA_VERSION="$VERSION"
 APP_ID="tv.segra.Segra"
@@ -63,15 +63,15 @@ chmod +x "$STAGING/payload/Segra" "$STAGING/payload/obs-nvenc-test" "$STAGING/pa
 
 # Bundle OBS's media dependencies from this Ubuntu-24.04 host. The Flatpak runtime ships FFmpeg 7
 # (libavcodec.so.61), but the Ubuntu-24.04 OBS links FFmpeg 6 (libavcodec.so.60) plus x264/jansson/
-# rist/srt, none matching the runtime — so libobs can't dlopen and OBS silently fails to start. Copy the
+# rist/srt, none matching the runtime, so libobs can't dlopen and OBS silently fails to start. Copy the
 # exact libraries OBS resolves here (its flattened ldd closure), filtered to media/codec libs. GL / GTK /
-# glibc / system libs are intentionally NOT bundled — those must come from the runtime.
+# glibc / system libs are intentionally NOT bundled; those must come from the runtime.
 LIBDST="$STAGING/payload/lib"
 # Build the set of sonames the GNOME runtime already ships, and bundle ONLY what it lacks. This is matched
 # by soname, so a version-mismatched library is still bundled (libicuuc.so.74 vs the runtime's .75,
-# libjpeg.so.8 vs .62, OBS's FFmpeg 6 vs the runtime's 7) while everything the runtime provides — glibc,
+# libjpeg.so.8 vs .62, OBS's FFmpeg 6 vs the runtime's 7) while everything the runtime provides (glibc,
 # GL, X11/Wayland, GTK/GLib, and critically WebKitGTK (whose WebKitNetworkProcess/WebProcess helpers are
-# path-coupled to the runtime) — comes from the runtime. Enumerating the runtime beats a hand-written
+# path-coupled to the runtime) comes from the runtime. Enumerating the runtime beats a hand-written
 # denylist that can never be complete.
 declare -A RUNTIME_PROVIDES
 RT="$(flatpak info -l org.gnome.Platform//47 2>/dev/null || true)"
@@ -84,7 +84,7 @@ while IFS= read -r so; do RUNTIME_PROVIDES["$(basename "$so")"]=1; done \
 echo "runtime provides ${#RUNTIME_PROVIDES[@]} sonames; bundling only what it lacks"
 bundle_media_dep() {   # $1 = resolved host path
   local src="$1" base; base="$(basename "$src")"
-  [ -n "${RUNTIME_PROVIDES[$base]:-}" ] && return 1   # runtime already ships this soname — don't bundle
+  [ -n "${RUNTIME_PROVIDES[$base]:-}" ] && return 1   # runtime already ships this soname, don't bundle
   local real; real="$(readlink -f "$src")"
   cp -n "$real" "$LIBDST/$(basename "$real")" 2>/dev/null || true
   [ "$(basename "$real")" != "$base" ] && ln -sf "$(basename "$real")" "$LIBDST/$base"

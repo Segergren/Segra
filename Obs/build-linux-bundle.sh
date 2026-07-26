@@ -58,7 +58,7 @@ for so in "$LIBSRC/obs-plugins/"*.so; do
     b="$(basename "$so")"
     case "$b" in
         # obs-browser + its Chromium Embedded Framework support libs (libcef.so alone is ~230 MB), plus
-        # websocket/UI/vst/decklink — none needed by a headless recorder.
+        # websocket/UI/vst/decklink, none needed by a headless recorder.
         obs-browser.so|obs-websocket.so|frontend-tools.so|obs-vst.so|decklink*.so|*-ui.so|\
         libcef.so|libGLESv2.so|libvk_swiftshader.so|libEGL.so) ;;
         *) cp -a "$so" "$OUT/obs-plugins/" ;;
