@@ -107,7 +107,9 @@ export default function AdvancedSection({
           </div>
         </div>
 
-        {/* OBS Version Selection */}
+        {/* OBS Version Selection. An empty list means the recorder is fixed for this install
+            (bundled or already downloaded), so the choice would not take effect. */}
+        {appState.availableOBSVersions.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
             <div className="mb-1">
@@ -133,6 +135,7 @@ export default function AdvancedSection({
             </div>
           </div>
         </div>
+        )}
 
         {/* Airplane Mode */}
         <div ref={rowRef} className="pt-4 border-t border-custom">

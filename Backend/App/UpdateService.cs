@@ -16,6 +16,27 @@ namespace Segra.Backend.App
         public static GithubSource BetaSource = new("https://github.com/Segergren/Segra", null, true);
         public static UpdateManager UpdateManager { get; private set; } = new(Source);
 
+        /// <summary>
+        /// The version we are running, for anything that compares against a release range.
+        /// Velopack's CurrentVersion is null on any install without Velopack metadata - a dev build,
+        /// but also every Flatpak - so fall back to the assembly version the build stamps.
+        /// </summary>
+        public static NuGet.Versioning.SemanticVersion GetCurrentVersion()
+        {
+            string? version = UpdateManager.CurrentVersion?.ToString()
+                ?? System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
+
+            if (!string.IsNullOrEmpty(version) &&
+                NuGet.Versioning.SemanticVersion.TryParse(version, out var parsed))
+            {
+                return parsed;
+            }
+
+            // Neither source produced a version; treat it as a dev build so nothing is filtered out.
+            Log.Warning("No Velopack or assembly version available; assuming a development build");
+            return new NuGet.Versioning.SemanticVersion(9, 9, 9);
+        }
+
         // Serializes Velopack operations that share the on-disk .velopack_lock.
         private static readonly SemaphoreSlim _updateGate = new(1, 1);
 
@@ -294,16 +315,7 @@ namespace Segra.Backend.App
             {
                 Log.Information("Getting release notes from GitHub API");
 
-                NuGet.Versioning.SemanticVersion currentVersion;
-                if (UpdateManager.CurrentVersion != null)
-                {
-                    currentVersion = NuGet.Versioning.SemanticVersion.Parse(UpdateManager.CurrentVersion.ToString());
-                }
-                else
-                {
-                    // Fallback for local development builds, which have no installed version.
-                    currentVersion = NuGet.Versioning.SemanticVersion.Parse("0.6.6");
-                }
+                NuGet.Versioning.SemanticVersion currentVersion = GetCurrentVersion();
 
                 Log.Information($"Current version: {currentVersion}");
 
