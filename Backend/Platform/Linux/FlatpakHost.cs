@@ -19,6 +19,14 @@ namespace Segra.Backend.Platform.Linux
         public static string AppId { get; } =
             Environment.GetEnvironmentVariable("FLATPAK_ID") ?? "tv.segra.Segra";
 
+        /// <summary>
+        /// flatpak-spawn runs the host command in the CALLER's working directory, and ours (/app/segra)
+        /// does not exist on the host, which makes the portal refuse to start anything at all. Pin every
+        /// host command to the user's home, which is valid on both sides of the sandbox.
+        /// </summary>
+        public static string DirectoryArg { get; } = "--directory=" +
+            (Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is { Length: > 0 } home ? home : "/");
+
         // Every host pid with its resolved exe, as "/proc/<pid> <path>" lines. A shell loop calling
         // readlink per pid would fork a few hundred times per poll, several times a second, while a
         // game is running; find emits the same data from one process.
@@ -116,6 +124,7 @@ namespace Segra.Backend.Platform.Linux
                 };
                 // ArgumentList passes each argument verbatim, with no quoting round-trip.
                 psi.ArgumentList.Add("--host");
+                psi.ArgumentList.Add(DirectoryArg);
                 foreach (string a in args) psi.ArgumentList.Add(a);
 
                 using var proc = Process.Start(psi);

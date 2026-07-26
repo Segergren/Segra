@@ -217,7 +217,7 @@ namespace Segra.Backend.Platform.Linux
                 var uri = "file://" + filePath;
                 const string xclipArgs = "-selection clipboard -t text/uri-list";
                 var psi = FlatpakHost.IsFlatpak
-                    ? new ProcessStartInfo("flatpak-spawn", $"--host xclip {xclipArgs}")
+                    ? new ProcessStartInfo("flatpak-spawn", $"--host {FlatpakHost.DirectoryArg} xclip {xclipArgs}")
                     : new ProcessStartInfo("xclip", xclipArgs);
                 psi.RedirectStandardInput = true;
                 psi.UseShellExecute = false;
@@ -325,7 +325,7 @@ namespace Segra.Backend.Platform.Linux
         // Callers pass onHost: true for those; everything else stays in the sandbox.
         private static ProcessStartInfo StartInfo(string file, string args, bool onHost) =>
             onHost && FlatpakHost.IsFlatpak
-                ? new ProcessStartInfo("flatpak-spawn", $"--host {file} {args}")
+                ? new ProcessStartInfo("flatpak-spawn", $"--host {FlatpakHost.DirectoryArg} {file} {args}")
                 : new ProcessStartInfo(file, args);
 
         public static void Start(string file, string args, bool onHost = false)
