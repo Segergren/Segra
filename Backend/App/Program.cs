@@ -508,9 +508,7 @@ namespace Segra.Backend.App
 
         public static void BringWindowToFront() => _ = ShowApplicationWindow();
 
-        // Raising the window still leaves focus with whoever had it (the browser, after an OAuth
-        // callback). Windows only grants SetForegroundWindow to the process owning the foreground,
-        // so borrow that thread's input queue for the call.
+        // SetForegroundWindow only works for the process owning the foreground, so borrow its input queue.
         private static void FocusApplicationWindow()
         {
 #if WINDOWS

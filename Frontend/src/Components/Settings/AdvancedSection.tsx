@@ -107,8 +107,7 @@ export default function AdvancedSection({
           </div>
         </div>
 
-        {/* OBS Version Selection. An empty list means the recorder is fixed for this install
-            (bundled or already downloaded), so the choice would not take effect. */}
+        {/* Hidden when the recorder is fixed for this install (bundled or already downloaded) */}
         {appState.availableOBSVersions.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="flex flex-col">

@@ -60,8 +60,7 @@ namespace Segra.Backend.Games
             return false;
         }
 
-        // Exe pattern match first, then Steam app id. The app-id fallback resolves at
-        // install-folder granularity, so it only applies to entries without known executables.
+        // Exe pattern match first, then Steam app id (install-folder granularity, as a fallback).
         public static GameEntry? ResolveEntryFromExePath(string exePath)
         {
             if (!_isInitialized || string.IsNullOrEmpty(exePath))

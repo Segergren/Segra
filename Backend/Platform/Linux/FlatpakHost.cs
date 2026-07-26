@@ -3,12 +3,7 @@ using System.Diagnostics;
 
 namespace Segra.Backend.Platform.Linux
 {
-    /// <summary>
-    /// Reads host process state from inside a Flatpak sandbox. Flatpak gives the app its own PID
-    /// namespace, so /proc lists only Segra's own processes while game detection needs the host's.
-    /// flatpak-spawn runs the read outside the sandbox; it needs --talk-name=org.freedesktop.Flatpak
-    /// in the manifest. Outside Flatpak none of this is used and /proc is read directly.
-    /// </summary>
+    // Reads host process state via flatpak-spawn, since our /proc only lists our own PID namespace.
     internal static class FlatpakHost
     {
         public static bool IsFlatpak { get; } =
@@ -19,17 +14,11 @@ namespace Segra.Backend.Platform.Linux
         public static string AppId { get; } =
             Environment.GetEnvironmentVariable("FLATPAK_ID") ?? "tv.segra.Segra";
 
-        /// <summary>
-        /// flatpak-spawn runs the host command in the CALLER's working directory, and ours (/app/segra)
-        /// does not exist on the host, which makes the portal refuse to start anything at all. Pin every
-        /// host command to the user's home, which is valid on both sides of the sandbox.
-        /// </summary>
+        // Pin to the user's home: flatpak-spawn runs in the caller's cwd, and /app/segra doesn't exist on the host.
         public static string DirectoryArg { get; } = "--directory=" +
             (Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is { Length: > 0 } home ? home : "/");
 
-        // Every host pid with its resolved exe, as "/proc/<pid> <path>" lines. A shell loop calling
-        // readlink per pid would fork a few hundred times per poll, several times a second, while a
-        // game is running; find emits the same data from one process.
+        // One `find` call emits every host pid + exe as "/proc/<pid> <path>" lines, instead of a readlink-per-pid shell loop.
         private static readonly string[] ListProcesses =
             ["find", "/proc", "-maxdepth", "2", "-name", "exe", "-type", "l", "-printf", "%h %l\n"];
 
@@ -44,8 +33,7 @@ namespace Segra.Backend.Platform.Linux
             var map = new Dictionary<int, string>();
             foreach (var line in (RunOnHost(ListProcesses) ?? string.Empty).Split('\n'))
             {
-                // "/proc/1234 /usr/bin/foo". Exe paths can contain spaces, so split on the first
-                // separator only. /proc/self and /proc/thread-self fail the pid parse and drop out.
+                // Exe paths can contain spaces, so split "/proc/1234 /usr/bin/foo" on the first separator only.
                 const int prefix = 6; // "/proc/"
                 int sp = line.IndexOf(' ');
                 if (sp <= prefix || !line.StartsWith("/proc/", StringComparison.Ordinal)) continue;
@@ -63,8 +51,7 @@ namespace Segra.Backend.Platform.Linux
                     return _processes;
                 }
 
-                // Keep the previous list rather than reporting that every game exited, but a failure
-                // that never recovers freezes detection completely, so make it visible.
+                // Keep the previous list rather than reporting every game as exited, but log if it never recovers.
                 if (++_listFailures == 1 || _listFailures % 40 == 0)
                 {
                     Log.Error($"Cannot read the host process list through flatpak-spawn ({_listFailures} attempts in a row). " +
@@ -91,11 +78,7 @@ namespace Segra.Backend.Platform.Linux
         /// <summary>Contents of a host file (used for /proc/&lt;pid&gt;/environ), or empty if unreadable.</summary>
         public static string ReadFile(string path) => RunOnHost("cat", path) ?? string.Empty;
 
-        /// <summary>
-        /// Every value of an env var across all host processes, or null if the host call failed.
-        /// One spawn for the whole process list: reading environ per pid would fork hundreds of times
-        /// per poll while a game is recording.
-        /// </summary>
+        // Every value of an env var across all host processes (one spawn, not one per pid), or null on failure.
         public static HashSet<string>? ReadEnvVarValues(string key)
         {
             // `|| true` keeps grep's "no match" exit code from looking like a failed spawn.
@@ -130,9 +113,7 @@ namespace Segra.Backend.Platform.Linux
                 using var proc = Process.Start(psi);
                 if (proc == null) return null;
 
-                // Read both pipes concurrently so neither fills and blocks the child. Kill on timeout:
-                // this runs on the detection poll timer, and a blocking read would stall detection for
-                // good rather than just losing one cycle.
+                // Read both pipes concurrently so neither fills and blocks the child; kill on timeout.
                 var outTask = proc.StandardOutput.ReadToEndAsync();
                 var errTask = proc.StandardError.ReadToEndAsync();
                 if (!proc.WaitForExit(10000))
@@ -145,8 +126,7 @@ namespace Segra.Backend.Platform.Linux
 
                 string output = outTask.GetAwaiter().GetResult();
                 string error = errTask.GetAwaiter().GetResult();
-                // find exits non-zero when a /proc entry vanishes mid-walk, so only an empty result
-                // counts as a failure. Callers decide how loud that is.
+                // find exits non-zero when a /proc entry vanishes mid-walk, so only an empty result is a failure.
                 if (proc.ExitCode != 0 && output.Length == 0)
                 {
                     Log.Debug($"flatpak-spawn --host {args[0]} exited {proc.ExitCode}: {error.Trim()}");

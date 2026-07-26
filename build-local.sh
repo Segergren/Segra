@@ -169,9 +169,7 @@ LAUNCHER
         echo "note: packaging/linux/obs-helpers missing; NVENC and recording muxing will not work."
     fi
 
-    # Distributable packaging is the Flatpak (one artifact for every distro, OBS bundled in). This
-    # script produces a runnable publish/ for quick local dev; build the shippable package with
-    # ./build-flatpak.sh.
+    # This script only produces a runnable publish/ for local dev, not a distributable package.
     echo ""
     echo "=== For a distributable package, run: ./build-flatpak.sh ==="
 

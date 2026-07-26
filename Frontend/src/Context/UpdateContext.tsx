@@ -20,8 +20,7 @@ export interface UpdateProgress {
 interface UpdateContextType {
   updateInfo: UpdateProgress | null;
   releaseNotes: ReleaseNote[];
-  // False on Linux (Flatpak / package manager owns updates); the UI shows update guidance instead of
-  // an in-app updater. Defaults to true until the backend's AppVersion message arrives.
+  // False on Linux (Flatpak); defaults to true until the backend's AppVersion message arrives.
   canSelfUpdate: boolean;
   openReleaseNotesModal: (filterVersion?: string | null) => void;
   clearUpdateInfo: () => void;

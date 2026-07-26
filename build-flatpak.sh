@@ -3,15 +3,8 @@
 #
 #   SEGRA_VERSION=1.7.0 OBS_VERSION=32.2.0 ./build-flatpak.sh
 #
-# Steps:
-#   1. build the frontend and publish the self-contained .NET app (linux-x64)
-#   2. assemble the OBS runtime (libobs + plugins + data + the two helpers) from OBS Studio's official
-#      Ubuntu-24.04 build, via Obs/build-linux-bundle.sh
-#   3. stage everything into ./flatpak-staging (the manifest installs this verbatim)
-#   4. run flatpak-builder and export output/Segra.flatpak
-#
-# Requires: flatpak, flatpak-builder, dotnet 10 SDK, node. The GNOME 47 runtime/SDK and the
-# ffmpeg-full extension are installed from Flathub if missing.
+# Requires: flatpak, flatpak-builder, dotnet 10 SDK, node (installs the GNOME 47 runtime/SDK +
+# ffmpeg-full from Flathub if missing).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -19,9 +12,7 @@ cd "$SCRIPT_DIR"
 
 VERSION="${SEGRA_VERSION:-1.0.0}"
 OBS_VERSION="${OBS_VERSION:-32.2.0}"
-# Exported so the csproj BuildFrontendAssets target (which re-runs `npm run build` during publish and
-# embeds the result) stamps the same version the backend reports; otherwise the embedded UI says
-# "Developer Preview".
+# Exported so csproj's BuildFrontendAssets target stamps the frontend build with the same version.
 export SEGRA_VERSION="$VERSION"
 APP_ID="tv.segra.Segra"
 MANIFEST="packaging/flatpak/${APP_ID}.yml"
@@ -29,8 +20,7 @@ STAGING="flatpak-staging"
 
 command -v flatpak-builder >/dev/null 2>&1 || { echo "error: flatpak-builder not installed (apt install flatpak-builder)"; exit 1; }
 
-# Must run before staging: that step enumerates the runtime's sonames to decide which of OBS's
-# dependencies to bundle, and an absent runtime would silently bundle the whole ldd closure.
+# Must run before staging, which enumerates the runtime's sonames to decide what OBS deps to bundle.
 echo "=== Runtime/SDK (no-op if already installed) ==="
 flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo || true
 flatpak install --user -y --noninteractive flathub \
@@ -61,22 +51,12 @@ tar xzf "$OBS_TARBALL" -C "$STAGING/payload"
 cp -a packaging/linux/obs-helpers/obs-nvenc-test packaging/linux/obs-helpers/obs-ffmpeg-mux "$STAGING/payload/"
 chmod +x "$STAGING/payload/Segra" "$STAGING/payload/obs-nvenc-test" "$STAGING/payload/obs-ffmpeg-mux"
 
-# Bundle OBS's media dependencies from this Ubuntu-24.04 host. The Flatpak runtime ships FFmpeg 7
-# (libavcodec.so.61), but the Ubuntu-24.04 OBS links FFmpeg 6 (libavcodec.so.60) plus x264/jansson/
-# rist/srt, none matching the runtime, so libobs can't dlopen and OBS silently fails to start. Copy the
-# exact libraries OBS resolves here (its flattened ldd closure), filtered to media/codec libs. GL / GTK /
-# glibc / system libs are intentionally NOT bundled; those must come from the runtime.
+# Bundle OBS's media deps (Ubuntu-24.04 FFmpeg 6/x264/jansson/rist/srt) that the runtime's FFmpeg 7 can't satisfy.
 LIBDST="$STAGING/payload/lib"
-# Build the set of sonames the GNOME runtime already ships, and bundle ONLY what it lacks. This is matched
-# by soname, so a version-mismatched library is still bundled (libicuuc.so.74 vs the runtime's .75,
-# libjpeg.so.8 vs .62, OBS's FFmpeg 6 vs the runtime's 7) while everything the runtime provides (glibc,
-# GL, X11/Wayland, GTK/GLib, and critically WebKitGTK (whose WebKitNetworkProcess/WebProcess helpers are
-# path-coupled to the runtime) comes from the runtime. Enumerating the runtime beats a hand-written
-# denylist that can never be complete.
+# Bundle only sonames the GNOME runtime doesn't already provide, so glibc/GL/GTK/WebKitGTK stay runtime-supplied.
 declare -A RUNTIME_PROVIDES
 RT="$(flatpak info -l org.gnome.Platform//47 2>/dev/null || true)"
-# Fail rather than warn: an empty inventory bundles the entire ldd closure (glibc, GL, GTK, WebKitGTK),
-# which produces a subtly broken Flatpak instead of an obvious build failure.
+# Fail rather than warn: an empty inventory would silently bundle the entire ldd closure instead.
 [ -n "$RT" ] && [ -d "$RT/files" ] || { echo "error: org.gnome.Platform//47 not installed; cannot determine which libraries to bundle"; exit 1; }
 while IFS= read -r so; do RUNTIME_PROVIDES["$(basename "$so")"]=1; done \
   < <(find "$RT/files" -name '*.so*' 2>/dev/null)
@@ -90,9 +70,7 @@ bundle_media_dep() {   # $1 = resolved host path
   [ "$(basename "$real")" != "$base" ] && ln -sf "$(basename "$real")" "$LIBDST/$base"
   return 0
 }
-# Scan OBS's libraries AND the app's own native libraries (Photino.Native.so, libSystem.*.Native.so, …):
-# Photino.Native is built on Ubuntu 24.04 and needs libicuuc.so.74, but the runtime ships ICU 75, so that
-# too must be bundled.
+# Scan OBS's libraries AND the app's own native libraries (Photino.Native.so needs ICU 74, runtime ships 75).
 { for f in "$LIBDST"/libobs*.so.*[0-9] "$STAGING/payload/obs-plugins/"*.so \
            "$STAGING/payload/"*.so \
            "$STAGING/payload/obs-nvenc-test" "$STAGING/payload/obs-ffmpeg-mux"; do
@@ -115,8 +93,7 @@ flatpak-builder --user --force-clean --repo=repo build-dir "$MANIFEST"
 mkdir -p output
 flatpak build-bundle repo "output/Segra.flatpak" "$APP_ID"
 
-# The same staged tree, as a tarball the Flathub manifest consumes by url + sha256
-# (packaging/flatpak/flathub/). Flathub's builders cannot see this working copy.
+# The same staged tree, as a tarball the Flathub manifest consumes by url + sha256.
 PAYLOAD="output/segra-${VERSION}-x86_64.tar.gz"
 tar czf "$PAYLOAD" -C "$STAGING" .
 sha256sum "$PAYLOAD" | awk '{print $1}' > "$PAYLOAD.sha256"

@@ -295,10 +295,7 @@ jobs:
             ./linux/segra-*-x86_64.tar.gz
             ./linux/segra-*-x86_64.tar.gz.sha256
 
-  # Linux Flatpak: builds in parallel with the Windows job (no dependency on it) and uploads
-  # output/Segra.flatpak as an artifact that create_github_release publishes into the same release.
-  # OBS (libobs + plugins + data + helpers) is bundled inside the Flatpak, so nothing is downloaded at
-  # runtime. continue-on-error so a Linux failure never fails the run or blocks the Windows release.
+  # Linux Flatpak, built in parallel with Windows; continue-on-error so it never blocks the release.
   build_linux:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -327,8 +324,7 @@ jobs:
           node-version: '20'
 
       - name: Install Flatpak toolchain + OBS media deps
-        # The media libs (FFmpeg 6, x264, jansson, rist, srt + codecs) must be present so build-flatpak.sh
-        # can copy OBS's ldd closure into the Flatpak (the runtime ships FFmpeg 7, which OBS can't use).
+        # OBS's media libs (FFmpeg 6, x264, jansson, rist, srt) so build-flatpak.sh can bundle its ldd closure.
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak flatpak-builder \
@@ -336,14 +332,10 @@ jobs:
           flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
 
       - name: Build Flatpak (OBS bundled)
-        # build-flatpak.sh publishes the app, assembles OBS from OBS's official Ubuntu-24.04 build via
-        # Obs/build-linux-bundle.sh, installs the GNOME 47 runtime + ffmpeg-full, and exports
-        # output/Segra.flatpak.
         run: SEGRA_VERSION=${{ steps.ver.outputs.num }} ./build-flatpak.sh
 
       - name: Upload Linux build artifact
-        # The payload tarball + sha256 are what the Flathub manifest references by url/sha256
-        # (packaging/flatpak/flathub/); the .flatpak bundle is for direct installs.
+        # The tarball + sha256 feed the Flathub manifest; the .flatpak bundle is for direct installs.
         uses: actions/upload-artifact@v7
         with:
           name: Segra-Linux

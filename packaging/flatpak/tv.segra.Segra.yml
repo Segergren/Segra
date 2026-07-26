@@ -1,18 +1,6 @@
-# Flatpak manifest for Segra, one artifact for every distro.
-#
-# The runtime provides glibc / GTK / WebKitGTK; this bundles the app plus the OBS recorder
-# (libobs + plugins + data + the obs-nvenc-test / obs-ffmpeg-mux helpers) so NOTHING is downloaded at
-# runtime and there is no host glibc/FFmpeg coupling. The class of bugs the download-based AppImage/.deb
-# suffered from simply cannot occur here.
-#
-# The app payload is pre-staged on the host by build-flatpak.sh into ../../flatpak-staging, then this
-# manifest just installs it (buildsystem: simple). OBS binaries come from OBS Studio's official
-# Ubuntu-24.04 build (glibc <= 2.34, FFmpeg 6), assembled by Obs/build-linux-bundle.sh.
-#
-# Build:  ./build-flatpak.sh         (wraps flatpak-builder + build-bundle)
-# Manual: flatpak-builder --user --install --force-clean --repo=repo \
-#           build-dir packaging/flatpak/tv.segra.Segra.yml
-#         flatpak build-bundle repo output/Segra.flatpak tv.segra.Segra
+# Flatpak manifest for Segra. Bundles the app + OBS recorder so nothing is downloaded at runtime,
+# unlike the old download-based AppImage/.deb. Payload is pre-staged by build-flatpak.sh into
+# ../../flatpak-staging; this manifest just installs it. Build: ./build-flatpak.sh
 app-id: tv.segra.Segra
 runtime: org.gnome.Platform
 runtime-version: '47'
@@ -29,33 +17,23 @@ finish-args:
   # Screen + camera capture go through PipeWire and the ScreenCast/Camera portals (same path OBS uses)
   - --filesystem=xdg-run/pipewire-0
   - --talk-name=org.freedesktop.portal.Desktop
-  # GPU + capture devices. --device=all (not just dri) exposes the /dev/nvidia* compute nodes NVENC/CUDA
-  # need, plus any capture cards. NVENC also uses the host-matched org.freedesktop.Platform.GL.nvidia
-  # extension, which Flathub installs automatically.
+  # --device=all (not just dri) exposes /dev/nvidia* for NVENC/CUDA, plus any capture cards.
   - --device=all
   # Network: auth, update checks, game integrations
   - --share=network
-  # Game detection. Flatpak gives us our own PID namespace, so /proc holds only Segra's processes and
-  # no game is ever seen. This lets FlatpakHost read the host's process list via flatpak-spawn --host.
-  # The same permission runs the session tools the runtime does not ship (zenity, pactl, xrandr, xclip)
-  # on the host.
+  # Game detection: our own PID namespace hides other processes, so FlatpakHost reads /proc via flatpak-spawn --host.
   - --talk-name=org.freedesktop.Flatpak
-  # Steam libraries, so a detected Proton game's install dir (STEAM_COMPAT_INSTALL_PATH) can be read to
-  # resolve the real .exe. Default libraries live under home; extra ones usually on a mounted drive.
+  # Steam libraries, to resolve a detected Proton game's real .exe under STEAM_COMPAT_INSTALL_PATH.
   - --filesystem=home
   - --filesystem=/run/media
   - --filesystem=/media
   - --filesystem=/mnt
-  # --filesystem=home deliberately excludes ~/.var/app, which is exactly where Flatpak Steam keeps its
-  # default library, so grant that tree explicitly (read-only: we only look for the game's .exe).
+  # --filesystem=home excludes ~/.var/app, which is where Flatpak Steam keeps its default library.
   - --filesystem=~/.var/app/com.valvesoftware.Steam:ro
   # Where recordings/clips are written (default content folder is under the user's Videos)
   - --filesystem=xdg-videos
 
-# Full FFmpeg (H.264/H.265/AV1) for libobs' obs-ffmpeg / VAAPI encoders. Mounts at /app/lib/ffmpeg and
-# is auto-added to the library path. Its soname must match the OBS build (Ubuntu-24.04 OBS links FFmpeg
-# 6 / libavcodec.so.60); if a future runtime bumps FFmpeg and OBS fails to load its encoders, either pin
-# the runtime or build libobs from source in a module here.
+# Full FFmpeg for libobs' obs-ffmpeg / VAAPI encoders; soname must match the OBS build (FFmpeg 6).
 add-extensions:
   org.freedesktop.Platform.ffmpeg-full:
     directory: lib/ffmpeg

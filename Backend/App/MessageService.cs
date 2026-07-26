@@ -213,11 +213,7 @@ namespace Segra.Backend.App
 
                             await SendGameList();
 
-                            // Send version to frontend to prevent mismatch. canSelfUpdate tells the
-                            // UI whether the in-app (Velopack) updater applies: on Windows it does;
-                            // on Linux the Flatpak / system package manager owns updates, so the UI
-                            // shows update guidance instead of a self-updater. A Flatpak install has no
-                            // Velopack metadata at all, so fall back to the assembly version there.
+                            // canSelfUpdate: false on Linux/Flatpak, where the package manager owns updates.
                             string appVersion = UpdateService.UpdateManager.CurrentVersion?.ToString()
                                 ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)
                                 ?? "0.0.0";

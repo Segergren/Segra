@@ -373,16 +373,13 @@ namespace Segra.Backend.Media
             string videoCodec;
             string qualityArgs;
             string presetArgs;
-            // VAAPI needs the device named before the input, and frames uploaded to it before the
-            // encoder sees them. Empty for every other encoder.
+            // VAAPI needs the device named before the input and frames uploaded to it; empty otherwise.
             string hwDeviceArgs = "";
             string hwFilterArgs = "";
             if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
             {
 #if !WINDOWS
-                // The ffmpeg we shell out to on Linux only ships the VAAPI hardware encoders, whatever
-                // the GPU vendor is, so the vendor switch below would name an encoder that does not
-                // exist and the export would fail outright.
+                // Our Linux ffmpeg only ships VAAPI hardware encoders, regardless of GPU vendor.
                 string? vaapiNode = FindVaapiRenderNode();
                 if (vaapiNode != null)
                 {
@@ -393,8 +390,7 @@ namespace Segra.Backend.Media
                     else
                         videoCodec = "h264_vaapi";
 
-                    // CQP is VAAPI's constant-quality mode. It has no -preset, so the frontend's
-                    // preset does not apply.
+                    // CQP is VAAPI's constant-quality mode; it has no -preset.
                     qualityArgs = $"-rc_mode CQP -qp {settings.ClipQualityGpu}";
                     presetArgs = "";
                     hwDeviceArgs = $"-vaapi_device {vaapiNode} ";

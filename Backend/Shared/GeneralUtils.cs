@@ -210,11 +210,8 @@ namespace Segra.Backend.Shared
                 return GpuVendor.Unknown;
             }
 #else
-            // Linux: read PCI vendor IDs of the DRM cards from sysfs. The order sysfs returns them in
-            // carries no meaning (a Ryzen APU + GeForce box lists the iGPU first), so collect them all
-            // and rank by encoder preference. Unlike DXCore on Windows there is no dependable
-            // "is integrated" bit to sort on: boot_vga can be the discrete card, and an APU's VRAM
-            // carve-out looks like a dGPU's.
+            // Linux: read PCI vendor IDs of the DRM cards from sysfs; sysfs order carries no meaning, so
+            // collect them all and rank by encoder preference rather than guessing which is integrated.
             try
             {
                 // Vendor -> the first card it was seen on, kept so the log can name it.
@@ -222,8 +219,7 @@ namespace Segra.Backend.Shared
 
                 foreach (string cardDir in Directory.GetDirectories("/sys/class/drm"))
                 {
-                    // Skips the connector entries (card1-DP-1) listed alongside the cards. Matching any
-                    // N also fixes the old "card?" glob, which stopped at card9.
+                    // Excludes connector entries (card1-DP-1); also fixes the old "card?" glob at card9.
                     string card = Path.GetFileName(cardDir);
                     if (!Regex.IsMatch(card, @"^card\d+$")) continue;
 
@@ -263,15 +259,10 @@ namespace Segra.Backend.Shared
         }
 
 #if !WINDOWS
-        // Drivers whose render nodes expose VAAPI *encoding*. NVIDIA's does not (nvidia-vaapi-driver
-        // is decode-only), so an NVIDIA node is never a candidate.
+        // NVIDIA's driver is decode-only (nvidia-vaapi-driver), so it's never a VAAPI encoding candidate.
         private static readonly string[] VaapiCapableDrivers = ["amdgpu", "radeon", "i915", "xe"];
 
-        /// <summary>
-        /// Path of a /dev/dri render node that can do VAAPI encoding, or null when there is none.
-        /// Deliberately independent of <see cref="DetectGpuVendor"/>: on an NVIDIA machine with an
-        /// AMD/Intel iGPU, the iGPU is what ffmpeg can actually encode on.
-        /// </summary>
+        // Independent of DetectGpuVendor: on NVIDIA + AMD/Intel iGPU, the iGPU is what ffmpeg can encode on.
         public static string? FindVaapiRenderNode()
         {
             try

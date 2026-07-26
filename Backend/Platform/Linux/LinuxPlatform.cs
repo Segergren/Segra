@@ -239,8 +239,7 @@ namespace Segra.Backend.Platform.Linux
 
     internal sealed class LinuxStartupManager : IStartupManager
     {
-        // Inside a Flatpak, ApplicationData points at ~/.var/app/<id>/config, which no session ever
-        // scans for autostart entries. The real ~/.config is still reachable through --filesystem=home.
+        // Under Flatpak, ApplicationData is ~/.var/app/<id>/config, which no session scans for autostart.
         private static string ConfigDir =>
             FlatpakHost.IsFlatpak
                 ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config")
@@ -256,8 +255,7 @@ namespace Segra.Backend.Platform.Linux
                 string path = DesktopFilePath;
                 if (enable)
                 {
-                    // Environment.ProcessPath is /app/segra/Segra, a path that only exists inside the
-                    // sandbox, so the host session has to launch us through flatpak instead.
+                    // Environment.ProcessPath only exists inside the sandbox, so launch via flatpak instead.
                     string exec = FlatpakHost.IsFlatpak
                         ? $"flatpak run {FlatpakHost.AppId} --from-startup"
                         : $"\"{Environment.ProcessPath ?? ""}\" --from-startup";
@@ -320,9 +318,7 @@ namespace Segra.Backend.Platform.Linux
     /// <summary>Small helpers for launching Linux CLI tools.</summary>
     internal static class LinuxProcess
     {
-        // Desktop-integration tools (zenity, pactl, xrandr, xclip) are not part of the Flatpak runtime
-        // and belong to the user's session anyway, so run them on the host through flatpak-spawn.
-        // Callers pass onHost: true for those; everything else stays in the sandbox.
+        // Desktop-integration tools (zenity, pactl, xrandr, xclip) aren't in the runtime; run them on the host.
         private static ProcessStartInfo StartInfo(string file, string args, bool onHost) =>
             onHost && FlatpakHost.IsFlatpak
                 ? new ProcessStartInfo("flatpak-spawn", $"--host {FlatpakHost.DirectoryArg} {file} {args}")

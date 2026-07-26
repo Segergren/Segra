@@ -16,11 +16,7 @@ namespace Segra.Backend.App
         public static GithubSource BetaSource = new("https://github.com/Segergren/Segra", null, true);
         public static UpdateManager UpdateManager { get; private set; } = new(Source);
 
-        /// <summary>
-        /// The version we are running, for anything that compares against a release range.
-        /// Velopack's CurrentVersion is null on any install without Velopack metadata - a dev build,
-        /// but also every Flatpak - so fall back to the assembly version the build stamps.
-        /// </summary>
+        // Falls back to the assembly version when Velopack has no metadata (dev builds, Flatpak).
         public static NuGet.Versioning.SemanticVersion GetCurrentVersion()
         {
             string? version = UpdateManager.CurrentVersion?.ToString()

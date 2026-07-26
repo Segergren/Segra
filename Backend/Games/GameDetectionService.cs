@@ -324,8 +324,7 @@ namespace Segra.Backend.Games
         {
             if (Platform.Linux.FlatpakHost.IsFlatpak)
             {
-                // One host call for the whole process list: a flatpak-spawn per pid, several times a
-                // second, would fork hundreds of times per poll and starve the encoder.
+                // One host call for the whole process list, not a flatpak-spawn per pid.
                 var installPaths = Platform.Linux.FlatpakHost.ReadEnvVarValues("STEAM_COMPAT_INSTALL_PATH");
                 // A failed read must not look like the game exited.
                 if (installPaths == null) return true;
@@ -473,8 +472,7 @@ namespace Segra.Backend.Games
                 return false;
             }
 
-            // 2. Check if the game is in the games.json list by exe pattern (Steam-only entries
-            // record via the launcher heuristic below, after its guards)
+            // 2. Check if the game is in the games.json list by exe pattern.
             bool isKnownGame = GameUtils.IsGameExePath(exePath);
             if (isKnownGame)
             {
@@ -804,8 +802,7 @@ namespace Segra.Backend.Games
             if (pid <= 0) return false;
 
 #if !WINDOWS
-            // Under Flatpak the tracked pid is a host pid, which never exists in our own PID namespace,
-            // so asking the runtime about it would report every recorded game as dead.
+            // Under Flatpak the tracked pid is a host pid, invisible to our own PID namespace.
             if (Platform.Linux.FlatpakHost.IsFlatpak)
                 return Platform.Linux.FlatpakHost.IsRunning(pid, TimeSpan.FromSeconds(2));
 #endif

@@ -259,9 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Discord sign-in opens in the default browser instead of taking over this webview, so the
-  // user can verify the page and back out. The backend receives the callback and sends the
-  // session back over the websocket.
+  // Discord sign-in opens in the default browser; the backend relays the session back over the websocket.
   const loginWithDiscord = useCallback(() => {
     setAuthError(null);
     setIsWaitingForDiscord(true);

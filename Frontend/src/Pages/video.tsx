@@ -1609,14 +1609,11 @@ export default function VideoComponent({ video }: { video: Content }) {
         title: 'Delete bookmark?',
         description: `Delete the ${bookmark.type.toLowerCase()} bookmark at ${bookmark.time}? This action cannot be undone.`,
         onConfirm: () => {
-          // Remove the bookmark from the array
           video.bookmarks.splice(bookmarkIndex, 1);
 
-          // Force a re-render to update the UI
           const bookmarks = [...video.bookmarks];
           video.bookmarks = bookmarks;
 
-          // Send message to backend to delete the bookmark
           sendMessageToBackend('DeleteBookmark', {
             FilePath: video.filePath,
             ContentType: video.type,

@@ -2855,10 +2855,7 @@ namespace Segra.Backend.Recorder
             if (IsOBSInstalled())
             {
                 Log.Information("OBS runtime found (downloaded, bundled, or system)");
-                // Deliberately no version list: switching versions comes back through here and returns
-                // at this same check, so the picker cannot change anything once a runtime is resolved
-                // (and in a Flatpak it is baked in). An empty list hides it, see AdvancedSection.tsx.
-                // The download path below still fetches on demand, so a first run is unaffected.
+                // Deliberately no version list: a resolved runtime can't be switched, see AdvancedSection.tsx.
                 return;
             }
 
