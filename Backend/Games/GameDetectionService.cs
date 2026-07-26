@@ -213,6 +213,10 @@ namespace Segra.Backend.Games
 
         private static HashSet<int> EnumerateProcPids()
         {
+            // In a Flatpak our /proc holds only our own processes, so read the host's instead.
+            if (Platform.Linux.FlatpakHost.IsFlatpak)
+                return [.. Platform.Linux.FlatpakHost.RefreshProcesses().Keys];
+
             var pids = new HashSet<int>();
             try
             {
@@ -270,7 +274,11 @@ namespace Segra.Backend.Games
         {
             try
             {
-                foreach (var entry in File.ReadAllText($"/proc/{pid}/environ").Split('\0'))
+                string environ = Platform.Linux.FlatpakHost.IsFlatpak
+                    ? Platform.Linux.FlatpakHost.ReadFile($"/proc/{pid}/environ")
+                    : File.ReadAllText($"/proc/{pid}/environ");
+
+                foreach (var entry in environ.Split('\0'))
                     if (entry.StartsWith(key + "=", StringComparison.Ordinal))
                         return entry[(key.Length + 1)..];
             }
@@ -590,15 +598,23 @@ namespace Segra.Backend.Games
 #if !WINDOWS
             // Linux: the exe is the target of the /proc/<pid>/exe symlink.
             string procExe = string.Empty;
-            try
+            if (Platform.Linux.FlatpakHost.IsFlatpak)
             {
-                var fsi = new FileInfo($"/proc/{pid}/exe");
-                string? target = fsi.LinkTarget;
-                if (!string.IsNullOrEmpty(target))
-                    // LinkTarget may be relative; prefer the fully-resolved target when available.
-                    procExe = fsi.ResolveLinkTarget(true)?.FullName ?? target;
+                // Served from the poll's host snapshot; only re-spawns if the pid is newer than it.
+                procExe = Platform.Linux.FlatpakHost.ExePath(pid, TimeSpan.FromSeconds(2));
             }
-            catch { /* process may have exited or be inaccessible */ }
+            else
+            {
+                try
+                {
+                    var fsi = new FileInfo($"/proc/{pid}/exe");
+                    string? target = fsi.LinkTarget;
+                    if (!string.IsNullOrEmpty(target))
+                        // LinkTarget may be relative; prefer the fully-resolved target when available.
+                        procExe = fsi.ResolveLinkTarget(true)?.FullName ?? target;
+                }
+                catch { /* process may have exited or be inaccessible */ }
+            }
 
             // Steam Proton/Wine games only expose a Wine preloader here (which matches no game); resolve
             // the real Windows .exe under STEAM_COMPAT_INSTALL_PATH so detection works.

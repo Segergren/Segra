@@ -29,6 +29,13 @@ STAGING="flatpak-staging"
 
 command -v flatpak-builder >/dev/null 2>&1 || { echo "error: flatpak-builder not installed (apt install flatpak-builder)"; exit 1; }
 
+# Must run before staging: that step enumerates the runtime's sonames to decide which of OBS's
+# dependencies to bundle, and an absent runtime would silently bundle the whole ldd closure.
+echo "=== Runtime/SDK (no-op if already installed) ==="
+flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo || true
+flatpak install --user -y --noninteractive flathub \
+    org.gnome.Platform//47 org.gnome.Sdk//47 org.freedesktop.Platform.ffmpeg-full//24.08 || true
+
 echo "=== 1/4 Frontend + publish (linux-x64, v$VERSION) ==="
 (cd Frontend && npm ci && SEGRA_VERSION="$VERSION" npm run build)
 rm -rf publish
@@ -68,13 +75,13 @@ LIBDST="$STAGING/payload/lib"
 # denylist that can never be complete.
 declare -A RUNTIME_PROVIDES
 RT="$(flatpak info -l org.gnome.Platform//47 2>/dev/null || true)"
-if [ -n "$RT" ] && [ -d "$RT/files" ]; then
-  while IFS= read -r so; do RUNTIME_PROVIDES["$(basename "$so")"]=1; done \
-    < <(find "$RT/files" -name '*.so*' 2>/dev/null)
-  echo "runtime provides ${#RUNTIME_PROVIDES[@]} sonames; bundling only what it lacks"
-else
-  echo "WARNING: could not locate org.gnome.Platform//47 inventory; OBS deps may be incomplete"
-fi
+# Fail rather than warn: an empty inventory bundles the entire ldd closure (glibc, GL, GTK, WebKitGTK),
+# which produces a subtly broken Flatpak instead of an obvious build failure.
+[ -n "$RT" ] && [ -d "$RT/files" ] || { echo "error: org.gnome.Platform//47 not installed; cannot determine which libraries to bundle"; exit 1; }
+while IFS= read -r so; do RUNTIME_PROVIDES["$(basename "$so")"]=1; done \
+  < <(find "$RT/files" -name '*.so*' 2>/dev/null)
+[ "${#RUNTIME_PROVIDES[@]}" -gt 0 ] || { echo "error: runtime inventory is empty (looked in $RT/files)"; exit 1; }
+echo "runtime provides ${#RUNTIME_PROVIDES[@]} sonames; bundling only what it lacks"
 bundle_media_dep() {   # $1 = resolved host path
   local src="$1" base; base="$(basename "$src")"
   [ -n "${RUNTIME_PROVIDES[$base]:-}" ] && return 1   # runtime already ships this soname — don't bundle
@@ -97,24 +104,28 @@ echo "bundled $(ls "$LIBDST" | grep -cvE '^libobs') media libs into payload/lib"
 # Flatpak metadata + launcher + icon the manifest installs
 cp packaging/flatpak/segra.sh "$STAGING/"
 cp "packaging/flatpak/${APP_ID}.desktop" "$STAGING/"
-cp "packaging/flatpak/${APP_ID}.metainfo.xml" "$STAGING/"
+sed -e "s/@VERSION@/$VERSION/" -e "s/@DATE@/$(date -u +%Y-%m-%d)/" \
+    "packaging/flatpak/${APP_ID}.metainfo.xml" > "$STAGING/${APP_ID}.metainfo.xml"
 # 256x256 PNG (the repo's icon.png is 1000x1000; Flatpak caps hicolor icons at 512x512).
 cp packaging/flatpak/icon-256.png "$STAGING/icon-256.png"
 
 echo "=== 4/4 flatpak-builder ==="
-# Ensure the runtime/SDK/extension are available (no-op if already installed).
-flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo || true
-flatpak install --user -y --noninteractive flathub \
-    org.gnome.Platform//47 org.gnome.Sdk//47 org.freedesktop.Platform.ffmpeg-full//24.08 || true
-
 rm -rf build-dir repo output
 flatpak-builder --user --force-clean --repo=repo build-dir "$MANIFEST"
 mkdir -p output
 flatpak build-bundle repo "output/Segra.flatpak" "$APP_ID"
 
+# The same staged tree, as a tarball the Flathub manifest consumes by url + sha256
+# (packaging/flatpak/flathub/). Flathub's builders cannot see this working copy.
+PAYLOAD="output/segra-${VERSION}-x86_64.tar.gz"
+tar czf "$PAYLOAD" -C "$STAGING" .
+sha256sum "$PAYLOAD" | awk '{print $1}' > "$PAYLOAD.sha256"
+
 echo ""
 echo "=== Done ==="
-echo "Bundle: $SCRIPT_DIR/output/Segra.flatpak"
+echo "Bundle:  $SCRIPT_DIR/output/Segra.flatpak"
+echo "Payload: $SCRIPT_DIR/$PAYLOAD"
+echo "sha256:  $(cat "$PAYLOAD.sha256")"
 echo "Install/run:"
 echo "  flatpak install --user ./output/Segra.flatpak"
 echo "  flatpak run $APP_ID"

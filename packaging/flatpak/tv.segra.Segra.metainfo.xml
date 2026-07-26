@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>tv.segra.Segra</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>LicenseRef-proprietary</project_license>
+  <project_license>GPL-2.0-only</project_license>
 
   <name>Segra</name>
   <summary>Record and clip your gameplay</summary>
@@ -40,6 +40,6 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
-    <release version="1.7.0" date="2026-07-22"/>
+    <release version="@VERSION@" date="@DATE@"/>
   </releases>
 </component>

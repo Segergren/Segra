@@ -292,6 +292,8 @@ jobs:
             ./assets.win.json
             ./Segra-${{ needs.build_and_release.outputs.final_version_number }}-full.nupkg
             ./linux/Segra.flatpak
+            ./linux/segra-*-x86_64.tar.gz
+            ./linux/segra-*-x86_64.tar.gz.sha256
 
   # Linux Flatpak: builds in parallel with the Windows job (no dependency on it) and uploads
   # output/Segra.flatpak as an artifact that create_github_release publishes into the same release.
@@ -340,10 +342,15 @@ jobs:
         run: SEGRA_VERSION=${{ steps.ver.outputs.num }} ./build-flatpak.sh
 
       - name: Upload Linux build artifact
+        # The payload tarball + sha256 are what the Flathub manifest references by url/sha256
+        # (packaging/flatpak/flathub/); the .flatpak bundle is for direct installs.
         uses: actions/upload-artifact@v7
         with:
           name: Segra-Linux
-          path: ./output/Segra.flatpak
+          path: |
+            ./output/Segra.flatpak
+            ./output/segra-*-x86_64.tar.gz
+            ./output/segra-*-x86_64.tar.gz.sha256
           if-no-files-found: error
           retention-days: 1
 

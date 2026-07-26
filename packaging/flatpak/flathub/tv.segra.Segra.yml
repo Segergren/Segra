@@ -1,23 +1,22 @@
-# Flatpak manifest for Segra — one artifact for every distro.
+# Flathub manifest for Segra. Identical to ../tv.segra.Segra.yml except for the payload source:
+# Flathub's builders have no access to our working copy, so instead of the locally staged
+# flatpak-staging/ directory this pulls the release tarball that build-flatpak.sh produces
+# (output/segra-<version>-x86_64.tar.gz) by url + sha256.
 #
-# The runtime provides glibc / GTK / WebKitGTK; this bundles the app plus the OBS recorder
-# (libobs + plugins + data + the obs-nvenc-test / obs-ffmpeg-mux helpers) so NOTHING is downloaded at
-# runtime and there is no host glibc/FFmpeg coupling — the class of bugs the download-based AppImage/.deb
-# suffered from simply cannot occur here.
-#
-# The app payload is pre-staged on the host by build-flatpak.sh into ../../flatpak-staging, then this
-# manifest just installs it (buildsystem: simple). OBS binaries come from OBS Studio's official
-# Ubuntu-24.04 build (glibc <= 2.34, FFmpeg 6), assembled by Obs/build-linux-bundle.sh.
-#
-# Build:  ./build-flatpak.sh         (wraps flatpak-builder + build-bundle)
-# Manual: flatpak-builder --user --install --force-clean --repo=repo \
-#           build-dir packaging/flatpak/tv.segra.Segra.yml
-#         flatpak build-bundle repo output/Segra.flatpak tv.segra.Segra
+# This file is what lives in the flathub/tv.segra.Segra repository, alongside flathub.json. Releases
+# are automatic (see x-checker-data below). To submit: fork flathub/flathub, put this on a branch named
+# new-pr, PR it against new-pr. Before submitting, fill in a real sha256 from a release build and add
+# screenshots to the metainfo, which reviewers will ask for.
 app-id: tv.segra.Segra
 runtime: org.gnome.Platform
 runtime-version: '47'
 sdk: org.gnome.Sdk
 command: segra
+
+# x86_64 only: the payload contains a linux-x64 .NET publish and OBS binaries from OBS Studio's
+# official Ubuntu-24.04 amd64 build.
+only-arches:
+  - x86_64
 
 finish-args:
   # Windowing + input (Photino / WebKitGTK)
@@ -76,5 +75,17 @@ modules:
       - install -Dm644 tv.segra.Segra.metainfo.xml /app/share/metainfo/tv.segra.Segra.metainfo.xml
       - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/tv.segra.Segra.png
     sources:
-      - type: dir
-        path: ../../flatpak-staging
+      - type: archive
+        url: https://github.com/Segergren/Segra/releases/download/v1.7.0/segra-1.7.0-x86_64.tar.gz
+        # Placeholder until the first release build; the checker maintains it after that.
+        sha256: 0000000000000000000000000000000000000000000000000000000000000000
+        # The tarball is the staged tree itself (payload/, segra.sh, .desktop, .metainfo.xml, icon).
+        strip-components: 0
+        # Flathub's external-data-checker watches our latest non-prerelease GitHub release and opens a
+        # PR bumping url + sha256. With automerge enabled (flathub.json) no manual step is needed per
+        # release. /releases/latest excludes prereleases, so betas never reach Flathub.
+        x-checker-data:
+          type: json
+          url: https://api.github.com/repos/Segergren/Segra/releases/latest
+          version-query: .tag_name | sub("^v"; "")
+          url-query: .assets[] | select(.name | endswith("-x86_64.tar.gz")) | .browser_download_url
