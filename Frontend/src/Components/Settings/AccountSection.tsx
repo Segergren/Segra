@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { TriangleAlert, LogOut, Ellipsis, Mail, History } from 'lucide-react';
 import { DiscordIcon } from '../icons/BrandIcons';
+import discordLoading from '../../assets/discord-loading.webp';
 import { useAuth } from '../../Hooks/useAuth';
 import { useProfile } from '../../Hooks/useUserProfile';
 import Button from '../Button';
@@ -12,11 +13,13 @@ export default function AccountSection() {
     user,
     session,
     isAuthenticating,
+    isWaitingForDiscord,
     authError,
     clearAuthError,
     login,
     register,
     loginWithDiscord,
+    cancelDiscordLogin,
     signOut,
   } = useAuth();
   const { data: profile, error: profileError } = useProfile();
@@ -96,7 +99,7 @@ export default function AccountSection() {
           <div className="relative">
             {lastUsedMethod === 'discord' && (
               <div
-                className={`absolute -top-3 right-2 bg-base-300 px-2 py-0.5 rounded-full border border-custom shadow-sm transition-all duration-300 ${isAuthenticating ? 'opacity-0 scale-75' : 'opacity-100 scale-100'}`}
+                className={`absolute -top-3 right-2 bg-base-300 px-2 py-0.5 rounded-full border border-custom shadow-sm transition-all duration-300 ${isAuthenticating || isWaitingForDiscord ? 'opacity-0 scale-75' : 'opacity-100 scale-100'}`}
               >
                 <div className="flex items-center gap-1 text-xs font-medium text-yellow-400">
                   <History className="w-3 h-3" />
@@ -108,12 +111,40 @@ export default function AccountSection() {
               variant="primary"
               className="w-full gap-2 font-semibold text-white border-custom hover:border-custom"
               onClick={handleDiscordLogin}
-              loading={isAuthenticating}
+              loading={isAuthenticating || isWaitingForDiscord}
+              loadingIcon={
+                isWaitingForDiscord ? (
+                  // 30px, not 20px: the frame fits the full swirl, so the resting logo fills ~2/3.
+                  <img
+                    src={discordLoading}
+                    alt=""
+                    aria-hidden="true"
+                    className="w-[30px] shrink-0"
+                  />
+                ) : undefined
+              }
             >
-              <DiscordIcon className="w-5 h-5" />
-              {isAuthenticating ? 'Connecting...' : 'Continue with Discord'}
+              {!isWaitingForDiscord && <DiscordIcon className="w-5 h-5" />}
+              {isWaitingForDiscord
+                ? 'Waiting for your browser...'
+                : isAuthenticating
+                  ? 'Connecting...'
+                  : 'Continue with Discord'}
             </Button>
           </div>
+
+          {isWaitingForDiscord && (
+            <p className="-mt-2 text-center text-xs text-gray-400">
+              Finish signing in with Discord in your browser.{' '}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-gray-200"
+                onClick={cancelDiscordLogin}
+              >
+                Cancel
+              </button>
+            </p>
+          )}
 
           <div className="divider">Or Use Email</div>
 

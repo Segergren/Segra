@@ -83,6 +83,12 @@ namespace Segra.Backend.App
                         case "Logout":
                             _ = Task.Run(AuthService.Logout);
                             break;
+                        case "LoginWithDiscord":
+                            _ = Task.Run(DiscordLoginService.Begin);
+                            break;
+                        case "CancelDiscordLogin":
+                            DiscordLoginService.Cancel();
+                            break;
                         case "CancelClip":
                             if (root.TryGetProperty("Parameters", out var cancelClipParams) &&
                                 cancelClipParams.TryGetProperty("id", out var clipId))

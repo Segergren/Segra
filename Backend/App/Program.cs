@@ -36,7 +36,23 @@ namespace Segra.Backend.App
         [DllImport("user32.dll")]
         static extern int GetSystemMetrics(int nIndex);
 
+        [DllImport("user32.dll")]
+        static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr processId);
+
+        [DllImport("user32.dll")]
+        static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("kernel32.dll")]
+        static extern uint GetCurrentThreadId();
+
         const int SW_HIDE = 0;
+        const int SW_RESTORE = 9;
         const int SM_CXFULLSCREEN = 16;
         const int SM_CYFULLSCREEN = 17;
 #endif
@@ -229,8 +245,7 @@ namespace Segra.Backend.App
 
                 Task.Run(() =>
                 {
-                    string prefix = "http://localhost:2222/";
-                    ContentServer.StartServer(prefix);
+                    ContentServer.StartServer(ContentServer.Prefix);
                 });
 
                 IsFirstRun = !SettingsService.LoadSettings();
@@ -472,6 +487,7 @@ namespace Segra.Backend.App
                         Window.SetTopMost(true);
                         await Task.Delay(200);
                         Window.SetTopMost(false);
+                        FocusApplicationWindow();
                         Log.Information("Application window brought to foreground");
                     }
                 });
@@ -485,8 +501,48 @@ namespace Segra.Backend.App
                 Window.SetTopMost(true);
                 await Task.Delay(200);
                 Window.SetTopMost(false);
+                FocusApplicationWindow();
                 Log.Information("Application window brought to foreground");
             }
+        }
+
+        public static void BringWindowToFront() => _ = ShowApplicationWindow();
+
+        // Raising the window still leaves focus with whoever had it (the browser, after an OAuth
+        // callback). Windows only grants SetForegroundWindow to the process owning the foreground,
+        // so borrow that thread's input queue for the call.
+        private static void FocusApplicationWindow()
+        {
+#if WINDOWS
+            try
+            {
+                IntPtr hWnd = Process.GetCurrentProcess().MainWindowHandle;
+                if (hWnd == IntPtr.Zero)
+                    return;
+
+                IntPtr foreground = GetForegroundWindow();
+                if (foreground == hWnd)
+                    return;
+
+                ShowWindow(hWnd, SW_RESTORE);
+
+                uint foregroundThread = GetWindowThreadProcessId(foreground, IntPtr.Zero);
+                uint currentThread = GetCurrentThreadId();
+                bool attached = foregroundThread != 0 && foregroundThread != currentThread &&
+                    AttachThreadInput(currentThread, foregroundThread, true);
+
+                SetForegroundWindow(hWnd);
+
+                if (attached)
+                    AttachThreadInput(currentThread, foregroundThread, false);
+
+                Log.Information("Application window focused");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not focus the application window");
+            }
+#endif
         }
 
         private static void HideApplicationWindow()

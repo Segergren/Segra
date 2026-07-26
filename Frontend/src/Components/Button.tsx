@@ -18,6 +18,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize;
   icon?: boolean; // Icon-only button (circular)
   loading?: boolean;
+  loadingIcon?: ReactNode; // Replaces the default spinner while loading
   children?: ReactNode;
 }
 
@@ -59,6 +60,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       size = 'md',
       icon = false,
       loading = false,
+      loadingIcon,
       disabled = false,
       className = '',
       children,
@@ -83,7 +85,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <button ref={ref} className={combinedClassName} disabled={disabled || loading} {...props}>
-        {loading && <span className="loading loading-spinner loading-sm w-4 h-4" />}
+        {loading &&
+          (loadingIcon ?? <span className="loading loading-spinner loading-sm w-4 h-4" />)}
         {children}
       </button>
     );
