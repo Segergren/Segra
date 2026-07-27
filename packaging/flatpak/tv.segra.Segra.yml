@@ -1,0 +1,63 @@
+# Flatpak manifest for Segra. Bundles the app + OBS recorder so nothing is downloaded at runtime,
+# unlike the old download-based AppImage/.deb. Payload is pre-staged by build-flatpak.sh into
+# ../../flatpak-staging; this manifest just installs it. Build: ./build-flatpak.sh
+app-id: tv.segra.Segra
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: segra
+
+finish-args:
+  # Windowing + input (Photino / WebKitGTK)
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  # Audio in/out
+  - --socket=pulseaudio
+  # Screen + camera capture go through PipeWire and the ScreenCast/Camera portals (same path OBS uses)
+  - --filesystem=xdg-run/pipewire-0
+  - --talk-name=org.freedesktop.portal.Desktop
+  # --device=all (not just dri) exposes /dev/nvidia* for NVENC/CUDA, plus any capture cards.
+  - --device=all
+  # Network: auth, update checks, game integrations
+  - --share=network
+  # Game detection: our own PID namespace hides other processes, so FlatpakHost reads /proc via flatpak-spawn --host.
+  - --talk-name=org.freedesktop.Flatpak
+  # Steam libraries, to resolve a detected Proton game's real .exe under STEAM_COMPAT_INSTALL_PATH.
+  - --filesystem=home
+  - --filesystem=/run/media
+  - --filesystem=/media
+  - --filesystem=/mnt
+  # --filesystem=home excludes ~/.var/app, which is where Flatpak Steam keeps its default library.
+  - --filesystem=~/.var/app/com.valvesoftware.Steam:ro
+  # Where recordings/clips are written (default content folder is under the user's Videos)
+  - --filesystem=xdg-videos
+
+# Full FFmpeg for libobs' obs-ffmpeg / VAAPI encoders; soname must match the OBS build (FFmpeg 6).
+add-extensions:
+  org.freedesktop.Platform.ffmpeg-full:
+    directory: lib/ffmpeg
+    version: '24.08'
+    add-ld-path: .
+    no-autodownload: false
+    autodelete: false
+
+modules:
+  - name: segra
+    buildsystem: simple
+    build-commands:
+      # Mount point for the ffmpeg-full extension
+      - mkdir -p /app/lib/ffmpeg
+      # App payload (Segra + .NET runtime + wwwroot + OBS lib/obs-plugins/data + the two helpers)
+      - install -d /app/segra
+      - cp -a payload/. /app/segra/
+      - chmod +x /app/segra/Segra /app/segra/obs-nvenc-test /app/segra/obs-ffmpeg-mux
+      # Launcher on PATH as `segra` (the manifest command)
+      - install -Dm755 segra.sh /app/bin/segra
+      # Desktop integration
+      - install -Dm644 tv.segra.Segra.desktop /app/share/applications/tv.segra.Segra.desktop
+      - install -Dm644 tv.segra.Segra.metainfo.xml /app/share/metainfo/tv.segra.Segra.metainfo.xml
+      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/tv.segra.Segra.png
+    sources:
+      - type: dir
+        path: ../../flatpak-staging

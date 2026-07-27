@@ -9,9 +9,7 @@ using Segra.Backend.Platform;
 
 namespace Segra.Backend.Auth
 {
-    // Discord sign-in happens in the user's default browser instead of the app webview, so the
-    // page is verifiable and the user can back out. segra.tv sends the browser back to the local
-    // ContentServer, which hands the session to the frontend over the websocket.
+    // Discord sign-in runs in the default browser; segra.tv calls back to ContentServer with the session.
     internal static class DiscordLoginService
     {
         private const string ApiBase = "https://segra.tv/api";
@@ -66,8 +64,7 @@ namespace Segra.Backend.Auth
             string? accessToken = query["access_token"];
             string? refreshToken = query["refresh_token"];
 
-            // The listener is reachable by anything on this machine, so an unrecognized state is
-            // treated as a forged callback and never reaches the frontend.
+            // Reject unrecognized state: the listener is reachable by anything on this machine.
             bool accepted = false;
             lock (_lock)
             {
@@ -136,8 +133,7 @@ namespace Segra.Backend.Auth
             }
         }
 
-        // No auto-close: browsers refuse close() for tabs a script did not open, so the tab is the
-        // user's to dismiss. Segra pulls itself to the foreground instead.
+        // No auto-close: browsers refuse close() for tabs a script did not open.
         private static async Task RespondAsync(HttpListenerContext context, string title, string message)
         {
             string safeTitle = WebUtility.HtmlEncode(title);

@@ -20,6 +20,8 @@ export interface UpdateProgress {
 interface UpdateContextType {
   updateInfo: UpdateProgress | null;
   releaseNotes: ReleaseNote[];
+  // False on Linux (Flatpak); defaults to true until the backend's AppVersion message arrives.
+  canSelfUpdate: boolean;
   openReleaseNotesModal: (filterVersion?: string | null) => void;
   clearUpdateInfo: () => void;
   checkForUpdates: () => void;
@@ -30,6 +32,7 @@ const UpdateContext = createContext<UpdateContextType | undefined>(undefined);
 export function UpdateProvider({ children }: { children: ReactNode }) {
   const [updateInfo, setUpdateInfo] = useState<UpdateProgress | null>(null);
   const [releaseNotes, setReleaseNotes] = useState<ReleaseNote[]>([]);
+  const [canSelfUpdate, setCanSelfUpdate] = useState<boolean>(true);
   const { openModal, closeModal } = useModal();
 
   // Mocked update info for testing purposes
@@ -65,6 +68,14 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
 
       if (isUpdateProgressMessage(message)) {
         setUpdateInfo(message.content);
+      }
+
+      if (
+        message.method === 'AppVersion' &&
+        message.content &&
+        typeof message.content.canSelfUpdate === 'boolean'
+      ) {
+        setCanSelfUpdate(message.content.canSelfUpdate);
       }
 
       if (isReleaseNotesMessage(message)) {
@@ -122,6 +133,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       value={{
         updateInfo,
         releaseNotes,
+        canSelfUpdate,
         openReleaseNotesModal,
         clearUpdateInfo,
         checkForUpdates,

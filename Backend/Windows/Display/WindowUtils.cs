@@ -585,9 +585,7 @@ namespace Segra.Backend.Windows.Display
                         && Math.Abs(logicalWidth - monitorBounds.Value.Width) <= fullscreenTolerance
                         && Math.Abs(logicalHeight - monitorBounds.Value.Height) <= fullscreenTolerance);
 
-                // If this is the first attempt and we have a standard aspect ratio, return immediately
-                // This prevents unnecessary waiting for games that are already open. Freshly started
-                // windowed processes don't qualify - their window is often a launcher/splash screen
+                // Skip waiting on a standard aspect ratio unless the process just started (splash screen risk).
                 bool isStandardAspectRatio = IsStandardAspectRatio(width, height);
                 if (isStandardAspectRatio && stableWindowDimensionsAttempt == 1 && windowHandleAttempts == 1
                     && (processStartedLongAgo || isFullscreen))

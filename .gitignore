@@ -173,8 +173,15 @@ DocProject/Help/html
 # Click-Once directory
 publish/
 
-# Velopack packaging output (build-local.sh / vpk pack)
+# Packaging output (Velopack vpk on Windows, Segra.flatpak on Linux)
 output/
+
+# Flatpak build artifacts (build-flatpak.sh)
+flatpak-staging/
+build-dir/
+.flatpak-builder/
+/repo/
+*.flatpak
 
 # Publish Web Output
 *.[Pp]ublish.xml
@@ -363,3 +370,6 @@ MigrationBackup/
 /Resources/wwwroot/*
 !/Resources/wwwroot/.gitkeep
 .playwright-mcp/
+
+# OBS Linux bundle is a throwaway build artifact (Flatpak regenerates + bundles it)
+Obs/*linux.tar.gz

@@ -39,7 +39,7 @@ function SectionHeader({ id, children }: { id: string; children: React.ReactNode
 }
 
 export default function Settings() {
-  const { openReleaseNotesModal, checkForUpdates } = useUpdate();
+  const { openReleaseNotesModal, checkForUpdates, canSelfUpdate } = useUpdate();
   const settings = useSettings();
   const updateSettings = useSettingsUpdater();
   // Airplane mode removes the Account section entirely (no login/cloud UI).
@@ -174,6 +174,7 @@ export default function Settings() {
           updateSettings={updateSettings}
           openReleaseNotesModal={openReleaseNotesModal}
           checkForUpdates={checkForUpdates}
+          canSelfUpdate={canSelfUpdate}
         />
       </div>
     </div>

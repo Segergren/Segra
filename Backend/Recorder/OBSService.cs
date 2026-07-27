@@ -2650,17 +2650,7 @@ namespace Segra.Backend.Recorder
                 if (response != null && response.Count > 0)
                 {
                     // Get the current Segra version
-                    NuGet.Versioning.SemanticVersion currentVersion;
-                    if (UpdateService.UpdateManager.CurrentVersion != null)
-                    {
-                        currentVersion = NuGet.Versioning.SemanticVersion.Parse(UpdateService.UpdateManager.CurrentVersion.ToString());
-                    }
-                    else
-                    {
-                        // Running in local development, use a high version to ensure we get the latest stable version
-                        currentVersion = NuGet.Versioning.SemanticVersion.Parse("9.9.9");
-                        Log.Warning("Could not get current version from UpdateManager, using default version for OBS compatibility check");
-                    }
+                    NuGet.Versioning.SemanticVersion currentVersion = UpdateService.GetCurrentVersion();
 
                     // Filter to only compatible versions
                     List<Core.Models.OBSVersion> compatibleVersions = response.Where(v =>
@@ -2865,7 +2855,7 @@ namespace Segra.Backend.Recorder
             if (IsOBSInstalled())
             {
                 Log.Information("OBS runtime found (downloaded, bundled, or system)");
-                _ = AvailableOBSVersionsAsync();
+                // Deliberately no version list: a resolved runtime can't be switched, see AdvancedSection.tsx.
                 return;
             }
 

@@ -1,5 +1,6 @@
 using Serilog;
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Segra.Backend.Auth;
@@ -212,16 +213,20 @@ namespace Segra.Backend.App
 
                             await SendGameList();
 
-                            if (UpdateService.UpdateManager.CurrentVersion != null)
-                            {
-                                string appVersion = UpdateService.UpdateManager.CurrentVersion.ToString();
+                            // canSelfUpdate: false on Linux/Flatpak, where the package manager owns updates.
+                            string appVersion = UpdateService.UpdateManager.CurrentVersion?.ToString()
+                                ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)
+                                ?? "0.0.0";
 
-                                // Send version to frontend to prevent mismatch
-                                await SendFrontendMessage("AppVersion", new
-                                {
-                                    version = appVersion
-                                });
-                            }
+                            await SendFrontendMessage("AppVersion", new
+                            {
+                                version = appVersion,
+#if WINDOWS
+                                canSelfUpdate = true,
+#else
+                                canSelfUpdate = false,
+#endif
+                            });
 
                             await UpdateService.SendCurrentUpdateProgressToFrontend();
                             _ = Task.Run(() => UpdateService.GetReleaseNotes());
