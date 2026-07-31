@@ -5,11 +5,11 @@
   <project_license>GPL-2.0-only</project_license>
 
   <name>Segra</name>
-  <summary>Record and clip your gameplay</summary>
+  <summary>Record and clip your games</summary>
 
   <description>
     <p>
-      Segra records your gameplay and lets you clip and share it. It captures with OBS
+      Segra records your games and lets you clip and share them. It captures with OBS
       (libobs) using hardware encoders (NVENC on NVIDIA and VAAPI on AMD/Intel) and includes a replay
       buffer, automatic game detection, and a built-in clip editor.
     </p>

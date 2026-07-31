@@ -1,6 +1,6 @@
 <img height="100" src="https://cdn.segra.tv/icon.png"/>
 
-**Segra** is an open-source game recorder built on Open Broadcaster Software (OBS). It records your gameplay in the background, lets you clip the good parts with a hotkey, and uploads them to [Segra.tv](https://segra.tv).
+**Segra** is an open-source game recorder built on Open Broadcaster Software (OBS). It records your games in the background, lets you clip the good parts with a hotkey, and uploads them to [Segra.tv](https://segra.tv).
 
 ### Clip Editor
 

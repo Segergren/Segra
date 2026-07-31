@@ -2,7 +2,7 @@
 Type=Application
 Name=Segra
 GenericName=Game Recorder
-Comment=Record and clip your gameplay
+Comment=Record and clip your games
 Exec=segra %U
 Icon=tv.segra.Segra
 Terminal=false
