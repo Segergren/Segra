@@ -109,31 +109,31 @@ export default function AdvancedSection({
 
         {/* Hidden when the recorder is fixed for this install (bundled or already downloaded) */}
         {appState.availableOBSVersions.length > 0 && (
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <div className="mb-1">
-              <span className="text-base-content">OBS Version</span>
-            </div>
-            <div className="w-40">
-              <DropdownSelect
-                size="sm"
-                items={[
-                  { value: '', label: 'Automatic' },
-                  ...[...appState.availableOBSVersions]
-                    .sort((a, b) => {
-                      return b.version.localeCompare(a.version, undefined, { numeric: true });
-                    })
-                    .map((v) => ({
-                      value: v.version,
-                      label: `${v.version}${v.isBeta ? ' (Beta)' : ''}`,
-                    })),
-                ]}
-                value={settings.selectedOBSVersion || ''}
-                onChange={(val) => updateSettings({ selectedOBSVersion: val || null })}
-              />
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col">
+              <div className="mb-1">
+                <span className="text-base-content">OBS Version</span>
+              </div>
+              <div className="w-40">
+                <DropdownSelect
+                  size="sm"
+                  items={[
+                    { value: '', label: 'Automatic' },
+                    ...[...appState.availableOBSVersions]
+                      .sort((a, b) => {
+                        return b.version.localeCompare(a.version, undefined, { numeric: true });
+                      })
+                      .map((v) => ({
+                        value: v.version,
+                        label: `${v.version}${v.isBeta ? ' (Beta)' : ''}`,
+                      })),
+                  ]}
+                  value={settings.selectedOBSVersion || ''}
+                  onChange={(val) => updateSettings({ selectedOBSVersion: val || null })}
+                />
+              </div>
             </div>
           </div>
-        </div>
         )}
 
         {/* Airplane Mode */}

@@ -51,7 +51,7 @@ modules:
       # App payload (Segra + .NET runtime + wwwroot + OBS lib/obs-plugins/data + the two helpers)
       - install -d /app/segra
       - cp -a payload/. /app/segra/
-      - chmod +x /app/segra/Segra /app/segra/obs-nvenc-test /app/segra/obs-ffmpeg-mux
+      - chmod +x /app/segra/Segra /app/segra/obs-nvenc-test /app/segra/obs-ffmpeg-mux /app/segra/ffmpeg
       # Launcher on PATH as `segra` (the manifest command)
       - install -Dm755 segra.sh /app/bin/segra
       # Desktop integration

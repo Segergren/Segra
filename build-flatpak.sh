@@ -3,7 +3,7 @@
 #
 #   SEGRA_VERSION=1.7.0 OBS_VERSION=32.2.0 ./build-flatpak.sh
 #
-# Requires: flatpak, flatpak-builder, dotnet 10 SDK, node (installs the GNOME 47 runtime/SDK +
+# Requires: flatpak, flatpak-builder, dotnet 10 SDK, node, ffmpeg (installs the GNOME 47 runtime/SDK +
 # ffmpeg-full from Flathub if missing).
 set -euo pipefail
 
@@ -19,6 +19,7 @@ MANIFEST="packaging/flatpak/${APP_ID}.yml"
 STAGING="flatpak-staging"
 
 command -v flatpak-builder >/dev/null 2>&1 || { echo "error: flatpak-builder not installed (apt install flatpak-builder)"; exit 1; }
+command -v ffmpeg >/dev/null 2>&1 || { echo "error: ffmpeg not installed (apt install ffmpeg); its binary gets bundled into the payload"; exit 1; }
 
 # Must run before staging, which enumerates the runtime's sonames to decide what OBS deps to bundle.
 echo "=== Runtime/SDK (no-op if already installed) ==="
@@ -49,7 +50,10 @@ cp -a publish/. "$STAGING/payload/"
 tar xzf "$OBS_TARBALL" -C "$STAGING/payload"
 # The two subprocess helpers, beside the Segra binary (libobs finds them via /proc/self/exe).
 cp -a packaging/linux/obs-helpers/obs-nvenc-test packaging/linux/obs-helpers/obs-ffmpeg-mux "$STAGING/payload/"
-chmod +x "$STAGING/payload/Segra" "$STAGING/payload/obs-nvenc-test" "$STAGING/payload/obs-ffmpeg-mux"
+# The ffmpeg CLI (clips/thumbnails/waveforms): neither the GNOME runtime nor the ffmpeg-full
+# extension ships the binary, so bundle the host's, beside Segra where FFmpegService looks first.
+cp -L "$(command -v ffmpeg)" "$STAGING/payload/ffmpeg"
+chmod +x "$STAGING/payload/Segra" "$STAGING/payload/obs-nvenc-test" "$STAGING/payload/obs-ffmpeg-mux" "$STAGING/payload/ffmpeg"
 
 # Bundle OBS's media deps (Ubuntu-24.04 FFmpeg 6/x264/jansson/rist/srt) that the runtime's FFmpeg 7 can't satisfy.
 LIBDST="$STAGING/payload/lib"
@@ -73,7 +77,8 @@ bundle_media_dep() {   # $1 = resolved host path
 # Scan OBS's libraries AND the app's own native libraries (Photino.Native.so needs ICU 74, runtime ships 75).
 { for f in "$LIBDST"/libobs*.so.*[0-9] "$STAGING/payload/obs-plugins/"*.so \
            "$STAGING/payload/"*.so \
-           "$STAGING/payload/obs-nvenc-test" "$STAGING/payload/obs-ffmpeg-mux"; do
+           "$STAGING/payload/obs-nvenc-test" "$STAGING/payload/obs-ffmpeg-mux" \
+           "$STAGING/payload/ffmpeg"; do
     [ -e "$f" ] && ldd "$f" 2>/dev/null
   done; } | grep -oE '=> /[^ ]+' | awk '{print $2}' | sort -u | while read -r p; do
   bundle_media_dep "$p" || true
