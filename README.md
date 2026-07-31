@@ -98,13 +98,14 @@ See our [Privacy Policy](https://segra.tv/privacy).
 
 ## Star History
 
-<a href="https://www.star-history.com/#Segergren/Segra&Date">
+<a href="https://www.star-history.com/?type=date&repos=Segergren%2FSegra">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Segergren/Segra&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Segergren/Segra&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Segergren/Segra&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Segergren/Segra&type=date&theme=dark&legend=top-left&sealed_token=JAaIsTwnipw7yKMwYTxXAZTVKOfmPUNhuDq2_b7iPCO4-K-c1tnLij-MXN0o8ZbyGH-ydukOtzcwUcsqXaiT89vKt6uwbFN8sKxKTRX9DGRLb1PPfRBgE7Wk8RrqLcQINaezbgie3IQEx-RMzNP98N3s2eQLQJgAXde2kUEHsgzPYk_DNdNIy58gfLsE" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Segergren/Segra&type=date&legend=top-left&sealed_token=JAaIsTwnipw7yKMwYTxXAZTVKOfmPUNhuDq2_b7iPCO4-K-c1tnLij-MXN0o8ZbyGH-ydukOtzcwUcsqXaiT89vKt6uwbFN8sKxKTRX9DGRLb1PPfRBgE7Wk8RrqLcQINaezbgie3IQEx-RMzNP98N3s2eQLQJgAXde2kUEHsgzPYk_DNdNIy58gfLsE" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Segergren/Segra&type=date&legend=top-left&sealed_token=JAaIsTwnipw7yKMwYTxXAZTVKOfmPUNhuDq2_b7iPCO4-K-c1tnLij-MXN0o8ZbyGH-ydukOtzcwUcsqXaiT89vKt6uwbFN8sKxKTRX9DGRLb1PPfRBgE7Wk8RrqLcQINaezbgie3IQEx-RMzNP98N3s2eQLQJgAXde2kUEHsgzPYk_DNdNIy58gfLsE" />
  </picture>
 </a>
+
 
 ## Acknowledgments
 - **[OBS Studio](https://obsproject.com)**: Segra records through OBS (libobs).
