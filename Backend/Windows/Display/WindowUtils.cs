@@ -488,24 +488,27 @@ namespace Segra.Backend.Windows.Display
             // If the owning process has been running for a while, the window is unlikely to still be
             // resizing (loading splashes, intro cinematics, etc) so we can confirm with far fewer
             // stability ticks instead of waiting the full 30s.
-            bool processStartedLongAgo = false;
-            try
-            {
-                GetWindowThreadProcessId(windowHandle, out uint windowPid);
-                if (windowPid != 0)
-                {
-                    using var proc = Process.GetProcessById((int)windowPid);
-                    if ((DateTime.Now - proc.StartTime).TotalSeconds > 180)
-                    {
-                        processStartedLongAgo = true;
-                    }
-                }
-            }
-            catch { }
+            bool processStartedLongAgo = ProcessStartedLongAgo(windowHandle);
 
             while (stableWindowDimensionsAttempt < maxStableWindowDimensionsAttempts)
             {
                 stableWindowDimensionsAttempt += 1;
+
+                // A launcher (e.g. BattlEye) can hand off to the real game exe mid-wait,
+                // so re-resolve the window when the pre-recording exe changes
+                string? latestExe = AppState.Instance.PreRecording?.Exe;
+                if (!string.IsNullOrEmpty(latestExe) && !string.IsNullOrEmpty(executableFileName)
+                    && !string.Equals(Path.GetFileName(latestExe), Path.GetFileName(executableFileName), StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Information($"Pre-recording exe changed from {Path.GetFileName(executableFileName)} to {Path.GetFileName(latestExe)}, re-resolving window...");
+                    executableFileName = latestExe;
+                    windowHandle = IntPtr.Zero;
+                    lastWidth = null;
+                    lastHeight = null;
+                    stabilityChecks = 0;
+                    stableWindowDimensionsAttempt = 1;
+                    processStartedLongAgo = false;
+                }
 
                 // Check if OBS captured dimensions are available and match display size
                 if (OBSService.CapturedWindowWidth.HasValue && OBSService.CapturedWindowHeight.HasValue)
@@ -522,6 +525,17 @@ namespace Segra.Backend.Windows.Display
                         Log.Information($"Using captured window dimensions from OBS logs (matches display size): {width}x{height}");
                         return true;
                     }
+                }
+
+                if (windowHandle == IntPtr.Zero)
+                {
+                    windowHandle = TryFindWindow(executableFileName, stableWindowDimensionsAttempt);
+                    if (windowHandle == IntPtr.Zero)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+                    processStartedLongAgo = ProcessStartedLongAgo(windowHandle);
                 }
 
                 if (!GetClientRect(windowHandle, out RECT rect))
@@ -661,6 +675,21 @@ namespace Segra.Backend.Windows.Display
             }
 
             Log.Warning($"Window dimension timeout after {maxStableWindowDimensionsAttempts} seconds");
+            return false;
+        }
+
+        private static bool ProcessStartedLongAgo(IntPtr windowHandle)
+        {
+            try
+            {
+                GetWindowThreadProcessId(windowHandle, out uint windowPid);
+                if (windowPid != 0)
+                {
+                    using var proc = Process.GetProcessById((int)windowPid);
+                    return (DateTime.Now - proc.StartTime).TotalSeconds > 180;
+                }
+            }
+            catch { }
             return false;
         }
     }
