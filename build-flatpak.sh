@@ -75,14 +75,28 @@ bundle_media_dep() {   # $1 = resolved host path
   return 0
 }
 # Scan OBS's libraries AND the app's own native libraries (Photino.Native.so needs ICU 74, runtime ships 75).
-{ for f in "$LIBDST"/libobs*.so.*[0-9] "$STAGING/payload/obs-plugins/"*.so \
+LDD_OUT="$({ for f in "$LIBDST"/libobs*.so.*[0-9] "$STAGING/payload/obs-plugins/"*.so \
            "$STAGING/payload/"*.so \
            "$STAGING/payload/obs-nvenc-test" "$STAGING/payload/obs-ffmpeg-mux" \
            "$STAGING/payload/ffmpeg"; do
-    [ -e "$f" ] && ldd "$f" 2>/dev/null
-  done; } | grep -oE '=> /[^ ]+' | awk '{print $2}' | sort -u | while read -r p; do
+    [ -e "$f" ] || continue
+    # .NET's optional LTTng tracing shim; only dlopen'd when tracing is enabled, fine unresolved.
+    [ "$(basename "$f")" = libcoreclrtraceptprovider.so ] && continue
+    ldd "$f" 2>/dev/null
+  done; true; })"
+grep -oE '=> /[^ ]+' <<<"$LDD_OUT" | awk '{print $2}' | sort -u | while read -r p; do
   bundle_media_dep "$p" || true
 done
+# A dep the host lacks shows as '=> not found' above and is silently skipped by the resolved-path grep
+# (CI once shipped builds without libsrt.so.1.5/libmbedtls.so.14 this way). Fail unless the runtime or
+# the payload itself (bundled libs reference each other, e.g. libobs.so) provides the soname.
+MISSING=""
+while IFS= read -r so; do
+  [ -z "$so" ] && continue
+  [ -n "${RUNTIME_PROVIDES[$so]:-}" ] && continue
+  [ -e "$LIBDST/$so" ] || [ -e "$STAGING/payload/$so" ] || MISSING="$MISSING $so"
+done < <(awk '$2 == "=>" && $3 == "not" && $4 == "found" {print $1}' <<<"$LDD_OUT" | sort -u)
+[ -z "$MISSING" ] || { echo "error: unresolved plugin deps not bundled:$MISSING (install them on the build host and rebuild)"; exit 1; }
 echo "bundled $(ls "$LIBDST" | grep -cvE '^libobs') media libs into payload/lib"
 # Flatpak metadata + launcher + icon the manifest installs
 cp packaging/flatpak/segra.sh "$STAGING/"
