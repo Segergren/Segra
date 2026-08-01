@@ -476,6 +476,22 @@ namespace Segra.Backend.App
             }
         }
 
+        private static async Task BringWindowToForegroundAsync()
+        {
+            if (Window == null)
+                return;
+
+            Window.Invoke(() =>
+            {
+                Window.SetMinimized(false);
+                Window.SetTopMost(true);
+            });
+            await Task.Delay(200);
+            Window.Invoke(() => Window.SetTopMost(false));
+            FocusApplicationWindow();
+            Log.Information("Application window brought to foreground");
+        }
+
         private static async Task ShowApplicationWindow()
         {
             Log.Information("Showing application window. Window is " + (Window == null ? "null" : "not null"));
@@ -486,15 +502,7 @@ namespace Segra.Backend.App
                 {
                     await Task.Delay(200);
                     Log.Information("Bringing application window to foreground from scheduled task");
-                    if (Window != null)
-                    {
-                        Window.SetMinimized(false);
-                        Window.SetTopMost(true);
-                        await Task.Delay(200);
-                        Window.SetTopMost(false);
-                        FocusApplicationWindow();
-                        Log.Information("Application window brought to foreground");
-                    }
+                    await BringWindowToForegroundAsync();
                 });
 
                 LoadFrontend();
@@ -502,12 +510,7 @@ namespace Segra.Backend.App
             else
             {
                 Log.Information("Bringing application window to foreground. Window is not null");
-                Window.SetMinimized(false);
-                Window.SetTopMost(true);
-                await Task.Delay(200);
-                Window.SetTopMost(false);
-                FocusApplicationWindow();
-                Log.Information("Application window brought to foreground");
+                await BringWindowToForegroundAsync();
             }
         }
 
@@ -696,10 +699,13 @@ namespace Segra.Backend.App
                                 {
                                     if (Window != null)
                                     {
-                                        Window.SetMinimized(false);
-                                        Window.SetTopMost(true);
+                                        Window.Invoke(() =>
+                                        {
+                                            Window.SetMinimized(false);
+                                            Window.SetTopMost(true);
+                                        });
                                         Thread.Sleep(200);
-                                        Window.SetTopMost(false);
+                                        Window.Invoke(() => Window.SetTopMost(false));
                                         Log.Information("Window brought to foreground directly from pipe server");
                                     }
                                     else
