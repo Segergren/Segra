@@ -66,7 +66,7 @@
     <PackageReference Include="Serilog" Version="4.4.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageReference Include="Velopack" Version="1.2.0" />
-    <PackageReference Include="ObsKit.NET" Version="1.5.1" />
+    <PackageReference Include="ObsKit.NET" Version="1.5.3" />
   </ItemGroup>
 
   <!-- Windows-only packages (NAudio/WASAPI, WMI, DirectX) -->
@@ -179,10 +179,7 @@
     </Content>
   </ItemGroup>
 
-  <Target
-    Name="BuildFrontendAssets"
-    Inputs="@(FrontendSourceFiles)"
-    Outputs="Resources\wwwroot\index.html">
+  <Target Name="BuildFrontendAssets" Inputs="@(FrontendSourceFiles)" Outputs="Resources\wwwroot\index.html">
     <Exec WorkingDirectory="Frontend" Command="npm ci" Condition="!Exists('Frontend\node_modules')" />
     <Exec WorkingDirectory="Frontend" Command="npm run build" />
     <MakeDir Directories="Resources\wwwroot" />
@@ -191,15 +188,10 @@
       <FrontendDistFiles Include="Frontend\dist\**\*" />
     </ItemGroup>
     <Delete Files="@(PackagedFrontendFiles)" />
-    <Copy
-      SourceFiles="@(FrontendDistFiles)"
-      DestinationFiles="@(FrontendDistFiles->'Resources\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(FrontendDistFiles)" DestinationFiles="@(FrontendDistFiles->'Resources\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
-  <Target
-    Name="IncludeFrontendAssets"
-    BeforeTargets="_CalculateEmbeddedFilesManifestInputs"
-    DependsOnTargets="BuildFrontendAssets">
+  <Target Name="IncludeFrontendAssets" BeforeTargets="_CalculateEmbeddedFilesManifestInputs" DependsOnTargets="BuildFrontendAssets">
     <ItemGroup>
       <EmbeddedResource Include="Resources\wwwroot\**\*" />
     </ItemGroup>
