@@ -111,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isWaitingForDiscord, setIsWaitingForDiscord] = useState(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionGenRef = useRef(0);
+  const adoptionAttemptedRef = useRef(false);
 
   const handleSignOut = useCallback(() => {
     sessionGenRef.current++;
@@ -193,6 +194,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Backend login state is synced by the WebSocket onOpen handler once the connection is ready.
       }
     }
+  }, []);
+
+  // No stored session on this origin (port change / cleared data): adopt the backend's tokens
+  // from the first Settings message only, so a sign-out can't be resurrected by a later push.
+  useEffect(() => {
+    const handleMessage = (event: CustomEvent<any>) => {
+      const message = event.detail;
+      if (message?.method !== 'Settings' || adoptionAttemptedRef.current) return;
+      adoptionAttemptedRef.current = true;
+      if (loadSession()) return;
+
+      const jwt = message.content?.auth?.jwt;
+      const refreshToken = message.content?.auth?.refreshToken;
+      if (!jwt || !refreshToken) return;
+
+      const adopted: AuthSession = { access_token: jwt, refresh_token: refreshToken };
+      const adoptedUser = getUserFromJwt(adopted.access_token);
+      if (!adoptedUser) return;
+
+      console.log('No local session; adopting persisted session from backend');
+      saveSession(adopted);
+      setSession(adopted);
+      setUser(adoptedUser);
+      // If the adopted JWT is already expired, the auto-refresh effect refreshes it immediately.
+    };
+    window.addEventListener('websocket-message', handleMessage as EventListener);
+    return () => window.removeEventListener('websocket-message', handleMessage as EventListener);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

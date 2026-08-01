@@ -203,7 +203,7 @@ namespace Segra.Backend.App
                 if (!IsVSCodeDebug)
                 {
                     PhotinoServer
-                        .CreateStaticFileServer(args, out baseUrl)
+                        .CreateStaticFileServer(args, startPort: 44040, portRange: 100, webRootFolder: "wwwroot", out baseUrl)
                         .RunAsync();
                 }
 
