@@ -325,12 +325,13 @@ jobs:
 
       - name: Install Flatpak toolchain + OBS media deps
         # OBS's media libs (FFmpeg 6, x264, jansson, rist, srt, mbedtls) so build-flatpak.sh can bundle its ldd closure.
-        # obs-ffmpeg.so links the openssl srt variant and obs-outputs.so needs all three mbedtls libs.
+        # obs-ffmpeg.so links the openssl srt variant, obs-outputs.so needs all three mbedtls libs,
+        # and libobs-scripting needs luajit.
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak flatpak-builder \
             ffmpeg libavcodec-extra libx264-164 libjansson4 librist4 libsrt1.5-gnutls \
-            libsrt1.5-openssl libmbedtls14t64 libmbedx509-1t64 libmbedcrypto7t64
+            libsrt1.5-openssl libmbedtls14t64 libmbedx509-1t64 libmbedcrypto7t64 libluajit-5.1-2
           flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
 
       - name: Build Flatpak (OBS bundled)
