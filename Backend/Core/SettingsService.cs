@@ -201,6 +201,7 @@ namespace Segra.Backend.Core
         {
             var settings = Settings.Instance;
             bool hasChanges = false;
+            bool shouldStartAlwaysOnDisplayCapture = false;
 
             // Begin bulk update to suppress multiple state updates
             settings.BeginBulkUpdate();
@@ -724,6 +725,21 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.AlwaysOnDisplayCapture != updatedSettings.AlwaysOnDisplayCapture)
+            {
+                Log.Information($"AlwaysOnDisplayCapture changed from '{settings.AlwaysOnDisplayCapture}' to '{updatedSettings.AlwaysOnDisplayCapture}'");
+                shouldStartAlwaysOnDisplayCapture = !settings.AlwaysOnDisplayCapture && updatedSettings.AlwaysOnDisplayCapture;
+                settings.AlwaysOnDisplayCapture = updatedSettings.AlwaysOnDisplayCapture;
+                hasChanges = true;
+            }
+
+            if (settings.AlwaysOnDisplayCaptureRecordSession != updatedSettings.AlwaysOnDisplayCaptureRecordSession)
+            {
+                Log.Information($"AlwaysOnDisplayCaptureRecordSession changed from '{settings.AlwaysOnDisplayCaptureRecordSession}' to '{updatedSettings.AlwaysOnDisplayCaptureRecordSession}'");
+                settings.AlwaysOnDisplayCaptureRecordSession = updatedSettings.AlwaysOnDisplayCaptureRecordSession;
+                hasChanges = true;
+            }
+
             if (settings.StartupWindowMode != updatedSettings.StartupWindowMode)
             {
                 Log.Information($"StartupWindowMode changed from '{settings.StartupWindowMode}' to '{updatedSettings.StartupWindowMode}'");
@@ -796,6 +812,14 @@ namespace Segra.Backend.Core
                 // End bulk update without saving if no changes were made
                 settings._isBulkUpdating = false;
                 Log.Information("No settings changes detected");
+            }
+
+            if (shouldStartAlwaysOnDisplayCapture && OBSService.IsInitialized)
+            {
+                if (!OBSService.StartAlwaysOnDisplayCapture())
+                {
+                    Log.Warning("Always-On Display Capture was enabled but could not be started immediately");
+                }
             }
         }
 

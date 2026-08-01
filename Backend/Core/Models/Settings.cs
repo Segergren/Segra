@@ -51,6 +51,8 @@ namespace Segra.Backend.Core.Models
         private double _highlightPaddingBefore = 4;
         private double _highlightPaddingAfter = 4;
         private bool _runOnStartup = false;
+        private bool _alwaysOnDisplayCapture = false;
+        private bool _alwaysOnDisplayCaptureRecordSession = false;
         private StartupWindowMode _startupWindowMode = StartupWindowMode.Minimized;
         private CloseButtonAction _closeButtonAction = CloseButtonAction.Minimize;
         private bool _receiveBetaUpdates = false;
@@ -450,6 +452,20 @@ namespace Segra.Backend.Core.Models
                     PlatformServices.Startup.SetStartupStatus(value);
                 }
             }
+        }
+
+        [JsonPropertyName("alwaysOnDisplayCapture")]
+        public bool AlwaysOnDisplayCapture
+        {
+            get => _alwaysOnDisplayCapture;
+            set => _alwaysOnDisplayCapture = value;
+        }
+
+        [JsonPropertyName("alwaysOnDisplayCaptureRecordSession")]
+        public bool AlwaysOnDisplayCaptureRecordSession
+        {
+            get => _alwaysOnDisplayCaptureRecordSession;
+            set => _alwaysOnDisplayCaptureRecordSession = value;
         }
 
         // Whether the window opens normally or stays minimized to tray when launched from startup.

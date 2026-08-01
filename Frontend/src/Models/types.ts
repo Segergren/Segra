@@ -291,6 +291,8 @@ export interface Settings {
   enableAi: boolean;
   autoGenerateHighlights: boolean;
   runOnStartup: boolean;
+  alwaysOnDisplayCapture: boolean;
+  alwaysOnDisplayCaptureRecordSession: boolean;
   startupWindowMode: StartupWindowMode; // Window state when launched from startup
   closeButtonAction: CloseButtonAction;
   receiveBetaUpdates: boolean;
@@ -374,6 +376,8 @@ export const initialSettings: Settings = {
   enableAi: true,
   autoGenerateHighlights: true,
   runOnStartup: false,
+  alwaysOnDisplayCapture: false,
+  alwaysOnDisplayCaptureRecordSession: false,
   startupWindowMode: 'Minimized',
   closeButtonAction: 'Minimize',
   receiveBetaUpdates: false,

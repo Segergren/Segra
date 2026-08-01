@@ -618,6 +618,17 @@ namespace Segra.Backend.Recorder
                 }
 
                 _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
+
+                // Start this before game detection so a game that is already open cannot replace
+                // the user's requested display capture with a game recording during startup.
+                if (Settings.Instance.AlwaysOnDisplayCapture)
+                {
+                    if (!StartAlwaysOnDisplayCapture())
+                    {
+                        Log.Warning("Always-On Display Capture could not be started");
+                    }
+                }
+
                 _ = GameDetectionService.StartAsync();
                 GameDetectionService.ForegroundHook.Start();
             }
@@ -739,13 +750,34 @@ namespace Segra.Backend.Recorder
         private static EffectiveRecordingSettings? _activeEffectiveSettings;
         public static EffectiveRecordingSettings? ActiveEffectiveSettings => _activeEffectiveSettings;
 
-        public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null)
+        public static bool StartAlwaysOnDisplayCapture()
+        {
+            if (!Settings.Instance.AlwaysOnDisplayCapture)
+            {
+                Log.Information("Always-On Display Capture is disabled; skipping start");
+                return false;
+            }
+
+            RecordingMode recordingMode = Settings.Instance.AlwaysOnDisplayCaptureRecordSession
+                ? RecordingMode.Hybrid
+                : RecordingMode.Buffer;
+            Log.Information(
+                "Starting Always-On Display Capture in {RecordingMode} mode",
+                recordingMode);
+
+            return StartRecording(
+                name: "Display Capture",
+                startManually: true,
+                recordingModeOverride: recordingMode);
+        }
+
+        public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null, RecordingMode? recordingModeOverride = null)
         {
             // Held for the whole call (not just a wait-then-release at entry) so Start and Stop can never interleave.
             _stopRecordingSemaphore.Wait();
             try
             {
-                return StartRecordingCore(name, exePath, startManually, pid);
+                return StartRecordingCore(name, exePath, startManually, pid, recordingModeOverride);
             }
             finally
             {
@@ -753,7 +785,7 @@ namespace Segra.Backend.Recorder
             }
         }
 
-        private static bool StartRecordingCore(string name, string exePath, bool startManually, int? pid)
+        private static bool StartRecordingCore(string name, string exePath, bool startManually, int? pid, RecordingMode? recordingModeOverride)
         {
             if (!IsOBSInstalled())
             {
@@ -771,6 +803,10 @@ namespace Segra.Backend.Recorder
             // Note: the static _activeEffectiveSettings is only published once the early-return guards
             // below have passed, so a blocked start attempt can never clobber an active recording's settings.
             EffectiveRecordingSettings eff = GameSettingsService.Resolve(exePath);
+            if (recordingModeOverride.HasValue)
+            {
+                eff.RecordingMode = recordingModeOverride.Value;
+            }
 
             bool isReplayBufferMode = eff.RecordingMode == RecordingMode.Buffer;
             bool isSessionMode = eff.RecordingMode == RecordingMode.Session;
