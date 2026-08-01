@@ -19,9 +19,9 @@
       },
       "ObsKit.NET": {
         "type": "Direct",
-        "requested": "[1.5.3, )",
-        "resolved": "1.5.3",
-        "contentHash": "AxCAqpH83ur9sOVzgRhulDsvJm9T7vlCLIuuMgxc5gq7SotL4bluHNrZrdg+3+Bt2CC7SMnF7GjqavYtRfhz0g=="
+        "requested": "[1.5.4, )",
+        "resolved": "1.5.4",
+        "contentHash": "R4/sfPvP1MDj4VahPK/L9Twuao82apKXVKT+7zFEO15Kh8/r56x1swDXihR9zg0A6/q+/ap/t1s5ggYaQwb+2A=="
       },
       "Photino.NET": {
         "type": "Direct",
@@ -192,9 +192,9 @@
       },
       "ObsKit.NET": {
         "type": "Direct",
-        "requested": "[1.5.3, )",
-        "resolved": "1.5.3",
-        "contentHash": "AxCAqpH83ur9sOVzgRhulDsvJm9T7vlCLIuuMgxc5gq7SotL4bluHNrZrdg+3+Bt2CC7SMnF7GjqavYtRfhz0g=="
+        "requested": "[1.5.4, )",
+        "resolved": "1.5.4",
+        "contentHash": "R4/sfPvP1MDj4VahPK/L9Twuao82apKXVKT+7zFEO15Kh8/r56x1swDXihR9zg0A6/q+/ap/t1s5ggYaQwb+2A=="
       },
       "Photino.NET": {
         "type": "Direct",
@@ -230,10 +230,7 @@
         "type": "Direct",
         "requested": "[10.0.10, )",
         "resolved": "10.0.10",
-        "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA==",
-        "dependencies": {
-          "System.CodeDom": "10.0.10"
-        }
+        "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA=="
       },
       "Velopack": {
         "type": "Direct",
@@ -328,11 +325,6 @@
           "SharpGen.Runtime": "2.4.2-beta"
         }
       },
-      "System.CodeDom": {
-        "type": "Transitive",
-        "resolved": "10.0.10",
-        "contentHash": "lru5igKxs4OgWKfMeOpMAYpfB1tNSSXHk2zyiSDO/h0u8RVAhN6KqW9d3ANybDB+ePIHg6HM/NlE8HlpOk4k5A=="
-      },
       "Vortice.Mathematics": {
         "type": "Transitive",
         "resolved": "2.1.0",
@@ -344,10 +336,7 @@
         "type": "Direct",
         "requested": "[10.0.10, )",
         "resolved": "10.0.10",
-        "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA==",
-        "dependencies": {
-          "System.CodeDom": "10.0.10"
-        }
+        "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA=="
       },
       "Photino.Native": {
         "type": "Transitive",
@@ -360,10 +349,7 @@
         "type": "Direct",
         "requested": "[10.0.10, )",
         "resolved": "10.0.10",
-        "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA==",
-        "dependencies": {
-          "System.CodeDom": "10.0.10"
-        }
+        "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA=="
       },
       "Photino.Native": {
         "type": "Transitive",

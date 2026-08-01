@@ -550,12 +550,11 @@ namespace Segra.Backend.Recorder
             {
                 // Initialize OBS using ObsKit.NET fluent API
 #if WINDOWS
-                // Absolute paths so the game-capture inject-helper gets an absolute graphics-hook path.
-                string baseDir = AppContext.BaseDirectory.Replace('\\', '/').TrimEnd('/');
-                string obsModulePath = $"{baseDir}/obs-plugins/64bit/";
-                string obsModuleDataPath = $"{baseDir}/data/obs-plugins/%module%/";
-                string obsDataPath = $"{baseDir}/data/libobs/";
-                Log.Information($"OBS runtime paths (absolute): data='{obsDataPath}', modules='{obsModulePath}'");
+                string baseDir = AppContext.BaseDirectory;
+                string obsModulePath = Path.Combine(baseDir, "obs-plugins", "64bit");
+                string obsModuleDataPath = Path.Combine(baseDir, "data", "obs-plugins", "%module%");
+                string obsDataPath = Path.Combine(baseDir, "data", "libobs");
+                Log.Information($"OBS runtime paths: data='{obsDataPath}', modules='{obsModulePath}'");
 #else
                 // The launcher/re-exec resolves the OBS runtime and passes paths via env vars.
                 string obsModulePath = Environment.GetEnvironmentVariable("SEGRA_OBS_MODULE_PATH") ?? "./obs-plugins/";
