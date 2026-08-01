@@ -12,6 +12,7 @@ using Segra.Backend.Platform;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
+using System.Reflection;
 using System.Runtime.InteropServices;
 #if WINDOWS
 using Segra.Backend.Windows.Power;
@@ -206,7 +207,12 @@ namespace Segra.Backend.App
                         .RunAsync();
                 }
 
-                appUrl = IsDebugMode ? "http://localhost:2882" : $"{baseUrl}/index.html";
+                // Version-stamped URL: WebKitGTK's disk cache persists across app updates and the
+                // static server sends no cache headers, so a bare /index.html can keep rendering
+                // the previous build's frontend until a manual refresh.
+                string? appVersion = Assembly.GetExecutingAssembly()
+                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+                appUrl = IsDebugMode ? "http://localhost:2882" : $"{baseUrl}/index.html?v={Uri.EscapeDataString(appVersion ?? "0")}";
 
                 if (IsDebugMode)
                 {
@@ -274,7 +280,6 @@ namespace Segra.Backend.App
 
                 // Start WebSocket and Load Settings
                 Task.Run(MessageService.StartWebsocket);
-                Task.Run(MessageService.StartLegacyPortFallback);
                 Task.Run(StorageService.EnsureStorageBelowLimit);
 
                 // Check for updates

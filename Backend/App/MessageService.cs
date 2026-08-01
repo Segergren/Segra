@@ -214,8 +214,10 @@ namespace Segra.Backend.App
                             await SendGameList();
 
                             // canSelfUpdate: false on Linux/Flatpak, where the package manager owns updates.
+                            // Informational version, not GetName().Version: it keeps the -beta.N suffix,
+                            // which the frontend's What's New check needs on Flatpak (no Velopack metadata).
                             string appVersion = UpdateService.UpdateManager.CurrentVersion?.ToString()
-                                ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)
+                                ?? Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
                                 ?? "0.0.0";
 
                             await SendFrontendMessage("AppVersion", new
@@ -451,63 +453,6 @@ namespace Segra.Backend.App
                 if (ex.StackTrace != null)
                 {
                     Log.Information(ex.StackTrace);
-                }
-            }
-        }
-
-        // Old frontends still target ws://localhost:5000/ from the previous port. Pushing AppVersion forces a reload via the version-mismatch path in WebSocketContext.tsx.
-        public static async Task StartLegacyPortFallback()
-        {
-            HttpListener listener = new HttpListener();
-            listener.Prefixes.Add("http://localhost:5000/");
-            try
-            {
-                listener.Start();
-            }
-            catch (Exception ex)
-            {
-                Log.Warning($"Legacy port 5000 fallback could not start: {ex.Message}");
-                return;
-            }
-            Log.Information("Legacy fallback listening on ws://localhost:5000/ (version-mismatch trigger only)");
-
-            while (true)
-            {
-                try
-                {
-                    HttpListenerContext context = await listener.GetContextAsync();
-                    if (!context.Request.IsWebSocketRequest)
-                    {
-                        context.Response.StatusCode = 400;
-                        context.Response.Close();
-                        continue;
-                    }
-
-                    HttpListenerWebSocketContext wsContext = await context.AcceptWebSocketAsync(null);
-                    WebSocket socket = wsContext.WebSocket;
-
-                    string version = UpdateService.UpdateManager.CurrentVersion?.ToString() ?? "0.0.0";
-                    var payload = new { method = "AppVersion", content = new { version } };
-                    byte[] buffer = JsonSerializer.SerializeToUtf8Bytes(payload, jsonOptions);
-
-                    try
-                    {
-                        await socket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
-                        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Port moved - reload", CancellationToken.None);
-                        Log.Information("Legacy port: pushed AppVersion to old frontend and closed.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning($"Legacy port send failed: {ex.Message}");
-                    }
-                    finally
-                    {
-                        socket.Dispose();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Legacy port loop error: {ex.Message}");
                 }
             }
         }

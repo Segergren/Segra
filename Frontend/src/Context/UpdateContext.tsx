@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import {
   isUpdateProgressMessage,
   isReleaseNotesMessage,
@@ -34,6 +34,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const [releaseNotes, setReleaseNotes] = useState<ReleaseNote[]>([]);
   const [canSelfUpdate, setCanSelfUpdate] = useState<boolean>(true);
   const { openModal, closeModal } = useModal();
+  const versionCheckHandled = useRef(false);
 
   // Mocked update info for testing purposes
   // Uncomment the following useEffect to use mocked data
@@ -70,12 +71,24 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
         setUpdateInfo(message.content);
       }
 
-      if (
-        message.method === 'AppVersion' &&
-        message.content &&
-        typeof message.content.canSelfUpdate === 'boolean'
-      ) {
-        setCanSelfUpdate(message.content.canSelfUpdate);
+      if (message.method === 'AppVersion' && message.content) {
+        if (typeof message.content.canSelfUpdate === 'boolean') {
+          setCanSelfUpdate(message.content.canSelfUpdate);
+        }
+
+        // Open "What's New" when the version changed since the last run. Compared against a
+        // persisted record, not __APP_VERSION__: unstamped builds never match the backend.
+        const backendVersion = message.content.version;
+        if (backendVersion && !versionCheckHandled.current) {
+          versionCheckHandled.current = true;
+          const previous = localStorage.getItem('loadedAppVersion');
+          if (previous !== backendVersion) {
+            localStorage.setItem('loadedAppVersion', backendVersion);
+            if (previous && /^\d+\.\d+/.test(previous)) {
+              openReleaseNotesModal(previous);
+            }
+          }
+        }
       }
 
       if (isReleaseNotesMessage(message)) {
@@ -95,18 +108,8 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     // Listen for WebSocket messages
     window.addEventListener('websocket-message', handleWebSocketMessage as EventListener);
 
-    // Check if there's an old version stored (set on the one reload after an app update). Only open
-    // "What's New" when it is a real version string, so a stray/empty value can never force the modal.
-    const oldVersion = localStorage.getItem('oldAppVersion');
-    if (oldVersion) {
-      localStorage.removeItem('oldAppVersion');
-      if (/^\d+\.\d+/.test(oldVersion)) {
-        // Small delay to ensure modal system is ready
-        setTimeout(() => {
-          openReleaseNotesModal(oldVersion);
-        }, 1000);
-      }
-    }
+    // Leftover from the removed reload-based version check; clear it so it can't linger forever.
+    localStorage.removeItem('oldAppVersion');
 
     return () => {
       window.removeEventListener('websocket-message', handleWebSocketMessage as EventListener);
