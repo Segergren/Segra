@@ -12,6 +12,7 @@ using Segra.Backend.Games.RunescapeDragonwilds;
 using Segra.Backend.Games.RocketLeague;
 using Segra.Backend.Games.GrandTheftAuto;
 #endif
+using Segra.Backend.Detection;
 
 namespace Segra.Backend.Games
 {
@@ -33,6 +34,9 @@ namespace Segra.Backend.Games
 
         private static Integration? _gameIntegration;
         private static readonly SemaphoreSlim _lock = new(1, 1);
+        private static VisualEventDetector? _visualDetector;
+        private static CooldownTracker? _cooldownTracker;
+        private static List<EventDefinition>? _eventDefinitions;
 
         public static async Task Start(int? igdbId, string? gameName = null, string? exePath = null)
         {
@@ -76,12 +80,57 @@ namespace Segra.Backend.Games
                     _gameIntegration = new GtaIntegration();
 #endif
 
-                if (_gameIntegration == null)
-                    return;
+                if (_gameIntegration != null)
+                {
+                    _gameIntegration.ExePath = exePath;
+                    Log.Information($"Starting game integration for IGDB ID: {igdbId}, Game: {gameName}");
+                    _ = _gameIntegration.Start();
+                }
 
-                _gameIntegration.ExePath = exePath;
-                Log.Information($"Starting game integration for IGDB ID: {igdbId}, Game: {gameName}");
-                _ = _gameIntegration.Start();
+                if (gameName != null)
+                {
+                    var safeGameId = SanitizeGameId(gameName);
+                    if (ModelService.HasModelForGame(safeGameId))
+                    {
+                        _visualDetector?.Stop();
+                        _visualDetector = null;
+                        _cooldownTracker = null;
+                        _eventDefinitions = null;
+
+                        _eventDefinitions = ModelService.LoadEventDefinitions(safeGameId);
+                        _cooldownTracker = new CooldownTracker();
+                        _visualDetector = new VisualEventDetector();
+                        _visualDetector.DetectionsAvailable += detections =>
+                        {
+                            var defs = _eventDefinitions;
+                            if (defs == null) return;
+
+                            var now = DateTime.Now;
+                            bool exclusionActive = detections.Any(d =>
+                            {
+                                var def = defs.FirstOrDefault(ev => ev.ClassId == d.ClassId);
+                                return def != null && def.Type == EventType.Exclusion;
+                            });
+
+                            foreach (var detection in detections)
+                            {
+                                var def = defs.FirstOrDefault(d => d.ClassId == detection.ClassId);
+                                if (def == null || def.Type == EventType.Exclusion) continue;
+                                if (exclusionActive)
+                                {
+                                    Log.Debug("Suppressing trigger {ClassId} ({Name}) due to active exclusion",
+                                        detection.ClassId, def.Name);
+                                    continue;
+                                }
+                                if (!_cooldownTracker.CanDetect(detection.ClassId, 1000, now)) continue;
+                                _cooldownTracker.Record(detection.ClassId, now);
+                                _cooldownTracker.CreateBookmark(detection, def, now);
+                            }
+                        };
+                        _visualDetector.Start(safeGameId);
+                        Log.Information("ML detection started for {GameName}", gameName);
+                    }
+                }
             }
             finally
             {
@@ -94,19 +143,28 @@ namespace Segra.Backend.Games
             await _lock.WaitAsync();
             try
             {
-                if (_gameIntegration == null)
-                {
-                    return;
-                }
+                _visualDetector?.Stop();
+                _visualDetector = null;
+                _cooldownTracker = null;
+                _eventDefinitions = null;
 
-                Log.Information("Shutting down game integration");
-                await _gameIntegration.Shutdown();
-                _gameIntegration = null;
+                if (_gameIntegration != null)
+                {
+                    Log.Information("Shutting down game integration");
+                    await _gameIntegration.Shutdown();
+                    _gameIntegration = null;
+                }
             }
             finally
             {
                 _lock.Release();
             }
+        }
+
+        private static string SanitizeGameId(string gameName)
+        {
+            return string.Concat(gameName.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_'))
+                .Trim().ToLowerInvariant();
         }
     }
 }

@@ -45,6 +45,8 @@ const MENU_ICONS: Record<MenuItemId, LucideIcon> = {
   Settings: Settings,
 };
 
+const iconForItem = (id: string): LucideIcon => MENU_ICONS[id as MenuItemId] ?? History;
+
 export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const settings = useSettings();
   const appState = useAppState();
@@ -133,7 +135,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         />
         <AnimatePresence initial={false} mode="popLayout">
           {visibleMenuItems.map(({ id }) => {
-            const Icon = MENU_ICONS[id];
+            const Icon = iconForItem(id);
             const isActive = selectedMenu === id;
             // Disable content navigation while a migration is moving files (paths are in flux);
             // Settings stays enabled so the user can watch progress.
