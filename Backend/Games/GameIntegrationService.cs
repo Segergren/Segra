@@ -136,10 +136,9 @@ namespace Segra.Backend.Games
                                             detection.ClassId, def.Name);
                                         continue;
                                     }
-                                    if (!_cooldownTracker.CanDetect(detection.ClassId, 1000, now)) continue;
-                                    _cooldownTracker.Record(detection.ClassId, now);
-                                    _cooldownTracker.CreateBookmark(detection, def, now);
+                                    _cooldownTracker.ProcessDetection(detection, def, now);
                                 }
+                                _cooldownTracker.Cleanup(now);
                             };
                             _visualDetector.Start(safeGameId);
                             Log.Information("ML detection started for {GameName}", gameName);
