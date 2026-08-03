@@ -19,6 +19,9 @@ const escapeAttrValue = (value: string) => value.replace(/["\\]/g, '\\$&');
 
 type ContentViewMode = 'default' | 'folders';
 
+const CONTENT_GRID_CLASS_NAME =
+  'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4';
+
 const getContentFolderName = (item: Content) => {
   if (item.isImported) return 'Imported';
   return item.game?.trim() || 'Unknown Game';
@@ -73,7 +76,15 @@ export default function ContentPage({
     const saved = localStorage.getItem(`${sectionId}-view-mode`);
     return saved === 'folders' ? 'folders' : 'default';
   });
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(() => {
+    if (contentViewMode !== 'folders') return null;
+
+    try {
+      return sessionStorage.getItem(`${sectionId}-selected-folder`);
+    } catch {
+      return null;
+    }
+  });
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const contentItems = state.content.filter((video) => video.type === contentType);
@@ -204,6 +215,7 @@ export default function ContentPage({
     localStorage.setItem(`${sectionId}-view-mode`, mode);
     if (mode === 'default') {
       setSelectedFolder(null);
+      sessionStorage.removeItem(`${sectionId}-selected-folder`);
     }
   };
 
@@ -224,9 +236,17 @@ export default function ContentPage({
     return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
-  const handlePlay = (video: Content) => {
-    setSelectedVideo(video);
-  };
+  const handlePlay = useCallback(
+    (video: Content) => {
+      if (selectedFolder) {
+        sessionStorage.setItem(`${sectionId}-selected-folder`, selectedFolder);
+      } else {
+        sessionStorage.removeItem(`${sectionId}-selected-folder`);
+      }
+      setSelectedVideo(video);
+    },
+    [sectionId, selectedFolder, setSelectedVideo],
+  );
 
   const handleCardClick = useCallback(
     (video: Content) => {
@@ -248,7 +268,7 @@ export default function ContentPage({
         }
       }
     },
-    [isCtrlPressed, selectedItems.size],
+    [handlePlay, isCtrlPressed, selectedItems.size],
   );
 
   const handleDeleteSelected = useCallback(() => {
@@ -311,8 +331,9 @@ export default function ContentPage({
   useEffect(() => {
     if (selectedFolder && !selectedFolderGroup) {
       setSelectedFolder(null);
+      sessionStorage.removeItem(`${sectionId}-selected-folder`);
     }
-  }, [selectedFolder, selectedFolderGroup]);
+  }, [sectionId, selectedFolder, selectedFolderGroup]);
 
   const prevContentFileNamesRef = useRef<string>('');
 
@@ -465,26 +486,24 @@ export default function ContentPage({
           <div className="join">
             <button
               type="button"
-              className={`join-item h-8 inline-flex items-center gap-1.5 rounded-l-lg border border-base-400 px-3 text-sm font-semibold transition-colors ${
+              className={`join-item h-8 inline-flex cursor-pointer items-center gap-1.5 rounded-l-lg border border-base-400 px-3 text-sm font-semibold transition-colors ${
                 contentViewMode === 'default'
                   ? 'bg-base-300 text-primary'
                   : 'bg-transparent text-gray-300 hover:bg-white/10 hover:text-primary'
               }`}
               onClick={() => handleViewModeChange('default')}
-              title="Default view"
             >
               <Grid3X3 size={16} />
               Default
             </button>
             <button
               type="button"
-              className={`join-item h-8 inline-flex items-center gap-1.5 rounded-r-lg border border-base-400 px-3 text-sm font-semibold transition-colors ${
+              className={`join-item h-8 inline-flex cursor-pointer items-center gap-1.5 rounded-r-lg border border-base-400 px-3 text-sm font-semibold transition-colors ${
                 contentViewMode === 'folders'
                   ? 'bg-base-300 text-primary'
                   : 'bg-transparent text-gray-300 hover:bg-white/10 hover:text-primary'
               }`}
               onClick={() => handleViewModeChange('folders')}
-              title="Folder view"
             >
               <Folder size={16} />
               Folders
@@ -506,9 +525,7 @@ export default function ContentPage({
         contentViewMode === 'folders' ? (
           <div className="space-y-4">
             {isProgressVisible && progressCardElement && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {progressCardElement}
-              </div>
+              <div className={CONTENT_GRID_CLASS_NAME}>{progressCardElement}</div>
             )}
 
             {selectedFolderGroup ? (
@@ -517,8 +534,11 @@ export default function ContentPage({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="no-animation h-8 gap-1"
-                    onClick={() => setSelectedFolder(null)}
+                    className="no-animation h-8 cursor-pointer gap-1"
+                    onClick={() => {
+                      setSelectedFolder(null);
+                      sessionStorage.removeItem(`${sectionId}-selected-folder`);
+                    }}
                   >
                     <ArrowLeft size={16} />
                     Back to Folders
@@ -529,7 +549,7 @@ export default function ContentPage({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                <div className={CONTENT_GRID_CLASS_NAME}>
                   {selectedFolderGroup.items.map((video) => (
                     <ContentCard
                       key={video.fileName}
@@ -544,7 +564,7 @@ export default function ContentPage({
                 </div>
               </>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+              <div className={CONTENT_GRID_CLASS_NAME}>
                 {folderGroups.map((group) => {
                   const artworkUrl = getFolderArtworkUrl(group);
                   const folderSize = formatFolderSize(group.totalSizeKb);
@@ -556,14 +576,14 @@ export default function ContentPage({
                     <button
                       key={group.name}
                       type="button"
-                      className="group relative aspect-[16/9] overflow-hidden rounded-lg border border-custom bg-base-300 text-left shadow transition-all hover:border-primary/70 hover:-translate-y-0.5"
+                      className="relative aspect-video cursor-pointer overflow-hidden rounded-box border border-custom bg-base-300 text-left shadow"
                       onClick={() => setSelectedFolder(group.name)}
                     >
                       {artworkUrl ? (
                         <img
                           src={artworkUrl}
                           alt=""
-                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          className="absolute inset-0 h-full w-full object-cover"
                           loading="lazy"
                           draggable={false}
                         />
@@ -598,7 +618,7 @@ export default function ContentPage({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+          <div className={CONTENT_GRID_CLASS_NAME}>
             {isProgressVisible && progressCardElement}
 
             {filteredItems.map((video) => (
