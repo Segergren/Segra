@@ -26,13 +26,26 @@ namespace Segra.Backend.Media
                 string extension = Path.GetExtension(filePath);
                 string tempOutputPath = PathUtils.Combine(directory, $"{fileName}_temp_compressed{extension}");
 
+                Content? originalContent = AppState.Instance.Content.FirstOrDefault(c => c.FilePath == filePath);
+                if (originalContent == null)
+                {
+                    Log.Error($"Content not found in metadata for file: {filePath}");
+                    await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = -1, status = "error", message = "Content not found in metadata" });
+                    return;
+                }
+
                 TimeSpan durationTs = await FFmpegService.GetVideoDuration(filePath);
                 double? duration = durationTs.TotalSeconds > 0 ? durationTs.TotalSeconds : null;
 
                 Log.Information($"Starting compression for: {filePath} (Original size: {originalSize / 1024 / 1024}MB)");
                 await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = 0, status = "compressing" });
 
-                string arguments = $"-y -i \"{filePath}\" -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k -movflags +faststart \"{tempOutputPath}\"";
+                List<string>? audioTrackNames = originalContent.AudioTrackNames;
+                string trackTitleArgs = audioTrackNames != null
+                    ? string.Join(" ", audioTrackNames.Select((name, i) => $"-metadata:s:a:{i} title=\"{name}\"")) + " "
+                    : string.Empty;
+
+                string arguments = $"-y -i \"{filePath}\" -map 0:v:0 -map 0:a? -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k {trackTitleArgs}-movflags +faststart \"{tempOutputPath}\"";
 
                 await FFmpegService.RunWithProgress(processId, arguments, duration, (progress) =>
                 {
@@ -57,14 +70,6 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                Content? originalContent = AppState.Instance.Content.FirstOrDefault(c => c.FilePath == filePath);
-                if (originalContent == null)
-                {
-                    Log.Error($"Content not found in metadata for file: {filePath}");
-                    await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = -1, status = "error", message = "Content not found in metadata" });
-                    return;
-                }
-
                 Content.ContentType contentType = originalContent.Type;
                 string? game = originalContent.Game;
 
@@ -83,7 +88,7 @@ namespace Segra.Backend.Media
                     ? $"Replaced original with compressed file: {finalPath}"
                     : $"Saved compressed file as: {finalPath}");
 
-                await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId, originalContent.IsImported, compressed: true);
+                await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId, originalContent.IsImported, audioTrackNames, compressed: true);
                 await ContentService.CreateThumbnail(finalPath, contentType);
                 await ContentService.CreateWaveformFile(finalPath, contentType);
 
