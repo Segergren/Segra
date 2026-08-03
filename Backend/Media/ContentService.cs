@@ -16,7 +16,7 @@ namespace Segra.Backend.Media
             WriteIndented = true
         };
 
-        public static async Task CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null, int? igdbId = null, bool isImported = false, List<string>? audioTrackNames = null)
+        public static async Task CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null, int? igdbId = null, bool isImported = false, List<string>? audioTrackNames = null, bool compressed = false)
         {
             bookmarks ??= [];
             filePath = PathUtils.Normalize(filePath);
@@ -55,7 +55,8 @@ namespace Segra.Backend.Media
                     Duration = duration,
                     AudioTrackNames = audioTrackNames,
                     IgdbId = igdbId,
-                    IsImported = isImported
+                    IsImported = isImported,
+                    Compressed = compressed
                 };
 
                 string metadataJson = JsonSerializer.Serialize(metadataContent, _jsonOptions);

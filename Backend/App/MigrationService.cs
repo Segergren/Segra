@@ -147,8 +147,97 @@ internal static class MigrationService
             new("0009_rename_clip_clear_selections_setting", Apply_0009_RenameClipClearSelectionsSetting),
             new("0010_rename_titled_content_files", Apply_0010_RenameTitledContentFiles),
             new("0011_whitelist_blacklist_to_games", Apply_0011_WhitelistBlacklistToGames),
-            new("0012_backfill_custom_game_icons", Apply_0012_BackfillCustomGameIcons)
+            new("0012_backfill_custom_game_icons", Apply_0012_BackfillCustomGameIcons),
+            new("0013_backfill_compressed_flag", Apply_0013_BackfillCompressedFlag)
         ];
+    }
+
+    // Migration 0013: Compressed files used to be identifiable only by their "_compressed" file name
+    // suffix. Mark them as compressed in metadata and rename them to the current scheme, where the
+    // compressed file keeps the original name and only falls back to " (1)", " (2)" on collision.
+    private static void Apply_0013_BackfillCompressedFlag()
+    {
+        const string suffix = "_compressed";
+        var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+        int updatedCount = 0;
+        int renamedCount = 0;
+
+        foreach (Content.ContentType type in Enum.GetValues<Content.ContentType>())
+        {
+            string metadataFolder = FolderNames.GetMetadataFolderPath(type);
+            if (!Directory.Exists(metadataFolder)) continue;
+
+            string thumbnailsFolder = FolderNames.GetThumbnailsFolderPath(type);
+            string waveformsFolder = FolderNames.GetWaveformsFolderPath(type);
+
+            foreach (var metadataFilePath in Directory.EnumerateFiles(metadataFolder, "*.json").ToList())
+            {
+                try
+                {
+                    string json = File.ReadAllText(metadataFilePath);
+                    var content = JsonSerializer.Deserialize<Content>(json);
+                    if (content == null || content.Compressed) continue;
+                    if (!content.FileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    content.Compressed = true;
+                    string oldFileName = content.FileName;
+                    string targetMetadataPath = metadataFilePath;
+
+                    // Files compressed more than once carry the suffix once per pass.
+                    string baseName = oldFileName;
+                    while (baseName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                        baseName = baseName[..^suffix.Length];
+
+                    string currentFilePath = content.FilePath;
+                    if (!string.IsNullOrWhiteSpace(baseName) && File.Exists(currentFilePath))
+                    {
+                        string dir = PathUtils.Normalize(Path.GetDirectoryName(currentFilePath) ?? string.Empty);
+                        string ext = Path.GetExtension(currentFilePath);
+
+                        string candidatePath = PathUtils.Combine(dir, $"{baseName}{ext}");
+                        string candidateName = baseName;
+                        int counter = 1;
+                        while (File.Exists(candidatePath) || File.Exists(PathUtils.Combine(metadataFolder, $"{candidateName}.json")))
+                        {
+                            candidateName = $"{baseName} ({counter})";
+                            candidatePath = PathUtils.Combine(dir, $"{candidateName}{ext}");
+                            counter++;
+                        }
+
+                        File.Move(currentFilePath, candidatePath);
+                        Log.Information("Migration 0013: renamed video {Old} -> {New}", currentFilePath, candidatePath);
+
+                        string oldThumbnail = PathUtils.Combine(thumbnailsFolder, $"{oldFileName}.jpeg");
+                        if (File.Exists(oldThumbnail))
+                            File.Move(oldThumbnail, PathUtils.Combine(thumbnailsFolder, $"{candidateName}.jpeg"), true);
+
+                        string oldWaveform = PathUtils.Combine(waveformsFolder, $"{oldFileName}.peaks.json");
+                        if (File.Exists(oldWaveform))
+                            File.Move(oldWaveform, PathUtils.Combine(waveformsFolder, $"{candidateName}.peaks.json"), true);
+
+                        content.FileName = candidateName;
+                        content.FilePath = candidatePath;
+                        targetMetadataPath = PathUtils.Combine(metadataFolder, $"{candidateName}.json");
+                        renamedCount++;
+                    }
+
+                    File.WriteAllText(targetMetadataPath, JsonSerializer.Serialize(content, jsonOptions));
+                    if (!string.Equals(targetMetadataPath, metadataFilePath, StringComparison.OrdinalIgnoreCase))
+                        File.Delete(metadataFilePath);
+                    updatedCount++;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Migration 0013: failed for {File}", metadataFilePath);
+                }
+            }
+        }
+
+        if (updatedCount > 0)
+        {
+            SettingsService.LoadContentFromFolderIntoState().GetAwaiter().GetResult();
+            Log.Information("Marked {Count} existing files as compressed ({Renamed} renamed)", updatedCount, renamedCount);
+        }
     }
 
     // Migration 0012: Backfill exe icons for custom games that have no icon yet (e.g. games migrated

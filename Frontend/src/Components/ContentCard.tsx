@@ -380,9 +380,7 @@ export default function ContentCard({
       (!airplaneMode && (type === 'Clip' || type === 'Highlight') ? 1 : 0) +
       (type === 'Clip' || type === 'Highlight' || type === 'Buffer' ? 1 : 0) +
       (type === 'Session' && enableAi ? 1 : 0) +
-      ((type === 'Clip' || type === 'Highlight') && !content?.fileName?.endsWith('_compressed')
-        ? 1
-        : 0);
+      ((type === 'Clip' || type === 'Highlight') && !content?.compressed ? 1 : 0);
     const menuHeight = actionCount * 40 + 16;
     setContextMenuPosition({
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8)),
@@ -476,7 +474,7 @@ export default function ContentCard({
           <span>Open File Location</span>
         </Button>
       </li>
-      {(type === 'Clip' || type === 'Highlight') && !content?.fileName?.endsWith('_compressed') && (
+      {(type === 'Clip' || type === 'Highlight') && !content?.compressed && (
         <li>
           <Button
             variant="menu"
