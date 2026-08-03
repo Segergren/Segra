@@ -17,6 +17,7 @@ public class EventDefinition
     public EventType Type { get; set; }
     public int ClassId { get; set; }
     public BookmarkType? BookmarkType { get; set; }
+    public int? LifetimeMs { get; set; }
     public float? ScreenRegionX { get; set; }
     public float? ScreenRegionY { get; set; }
     public float? ScreenRegionW { get; set; }

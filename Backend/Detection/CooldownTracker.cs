@@ -7,11 +7,12 @@ namespace Segra.Backend.Detection;
 
 public class CooldownTracker
 {
-    private const int EventGraceMs = 1200;
+    private const int DefaultLifetimeMs = 1200;
     private readonly ConcurrentDictionary<int, ActiveEvent> _activeEvents = new();
 
     private sealed class ActiveEvent
     {
+        public int LifetimeMs { get; set; }
         public DateTime FirstSeen { get; set; }
         public DateTime LastSeen { get; set; }
     }
@@ -19,12 +20,13 @@ public class CooldownTracker
     public void ProcessDetection(DetectionResult result, EventDefinition definition, DateTime now)
     {
         var classId = result.ClassId;
+        var lifetimeMs = definition.LifetimeMs ?? DefaultLifetimeMs;
 
         if (_activeEvents.TryGetValue(classId, out var active))
         {
             lock (active)
             {
-                if ((now - active.LastSeen).TotalMilliseconds < EventGraceMs)
+                if ((now - active.LastSeen).TotalMilliseconds < active.LifetimeMs)
                 {
                     active.LastSeen = now;
                     Log.Debug("ProcessDetection: extending active window for class {ClassId}, age {Age:F1}s",
@@ -34,7 +36,7 @@ public class CooldownTracker
             }
         }
 
-        var created = new ActiveEvent { FirstSeen = now, LastSeen = now };
+        var created = new ActiveEvent { LifetimeMs = lifetimeMs, FirstSeen = now, LastSeen = now };
         _activeEvents[classId] = created;
         CreateBookmark(result, definition, now);
     }
@@ -44,7 +46,7 @@ public class CooldownTracker
         foreach (var classId in _activeEvents.Keys.ToList())
         {
             if (_activeEvents.TryGetValue(classId, out var active)
-                && (now - active.LastSeen).TotalMilliseconds > EventGraceMs)
+                && (now - active.LastSeen).TotalMilliseconds > active.LifetimeMs)
             {
                 _activeEvents.TryRemove(classId, out _);
                 Log.Debug("Cleanup: expired active window for class {ClassId}", classId);

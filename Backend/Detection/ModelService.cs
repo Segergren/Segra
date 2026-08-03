@@ -41,7 +41,7 @@ public static class ModelService
     {
         var path = Path.Combine(GetGamePath(gameId), "events.json");
         var json = JsonSerializer.Serialize(definitions, _jsonOptions);
-        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, json);
         _definitions[gameId] = definitions;
         Log.Information("Saved {Count} event definitions for game {GameId}", definitions.Count, gameId);

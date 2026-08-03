@@ -113,7 +113,7 @@ namespace Segra.Backend.Games
 
                             _eventDefinitions = ModelService.LoadEventDefinitions(safeGameId);
                             _cooldownTracker = new CooldownTracker();
-                            _visualDetector = new VisualEventDetector();
+                            _visualDetector = new VisualEventDetector(500);
                             _visualDetector.DetectionsAvailable += detections =>
                             {
                                 var defs = _eventDefinitions;

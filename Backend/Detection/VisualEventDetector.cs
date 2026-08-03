@@ -13,7 +13,7 @@ namespace Segra.Backend.Detection;
 public class VisualEventDetector : IDisposable
 {
     private const int ModelInputSize = 640;
-    private const int FpsDivisor = 60;
+    private const int FpsDivisor = 30;
     private const int ObsSubscribeWidth = 1920;
     private const int ObsSubscribeHeight = 1080;
     private readonly int _detectionIntervalMs;
