@@ -57,7 +57,10 @@ export default function ContentPage({
   const [highlightedFileName, setHighlightedFileName] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const contentItems = state.content.filter((video) => video.type === contentType);
+  const contentItems = useMemo(
+    () => state.content.filter((video) => video.type === contentType),
+    [state.content, contentType],
+  );
   const [selectedGames, setSelectedGames] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(`${sectionId}-filters`);
@@ -85,6 +88,15 @@ export default function ContentPage({
     }
     return uniqueGameList;
   }, [contentItems]);
+
+  useEffect(() => {
+    const availableFilters = new Set(uniqueGames);
+
+    setSelectedGames((prev) => {
+      const validFilters = prev.filter((game) => availableFilters.has(game));
+      return validFilters.length === prev.length ? prev : validFilters;
+    });
+  }, [uniqueGames]);
 
   const filteredItems = useMemo(() => {
     let filtered = [...contentItems];
