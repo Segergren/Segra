@@ -23,6 +23,7 @@ export interface Content {
   uploadId?: string;
   igdbId?: number;
   isImported: boolean;
+  compressed: boolean;
   audioTrackNames?: string[];
 }
 

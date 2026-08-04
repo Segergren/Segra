@@ -1167,8 +1167,6 @@ namespace Segra.Backend.Core.Models
 
         public DateTime CreatedAt { get; set; }
 
-        public AiAnalysis? AiAnalysis { get; set; }
-
         public string? UploadId { get; set; }
 
         public int? IgdbId { get; set; }
@@ -1180,11 +1178,8 @@ namespace Segra.Backend.Core.Models
         public List<string>? AudioTrackNames { get; set; }
 
         public bool IsImported { get; set; } = false;
-    }
 
-    public class AiAnalysis
-    {
-        public string? Id { get; set; }
+        public bool Compressed { get; set; } = false;
     }
 
     internal class AudioDevice : IEquatable<AudioDevice>

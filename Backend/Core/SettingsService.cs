@@ -847,23 +847,7 @@ namespace Segra.Backend.Core
                                 }
                             }
 
-                            content.Add(new Content
-                            {
-                                Type = metadata.Type,
-                                Title = metadata.Title,
-                                Game = metadata.Game,
-                                Bookmarks = metadata.Bookmarks,
-                                FileName = metadata.FileName,
-                                FilePath = metadata.FilePath,
-                                FileSize = metadata.FileSize,
-                                FileSizeKb = metadata.FileSizeKb,
-                                Duration = metadata.Duration,
-                                CreatedAt = metadata.CreatedAt,
-                                UploadId = metadata.UploadId,
-                                IgdbId = metadata.IgdbId,
-                                AudioTrackNames = metadata.AudioTrackNames,
-                                IsImported = metadata.IsImported
-                            });
+                            content.Add(metadata);
                         }
                         catch (Exception ex)
                         {
