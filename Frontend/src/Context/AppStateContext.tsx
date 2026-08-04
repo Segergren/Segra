@@ -1,10 +1,19 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { State, initialState, GameListEntry } from '../Models/types';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { State, initialState, GameListEntry, Content } from '../Models/types';
 
 const AppStateContext = createContext<State>(initialState);
 
+// Optimistic local patch of a content item, applied until the next authoritative
+// State push from the backend overwrites it.
+type PatchContent = (id: string, patch: Partial<Content>) => void;
+const AppStateUpdaterContext = createContext<PatchContent>(() => {});
+
 export function useAppState(): State {
   return useContext(AppStateContext);
+}
+
+export function usePatchContent(): PatchContent {
+  return useContext(AppStateUpdaterContext);
 }
 
 interface AppStateProviderProps {
@@ -40,6 +49,17 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
 
   const [appState, setAppState] = useState<State>(() => loadCachedState());
 
+  const patchContent = useCallback<PatchContent>((id, patch) => {
+    setAppState((prev) => {
+      const next: State = {
+        ...prev,
+        content: prev.content.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+      };
+      saveCachedState(next);
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     const handleWebSocketMessage = (event: CustomEvent<any>) => {
       const data = event.detail;
@@ -65,5 +85,11 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
     };
   }, []);
 
-  return <AppStateContext.Provider value={appState}>{children}</AppStateContext.Provider>;
+  return (
+    <AppStateContext.Provider value={appState}>
+      <AppStateUpdaterContext.Provider value={patchContent}>
+        {children}
+      </AppStateUpdaterContext.Provider>
+    </AppStateContext.Provider>
+  );
 }

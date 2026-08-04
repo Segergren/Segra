@@ -528,10 +528,11 @@ namespace Segra.Backend.Media
                         {
                             // Only delete if the folder is empty and is a game subfolder (not the root video type folder)
                             string contentRoot = Settings.Instance.ContentFolder;
+                            string normalizedVideoDirectory = PathUtils.Normalize(videoDirectory);
                             string[] rootFolders = { FolderNames.Sessions, FolderNames.Buffers, FolderNames.Clips, FolderNames.Highlights };
                             bool isGameSubfolder = rootFolders.Any(rf =>
-                                videoDirectory.StartsWith(Path.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase) &&
-                                !videoDirectory.Equals(Path.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase));
+                                normalizedVideoDirectory.StartsWith(PathUtils.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase) &&
+                                !normalizedVideoDirectory.Equals(PathUtils.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase));
 
                             if (isGameSubfolder && !Directory.EnumerateFileSystemEntries(videoDirectory).Any())
                             {
@@ -636,19 +637,17 @@ namespace Segra.Backend.Media
         {
             try
             {
-                if (message.TryGetProperty("FilePath", out JsonElement filePathElement) &&
+                if (message.TryGetProperty("ContentId", out JsonElement contentIdElement) &&
                     message.TryGetProperty("Type", out JsonElement typeElement) &&
                     message.TryGetProperty("Time", out JsonElement timeElement) &&
-                    message.TryGetProperty("ContentType", out JsonElement contentTypeElement) &&
                     message.TryGetProperty("Id", out JsonElement idElement))
                 {
-                    string? filePath = filePathElement.GetString();
+                    string? contentId = contentIdElement.GetString();
                     string? bookmarkTypeStr = typeElement.GetString();
                     string? timeString = timeElement.GetString();
-                    string? contentTypeStr = contentTypeElement.GetString();
                     int bookmarkId = idElement.GetInt32();
 
-                    if (string.IsNullOrEmpty(filePath) || string.IsNullOrEmpty(timeString) || string.IsNullOrEmpty(contentTypeStr))
+                    if (string.IsNullOrEmpty(contentId) || string.IsNullOrEmpty(timeString))
                     {
                         Log.Error("Required parameters are null or empty in AddBookmark message");
                         return;
@@ -660,23 +659,15 @@ namespace Segra.Backend.Media
                         bookmarkType = parsedType;
                     }
 
-                    if (!Enum.TryParse<Content.ContentType>(contentTypeStr, out Content.ContentType contentType))
-                    {
-                        Log.Error($"Invalid content type: {contentTypeStr}");
-                        return;
-                    }
-
-                    var contentItem = AppState.Instance.Content.FirstOrDefault(c =>
-                        c.FilePath == filePath &&
-                        c.Type.ToString() == contentTypeStr);
+                    var contentItem = AppState.Instance.Content.FirstOrDefault(c => c.Id == contentId);
 
                     if (contentItem == null)
                     {
-                        Log.Error($"Content item not found for {filePath} and {contentTypeStr}");
+                        Log.Error($"Content item not found for {contentId}");
                         return;
                     }
 
-                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentType, contentItem.Id);
+                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentItem.Type, contentItem.Id);
 
                     var bookmark = new Bookmark
                     {
@@ -716,37 +707,27 @@ namespace Segra.Backend.Media
         {
             try
             {
-                if (message.TryGetProperty("FilePath", out JsonElement filePathElement) &&
-                    message.TryGetProperty("ContentType", out JsonElement contentTypeElement) &&
+                if (message.TryGetProperty("ContentId", out JsonElement contentIdElement) &&
                     message.TryGetProperty("Id", out JsonElement idElement))
                 {
-                    string? filePath = filePathElement.GetString();
-                    string? contentTypeStr = contentTypeElement.GetString();
+                    string? contentId = contentIdElement.GetString();
                     int bookmarkId = idElement.GetInt32();
 
-                    if (string.IsNullOrEmpty(filePath) || string.IsNullOrEmpty(contentTypeStr))
+                    if (string.IsNullOrEmpty(contentId))
                     {
                         Log.Error("Required parameters are null or empty in DeleteBookmark message");
                         return;
                     }
 
-                    if (!Enum.TryParse<Content.ContentType>(contentTypeStr, out Content.ContentType contentType))
-                    {
-                        Log.Error($"Invalid content type: {contentTypeStr}");
-                        return;
-                    }
-
-                    var contentItem = AppState.Instance.Content.FirstOrDefault(c =>
-                        c.FilePath == filePath &&
-                        c.Type.ToString() == contentTypeStr);
+                    var contentItem = AppState.Instance.Content.FirstOrDefault(c => c.Id == contentId);
 
                     if (contentItem == null)
                     {
-                        Log.Error($"Content item not found for {filePath} and {contentTypeStr}");
+                        Log.Error($"Content item not found for {contentId}");
                         return;
                     }
 
-                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentType, contentItem.Id);
+                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentItem.Type, contentItem.Id);
 
                     var content = await UpdateMetadataFile(metadataFilePath, c =>
                     {
@@ -787,20 +768,19 @@ namespace Segra.Backend.Media
                 Log.Information($"Handling RenameContent with message: {message}");
 
                 if (message.TryGetProperty("Id", out JsonElement idElement) &&
-                    message.TryGetProperty("ContentType", out JsonElement contentTypeElement) &&
                     message.TryGetProperty("Title", out JsonElement titleElement))
                 {
                     string id = idElement.GetString()!;
-                    string contentTypeStr = contentTypeElement.GetString()!;
                     string newTitle = titleElement.GetString()!;
 
-                    if (!Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
+                    Content? contentItem = AppState.Instance.Content.FirstOrDefault(c => c.Id == id);
+                    if (contentItem == null)
                     {
-                        Log.Error($"Invalid ContentType provided: {contentTypeStr}");
+                        Log.Error($"Content not found in state for rename: {id}");
                         return;
                     }
 
-                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentType, id);
+                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentItem.Type, id);
 
                     if (!File.Exists(metadataFilePath))
                     {
@@ -863,7 +843,7 @@ namespace Segra.Backend.Media
                 }
                 else
                 {
-                    Log.Error("Id, ContentType, or Title property not found in RenameContent message.");
+                    Log.Error("Id or Title property not found in RenameContent message.");
                 }
             }
             catch (Exception ex)

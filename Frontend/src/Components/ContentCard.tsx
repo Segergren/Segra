@@ -1,10 +1,9 @@
 import { useMemo, useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useSettings } from '../Context/SettingsContext';
-import { useAppState } from '../Context/AppStateContext';
+import { useAppState, usePatchContent } from '../Context/AppStateContext';
 import { BookmarkType, Content, includeInHighlight } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { openFileLocation } from '../Utils/FileUtils';
-import { useAuth } from '../Hooks/useAuth.tsx';
 import { useModal } from '../Context/ModalContext';
 import UploadModal from './UploadModal';
 import {
@@ -57,7 +56,7 @@ export default function ContentCard({
 }: VideoCardProps) {
   const { enableAi, showNewBadgeOnVideos, airplaneMode } = useSettings();
   const { cacheFolder, content: allContent } = useAppState();
-  const { session } = useAuth();
+  const patchContent = usePatchContent();
   const { openModal, closeModal } = useModal();
   const { aiProgress } = useAiHighlights();
   const { compressionProgress, isCompressing } = useCompression();
@@ -272,14 +271,11 @@ export default function ContentCard({
         video={content!}
         onClose={closeModal}
         onUpload={(title, description, visibility) => {
-          const parameters: any = {
-            FilePath: content!.filePath,
-            JWT: session?.access_token,
-            Game: content?.game,
+          const parameters = {
+            Id: content!.id,
             Title: title,
             Description: description,
             Visibility: visibility,
-            IgdbId: content?.igdbId?.toString(),
           };
 
           sendMessageToBackend('UploadContent', parameters);
@@ -297,9 +293,8 @@ export default function ContentCard({
   };
 
   const handleDelete = () => {
-    const parameters: any = {
+    const parameters = {
       Id: content!.id,
-      ContentType: type,
     };
 
     const displayName = content!.title || content!.game || content!.fileName;
@@ -333,9 +328,10 @@ export default function ContentCard({
     if (trimmed && invalidChars.test(trimmed)) return;
     sendMessageToBackend('RenameContent', {
       Id: content!.id,
-      ContentType: type,
       Title: trimmed,
     });
+    // Show the new title immediately; the backend's State push confirms it.
+    patchContent(content!.id, { title: trimmed });
   };
 
   const handleOpenFileLocation = () => openFileLocation(content!.filePath);
@@ -479,7 +475,7 @@ export default function ContentCard({
             variant="menu"
             onClick={() => {
               closeMenu();
-              sendMessageToBackend('CompressVideo', { FilePath: content!.filePath });
+              sendMessageToBackend('CompressVideo', { Id: content!.id });
             }}
           >
             <Minimize2 size={20} />

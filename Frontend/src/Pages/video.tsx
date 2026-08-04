@@ -7,7 +7,6 @@ import { openFileLocation } from '../Utils/FileUtils';
 import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { useAuth } from '../Hooks/useAuth.tsx';
 import { useSegments } from '../Context/SegmentsContext';
 import { useUploads } from '../Context/UploadContext';
 import { useModal } from '../Context/ModalContext';
@@ -197,7 +196,6 @@ export default function VideoComponent({ video }: { video: Content }) {
   const settings = useSettings();
   const appState = useAppState();
   const updateSettings = useSettingsUpdater();
-  const { session } = useAuth();
   const { uploads } = useUploads();
   const { openModal, closeModal } = useModal();
   const confirmDelete = useDeleteConfirmation();
@@ -1155,6 +1153,7 @@ export default function VideoComponent({ video }: { video: Content }) {
 
     const newSegment: Segment = {
       id: Date.now(),
+      contentId: video.id,
       type: video.type,
       startTime: start,
       endTime: end,
@@ -1193,14 +1192,9 @@ export default function VideoComponent({ video }: { video: Content }) {
       OutputMode: clipOutputMode,
       Segments: segments.map((s) => ({
         id: s.id,
-        type: s.type,
-        fileName: s.fileName,
-        filePath: s.filePath,
-        game: s.game,
-        title: s.title,
+        contentId: s.contentId,
         startTime: s.startTime,
         endTime: s.endTime,
-        igdbId: s.igdbId,
         mutedAudioTracks: s.mutedAudioTracks,
         audioTrackVolumes: s.audioTrackVolumes,
       })),
@@ -1503,13 +1497,10 @@ export default function VideoComponent({ video }: { video: Content }) {
         onClose={closeModal}
         onUpload={(title, description, visibility) => {
           const parameters = {
-            FilePath: video.filePath,
-            JWT: session?.access_token,
-            Game: video.game,
+            Id: video.id,
             Title: title,
             Description: description,
             Visibility: visibility,
-            IgdbId: video.igdbId?.toString(),
           };
 
           sendMessageToBackend('UploadContent', parameters);
@@ -1591,10 +1582,9 @@ export default function VideoComponent({ video }: { video: Content }) {
 
     // Send message to backend to add bookmark
     sendMessageToBackend('AddBookmark', {
-      FilePath: video.filePath,
+      ContentId: video.id,
       Type: bookmarkType,
       Time: formattedTime,
-      ContentType: video.type,
       Id: bookmarkId,
     });
   };
@@ -1615,8 +1605,7 @@ export default function VideoComponent({ video }: { video: Content }) {
           video.bookmarks = bookmarks;
 
           sendMessageToBackend('DeleteBookmark', {
-            FilePath: video.filePath,
-            ContentType: video.type,
+            ContentId: video.id,
             Id: bookmarkId,
           });
         },

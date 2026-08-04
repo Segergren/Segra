@@ -432,6 +432,7 @@ export const initialSettings: Settings = {
 
 export interface Segment {
   id: number;
+  contentId: string;
   type: ContentType;
   startTime: number;
   endTime: number;

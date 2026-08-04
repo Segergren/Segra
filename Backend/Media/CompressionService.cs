@@ -8,9 +8,10 @@ namespace Segra.Backend.Media
 {
     internal static class CompressionService
     {
-        public static async Task CompressVideo(string filePath)
+        public static async Task CompressVideo(Content originalContent)
         {
             int processId = Guid.NewGuid().GetHashCode();
+            string filePath = originalContent.FilePath;
 
             try
             {
@@ -25,14 +26,6 @@ namespace Segra.Backend.Media
                 string fileName = Path.GetFileNameWithoutExtension(filePath);
                 string extension = Path.GetExtension(filePath);
                 string tempOutputPath = PathUtils.Combine(directory, $"{fileName}_temp_compressed{extension}");
-
-                Content? originalContent = AppState.Instance.Content.FirstOrDefault(c => c.FilePath == filePath);
-                if (originalContent == null)
-                {
-                    Log.Error($"Content not found in metadata for file: {filePath}");
-                    await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = -1, status = "error", message = "Content not found in metadata" });
-                    return;
-                }
 
                 TimeSpan durationTs = await FFmpegService.GetVideoDuration(filePath);
                 double? duration = durationTs.TotalSeconds > 0 ? durationTs.TotalSeconds : null;

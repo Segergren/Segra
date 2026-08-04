@@ -177,21 +177,18 @@ export default function ContentPage({
   const handleDeleteSelected = useCallback(() => {
     if (selectedItems.size === 0) return;
 
-    const items = Array.from(selectedItems).map((id) => ({
-      Id: id,
-      ContentType: contentType,
-    }));
+    const ids = Array.from(selectedItems);
 
-    const count = items.length;
+    const count = ids.length;
     confirmDelete({
       title: `Delete ${count} ${count === 1 ? 'item' : 'items'}?`,
       description: `Are you sure you want to permanently delete the selected ${count === 1 ? 'item' : `${count} items`}?\n\nThis action cannot be undone.`,
       onConfirm: () => {
-        sendMessageToBackend('DeleteMultipleContent', { Items: items });
+        sendMessageToBackend('DeleteMultipleContent', { Ids: ids });
         setSelectedItems(new Set());
       },
     });
-  }, [selectedItems, contentType, confirmDelete]);
+  }, [selectedItems, confirmDelete]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

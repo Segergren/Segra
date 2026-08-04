@@ -149,8 +149,46 @@ internal static class MigrationService
             new("0011_whitelist_blacklist_to_games", Apply_0011_WhitelistBlacklistToGames),
             new("0012_backfill_custom_game_icons", Apply_0012_BackfillCustomGameIcons),
             new("0013_backfill_compressed_flag", Apply_0013_BackfillCompressedFlag),
-            new("0014_id_keyed_sidecars", Apply_0014_IdKeyedSidecars)
+            new("0014_id_keyed_sidecars", Apply_0014_IdKeyedSidecars),
+            new("0015_delete_empty_game_folders", Apply_0015_DeleteEmptyGameFolders)
         ];
+    }
+
+    // Migration 0015: The post-delete cleanup of empty game folders never matched on Windows,
+    // leaving empty folders behind. Remove them.
+    private static void Apply_0015_DeleteEmptyGameFolders()
+    {
+        string contentRoot = Settings.Instance.ContentFolder;
+        string[] rootFolders = [FolderNames.Sessions, FolderNames.Buffers, FolderNames.Clips, FolderNames.Highlights];
+        int deletedCount = 0;
+
+        foreach (var rootFolder in rootFolders)
+        {
+            string typeFolder = Path.Combine(contentRoot, rootFolder);
+            if (!Directory.Exists(typeFolder)) continue;
+
+            foreach (var gameFolder in Directory.GetDirectories(typeFolder))
+            {
+                try
+                {
+                    if (!Directory.EnumerateFileSystemEntries(gameFolder).Any())
+                    {
+                        Directory.Delete(gameFolder);
+                        deletedCount++;
+                        Log.Information("Migration 0015: deleted empty game folder {Folder}", gameFolder);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Migration 0015: failed to delete folder {Folder}", gameFolder);
+                }
+            }
+        }
+
+        if (deletedCount > 0)
+        {
+            Log.Information("Deleted {Count} empty game folders", deletedCount);
+        }
     }
 
     // Migration 0014: Metadata, thumbnails and waveforms used to be named after the video file, so

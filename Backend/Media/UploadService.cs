@@ -47,10 +47,19 @@ namespace Segra.Backend.Media
 
             try
             {
-                string filePath = message.GetProperty("FilePath").GetString()!;
-                fileName = Path.GetFileName(filePath);
-                string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+                string id = message.GetProperty("Id").GetString()!;
                 title = message.GetProperty("Title").GetString()!;
+
+                Content? content = AppState.Instance.Content.FirstOrDefault(c => c.Id == id);
+
+                if (content == null)
+                {
+                    Log.Error($"Content not found in state for upload: {id}");
+                    return;
+                }
+
+                string filePath = content.FilePath;
+                fileName = Path.GetFileName(filePath);
 
                 cts = new CancellationTokenSource();
                 lock (_uploadLock)
@@ -99,10 +108,16 @@ namespace Segra.Backend.Media
                 var fileContent = new ProgressableStreamContent(fileBytes, "application/octet-stream", ProgressHandler, cts.Token);
                 formData.Add(fileContent, "file", fileName);
 
-                AddOptionalContent(formData, message, "Game");
+                if (!string.IsNullOrEmpty(content.Game))
+                {
+                    formData.Add(new StringContent(content.Game), "game");
+                }
+                if (content.IgdbId.HasValue)
+                {
+                    formData.Add(new StringContent(content.IgdbId.Value.ToString()), "igdbid");
+                }
                 AddOptionalContent(formData, message, "Title");
                 AddOptionalContent(formData, message, "Description");
-                AddOptionalContent(formData, message, "IgdbId");
                 AddOptionalContent(formData, message, "Visibility");
 
                 await MessageService.SendFrontendMessage("UploadProgress", new
@@ -157,12 +172,8 @@ namespace Segra.Backend.Media
                                 string uploadId = url.Split('/').Last();
                                 Log.Information($"Extracted upload ID: {uploadId}");
 
-                                // Update the content with the uploadId
-                                var contentList = AppState.Instance.Content.ToList();
-                                Log.Information($"File name: {fileName}, without extension: {fileNameWithoutExtension}");
-
-                                var contentToUpdate = contentList.FirstOrDefault(c =>
-                                    Path.GetFileNameWithoutExtension(c.FileName) == fileNameWithoutExtension);
+                                // Update the content with the uploadId (re-resolved by id in case state was reloaded mid-upload)
+                                var contentToUpdate = AppState.Instance.Content.FirstOrDefault(c => c.Id == content.Id);
                                 Log.Information($"Content to update: {contentToUpdate?.FileName ?? "not found"}");
 
                                 if (contentToUpdate != null)
