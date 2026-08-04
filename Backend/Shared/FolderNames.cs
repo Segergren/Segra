@@ -111,6 +111,30 @@ namespace Segra.Backend.Shared
         }
 
         /// <summary>
+        /// Gets the metadata file path for a content id.
+        /// </summary>
+        public static string GetMetadataFilePath(Content.ContentType type, string id)
+        {
+            return PathUtils.Combine(GetMetadataFolderPath(type), $"{id}.json");
+        }
+
+        /// <summary>
+        /// Gets the thumbnail file path for a content id.
+        /// </summary>
+        public static string GetThumbnailFilePath(Content.ContentType type, string id)
+        {
+            return PathUtils.Combine(GetThumbnailsFolderPath(type), $"{id}.jpeg");
+        }
+
+        /// <summary>
+        /// Gets the waveform file path for a content id.
+        /// </summary>
+        public static string GetWaveformFilePath(Content.ContentType type, string id)
+        {
+            return PathUtils.Combine(GetWaveformsFolderPath(type), $"{id}.peaks.json");
+        }
+
+        /// <summary>
         /// Tries to determine the content type from a file path.
         /// </summary>
         public static Content.ContentType? GetContentTypeFromPath(string path)

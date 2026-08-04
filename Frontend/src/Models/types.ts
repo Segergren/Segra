@@ -10,6 +10,7 @@ export type StartupWindowMode = 'Normal' | 'Minimized';
 export type CloseButtonAction = 'Minimize' | 'Exit';
 
 export interface Content {
+  id: string;
   type: ContentType;
   title: string;
   game: string;

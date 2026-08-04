@@ -1485,7 +1485,7 @@ export default function VideoComponent({ video }: { video: Content }) {
           : video.type === 'Clip'
             ? 'Clips'
             : 'Highlights';
-    const waveformPath = `${appState.cacheFolder}/waveforms/${folderName}/${video.fileName}.peaks.json`;
+    const waveformPath = `${appState.cacheFolder}/waveforms/${folderName}/${video.id}.peaks.json`;
     return `http://localhost:2222/api/content?input=${encodeURIComponent(waveformPath)}&type=${video.type.toLowerCase()}`;
   };
 

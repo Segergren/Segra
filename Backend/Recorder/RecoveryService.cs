@@ -161,15 +161,15 @@ namespace Segra.Backend.Recorder
                 if (!Directory.Exists(videoFolder))
                     continue;
 
+                // Metadata is named by content id, so a video is orphaned when no metadata file points at it
+                var trackedPaths = ReadTrackedFilePaths(metadataFolder);
+
                 // Search recursively to find files in game subfolders
                 var videoFiles = Directory.GetFiles(videoFolder, "*.mp4", SearchOption.AllDirectories);
 
                 foreach (var videoFile in videoFiles)
                 {
-                    string fileName = Path.GetFileNameWithoutExtension(videoFile);
-                    string metadataFile = Path.Combine(metadataFolder, $"{fileName}.json");
-
-                    if (!File.Exists(metadataFile))
+                    if (!trackedPaths.Contains(PathUtils.Normalize(videoFile)))
                     {
                         // Detect game from parent folder name (e.g., "Full Sessions/PUBG/video.mp4" -> "PUBG")
                         string? folderGame = null;
@@ -197,6 +197,29 @@ namespace Segra.Backend.Recorder
             return orphanedFiles;
         }
 
+        private static HashSet<string> ReadTrackedFilePaths(string metadataFolder)
+        {
+            var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!Directory.Exists(metadataFolder))
+                return paths;
+
+            foreach (var metadataFile in Directory.EnumerateFiles(metadataFolder, "*.json", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    var metadata = JsonSerializer.Deserialize<Content>(File.ReadAllText(metadataFile));
+                    if (!string.IsNullOrEmpty(metadata?.FilePath))
+                        paths.Add(PathUtils.Normalize(metadata.FilePath));
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to read metadata {metadataFile}: {ex.Message}");
+                }
+            }
+
+            return paths;
+        }
+
         private static async Task RecoverFile(OrphanedFile orphanedFile, string? detectedGame)
         {
             try
@@ -216,7 +239,7 @@ namespace Segra.Backend.Recorder
 
                 DateTime createdAt = File.GetCreationTime(orphanedFile.FilePath);
 
-                await ContentService.CreateMetadataFile(
+                string? recoveredId = await ContentService.CreateMetadataFile(
                     orphanedFile.FilePath,
                     orphanedFile.Type,
                     gameName,
@@ -226,8 +249,8 @@ namespace Segra.Backend.Recorder
                     igdbId: null
                 );
 
-                await ContentService.CreateThumbnail(orphanedFile.FilePath, orphanedFile.Type);
-                await ContentService.CreateWaveformFile(orphanedFile.FilePath, orphanedFile.Type);
+                await ContentService.CreateThumbnail(orphanedFile.FilePath, orphanedFile.Type, recoveredId);
+                await ContentService.CreateWaveformFile(orphanedFile.FilePath, orphanedFile.Type, recoveredId);
 
                 Log.Information($"Successfully recovered: {orphanedFile.FileName}");
             }

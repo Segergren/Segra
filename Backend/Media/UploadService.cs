@@ -170,8 +170,7 @@ namespace Segra.Backend.Media
                                     contentToUpdate.UploadId = uploadId;
 
                                     // Also update the metadata file
-                                    string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentToUpdate.Type);
-                                    string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{fileNameWithoutExtension}.json");
+                                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentToUpdate.Type, contentToUpdate.Id);
 
                                     var updatedContent = await ContentService.UpdateMetadataFile(metadataFilePath, content =>
                                     {

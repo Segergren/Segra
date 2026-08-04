@@ -217,7 +217,7 @@ namespace Segra.Backend.Media
                         Log.Warning($"Failed to send import progress message: {msgEx.Message}");
                     }
 
-                    await ContentService.CreateMetadataFile(targetFilePath, contentType, "Unknown", null, originalFileName.Replace("_", " "), recordingDate != DateTime.MinValue ? recordingDate : null, isImported: true, audioTrackNames: audioTrackNames);
+                    string? importedId = await ContentService.CreateMetadataFile(targetFilePath, contentType, "Unknown", null, originalFileName.Replace("_", " "), recordingDate != DateTime.MinValue ? recordingDate : null, isImported: true, audioTrackNames: audioTrackNames);
 
                     // Ensure file is fully written to disk/network before thumbnail generation
                     await GeneralUtils.EnsureFileReady(targetFilePath);
@@ -239,7 +239,7 @@ namespace Segra.Backend.Media
                         Log.Warning($"Failed to send import progress message: {msgEx.Message}");
                     }
 
-                    await ContentService.CreateThumbnail(targetFilePath, contentType);
+                    await ContentService.CreateThumbnail(targetFilePath, contentType, importedId);
 
                     try
                     {
@@ -258,7 +258,7 @@ namespace Segra.Backend.Media
                         Log.Warning($"Failed to send import progress message: {msgEx.Message}");
                     }
 
-                    _ = Task.Run(async () => await ContentService.CreateWaveformFile(targetFilePath, contentType));
+                    _ = Task.Run(async () => await ContentService.CreateWaveformFile(targetFilePath, contentType, importedId));
 
                     importedCount++;
                     Log.Information($"Successfully imported {originalFileName}");

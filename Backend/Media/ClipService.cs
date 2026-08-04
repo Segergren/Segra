@@ -158,9 +158,9 @@ namespace Segra.Backend.Media
                         var segmentAudioTrackNames = Settings.Instance.ClipKeepSeparateAudioTracks
                             ? extractedSegmentTrackNames[i]
                             : null;
-                        await ContentService.CreateMetadataFile(segmentOutputFilePath, Content.ContentType.Clip, segment.Game ?? "Unknown", null, segment.Title, igdbId: segment.IgdbId, audioTrackNames: segmentAudioTrackNames);
-                        await ContentService.CreateThumbnail(segmentOutputFilePath, Content.ContentType.Clip);
-                        await ContentService.CreateWaveformFile(segmentOutputFilePath, Content.ContentType.Clip);
+                        string? segmentClipId = await ContentService.CreateMetadataFile(segmentOutputFilePath, Content.ContentType.Clip, segment.Game ?? "Unknown", null, segment.Title, igdbId: segment.IgdbId, audioTrackNames: segmentAudioTrackNames);
+                        await ContentService.CreateThumbnail(segmentOutputFilePath, Content.ContentType.Clip, segmentClipId);
+                        await ContentService.CreateWaveformFile(segmentOutputFilePath, Content.ContentType.Clip, segmentClipId);
                     }
                 }
                 else
@@ -238,9 +238,9 @@ namespace Segra.Backend.Media
 
                 if (!createSeparateClips)
                 {
-                    await ContentService.CreateMetadataFile(outputFilePath!, Content.ContentType.Clip, firstSegment?.Game!, null, firstSegment?.Title, igdbId: firstSegment?.IgdbId, audioTrackNames: unionAudioLayout);
-                    await ContentService.CreateThumbnail(outputFilePath!, Content.ContentType.Clip);
-                    await ContentService.CreateWaveformFile(outputFilePath!, Content.ContentType.Clip);
+                    string? clipId = await ContentService.CreateMetadataFile(outputFilePath!, Content.ContentType.Clip, firstSegment?.Game!, null, firstSegment?.Title, igdbId: firstSegment?.IgdbId, audioTrackNames: unionAudioLayout);
+                    await ContentService.CreateThumbnail(outputFilePath!, Content.ContentType.Clip, clipId);
+                    await ContentService.CreateWaveformFile(outputFilePath!, Content.ContentType.Clip, clipId);
                 }
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, segments });
@@ -755,17 +755,15 @@ namespace Segra.Backend.Media
             try
             {
                 var contentType = Enum.Parse<Content.ContentType>(segment.Type);
-                string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
-                string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{segment.FileName}.json");
+                var source = AppState.Instance.Content.FirstOrDefault(c =>
+                    c.Type == contentType &&
+                    (!string.IsNullOrEmpty(segment.FilePath)
+                        ? string.Equals(PathUtils.Normalize(c.FilePath), PathUtils.Normalize(segment.FilePath), StringComparison.OrdinalIgnoreCase)
+                        : string.Equals(c.FileName, segment.FileName, StringComparison.OrdinalIgnoreCase)));
 
-                if (File.Exists(metadataFilePath))
+                if (source?.AudioTrackNames != null && source.AudioTrackNames.Count > 1)
                 {
-                    var metadataContent = File.ReadAllText(metadataFilePath);
-                    var metadata = JsonSerializer.Deserialize<Content>(metadataContent);
-                    if (metadata?.AudioTrackNames != null && metadata.AudioTrackNames.Count > 1)
-                    {
-                        return metadata.AudioTrackNames;
-                    }
+                    return source.AudioTrackNames;
                 }
             }
             catch (Exception ex)

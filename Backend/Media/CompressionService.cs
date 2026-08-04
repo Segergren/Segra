@@ -79,7 +79,7 @@ namespace Segra.Backend.Media
                     // Delete first so the compressed file can take over the original name and its
                     // thumbnail/waveform/metadata aren't removed right after being written.
                     await Task.Delay(500);
-                    await ContentService.DeleteContent(filePath, contentType, false);
+                    await ContentService.DeleteContent(filePath, contentType, originalContent.Id, false);
                 }
 
                 string finalPath = GetAvailablePath(directory, fileName, extension);
@@ -88,9 +88,9 @@ namespace Segra.Backend.Media
                     ? $"Replaced original with compressed file: {finalPath}"
                     : $"Saved compressed file as: {finalPath}");
 
-                await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId, originalContent.IsImported, audioTrackNames, compressed: true);
-                await ContentService.CreateThumbnail(finalPath, contentType);
-                await ContentService.CreateWaveformFile(finalPath, contentType);
+                string? compressedId = await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId, originalContent.IsImported, audioTrackNames, compressed: true);
+                await ContentService.CreateThumbnail(finalPath, contentType, compressedId);
+                await ContentService.CreateWaveformFile(finalPath, contentType, compressedId);
 
                 await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = 100, status = "done" });
                 await SettingsService.LoadContentFromFolderIntoState();

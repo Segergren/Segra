@@ -83,7 +83,7 @@ export default function ContentCard({
   const uploadModalSequenceRef = useRef(0);
 
   const thumbnailRef = useRef<HTMLImageElement>(null);
-  const thumbnailKey = `${type}:${content?.fileName ?? ''}`;
+  const thumbnailKey = `${type}:${content?.id ?? ''}`;
   const isNewContent =
     hasSeededKnownContent && content != null && !knownContentKeys.has(thumbnailKey);
 
@@ -95,11 +95,11 @@ export default function ContentCard({
   // Seed the known set on the first populated list; record each card on mount so it stays "known".
   useEffect(() => {
     if (!hasSeededKnownContent && allContent.length > 0) {
-      for (const item of allContent) knownContentKeys.add(`${item.type}:${item.fileName}`);
+      for (const item of allContent) knownContentKeys.add(`${item.type}:${item.id}`);
       hasSeededKnownContent = true;
     }
-    if (content?.fileName) knownContentKeys.add(thumbnailKey);
-  }, [allContent, thumbnailKey, content?.fileName]);
+    if (content?.id) knownContentKeys.add(thumbnailKey);
+  }, [allContent, thumbnailKey, content?.id]);
 
   const markThumbnailLoaded = useCallback(() => {
     loadedThumbnailKeys.add(thumbnailKey);
@@ -214,7 +214,7 @@ export default function ContentCard({
           : type === 'Clip'
             ? 'Clips'
             : 'Highlights';
-    const thumbnailPath = `${cacheFolder}/thumbnails/${folderName}/${content?.fileName}.jpeg`;
+    const thumbnailPath = `${cacheFolder}/thumbnails/${folderName}/${content?.id}.jpeg`;
     return `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(thumbnailPath)}`;
   };
 
@@ -245,7 +245,7 @@ export default function ContentCard({
     // Check if this content has been viewed already
     const viewedContent = localStorage.getItem('viewed-content') || '{}';
     const viewedContentObj = JSON.parse(viewedContent);
-    if (viewedContentObj[content.fileName]) {
+    if (viewedContentObj[content.id]) {
       return false;
     }
 
@@ -253,14 +253,14 @@ export default function ContentCard({
     const now = new Date();
     const diffInHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
     return diffInHours <= 1;
-  }, [content?.fileName, content?.createdAt]);
+  }, [content?.id, content?.createdAt]);
 
   const markAsViewed = () => {
     if (!content) return;
 
     const viewedContent = localStorage.getItem('viewed-content') || '{}';
     const viewedContentObj = JSON.parse(viewedContent);
-    viewedContentObj[content.fileName] = true;
+    viewedContentObj[content.id] = true;
     localStorage.setItem('viewed-content', JSON.stringify(viewedContentObj));
   };
 
@@ -290,7 +290,7 @@ export default function ContentCard({
 
   const handleCreateAiClip = () => {
     const parameters: any = {
-      FileName: content!.fileName,
+      Id: content!.id,
     };
 
     sendMessageToBackend('CreateAiClip', parameters);
@@ -298,7 +298,7 @@ export default function ContentCard({
 
   const handleDelete = () => {
     const parameters: any = {
-      FileName: content!.fileName,
+      Id: content!.id,
       ContentType: type,
     };
 
@@ -332,7 +332,7 @@ export default function ContentCard({
     const invalidChars = /[<>:"/\\|?*]/;
     if (trimmed && invalidChars.test(trimmed)) return;
     sendMessageToBackend('RenameContent', {
-      FileName: content!.fileName,
+      Id: content!.id,
       ContentType: type,
       Title: trimmed,
     });
@@ -392,8 +392,7 @@ export default function ContentCard({
     includeInHighlight(bookmark.type),
   );
   const isCreatingHighlight = Object.values(aiProgress).some(
-    (progress) =>
-      progress.content.fileName === content?.fileName && progress.status === 'processing',
+    (progress) => progress.content.id === content?.id && progress.status === 'processing',
   );
 
   const renderMenuItems = (closeMenu: () => void) => (
@@ -505,7 +504,7 @@ export default function ContentCard({
 
   return (
     <div
-      data-content-filename={content!.fileName}
+      data-content-id={content!.id}
       className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isHighlighted ? 'import-pulse' : ''} ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
       onClick={() => {
         if (isBeingCompressed) return;

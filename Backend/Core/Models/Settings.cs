@@ -1132,6 +1132,10 @@ namespace Segra.Backend.Core.Models
             Highlight
         }
 
+        // Stable identity for the metadata, thumbnail and waveform files, so renaming the
+        // video never has to move them and titles can't collide across game folders.
+        public string Id { get; set; } = string.Empty;
+
         public ContentType Type { get; set; } = ContentType.Session;
 
         public string Title { get; set; } = string.Empty;

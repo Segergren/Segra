@@ -209,9 +209,9 @@ namespace Segra.Backend.Recorder
                 await EnsureFileReady(savedPath);
 
                 // Create metadata for the buffer recording
-                await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, request.Game, igdbId: request.IgdbId, audioTrackNames: request.AudioTrackNames);
-                await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer);
-                await ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer);
+                string? bufferId = await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, request.Game, igdbId: request.IgdbId, audioTrackNames: request.AudioTrackNames);
+                await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer, bufferId);
+                await ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer, bufferId);
 
                 // Reload content list to include the new buffer file
                 await SettingsService.LoadContentFromFolderIntoState(true);
@@ -1744,9 +1744,9 @@ namespace Segra.Backend.Recorder
                             int? igdbId = !string.IsNullOrEmpty(AppState.Instance.Recording.ExePath)
                                 ? GameUtils.GetIgdbIdFromExePath(AppState.Instance.Recording.ExePath)
                                 : null;
-                            await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames);
-                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session);
-                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session);
+                            string? sessionId = await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames);
+                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
+                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
 
                             Log.Information($"Recording details:");
                             Log.Information($"Start Time: {AppState.Instance.Recording.StartTime}");
@@ -1844,9 +1844,9 @@ namespace Segra.Backend.Recorder
                             int? igdbId = !string.IsNullOrEmpty(AppState.Instance.Recording.ExePath)
                                 ? GameUtils.GetIgdbIdFromExePath(AppState.Instance.Recording.ExePath)
                                 : null;
-                            await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames);
-                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session);
-                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session);
+                            string? sessionId = await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames);
+                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
+                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
                         }
                     }
 

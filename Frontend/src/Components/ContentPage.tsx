@@ -54,7 +54,7 @@ export default function ContentPage({
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
-  const [highlightedFileName, setHighlightedFileName] = useState<string | null>(null);
+  const [highlightedContentId, setHighlightedContentId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const contentItems = useMemo(
@@ -156,10 +156,10 @@ export default function ContentPage({
       if (isCtrlPressed) {
         setSelectedItems((prev) => {
           const newSet = new Set(prev);
-          if (newSet.has(video.fileName)) {
-            newSet.delete(video.fileName);
+          if (newSet.has(video.id)) {
+            newSet.delete(video.id);
           } else {
-            newSet.add(video.fileName);
+            newSet.add(video.id);
           }
           return newSet;
         });
@@ -177,8 +177,8 @@ export default function ContentPage({
   const handleDeleteSelected = useCallback(() => {
     if (selectedItems.size === 0) return;
 
-    const items = Array.from(selectedItems).map((fileName) => ({
-      FileName: fileName,
+    const items = Array.from(selectedItems).map((id) => ({
+      Id: id,
       ContentType: contentType,
     }));
 
@@ -207,7 +207,7 @@ export default function ContentPage({
         if (selectedItems.size === filteredItems.length && filteredItems.length > 0) {
           setSelectedItems(new Set());
         } else {
-          setSelectedItems(new Set(filteredItems.map((item) => item.fileName)));
+          setSelectedItems(new Set(filteredItems.map((item) => item.id)));
         }
       }
 
@@ -238,29 +238,29 @@ export default function ContentPage({
     };
   }, [selectedItems, filteredItems, isModalOpen, handleDeleteSelected]);
 
-  const prevContentFileNamesRef = useRef<string>('');
+  const prevContentIdsRef = useRef<string>('');
 
   useEffect(() => {
-    const currentKey = contentItems.map((item) => item.fileName).join(',');
+    const currentKey = contentItems.map((item) => item.id).join(',');
 
-    if (currentKey === prevContentFileNamesRef.current) return;
-    prevContentFileNamesRef.current = currentKey;
+    if (currentKey === prevContentIdsRef.current) return;
+    prevContentIdsRef.current = currentKey;
 
-    const validFileNames = new Set(contentItems.map((item) => item.fileName));
+    const validIds = new Set(contentItems.map((item) => item.id));
 
     setSelectedItems((prev) => {
       let hasInvalid = false;
-      prev.forEach((fileName) => {
-        if (!validFileNames.has(fileName)) {
+      prev.forEach((id) => {
+        if (!validIds.has(id)) {
           hasInvalid = true;
         }
       });
       if (!hasInvalid) return prev; // Return same reference if nothing changed
 
       const newSet = new Set<string>();
-      prev.forEach((fileName) => {
-        if (validFileNames.has(fileName)) {
-          newSet.add(fileName);
+      prev.forEach((id) => {
+        if (validIds.has(id)) {
+          newSet.add(id);
         }
       });
       return newSet;
@@ -277,7 +277,7 @@ export default function ContentPage({
         !handledImportIdsRef.current.has(importItem.id)
       ) {
         handledImportIdsRef.current.add(importItem.id);
-        importSnapshotRef.current = new Set(contentItems.map((item) => item.fileName));
+        importSnapshotRef.current = new Set(contentItems.map((item) => item.id));
       }
     }
   }, [imports, contentItems]);
@@ -287,19 +287,19 @@ export default function ContentPage({
     const snapshot = importSnapshotRef.current;
     if (!snapshot) return;
 
-    const newItem = contentItems.find((item) => item.isImported && !snapshot.has(item.fileName));
+    const newItem = contentItems.find((item) => item.isImported && !snapshot.has(item.id));
     if (!newItem) return; // Reloaded content hasn't arrived yet
 
     importSnapshotRef.current = null;
 
     // Pulse the card border twice to draw the eye to it (0.7s delay + 2x0.9s = 2.5s).
-    setHighlightedFileName(newItem.fileName);
+    setHighlightedContentId(newItem.id);
     if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
-    highlightTimeoutRef.current = setTimeout(() => setHighlightedFileName(null), 2600);
+    highlightTimeoutRef.current = setTimeout(() => setHighlightedContentId(null), 2600);
 
     requestAnimationFrame(() => {
       containerRef.current
-        ?.querySelector(`[data-content-filename="${escapeAttrValue(newItem.fileName)}"]`)
+        ?.querySelector(`[data-content-id="${escapeAttrValue(newItem.id)}"]`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }, [contentItems]);
@@ -403,13 +403,13 @@ export default function ContentPage({
 
           {filteredItems.map((video) => (
             <ContentCard
-              key={video.fileName}
+              key={video.id}
               content={video}
               onClick={() => handleCardClick(video)}
               type={contentType}
-              isSelected={selectedItems.has(video.fileName)}
+              isSelected={selectedItems.has(video.id)}
               isSelectionMode={isCtrlPressed || selectedItems.size > 0}
-              isHighlighted={video.fileName === highlightedFileName}
+              isHighlighted={video.id === highlightedContentId}
             />
           ))}
         </div>

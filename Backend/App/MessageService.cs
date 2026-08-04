@@ -327,24 +327,24 @@ namespace Segra.Backend.App
         {
             Log.Information($"Handling DeleteContent with message: {message}");
 
-            if (message.TryGetProperty("FileName", out JsonElement fileNameElement) &&
+            if (message.TryGetProperty("Id", out JsonElement idElement) &&
                 message.TryGetProperty("ContentType", out JsonElement contentTypeElement))
             {
-                string fileName = fileNameElement.GetString()!;
+                string id = idElement.GetString()!;
                 string contentTypeStr = contentTypeElement.GetString()!;
 
                 if (Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
                 {
                     Content? content = AppState.Instance.Content.FirstOrDefault(c =>
-                        c.FileName == fileName && c.Type == contentType);
+                        c.Id == id && c.Type == contentType);
 
                     if (content != null && !string.IsNullOrEmpty(content.FilePath))
                     {
-                        await ContentService.DeleteContent(content.FilePath, contentType);
+                        await ContentService.DeleteContent(content.FilePath, contentType, content.Id);
                     }
                     else
                     {
-                        Log.Warning($"Content not found in state for deletion: {fileName} ({contentTypeStr})");
+                        Log.Warning($"Content not found in state for deletion: {id} ({contentTypeStr})");
                     }
                 }
                 else
@@ -354,7 +354,7 @@ namespace Segra.Backend.App
             }
             else
             {
-                Log.Information("FileName or ContentType property not found in DeleteContent message.");
+                Log.Information("Id or ContentType property not found in DeleteContent message.");
             }
         }
 
@@ -374,25 +374,25 @@ namespace Segra.Backend.App
             {
                 foreach (var item in itemsElement.EnumerateArray())
                 {
-                    if (item.TryGetProperty("FileName", out JsonElement fileNameElement) &&
+                    if (item.TryGetProperty("Id", out JsonElement idElement) &&
                         item.TryGetProperty("ContentType", out JsonElement contentTypeElement))
                     {
-                        string fileName = fileNameElement.GetString()!;
+                        string id = idElement.GetString()!;
                         string contentTypeStr = contentTypeElement.GetString()!;
 
                         if (Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
                         {
                             Content? content = AppState.Instance.Content.FirstOrDefault(c =>
-                                c.FileName == fileName && c.Type == contentType);
+                                c.Id == id && c.Type == contentType);
 
                             if (content != null && !string.IsNullOrEmpty(content.FilePath))
                             {
-                                await ContentService.DeleteContent(content.FilePath, contentType, sendToFrontend: false);
-                                Log.Information($"Deleted content: {fileName}");
+                                await ContentService.DeleteContent(content.FilePath, contentType, content.Id, sendToFrontend: false);
+                                Log.Information($"Deleted content: {content.FileName}");
                             }
                             else
                             {
-                                Log.Warning($"Content not found in state for deletion: {fileName} ({contentTypeStr})");
+                                Log.Warning($"Content not found in state for deletion: {id} ({contentTypeStr})");
                             }
                         }
                         else
@@ -552,8 +552,8 @@ namespace Segra.Backend.App
         private static async Task HandleCreateAiClip(JsonElement message)
         {
             Log.Information($"{message}");
-            message.TryGetProperty("FileName", out JsonElement fileNameElement);
-            await AiService.CreateHighlight(fileNameElement.GetString()!);
+            message.TryGetProperty("Id", out JsonElement idElement);
+            await AiService.CreateHighlight(idElement.GetString()!);
         }
 
         private static async Task HandleCompressVideo(JsonElement message)

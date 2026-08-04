@@ -282,8 +282,12 @@ namespace Segra.Backend.Windows.Storage
                     }
                     Content.ContentType contentType = detectedType.Value;
 
+                    string? contentId = AppState.Instance.Content.FirstOrDefault(c =>
+                        c.Type == contentType &&
+                        string.Equals(PathUtils.Normalize(c.FilePath), fileFullName, StringComparison.OrdinalIgnoreCase))?.Id;
+
                     Log.Information($"Deleting {contentType} file: {fileFullName} ({fileSizeMB:F2} MB)");
-                    await ContentService.DeleteContent(fileFullName, contentType);
+                    await ContentService.DeleteContent(fileFullName, contentType, contentId);
 
                     freedSpaceBytes += fileSize;
                     deletedCount++;
