@@ -403,7 +403,7 @@ namespace Segra.Backend.App
                 Log.Information("Active recording detected during shutdown; stopping it before exit.");
                 try
                 {
-                    Task.Run(() => OBSService.StopRecording()).GetAwaiter().GetResult();
+                    Task.Run(() => OBSService.StopRecording(restartBackgroundReplayBuffer: false)).GetAwaiter().GetResult();
                 }
                 catch (Exception ex)
                 {

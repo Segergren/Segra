@@ -6,10 +6,8 @@ interface CaptureModeSectionProps {
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
 
-type CaptureModeOption = RecordingMode | 'DisplayBuffer';
-
 const captureModes: Array<{
-  id: CaptureModeOption;
+  id: RecordingMode;
   title: string;
   description: string;
   features: string[];
@@ -50,39 +48,16 @@ const captureModes: Array<{
       'No bookmarks',
     ],
   },
-  {
-    id: 'DisplayBuffer',
-    title: 'Always-On Display Buffer',
-    description:
-      'Start a display replay buffer when Segra launches and keep it active when games are detected.',
-    features: [
-      'Starts when Segra launches',
-      'Captures the selected display',
-      'Does not switch to game capture',
-      'No bookmarks',
-    ],
-  },
 ];
 
 export default function CaptureModeSection({ settings, updateSettings }: CaptureModeSectionProps) {
   const appState = useAppState();
-  const isRecording = appState.recording != null || appState.preRecording != null;
-  const selectedMode: CaptureModeOption = settings.alwaysOnDisplayCapture
-    ? 'DisplayBuffer'
-    : settings.recordingMode;
+  const isRecording =
+    !appState.backgroundReplayBufferActive &&
+    (appState.recording != null || appState.preRecording != null);
 
-  const selectMode = (mode: CaptureModeOption) => {
-    if (isRecording) return;
-
-    if (mode === 'DisplayBuffer') {
-      updateSettings({ alwaysOnDisplayCapture: true });
-      return;
-    }
-
-    updateSettings({
-      alwaysOnDisplayCapture: false,
-      recordingMode: mode,
-    });
+  const selectMode = (mode: RecordingMode) => {
+    if (!isRecording) updateSettings({ recordingMode: mode });
   };
 
   return (
@@ -94,7 +69,7 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
 
       <div className="grid grid-cols-2 gap-6">
         {captureModes.map((mode) => {
-          const isSelected = selectedMode === mode.id;
+          const isSelected = settings.recordingMode === mode.id;
 
           return (
             <button
@@ -104,8 +79,8 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
               aria-pressed={isSelected}
               onClick={() => selectMode(mode.id)}
               className={`flex min-h-52 w-full flex-col rounded-lg border bg-base-200 p-4 text-left transition-all ${
-                isSelected ? 'border-primary' : 'border-base-400'
-              } ${
+                mode.id === 'Hybrid' ? 'col-span-2' : ''
+              } ${isSelected ? 'border-primary' : 'border-base-400'} ${
                 isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-base-300'
               }`}
             >
@@ -121,33 +96,22 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
         })}
       </div>
 
-      {selectedMode === 'DisplayBuffer' && (
-        <div className="mt-4 rounded-lg border border-base-400 bg-base-200 p-4">
-          <label
-            className={`flex items-start gap-3 ${
-              isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-            }`}
-          >
-            <input
-              type="checkbox"
-              name="alwaysOnDisplayCaptureRecordSession"
-              checked={settings.alwaysOnDisplayCaptureRecordSession}
-              disabled={isRecording}
-              onChange={(event) =>
-                updateSettings({ alwaysOnDisplayCaptureRecordSession: event.target.checked })
-              }
-              className="checkbox checkbox-primary checkbox-sm mt-0.5"
-            />
-            <span className="flex flex-col">
-              <span className="font-semibold">Also Record Full Display Sessions</span>
-              <span className="mt-1 text-sm text-base-content text-opacity-70">
-                Replay Buffer is always active in this mode. Enable this to also save a continuous
-                full-session recording of your display.
-              </span>
-            </span>
-          </label>
-        </div>
-      )}
+      <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-lg border border-base-400 bg-base-200 p-4">
+        <input
+          type="checkbox"
+          name="backgroundReplayBuffer"
+          checked={settings.backgroundReplayBuffer}
+          onChange={(event) => updateSettings({ backgroundReplayBuffer: event.target.checked })}
+          className="checkbox checkbox-primary checkbox-sm mt-0.5"
+        />
+        <span className="flex flex-col">
+          <span className="font-semibold">Background Replay Buffer</span>
+          <span className="mt-1 text-sm text-base-content text-opacity-70">
+            Keep a display replay buffer ready while Segra is idle. It pauses for normal recordings
+            and starts again when they finish. Only replays you save are written to disk.
+          </span>
+        </span>
+      </label>
     </div>
   );
 }

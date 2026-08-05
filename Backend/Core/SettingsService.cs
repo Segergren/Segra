@@ -201,7 +201,8 @@ namespace Segra.Backend.Core
         {
             var settings = Settings.Instance;
             bool hasChanges = false;
-            bool shouldStartAlwaysOnDisplayCapture = false;
+            bool shouldStartBackgroundReplayBuffer = false;
+            bool shouldStopBackgroundReplayBuffer = false;
 
             // Begin bulk update to suppress multiple state updates
             settings.BeginBulkUpdate();
@@ -725,18 +726,12 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
-            if (settings.AlwaysOnDisplayCapture != updatedSettings.AlwaysOnDisplayCapture)
+            if (settings.BackgroundReplayBuffer != updatedSettings.BackgroundReplayBuffer)
             {
-                Log.Information($"AlwaysOnDisplayCapture changed from '{settings.AlwaysOnDisplayCapture}' to '{updatedSettings.AlwaysOnDisplayCapture}'");
-                shouldStartAlwaysOnDisplayCapture = !settings.AlwaysOnDisplayCapture && updatedSettings.AlwaysOnDisplayCapture;
-                settings.AlwaysOnDisplayCapture = updatedSettings.AlwaysOnDisplayCapture;
-                hasChanges = true;
-            }
-
-            if (settings.AlwaysOnDisplayCaptureRecordSession != updatedSettings.AlwaysOnDisplayCaptureRecordSession)
-            {
-                Log.Information($"AlwaysOnDisplayCaptureRecordSession changed from '{settings.AlwaysOnDisplayCaptureRecordSession}' to '{updatedSettings.AlwaysOnDisplayCaptureRecordSession}'");
-                settings.AlwaysOnDisplayCaptureRecordSession = updatedSettings.AlwaysOnDisplayCaptureRecordSession;
+                Log.Information($"BackgroundReplayBuffer changed from '{settings.BackgroundReplayBuffer}' to '{updatedSettings.BackgroundReplayBuffer}'");
+                shouldStartBackgroundReplayBuffer = !settings.BackgroundReplayBuffer && updatedSettings.BackgroundReplayBuffer;
+                shouldStopBackgroundReplayBuffer = settings.BackgroundReplayBuffer && !updatedSettings.BackgroundReplayBuffer;
+                settings.BackgroundReplayBuffer = updatedSettings.BackgroundReplayBuffer;
                 hasChanges = true;
             }
 
@@ -814,11 +809,16 @@ namespace Segra.Backend.Core
                 Log.Information("No settings changes detected");
             }
 
-            if (shouldStartAlwaysOnDisplayCapture && OBSService.IsInitialized)
+            if (shouldStopBackgroundReplayBuffer && OBSService.IsBackgroundReplayBufferActive)
             {
-                if (!OBSService.StartAlwaysOnDisplayCapture())
+                await OBSService.StopRecording(restartBackgroundReplayBuffer: false);
+            }
+            else if (shouldStartBackgroundReplayBuffer && OBSService.IsInitialized &&
+                AppState.Instance.Recording == null && AppState.Instance.PreRecording == null)
+            {
+                if (!OBSService.StartBackgroundReplayBuffer())
                 {
-                    Log.Warning("Always-On Display Capture was enabled but could not be started immediately");
+                    Log.Warning("Background replay buffer was enabled but could not be started immediately");
                 }
             }
         }

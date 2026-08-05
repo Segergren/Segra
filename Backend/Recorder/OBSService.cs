@@ -50,6 +50,9 @@ namespace Segra.Backend.Recorder
 
         private static RecordingOutput? _output;
         private static ReplayBuffer? _bufferOutput;
+        private static volatile bool _isBackgroundReplayBufferActive;
+
+        public static bool IsBackgroundReplayBufferActive => _isBackgroundReplayBufferActive;
 
         public static GameCapture? GameCaptureSource { get; set; }
         private static Source? _displaySource;
@@ -619,13 +622,13 @@ namespace Segra.Backend.Recorder
 
                 _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
 
-                // Start this before game detection so a game that is already open cannot replace
-                // the user's requested display capture with a game recording during startup.
-                if (Settings.Instance.AlwaysOnDisplayCapture)
+                // Start before game detection; detection can then suspend this buffer and hand off
+                // cleanly if a game is already running when Segra launches.
+                if (Settings.Instance.BackgroundReplayBuffer)
                 {
-                    if (!StartAlwaysOnDisplayCapture())
+                    if (!StartBackgroundReplayBuffer())
                     {
-                        Log.Warning("Always-On Display Capture could not be started");
+                        Log.Warning("Background replay buffer could not be started");
                     }
                 }
 
@@ -750,25 +753,58 @@ namespace Segra.Backend.Recorder
         private static EffectiveRecordingSettings? _activeEffectiveSettings;
         public static EffectiveRecordingSettings? ActiveEffectiveSettings => _activeEffectiveSettings;
 
-        public static bool StartAlwaysOnDisplayCapture()
+        public static bool StartBackgroundReplayBuffer()
         {
-            if (!Settings.Instance.AlwaysOnDisplayCapture)
+            if (!Settings.Instance.BackgroundReplayBuffer)
             {
-                Log.Information("Always-On Display Capture is disabled; skipping start");
+                Log.Information("Background replay buffer is disabled; skipping start");
                 return false;
             }
 
-            RecordingMode recordingMode = Settings.Instance.AlwaysOnDisplayCaptureRecordSession
-                ? RecordingMode.Hybrid
-                : RecordingMode.Buffer;
-            Log.Information(
-                "Starting Always-On Display Capture in {RecordingMode} mode",
-                recordingMode);
+            Log.Information("Starting background display replay buffer");
+            _isBackgroundReplayBufferActive = true;
+            AppState.Instance.BackgroundReplayBufferActive = true;
 
-            return StartRecording(
-                name: "Display Capture",
-                startManually: true,
-                recordingModeOverride: recordingMode);
+            bool started = false;
+            try
+            {
+                started = StartRecording(
+                    name: "Background Replay Buffer",
+                    startManually: true,
+                    recordingModeOverride: RecordingMode.Buffer);
+                return started;
+            }
+            finally
+            {
+                if (!started)
+                {
+                    _isBackgroundReplayBufferActive = false;
+                    AppState.Instance.BackgroundReplayBufferActive = false;
+                }
+            }
+        }
+
+        public static async Task<bool> StartRecordingReplacingBackgroundBufferAsync(
+            string name = "Manual Recording",
+            string exePath = "Unknown",
+            bool startManually = false,
+            int? pid = null)
+        {
+            bool suspendedBackgroundBuffer = IsBackgroundReplayBufferActive;
+            if (suspendedBackgroundBuffer)
+            {
+                Log.Information("Suspending background replay buffer for a normal recording");
+                await StopRecording(restartBackgroundReplayBuffer: false);
+            }
+
+            bool started = StartRecording(name, exePath, startManually, pid);
+            if (!started && suspendedBackgroundBuffer && Settings.Instance.BackgroundReplayBuffer)
+            {
+                Log.Information("Normal recording did not start; restoring background replay buffer");
+                StartBackgroundReplayBuffer();
+            }
+
+            return started;
         }
 
         public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null, RecordingMode? recordingModeOverride = null)
@@ -1664,12 +1700,30 @@ namespace Segra.Backend.Recorder
             }
         }
 
-        public static async Task StopRecording()
+        public static Task StopRecording() => StopRecording(restartBackgroundReplayBuffer: true);
+
+        public static async Task StopRecording(bool restartBackgroundReplayBuffer)
         {
+            bool shouldRestartBackgroundReplayBuffer = false;
+            Recording? recordingAtRequest = AppState.Instance.Recording;
+            PreRecording? preRecordingAtRequest = AppState.Instance.PreRecording;
+
             // Prevent race conditions when multiple callers try to stop recording simultaneously
             await _stopRecordingSemaphore.WaitAsync();
             try
             {
+                // A queued duplicate stop must not stop the background buffer (or another recording)
+                // that may have started after the original recording finished.
+                bool recordingChanged = recordingAtRequest != null &&
+                    !ReferenceEquals(recordingAtRequest, AppState.Instance.Recording);
+                bool preRecordingChanged = recordingAtRequest == null && preRecordingAtRequest != null &&
+                    !ReferenceEquals(preRecordingAtRequest, AppState.Instance.PreRecording);
+                if (recordingChanged || preRecordingChanged)
+                {
+                    Log.Information("Ignoring stale StopRecording request because the active recording changed.");
+                    return;
+                }
+
                 // Check if already stopping or stopped
                 if (_isStoppingOrStopped)
                 {
@@ -1679,6 +1733,12 @@ namespace Segra.Backend.Recorder
 
                 // Mark as stopping to prevent concurrent stop attempts
                 _isStoppingOrStopped = true;
+
+                bool wasBackgroundReplayBuffer = IsBackgroundReplayBufferActive;
+                _isBackgroundReplayBufferActive = false;
+                AppState.Instance.BackgroundReplayBufferActive = false;
+                shouldRestartBackgroundReplayBuffer = restartBackgroundReplayBuffer &&
+                    !wasBackgroundReplayBuffer && Settings.Instance.BackgroundReplayBuffer;
 
                 GeneralUtils.SetProcessPriority(ProcessPriorityClass.Normal);
 
@@ -1944,6 +2004,15 @@ namespace Segra.Backend.Recorder
             finally
             {
                 _stopRecordingSemaphore.Release();
+
+                if (shouldRestartBackgroundReplayBuffer && IsInitialized && Settings.Instance.BackgroundReplayBuffer)
+                {
+                    Log.Information("Normal recording ended; restarting background replay buffer");
+                    if (!StartBackgroundReplayBuffer())
+                    {
+                        Log.Warning("Background replay buffer could not be restarted");
+                    }
+                }
             }
         }
 
