@@ -450,40 +450,41 @@ namespace Segra.Backend.Media
             @"\b(smpte2084|arib-std-b67)\b",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        /// <summary>
-        /// Returns true if ffmpeg metadata reports an HDR transfer (PQ or HLG).
-        /// </summary>
-        public static bool ExtractIsHdr(string ffmpegOutput) =>
-            !string.IsNullOrEmpty(ffmpegOutput) && _hdrTransferRegex.IsMatch(ffmpegOutput);
+        public static string? ExtractHdrTransfer(string ffmpegOutput)
+        {
+            if (string.IsNullOrEmpty(ffmpegOutput))
+                return null;
 
-        // A file's HDR-ness never changes, so cache it to avoid a metadata probe on every call.
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _hdrCache = new();
+            var match = _hdrTransferRegex.Match(ffmpegOutput);
+            return match.Success ? match.Value.ToLowerInvariant() : null;
+        }
 
-        /// <summary>
-        /// Detects whether a video is HDR by inspecting its transfer characteristics.
-        /// Returns false on any error so callers degrade gracefully to the SDR path.
-        /// </summary>
-        public static async Task<bool> IsHdrVideo(string filePath)
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string?> _hdrCache = new();
+
+        public static async Task<string?> GetHdrTransfer(string filePath)
         {
             string cacheKey = filePath;
             try { cacheKey = $"{filePath}|{File.GetLastWriteTimeUtc(filePath).Ticks}"; }
-            catch { /* file may be gone; fall back to a path-only key */ }
+            catch { }
 
-            if (_hdrCache.TryGetValue(cacheKey, out bool cached))
+            if (_hdrCache.TryGetValue(cacheKey, out string? cached))
                 return cached;
 
             try
             {
-                bool isHdr = ExtractIsHdr(await GetMetadata(filePath));
-                _hdrCache[cacheKey] = isHdr;
-                return isHdr;
+                string? transfer = ExtractHdrTransfer(await GetMetadata(filePath));
+                _hdrCache[cacheKey] = transfer;
+                return transfer;
             }
             catch (Exception ex)
             {
                 Log.Warning("Could not determine HDR status for {File}: {Message}", filePath, ex.Message);
-                return false;
+                return null;
             }
         }
+
+        public static async Task<bool> IsHdrVideo(string filePath) =>
+            (await GetHdrTransfer(filePath)) != null;
 
         /// <summary>
         /// Builds the thumbnail -vf chain. HDR sources are tone-mapped from Rec.2100 (PQ/HLG) down

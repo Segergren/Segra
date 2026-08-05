@@ -79,23 +79,29 @@ namespace Segra.Backend.Media
                     ? BuildUnionAudioLayout(perSegmentTrackNames)
                     : null;
 
+                // The concat demuxer takes its stream parameters from the first temp clip, so every
+                // segment has to be encoded the same way. Segments can come from different recordings,
+                // so decide HDR handling once for the whole clip rather than per segment.
+                bool segmentsShareHdrTransfer = true;
+                if (!createSeparateClips && segments.Count > 1)
+                {
+                    var transfers = new HashSet<string?>();
+                    foreach (var seg in segments)
+                    {
+                        string segPath = ResolveSegmentInputPath(seg, videoFolder);
+                        if (File.Exists(segPath))
+                            transfers.Add(await FFmpegService.GetHdrTransfer(segPath));
+                    }
+                    segmentsShareHdrTransfer = transfers.Count <= 1;
+                    if (!segmentsShareHdrTransfer)
+                        Log.Information("Clip segments have mixed HDR transfers; tone-mapping all segments to SDR so they concatenate");
+                }
+
                 double processedDuration = 0;
                 int segmentIndex = 0;
                 foreach (var segment in segments)
                 {
-                    // Use the actual file path from metadata when available, fall back to reconstructed path
-                    string inputFilePath;
-                    if (!string.IsNullOrEmpty(segment.FilePath) && File.Exists(segment.FilePath))
-                    {
-                        inputFilePath = segment.FilePath;
-                    }
-                    else
-                    {
-                        string inputGameFolder = StorageService.SanitizeGameNameForFolder(segment.Game);
-                        var segmentType = Enum.Parse<Content.ContentType>(segment.Type);
-                        string inputFolderName = FolderNames.GetVideoFolderName(segmentType);
-                        inputFilePath = PathUtils.Combine(videoFolder, inputFolderName, inputGameFolder, $"{segment.FileName}.mp4");
-                    }
+                    string inputFilePath = ResolveSegmentInputPath(segment, videoFolder);
                     if (!File.Exists(inputFilePath))
                     {
                         Log.Information($"Input video file not found: {inputFilePath}");
@@ -109,7 +115,7 @@ namespace Segra.Backend.Media
                     List<string>? segmentTrackNames = perSegmentTrackNames[segmentIndex];
                     List<string>? targetLayout = Settings.Instance.ClipKeepSeparateAudioTracks ? unionAudioLayout : null;
 
-                    await ExtractClip(id, inputFilePath, tempFileName, segment.StartTime, segment.EndTime, segmentTrackNames, segment.MutedAudioTracks, segment.AudioTrackVolumes, targetLayout, progress =>
+                    await ExtractClip(id, inputFilePath, tempFileName, segment.StartTime, segment.EndTime, segmentTrackNames, segment.MutedAudioTracks, segment.AudioTrackVolumes, targetLayout, segmentsShareHdrTransfer, progress =>
                     {
                         double clampedProgress = Math.Min(progress, 1.0);
                         double currentProgress = (processedDuration + (clampedProgress * clipDuration)) / totalDuration * 95;
@@ -364,8 +370,20 @@ namespace Segra.Backend.Media
             }
         }
 
+        // Use the actual file path from metadata when available, fall back to reconstructed path
+        private static string ResolveSegmentInputPath(Segment segment, string videoFolder)
+        {
+            if (!string.IsNullOrEmpty(segment.FilePath) && File.Exists(segment.FilePath))
+                return segment.FilePath;
+
+            string inputGameFolder = StorageService.SanitizeGameNameForFolder(segment.Game);
+            var segmentType = Enum.Parse<Content.ContentType>(segment.Type);
+            string inputFolderName = FolderNames.GetVideoFolderName(segmentType);
+            return PathUtils.Combine(videoFolder, inputFolderName, inputGameFolder, $"{segment.FileName}.mp4");
+        }
+
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
-                            List<string>? audioTrackNames, List<int>? mutedAudioTracks, Dictionary<int, double>? audioTrackVolumes, List<string>? targetAudioLayout, Action<double> progressCallback)
+                            List<string>? audioTrackNames, List<int>? mutedAudioTracks, Dictionary<int, double>? audioTrackVolumes, List<string>? targetAudioLayout, bool segmentsShareHdrTransfer, Action<double> progressCallback)
         {
             double duration = endTime - startTime;
             var settings = Settings.Instance;
@@ -373,9 +391,9 @@ namespace Segra.Backend.Media
             string videoCodec;
             string qualityArgs;
             string presetArgs;
-            // VAAPI needs the device named before the input and frames uploaded to it; empty otherwise.
+            // VAAPI needs the device named before the input and frames uploaded to it in the filter chain.
             string hwDeviceArgs = "";
-            string hwFilterArgs = "";
+            bool useVaapi = false;
             if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
             {
 #if !WINDOWS
@@ -394,7 +412,7 @@ namespace Segra.Backend.Media
                     qualityArgs = $"-rc_mode CQP -qp {settings.ClipQualityGpu}";
                     presetArgs = "";
                     hwDeviceArgs = $"-vaapi_device {vaapiNode} ";
-                    hwFilterArgs = "-vf \"format=nv12,hwupload\" ";
+                    useVaapi = true;
                 }
                 else
                 {
@@ -480,6 +498,60 @@ namespace Segra.Backend.Media
             }
 
             string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
+
+            string pixFmtArgs = "";
+            string colorArgs = "";
+            var videoFilters = new List<string>();
+
+            string? sourceHdrTransfer = await FFmpegService.GetHdrTransfer(inputFilePath);
+            if (sourceHdrTransfer != null)
+            {
+                string? tenBitPixFmt = segmentsShareHdrTransfer
+                    ? videoCodec switch
+                    {
+                        "hevc_nvenc" or "hevc_amf" or "hevc_qsv" or
+                        "av1_nvenc" or "av1_amf" or "av1_qsv" => "p010le",
+                        "libx265" => "yuv420p10le",
+                        _ => null
+                    }
+                    : null;
+
+                if (tenBitPixFmt != null)
+                {
+                    pixFmtArgs = $"-pix_fmt {tenBitPixFmt} ";
+                    if (videoCodec.Contains("hevc") || videoCodec == "libx265")
+                        colorArgs = $"-profile:v main10 -colorspace bt2020nc -color_primaries bt2020 -color_trc {sourceHdrTransfer} ";
+                    else
+                        colorArgs = $"-colorspace bt2020nc -color_primaries bt2020 -color_trc {sourceHdrTransfer} ";
+                }
+                else
+                {
+                    videoFilters.Add("zscale=t=linear:npl=100");
+                    videoFilters.Add("format=gbrpf32le");
+                    videoFilters.Add("zscale=p=bt709");
+                    videoFilters.Add("tonemap=tonemap=hable");
+                    videoFilters.Add("zscale=t=bt709:m=bt709:r=tv");
+                    if (!useVaapi)
+                    {
+                        videoFilters.Add("format=yuv420p");
+                        pixFmtArgs = "-pix_fmt yuv420p ";
+                    }
+                }
+            }
+            else if (!segmentsShareHdrTransfer && !useVaapi)
+            {
+                pixFmtArgs = "-pix_fmt yuv420p ";
+            }
+
+            if (useVaapi)
+            {
+                videoFilters.Add("format=nv12");
+                videoFilters.Add("hwupload");
+            }
+
+            string videoFilterArgs = videoFilters.Count > 0 ? $"-vf \"{string.Join(",", videoFilters)}\" " : "";
+
+            string videoCodecArgs = $"-c:v {videoCodec} {colorArgs}{presetArgs} {qualityArgs} {pixFmtArgs}{fpsArg} ";
 
             // Build audio mapping, filter, and metadata based on per-segment muted tracks
             string mapArgs = "";
@@ -703,8 +775,8 @@ namespace Segra.Backend.Media
             // mismatched samples at the wrong rate (the reported "shrunken audio").
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
             string arguments = $"-y {hwDeviceArgs}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}{hwFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
-                             $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
+                              $"-i \"{inputFilePath}\" {extraInputArgs}{videoFilterArgs}{filterArgs}{mapArgs}{videoCodecArgs}" +
+                              $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");
 
