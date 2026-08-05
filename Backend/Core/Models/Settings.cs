@@ -80,6 +80,7 @@ namespace Segra.Backend.Core.Models
         private bool _inputNoiseSuppression = true;
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "standard";
+        private bool _confirmBeforeDeleting = false;
         private bool _removeOriginalAfterCompression = false;
         private bool _discardSessionsWithoutBookmarks = false;
         private bool _disableWindowsGameMode = false;
@@ -838,6 +839,19 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("confirmBeforeDeleting")]
+        public bool ConfirmBeforeDeleting
+        {
+            get => _confirmBeforeDeleting;
+            set
+            {
+                if (_confirmBeforeDeleting != value)
+                {
+                    _confirmBeforeDeleting = value;
+                }
+            }
+        }
+
         [JsonPropertyName("removeOriginalAfterCompression")]
         public bool RemoveOriginalAfterCompression
         {
@@ -1118,6 +1132,10 @@ namespace Segra.Backend.Core.Models
             Highlight
         }
 
+        // Stable identity for the metadata, thumbnail and waveform files, so renaming the
+        // video never has to move them and titles can't collide across game folders.
+        public string Id { get; set; } = string.Empty;
+
         public ContentType Type { get; set; } = ContentType.Session;
 
         public string Title { get; set; } = string.Empty;
@@ -1153,8 +1171,6 @@ namespace Segra.Backend.Core.Models
 
         public DateTime CreatedAt { get; set; }
 
-        public AiAnalysis? AiAnalysis { get; set; }
-
         public string? UploadId { get; set; }
 
         public int? IgdbId { get; set; }
@@ -1166,11 +1182,8 @@ namespace Segra.Backend.Core.Models
         public List<string>? AudioTrackNames { get; set; }
 
         public bool IsImported { get; set; } = false;
-    }
 
-    public class AiAnalysis
-    {
-        public string? Id { get; set; }
+        public bool Compressed { get; set; } = false;
     }
 
     internal class AudioDevice : IEquatable<AudioDevice>

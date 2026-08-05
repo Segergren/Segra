@@ -301,7 +301,7 @@ namespace Segra.Backend.Media
         // Returns false when the update fails (UpdateMetadataFile swallows errors and returns null).
         private static async Task<bool> TryUpdateSidecarPath(Content content, string newFilePath)
         {
-            string sidecar = PathUtils.Combine(FolderNames.GetMetadataFolderPath(content.Type), content.FileName + ".json");
+            string sidecar = FolderNames.GetMetadataFilePath(content.Type, content.Id);
             var updated = await ContentService.UpdateMetadataFile(sidecar, c => c.FilePath = newFilePath);
             return updated != null;
         }

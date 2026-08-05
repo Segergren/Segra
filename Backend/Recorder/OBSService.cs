@@ -209,9 +209,9 @@ namespace Segra.Backend.Recorder
                 await EnsureFileReady(savedPath);
 
                 // Create metadata for the buffer recording
-                await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, request.Game, igdbId: request.IgdbId, audioTrackNames: request.AudioTrackNames);
-                await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer);
-                await ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer);
+                string? bufferId = await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, request.Game, igdbId: request.IgdbId, audioTrackNames: request.AudioTrackNames);
+                await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer, bufferId);
+                await ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer, bufferId);
 
                 // Reload content list to include the new buffer file
                 await SettingsService.LoadContentFromFolderIntoState(true);
@@ -388,16 +388,7 @@ namespace Segra.Backend.Recorder
 
                 Log.Information("Resetting replay buffer...");
 
-                bool stopped = buffer.Stop(waitForCompletion: true, timeoutMs: 30000);
-
-                if (!stopped)
-                {
-                    Log.Warning("Replay buffer did not stop within timeout for reset. Forcing stop.");
-                    buffer.ForceStop();
-                    await Task.Delay(500);
-                }
-
-                bool started = buffer.Start();
+                bool started = await buffer.ResetAsync(TimeSpan.FromSeconds(30));
 
                 if (!started)
                 {
@@ -550,12 +541,11 @@ namespace Segra.Backend.Recorder
             {
                 // Initialize OBS using ObsKit.NET fluent API
 #if WINDOWS
-                // Absolute paths so the game-capture inject-helper gets an absolute graphics-hook path.
-                string baseDir = AppContext.BaseDirectory.Replace('\\', '/').TrimEnd('/');
-                string obsModulePath = $"{baseDir}/obs-plugins/64bit/";
-                string obsModuleDataPath = $"{baseDir}/data/obs-plugins/%module%/";
-                string obsDataPath = $"{baseDir}/data/libobs/";
-                Log.Information($"OBS runtime paths (absolute): data='{obsDataPath}', modules='{obsModulePath}'");
+                string baseDir = AppContext.BaseDirectory;
+                string obsModulePath = Path.Combine(baseDir, "obs-plugins", "64bit");
+                string obsModuleDataPath = Path.Combine(baseDir, "data", "obs-plugins", "%module%");
+                string obsDataPath = Path.Combine(baseDir, "data", "libobs");
+                Log.Information($"OBS runtime paths: data='{obsDataPath}', modules='{obsModulePath}'");
 #else
                 // The launcher/re-exec resolves the OBS runtime and passes paths via env vars.
                 string obsModulePath = Environment.GetEnvironmentVariable("SEGRA_OBS_MODULE_PATH") ?? "./obs-plugins/";
@@ -910,14 +900,14 @@ namespace Segra.Backend.Recorder
                     // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
                     if (_isHdrRecording)
                     {
-                        GameCaptureSource.Update(s => s.Set("rgb10a2_space", "2100pq"));
+                        GameCaptureSource.SetRgb10A2ColorSpace(GameCapture.Rgb10A2ColorSpace.Pq2100);
                         Log.Information("Game capture color space set to Rec.2100 PQ (HDR)");
                     }
 
                     // Enable capture_audio on game capture when using GameOnly or GameAndDiscord mode
                     if (Settings.Instance.AudioOutputMode != AudioOutputMode.All)
                     {
-                        GameCaptureSource.Update(s => s.Set("capture_audio", true));
+                        GameCaptureSource.SetCaptureAudio();
                         Log.Information($"Game capture audio enabled (mode: {Settings.Instance.AudioOutputMode})");
                     }
 
@@ -1754,9 +1744,9 @@ namespace Segra.Backend.Recorder
                             int? igdbId = !string.IsNullOrEmpty(AppState.Instance.Recording.ExePath)
                                 ? GameUtils.GetIgdbIdFromExePath(AppState.Instance.Recording.ExePath)
                                 : null;
-                            await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames);
-                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session);
-                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session);
+                            string? sessionId = await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames);
+                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
+                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
 
                             Log.Information($"Recording details:");
                             Log.Information($"Start Time: {AppState.Instance.Recording.StartTime}");
@@ -1854,9 +1844,9 @@ namespace Segra.Backend.Recorder
                             int? igdbId = !string.IsNullOrEmpty(AppState.Instance.Recording.ExePath)
                                 ? GameUtils.GetIgdbIdFromExePath(AppState.Instance.Recording.ExePath)
                                 : null;
-                            await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames);
-                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session);
-                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session);
+                            string? sessionId = await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames);
+                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
+                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
                         }
                     }
 
@@ -2186,12 +2176,8 @@ namespace Segra.Backend.Recorder
         {
             try
             {
-                var voiceSource = new Source("wasapi_process_output_capture", $"{app.Name} Audio");
-                voiceSource.Update(s =>
-                {
-                    s.Set("window", app.Window);
-                    s.Set("priority", 2); // WINDOW_PRIORITY_EXE
-                });
+                var voiceSource = new ApplicationAudioCapture($"{app.Name} Audio")
+                    .SetWindow(app.Window, ApplicationAudioCapture.WindowPriority.Executable);
                 voiceSource.IsMuted = muted;
                 _mainScene!.AddSource(voiceSource);
                 _voiceChatSources.Add((app.Name, app.Window, voiceSource));
@@ -2252,7 +2238,7 @@ namespace Segra.Backend.Recorder
                 if (source == null) return;
 
                 string fileName = Path.GetFileName(exePath);
-                source.Update(s => s.Set("window", $"*:*:{fileName}"));
+                source.SetWindow($"*:*:{fileName}");
                 Log.Information($"Updated game capture source to: {fileName}");
             }
             catch (Exception ex)
@@ -2472,6 +2458,13 @@ namespace Segra.Backend.Recorder
         {
             try
             {
+                var driveSpace = StorageService.GetContentDriveSpaceGb();
+                AppState.Instance.SetRecordingDriveSpaceGb(
+                    driveSpace?.UsedGb,
+                    driveSpace?.FreeGb,
+                    sendToFrontend: true
+                );
+
                 long? freeBytes = StorageService.GetContentDriveFreeBytes();
                 if (freeBytes == null || freeBytes.Value >= GetRecordingFreeSpaceThresholdBytes())
                     return;
@@ -2639,21 +2632,15 @@ namespace Segra.Backend.Recorder
                     }
                 }
 
+#if DEBUG
+                // Dev builds skip the compatibility filter so every version is selectable for testing.
+                Log.Information($"Debug build: showing all OBS versions: {string.Join(", ", (response ?? []).Select(v => v.Version))}");
+#else
                 // Filter versions based on current Segra version compatibility
                 if (response != null && response.Count > 0)
                 {
                     // Get the current Segra version
-                    NuGet.Versioning.SemanticVersion currentVersion;
-                    if (UpdateService.UpdateManager.CurrentVersion != null)
-                    {
-                        currentVersion = NuGet.Versioning.SemanticVersion.Parse(UpdateService.UpdateManager.CurrentVersion.ToString());
-                    }
-                    else
-                    {
-                        // Running in local development, use a high version to ensure we get the latest stable version
-                        currentVersion = NuGet.Versioning.SemanticVersion.Parse("9.9.9");
-                        Log.Warning("Could not get current version from UpdateManager, using default version for OBS compatibility check");
-                    }
+                    NuGet.Versioning.SemanticVersion currentVersion = UpdateService.GetCurrentVersion();
 
                     // Filter to only compatible versions
                     List<Core.Models.OBSVersion> compatibleVersions = response.Where(v =>
@@ -2675,6 +2662,7 @@ namespace Segra.Backend.Recorder
                     Log.Information($"Compatible OBS versions for Segra {currentVersion}: {string.Join(", ", compatibleVersions.Select(v => v.Version))}");
                     response = compatibleVersions;
                 }
+#endif
 
                 SettingsService.SetAvailableOBSVersions(response ?? []);
             }
@@ -2858,7 +2846,7 @@ namespace Segra.Backend.Recorder
             if (IsOBSInstalled())
             {
                 Log.Information("OBS runtime found (downloaded, bundled, or system)");
-                _ = AvailableOBSVersionsAsync();
+                // Deliberately no version list: a resolved runtime can't be switched, see AdvancedSection.tsx.
                 return;
             }
 

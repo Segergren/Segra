@@ -8,9 +8,10 @@ namespace Segra.Backend.Media
 {
     internal static class CompressionService
     {
-        public static async Task CompressVideo(string filePath)
+        public static async Task CompressVideo(Content originalContent)
         {
             int processId = Guid.NewGuid().GetHashCode();
+            string filePath = originalContent.FilePath;
 
             try
             {
@@ -32,7 +33,12 @@ namespace Segra.Backend.Media
                 Log.Information($"Starting compression for: {filePath} (Original size: {originalSize / 1024 / 1024}MB)");
                 await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = 0, status = "compressing" });
 
-                string arguments = $"-y -i \"{filePath}\" -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k -movflags +faststart \"{tempOutputPath}\"";
+                List<string>? audioTrackNames = originalContent.AudioTrackNames;
+                string trackTitleArgs = audioTrackNames != null
+                    ? string.Join(" ", audioTrackNames.Select((name, i) => $"-metadata:s:a:{i} title=\"{name}\"")) + " "
+                    : string.Empty;
+
+                string arguments = $"-y -i \"{filePath}\" -map 0:v:0 -map 0:a? -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k {trackTitleArgs}-movflags +faststart \"{tempOutputPath}\"";
 
                 await FFmpegService.RunWithProgress(processId, arguments, duration, (progress) =>
                 {
@@ -57,38 +63,28 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                Content? originalContent = AppState.Instance.Content.FirstOrDefault(c => c.FilePath == filePath);
-                if (originalContent == null)
-                {
-                    Log.Error($"Content not found in metadata for file: {filePath}");
-                    await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = -1, status = "error", message = "Content not found in metadata" });
-                    return;
-                }
-
                 Content.ContentType contentType = originalContent.Type;
                 string? game = originalContent.Game;
 
-                string finalPath = PathUtils.Combine(directory, $"{fileName}_compressed{extension}");
-                if (File.Exists(finalPath)) File.Delete(finalPath);
-                File.Move(tempOutputPath, finalPath);
-
-                if (Settings.Instance.RemoveOriginalAfterCompression)
+                bool removeOriginal = Settings.Instance.RemoveOriginalAfterCompression;
+                if (removeOriginal)
                 {
-                    Log.Information($"Replaced original with compressed file: {finalPath}");
-                    await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId);
-                    await ContentService.CreateThumbnail(finalPath, contentType);
-                    await ContentService.CreateWaveformFile(finalPath, contentType);
-
+                    // Delete first so the compressed file can take over the original name and its
+                    // thumbnail/waveform/metadata aren't removed right after being written.
                     await Task.Delay(500);
-                    await ContentService.DeleteContent(filePath, contentType, false);
+                    await ContentService.DeleteContent(filePath, contentType, originalContent.Id, false);
                 }
-                else
-                {
-                    Log.Information($"Saved compressed file as: {finalPath}");
-                    await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown");
-                    await ContentService.CreateThumbnail(finalPath, contentType);
-                    await ContentService.CreateWaveformFile(finalPath, contentType);
-                }
+
+                string finalPath = GetAvailablePath(directory, fileName, extension);
+                File.Move(tempOutputPath, finalPath);
+                Log.Information(removeOriginal
+                    ? $"Replaced original with compressed file: {finalPath}"
+                    : $"Saved compressed file as: {finalPath}");
+
+                string? compressedId = await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId, originalContent.IsImported, audioTrackNames, compressed: true);
+                await ContentService.CreateThumbnail(finalPath, contentType, compressedId);
+                await ContentService.CreateWaveformFile(finalPath, contentType, compressedId);
+
                 await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = 100, status = "done" });
                 await SettingsService.LoadContentFromFolderIntoState();
             }
@@ -97,6 +93,19 @@ namespace Segra.Backend.Media
                 Log.Error(ex, $"Error compressing video: {filePath}");
                 await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = -1, status = "error", message = ex.Message });
             }
+        }
+
+        // Keeps the original name when it's free, otherwise appends " (1)", " (2)", ...
+        private static string GetAvailablePath(string directory, string fileName, string extension)
+        {
+            string candidate = PathUtils.Combine(directory, $"{fileName}{extension}");
+            int counter = 1;
+            while (File.Exists(candidate))
+            {
+                candidate = PathUtils.Combine(directory, $"{fileName} ({counter}){extension}");
+                counter++;
+            }
+            return candidate;
         }
     }
 }

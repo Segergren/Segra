@@ -16,7 +16,11 @@ namespace Segra.Backend.Media
             WriteIndented = true
         };
 
-        public static async Task CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null, int? igdbId = null, bool isImported = false, List<string>? audioTrackNames = null)
+        /// <summary>
+        /// Writes the metadata file for a video and returns the new content id, or null when it could not be written.
+        /// The id is the file name of the metadata, thumbnail and waveform files.
+        /// </summary>
+        public static async Task<string?> CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null, int? igdbId = null, bool isImported = false, List<string>? audioTrackNames = null, bool compressed = false)
         {
             bookmarks ??= [];
             filePath = PathUtils.Normalize(filePath);
@@ -26,7 +30,7 @@ namespace Segra.Backend.Media
                 if (!File.Exists(filePath))
                 {
                     Log.Information($"Video file not found: {filePath}");
-                    return;
+                    return null;
                 }
 
                 string contentFileName = Path.GetFileNameWithoutExtension(filePath);
@@ -37,12 +41,20 @@ namespace Segra.Backend.Media
                     Directory.CreateDirectory(metadataFolderPath);
                 }
 
-                string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{contentFileName}.json");
+                // Reuse the id when this file is already tracked, so a repeat call rewrites that entry
+                // instead of adding a second one for the same video.
+                string? existingId = AppState.Instance.Content.FirstOrDefault(c =>
+                    c.Type == type &&
+                    string.Equals(c.FilePath, filePath, StringComparison.OrdinalIgnoreCase))?.Id;
+
+                string id = string.IsNullOrEmpty(existingId) ? NewContentId() : existingId;
+                string metadataFilePath = FolderNames.GetMetadataFilePath(type, id);
                 var (displaySize, sizeKb) = GetFileSize(filePath);
 
                 var duration = await GetVideoDurationAsync(filePath);
                 var metadataContent = new Content
                 {
+                    Id = id,
                     Type = type,
                     Title = title ?? string.Empty,
                     Game = game,
@@ -55,17 +67,134 @@ namespace Segra.Backend.Media
                     Duration = duration,
                     AudioTrackNames = audioTrackNames,
                     IgdbId = igdbId,
-                    IsImported = isImported
+                    IsImported = isImported,
+                    Compressed = compressed
                 };
 
                 string metadataJson = JsonSerializer.Serialize(metadataContent, _jsonOptions);
 
                 await File.WriteAllTextAsync(metadataFilePath, metadataJson);
                 Log.Information($"Metadata file created at: {metadataFilePath}");
+                return id;
             }
             catch (Exception ex)
             {
                 Log.Error($"Error creating metadata file: {ex.Message}");
+                return null;
+            }
+        }
+
+        public static string NewContentId() => Guid.NewGuid().ToString("N");
+
+        // The startup content load and the migrations backfill the same legacy files concurrently.
+        // Serializing the check-then-write prevents two ids from ever being claimed for one video.
+        private static readonly object _ensureContentIdLock = new();
+
+        /// <summary>
+        /// Gives metadata written before ids existed an id, and moves its file-name keyed thumbnail
+        /// and waveform to the id-based names. Returns true when the content was updated.
+        /// </summary>
+        public static bool EnsureContentId(string metadataFilePath, Content content)
+        {
+            if (!string.IsNullOrEmpty(content.Id))
+                return false;
+
+            lock (_ensureContentIdLock)
+            {
+                if (!string.IsNullOrEmpty(content.Id))
+                    return false;
+
+                // A concurrent caller (migration 0014 vs. the content load) may have already claimed
+                // this video under its own id. Reuse it instead of writing a second id-keyed entry.
+                string? existingId = FindContentIdForFilePath(content.Type, content.FilePath);
+                if (existingId != null)
+                {
+                    content.Id = existingId;
+                    MoveSidecarsToId(metadataFilePath, content.Type, existingId);
+                    DeleteLegacyMetadata(metadataFilePath, FolderNames.GetMetadataFilePath(content.Type, existingId));
+                    return false;
+                }
+
+                content.Id = NewContentId();
+                string legacyName = Path.GetFileNameWithoutExtension(metadataFilePath);
+
+                // Metadata first: if this throws, nothing has moved yet and the old naming still resolves.
+                string newMetadataFilePath = FolderNames.GetMetadataFilePath(content.Type, content.Id);
+                File.WriteAllText(newMetadataFilePath, JsonSerializer.Serialize(content, _jsonOptions));
+
+                MoveSidecarsToId(metadataFilePath, content.Type, content.Id);
+                DeleteLegacyMetadata(metadataFilePath, newMetadataFilePath);
+
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Returns the id of an existing id-keyed metadata entry in the same folder that already
+        /// points at the given video file, or null when the video isn't tracked yet.
+        /// </summary>
+        private static string? FindContentIdForFilePath(Content.ContentType type, string filePath)
+        {
+            string metadataFolder = FolderNames.GetMetadataFolderPath(type);
+            if (!Directory.Exists(metadataFolder)) return null;
+
+            string normalizedPath = PathUtils.Normalize(filePath);
+            foreach (var existingMetadataFilePath in Directory.EnumerateFiles(metadataFolder, "*.json"))
+            {
+                if (Path.GetFileName(existingMetadataFilePath).StartsWith('.')) continue;
+
+                try
+                {
+                    var existing = JsonSerializer.Deserialize<Content>(File.ReadAllText(existingMetadataFilePath));
+                    if (existing == null || string.IsNullOrEmpty(existing.Id)) continue;
+                    if (string.Equals(PathUtils.Normalize(existing.FilePath), normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        return existing.Id;
+                }
+                catch
+                {
+                    // Unreadable metadata can't claim a video
+                }
+            }
+            return null;
+        }
+
+        private static void MoveSidecarsToId(string metadataFilePath, Content.ContentType type, string id)
+        {
+            string legacyName = Path.GetFileNameWithoutExtension(metadataFilePath);
+            MoveSidecar(PathUtils.Combine(FolderNames.GetThumbnailsFolderPath(type), $"{legacyName}.jpeg"),
+                        FolderNames.GetThumbnailFilePath(type, id));
+            MoveSidecar(PathUtils.Combine(FolderNames.GetWaveformsFolderPath(type), $"{legacyName}.peaks.json"),
+                        FolderNames.GetWaveformFilePath(type, id));
+        }
+
+        private static void DeleteLegacyMetadata(string metadataFilePath, string newMetadataFilePath)
+        {
+            if (string.Equals(PathUtils.Normalize(metadataFilePath), newMetadataFilePath, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            try
+            {
+                if (File.Exists(metadataFilePath))
+                    File.Delete(metadataFilePath);
+            }
+            catch (Exception ex)
+            {
+                // Both the old and the new metadata remain. The new one is id-keyed and the load-time
+                // backfill reuses its id for the old file, so this resolves without duplicates.
+                Log.Warning($"Failed deleting legacy metadata {metadataFilePath}: {ex.Message}");
+            }
+        }
+
+        private static void MoveSidecar(string from, string to)
+        {
+            try
+            {
+                if (File.Exists(from))
+                    File.Move(from, to, true);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed moving sidecar {from} -> {to}: {ex.Message}");
             }
         }
 
@@ -171,7 +300,7 @@ namespace Segra.Backend.Media
                         }
                     }
 
-                    string sidecar = PathUtils.Combine(FolderNames.GetMetadataFolderPath(content.Type), content.FileName + ".json");
+                    string sidecar = FolderNames.GetMetadataFilePath(content.Type, content.Id);
                     await UpdateMetadataFile(sidecar, c =>
                     {
                         c.Game = canonicalName;
@@ -198,11 +327,15 @@ namespace Segra.Backend.Media
             return changedCount;
         }
 
-        public static async Task CreateThumbnail(string filePath, Content.ContentType type)
+        public static async Task CreateThumbnail(string filePath, Content.ContentType type, string? id)
         {
             try
             {
-                string contentFileName = Path.GetFileNameWithoutExtension(filePath);
+                if (string.IsNullOrEmpty(id))
+                {
+                    Log.Warning($"Skipping thumbnail for {filePath}: no content id");
+                    return;
+                }
 
                 string thumbnailsFolderPath = FolderNames.GetThumbnailsFolderPath(type);
                 if (!Directory.Exists(thumbnailsFolderPath))
@@ -210,7 +343,7 @@ namespace Segra.Backend.Media
                     Directory.CreateDirectory(thumbnailsFolderPath);
                 }
 
-                string thumbnailFilePath = PathUtils.Combine(thumbnailsFolderPath, $"{contentFileName}.jpeg");
+                string thumbnailFilePath = FolderNames.GetThumbnailFilePath(type, id);
 
                 if (!FFmpegService.FFmpegExists())
                 {
@@ -227,10 +360,15 @@ namespace Segra.Backend.Media
             }
         }
 
-        public static async Task CreateWaveformFile(string videoFilePath, Content.ContentType type)
+        public static async Task CreateWaveformFile(string videoFilePath, Content.ContentType type, string? id)
         {
             try
             {
+                if (string.IsNullOrEmpty(id))
+                {
+                    Log.Warning($"Skipping waveform for {videoFilePath}: no content id");
+                    return;
+                }
                 if (!FFmpegService.FFmpegExists())
                 {
                     Log.Error($"FFmpeg executable not found at: {FFmpegService.GetFFmpegPath()}");
@@ -242,8 +380,6 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                string contentFileName = Path.GetFileNameWithoutExtension(videoFilePath);
-
                 string waveformFolderPath = FolderNames.GetWaveformsFolderPath(type);
                 if (!Directory.Exists(waveformFolderPath))
                 {
@@ -251,8 +387,8 @@ namespace Segra.Backend.Media
                 }
 
                 string tempPcmPath = PathUtils.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.pcm");
-                string waveformJsonPathTemp = PathUtils.Combine(waveformFolderPath, $"{contentFileName}.peaks.temp.json");
-                string waveformJsonPath = PathUtils.Combine(waveformFolderPath, $"{contentFileName}.peaks.json");
+                string waveformJsonPathTemp = PathUtils.Combine(waveformFolderPath, $"{id}.peaks.temp.json");
+                string waveformJsonPath = FolderNames.GetWaveformFilePath(type, id);
 
                 // Decode audio to raw mono 16-bit PCM at a modest sample rate for efficiency.
                 // Probe the file for its audio track count so multi-track recordings can be
@@ -354,7 +490,7 @@ namespace Segra.Backend.Media
             }
         }
 
-        public static async Task DeleteContent(string filePath, Content.ContentType type, bool sendToFrontend = true)
+        public static async Task DeleteContent(string filePath, Content.ContentType type, string? id, bool sendToFrontend = true)
         {
             try
             {
@@ -392,10 +528,11 @@ namespace Segra.Backend.Media
                         {
                             // Only delete if the folder is empty and is a game subfolder (not the root video type folder)
                             string contentRoot = Settings.Instance.ContentFolder;
+                            string normalizedVideoDirectory = PathUtils.Normalize(videoDirectory);
                             string[] rootFolders = { FolderNames.Sessions, FolderNames.Buffers, FolderNames.Clips, FolderNames.Highlights };
                             bool isGameSubfolder = rootFolders.Any(rf =>
-                                videoDirectory.StartsWith(Path.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase) &&
-                                !videoDirectory.Equals(Path.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase));
+                                normalizedVideoDirectory.StartsWith(PathUtils.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase) &&
+                                !normalizedVideoDirectory.Equals(PathUtils.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase));
 
                             if (isGameSubfolder && !Directory.EnumerateFileSystemEntries(videoDirectory).Any())
                             {
@@ -414,10 +551,13 @@ namespace Segra.Backend.Media
                     Log.Warning($"Video file not found (already deleted?): {normalizedFilePath}");
                 }
 
-                string contentFileName = Path.GetFileNameWithoutExtension(normalizedFilePath);
+                if (string.IsNullOrEmpty(id))
+                {
+                    Log.Warning($"No content id for {normalizedFilePath}, leaving metadata, thumbnail and waveform in place");
+                    return;
+                }
 
-                string metadataFolderPath = FolderNames.GetMetadataFolderPath(type);
-                string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{contentFileName}.json");
+                string metadataFilePath = FolderNames.GetMetadataFilePath(type, id);
                 if (File.Exists(metadataFilePath))
                 {
                     File.Delete(metadataFilePath);
@@ -428,8 +568,7 @@ namespace Segra.Backend.Media
                     Log.Warning($"Metadata file not found: {metadataFilePath}");
                 }
 
-                string thumbnailsFolderPath = FolderNames.GetThumbnailsFolderPath(type);
-                string thumbnailFilePath = PathUtils.Combine(thumbnailsFolderPath, $"{contentFileName}.jpeg");
+                string thumbnailFilePath = FolderNames.GetThumbnailFilePath(type, id);
                 if (File.Exists(thumbnailFilePath))
                 {
                     File.Delete(thumbnailFilePath);
@@ -440,8 +579,7 @@ namespace Segra.Backend.Media
                     Log.Warning($"Thumbnail file not found: {thumbnailFilePath}");
                 }
 
-                string waveformFolderPath = FolderNames.GetWaveformsFolderPath(type);
-                string waveformFilePath = PathUtils.Combine(waveformFolderPath, $"{contentFileName}.peaks.json");
+                string waveformFilePath = FolderNames.GetWaveformFilePath(type, id);
                 if (File.Exists(waveformFilePath))
                 {
                     File.Delete(waveformFilePath);
@@ -499,19 +637,17 @@ namespace Segra.Backend.Media
         {
             try
             {
-                if (message.TryGetProperty("FilePath", out JsonElement filePathElement) &&
+                if (message.TryGetProperty("ContentId", out JsonElement contentIdElement) &&
                     message.TryGetProperty("Type", out JsonElement typeElement) &&
                     message.TryGetProperty("Time", out JsonElement timeElement) &&
-                    message.TryGetProperty("ContentType", out JsonElement contentTypeElement) &&
                     message.TryGetProperty("Id", out JsonElement idElement))
                 {
-                    string? filePath = filePathElement.GetString();
+                    string? contentId = contentIdElement.GetString();
                     string? bookmarkTypeStr = typeElement.GetString();
                     string? timeString = timeElement.GetString();
-                    string? contentTypeStr = contentTypeElement.GetString();
                     int bookmarkId = idElement.GetInt32();
 
-                    if (string.IsNullOrEmpty(filePath) || string.IsNullOrEmpty(timeString) || string.IsNullOrEmpty(contentTypeStr))
+                    if (string.IsNullOrEmpty(contentId) || string.IsNullOrEmpty(timeString))
                     {
                         Log.Error("Required parameters are null or empty in AddBookmark message");
                         return;
@@ -523,15 +659,15 @@ namespace Segra.Backend.Media
                         bookmarkType = parsedType;
                     }
 
-                    if (!Enum.TryParse<Content.ContentType>(contentTypeStr, out Content.ContentType contentType))
+                    var contentItem = AppState.Instance.Content.FirstOrDefault(c => c.Id == contentId);
+
+                    if (contentItem == null)
                     {
-                        Log.Error($"Invalid content type: {contentTypeStr}");
+                        Log.Error($"Content item not found for {contentId}");
                         return;
                     }
 
-                    string contentFileName = Path.GetFileNameWithoutExtension(filePath);
-                    string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
-                    string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{contentFileName}.json");
+                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentItem.Type, contentItem.Id);
 
                     var bookmark = new Bookmark
                     {
@@ -548,17 +684,6 @@ namespace Segra.Backend.Media
 
                     if (content == null)
                     {
-                        return;
-                    }
-
-                    // Update the bookmark in the in-memory content collection
-                    var contentItem = AppState.Instance.Content.FirstOrDefault(c =>
-                        c.FilePath == filePath &&
-                        c.Type.ToString() == contentTypeStr);
-
-                    if (contentItem == null)
-                    {
-                        Log.Error($"Content item not found for {filePath} and {contentTypeStr}");
                         return;
                     }
 
@@ -582,29 +707,27 @@ namespace Segra.Backend.Media
         {
             try
             {
-                if (message.TryGetProperty("FilePath", out JsonElement filePathElement) &&
-                    message.TryGetProperty("ContentType", out JsonElement contentTypeElement) &&
+                if (message.TryGetProperty("ContentId", out JsonElement contentIdElement) &&
                     message.TryGetProperty("Id", out JsonElement idElement))
                 {
-                    string? filePath = filePathElement.GetString();
-                    string? contentTypeStr = contentTypeElement.GetString();
+                    string? contentId = contentIdElement.GetString();
                     int bookmarkId = idElement.GetInt32();
 
-                    if (string.IsNullOrEmpty(filePath) || string.IsNullOrEmpty(contentTypeStr))
+                    if (string.IsNullOrEmpty(contentId))
                     {
                         Log.Error("Required parameters are null or empty in DeleteBookmark message");
                         return;
                     }
 
-                    if (!Enum.TryParse<Content.ContentType>(contentTypeStr, out Content.ContentType contentType))
+                    var contentItem = AppState.Instance.Content.FirstOrDefault(c => c.Id == contentId);
+
+                    if (contentItem == null)
                     {
-                        Log.Error($"Invalid content type: {contentTypeStr}");
+                        Log.Error($"Content item not found for {contentId}");
                         return;
                     }
 
-                    string contentFileName = Path.GetFileNameWithoutExtension(filePath);
-                    string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
-                    string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{contentFileName}.json");
+                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentItem.Type, contentItem.Id);
 
                     var content = await UpdateMetadataFile(metadataFilePath, c =>
                     {
@@ -619,12 +742,7 @@ namespace Segra.Backend.Media
                         return;
                     }
 
-                    // Update the bookmark in the in-memory content collection
-                    var contentItem = AppState.Instance.Content.FirstOrDefault(c =>
-                        c.FilePath == filePath &&
-                        c.Type.ToString() == contentTypeStr);
-
-                    if (contentItem != null && contentItem.Bookmarks != null)
+                    if (contentItem.Bookmarks != null)
                     {
                         contentItem.Bookmarks = contentItem.Bookmarks.Where(b => b.Id != bookmarkId).ToList();
                     }
@@ -649,22 +767,20 @@ namespace Segra.Backend.Media
             {
                 Log.Information($"Handling RenameContent with message: {message}");
 
-                if (message.TryGetProperty("FileName", out JsonElement fileNameElement) &&
-                    message.TryGetProperty("ContentType", out JsonElement contentTypeElement) &&
+                if (message.TryGetProperty("Id", out JsonElement idElement) &&
                     message.TryGetProperty("Title", out JsonElement titleElement))
                 {
-                    string fileName = fileNameElement.GetString()!;
-                    string contentTypeStr = contentTypeElement.GetString()!;
+                    string id = idElement.GetString()!;
                     string newTitle = titleElement.GetString()!;
 
-                    if (!Enum.TryParse(contentTypeStr, true, out Content.ContentType contentType))
+                    Content? contentItem = AppState.Instance.Content.FirstOrDefault(c => c.Id == id);
+                    if (contentItem == null)
                     {
-                        Log.Error($"Invalid ContentType provided: {contentTypeStr}");
+                        Log.Error($"Content not found in state for rename: {id}");
                         return;
                     }
 
-                    string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
-                    string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{fileName}.json");
+                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentItem.Type, id);
 
                     if (!File.Exists(metadataFilePath))
                     {
@@ -680,7 +796,7 @@ namespace Segra.Backend.Media
                         return;
                     }
 
-                    string newFileName = fileName;
+                    string newFileName = currentContent.FileName;
                     string newFilePath = currentContent.FilePath;
 
                     string targetFileName = string.IsNullOrWhiteSpace(newTitle)
@@ -712,22 +828,6 @@ namespace Segra.Backend.Media
                                 newFilePath = candidatePath;
                                 newFileName = Path.GetFileNameWithoutExtension(candidatePath);
                                 Log.Information($"Renamed video file to {candidatePath}");
-
-                                string thumbnailsFolderPath = FolderNames.GetThumbnailsFolderPath(contentType);
-                                string oldThumbnailPath = PathUtils.Combine(thumbnailsFolderPath, $"{fileName}.jpeg");
-                                if (File.Exists(oldThumbnailPath))
-                                {
-                                    File.Move(oldThumbnailPath, PathUtils.Combine(thumbnailsFolderPath, $"{newFileName}.jpeg"));
-                                    Log.Information($"Renamed thumbnail for {newFileName}");
-                                }
-
-                                string waveformsFolderPath = FolderNames.GetWaveformsFolderPath(contentType);
-                                string oldWaveformPath = PathUtils.Combine(waveformsFolderPath, $"{fileName}.peaks.json");
-                                if (File.Exists(oldWaveformPath))
-                                {
-                                    File.Move(oldWaveformPath, PathUtils.Combine(waveformsFolderPath, $"{newFileName}.peaks.json"));
-                                    Log.Information($"Renamed waveform for {newFileName}");
-                                }
                             }
                         }
                     }
@@ -735,27 +835,15 @@ namespace Segra.Backend.Media
                     currentContent.Title = newTitle;
                     currentContent.FileName = newFileName;
                     currentContent.FilePath = newFilePath;
-                    string updatedJson = JsonSerializer.Serialize(currentContent, _jsonOptions);
+                    await File.WriteAllTextAsync(metadataFilePath, JsonSerializer.Serialize(currentContent, _jsonOptions));
 
-                    if (newFileName != fileName)
-                    {
-                        File.Delete(metadataFilePath);
-                        string newMetadataFilePath = PathUtils.Combine(metadataFolderPath, $"{newFileName}.json");
-                        await File.WriteAllTextAsync(newMetadataFilePath, updatedJson);
-                        Log.Information($"Renamed metadata file to {newMetadataFilePath}");
-                    }
-                    else
-                    {
-                        await File.WriteAllTextAsync(metadataFilePath, updatedJson);
-                    }
-
-                    Log.Information($"Updated title for {fileName} to '{newTitle}'");
+                    Log.Information($"Updated title for {id} to '{newTitle}'");
                     await SettingsService.LoadContentFromFolderIntoState(true);
                     await MessageService.SendStateToFrontend("Renamed content");
                 }
                 else
                 {
-                    Log.Error("FileName, ContentType, or Title property not found in RenameContent message.");
+                    Log.Error("Id or Title property not found in RenameContent message.");
                 }
             }
             catch (Exception ex)

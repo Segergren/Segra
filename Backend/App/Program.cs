@@ -12,6 +12,7 @@ using Segra.Backend.Platform;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
+using System.Reflection;
 using System.Runtime.InteropServices;
 #if WINDOWS
 using Segra.Backend.Windows.Power;
@@ -36,7 +37,23 @@ namespace Segra.Backend.App
         [DllImport("user32.dll")]
         static extern int GetSystemMetrics(int nIndex);
 
+        [DllImport("user32.dll")]
+        static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr processId);
+
+        [DllImport("user32.dll")]
+        static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("kernel32.dll")]
+        static extern uint GetCurrentThreadId();
+
         const int SW_HIDE = 0;
+        const int SW_RESTORE = 9;
         const int SM_CXFULLSCREEN = 16;
         const int SM_CYFULLSCREEN = 17;
 #endif
@@ -186,11 +203,16 @@ namespace Segra.Backend.App
                 if (!IsVSCodeDebug)
                 {
                     PhotinoServer
-                        .CreateStaticFileServer(args, out baseUrl)
+                        .CreateStaticFileServer(args, startPort: 44040, portRange: 100, webRootFolder: "wwwroot", out baseUrl)
                         .RunAsync();
                 }
 
-                appUrl = IsDebugMode ? "http://localhost:2882" : $"{baseUrl}/index.html";
+                // Version-stamped URL: WebKitGTK's disk cache persists across app updates and the
+                // static server sends no cache headers, so a bare /index.html can keep rendering
+                // the previous build's frontend until a manual refresh.
+                string? appVersion = Assembly.GetExecutingAssembly()
+                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+                appUrl = IsDebugMode ? "http://localhost:2882" : $"{baseUrl}/index.html?v={Uri.EscapeDataString(appVersion ?? "0")}";
 
                 if (IsDebugMode)
                 {
@@ -229,8 +251,7 @@ namespace Segra.Backend.App
 
                 Task.Run(() =>
                 {
-                    string prefix = "http://localhost:2222/";
-                    ContentServer.StartServer(prefix);
+                    ContentServer.StartServer(ContentServer.Prefix);
                 });
 
                 IsFirstRun = !SettingsService.LoadSettings();
@@ -259,7 +280,6 @@ namespace Segra.Backend.App
 
                 // Start WebSocket and Load Settings
                 Task.Run(MessageService.StartWebsocket);
-                Task.Run(MessageService.StartLegacyPortFallback);
                 Task.Run(StorageService.EnsureStorageBelowLimit);
 
                 // Check for updates
@@ -456,6 +476,22 @@ namespace Segra.Backend.App
             }
         }
 
+        private static async Task BringWindowToForegroundAsync()
+        {
+            if (Window == null)
+                return;
+
+            Window.Invoke(() =>
+            {
+                Window.SetMinimized(false);
+                Window.SetTopMost(true);
+            });
+            await Task.Delay(200);
+            Window.Invoke(() => Window.SetTopMost(false));
+            FocusApplicationWindow();
+            Log.Information("Application window brought to foreground");
+        }
+
         private static async Task ShowApplicationWindow()
         {
             Log.Information("Showing application window. Window is " + (Window == null ? "null" : "not null"));
@@ -466,14 +502,7 @@ namespace Segra.Backend.App
                 {
                     await Task.Delay(200);
                     Log.Information("Bringing application window to foreground from scheduled task");
-                    if (Window != null)
-                    {
-                        Window.SetMinimized(false);
-                        Window.SetTopMost(true);
-                        await Task.Delay(200);
-                        Window.SetTopMost(false);
-                        Log.Information("Application window brought to foreground");
-                    }
+                    await BringWindowToForegroundAsync();
                 });
 
                 LoadFrontend();
@@ -481,12 +510,45 @@ namespace Segra.Backend.App
             else
             {
                 Log.Information("Bringing application window to foreground. Window is not null");
-                Window.SetMinimized(false);
-                Window.SetTopMost(true);
-                await Task.Delay(200);
-                Window.SetTopMost(false);
-                Log.Information("Application window brought to foreground");
+                await BringWindowToForegroundAsync();
             }
+        }
+
+        public static void BringWindowToFront() => _ = ShowApplicationWindow();
+
+        // SetForegroundWindow only works for the process owning the foreground, so borrow its input queue.
+        private static void FocusApplicationWindow()
+        {
+#if WINDOWS
+            try
+            {
+                IntPtr hWnd = Process.GetCurrentProcess().MainWindowHandle;
+                if (hWnd == IntPtr.Zero)
+                    return;
+
+                IntPtr foreground = GetForegroundWindow();
+                if (foreground == hWnd)
+                    return;
+
+                ShowWindow(hWnd, SW_RESTORE);
+
+                uint foregroundThread = GetWindowThreadProcessId(foreground, IntPtr.Zero);
+                uint currentThread = GetCurrentThreadId();
+                bool attached = foregroundThread != 0 && foregroundThread != currentThread &&
+                    AttachThreadInput(currentThread, foregroundThread, true);
+
+                SetForegroundWindow(hWnd);
+
+                if (attached)
+                    AttachThreadInput(currentThread, foregroundThread, false);
+
+                Log.Information("Application window focused");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not focus the application window");
+            }
+#endif
         }
 
         private static void HideApplicationWindow()
@@ -637,10 +699,13 @@ namespace Segra.Backend.App
                                 {
                                     if (Window != null)
                                     {
-                                        Window.SetMinimized(false);
-                                        Window.SetTopMost(true);
+                                        Window.Invoke(() =>
+                                        {
+                                            Window.SetMinimized(false);
+                                            Window.SetTopMost(true);
+                                        });
                                         Thread.Sleep(200);
-                                        Window.SetTopMost(false);
+                                        Window.Invoke(() => Window.SetTopMost(false));
                                         Log.Information("Window brought to foreground directly from pipe server");
                                     }
                                     else

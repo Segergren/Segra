@@ -5,6 +5,7 @@ using Segra.Backend.Core;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Media;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -13,10 +14,8 @@ namespace Segra.Backend.Games
     public static class GameUtils
     {
         private static HashSet<string> _gameExePaths = new(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, string> _exeToGameName = new(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, int> _exeToIgdbId = new(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, string> _exeToCoverImageId = new(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, string> _exeToIcon = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, GameEntry> _exeToEntry = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<int, GameEntry> _steamIdToEntry = new();
         private static List<GameEntry> _gamesList = [];
         private static BlacklistEntry _blacklist = new();
         private static readonly ConcurrentDictionary<string, Regex> _wildcardRegexCache = new();
@@ -61,7 +60,8 @@ namespace Segra.Backend.Games
             return false;
         }
 
-        public static string? GetGameNameFromExePath(string exePath)
+        // Exe pattern match first, then Steam app id (install-folder granularity, as a fallback).
+        public static GameEntry? ResolveEntryFromExePath(string exePath)
         {
             if (!_isInitialized || string.IsNullOrEmpty(exePath))
                 return null;
@@ -69,62 +69,37 @@ namespace Segra.Backend.Games
             string normalizedPath = exePath.Replace("\\", "/");
             string fileName = Path.GetFileName(exePath);
 
-            foreach (var entry in _exeToGameName)
+            foreach (var entry in _exeToEntry)
             {
                 if (MatchesGamePattern(normalizedPath, fileName, entry.Key))
                     return entry.Value;
             }
 
-            return null;
-        }
-
-        public static int? GetIgdbIdFromExePath(string exePath)
-        {
-            if (!_isInitialized || string.IsNullOrEmpty(exePath))
-                return null;
-
-            string normalizedPath = exePath.Replace("\\", "/");
-            string fileName = Path.GetFileName(exePath);
-
-            foreach (var entry in _exeToIgdbId)
-            {
-                if (MatchesGamePattern(normalizedPath, fileName, entry.Key))
-                    return entry.Value;
-            }
+            if (SteamUtils.GetAppInfoFromExePath(exePath)?.AppId is int appId
+                && _steamIdToEntry.TryGetValue(appId, out var steamEntry)
+                && steamEntry.Executables.Count == 0)
+                return steamEntry;
 
             return null;
         }
 
+        public static string? GetGameNameFromExePath(string exePath) => ResolveEntryFromExePath(exePath)?.Name;
+
+        public static int? GetIgdbIdFromExePath(string exePath) => ResolveEntryFromExePath(exePath)?.Igdb?.Id;
+
+        public static string? GetIconFromExePath(string exePath) => ResolveEntryFromExePath(exePath)?.Icon;
+
+        // Numeric app ids make the cover endpoint serve the Steam library hero
         public static string? GetCoverImageIdFromExePath(string exePath)
         {
-            if (!_isInitialized || string.IsNullOrEmpty(exePath))
-                return null;
+            var entry = ResolveEntryFromExePath(exePath);
+            if (entry?.SteamId is int steamId)
+                return steamId.ToString();
+            if (!string.IsNullOrEmpty(entry?.Igdb?.CoverImageId))
+                return entry.Igdb.CoverImageId;
 
-            string normalizedPath = exePath.Replace("\\", "/");
-            string fileName = Path.GetFileName(exePath);
-
-            foreach (var entry in _exeToCoverImageId)
-            {
-                if (MatchesGamePattern(normalizedPath, fileName, entry.Key))
-                    return entry.Value;
-            }
-
-            return null;
-        }
-
-        public static string? GetIconFromExePath(string exePath)
-        {
-            if (!_isInitialized || string.IsNullOrEmpty(exePath))
-                return null;
-
-            string normalizedPath = exePath.Replace("\\", "/");
-            string fileName = Path.GetFileName(exePath);
-
-            foreach (var entry in _exeToIcon)
-            {
-                if (MatchesGamePattern(normalizedPath, fileName, entry.Key))
-                    return entry.Value;
-            }
+            if (entry == null && _isInitialized && SteamUtils.GetAppInfoFromExePath(exePath)?.AppId is int appId)
+                return appId.ToString();
 
             return null;
         }
@@ -185,7 +160,8 @@ namespace Segra.Backend.Games
                 Name = game.Name,
                 Executables = game.Executables.Select(exe => exe.Replace("/", "\\")).ToList(),
                 Icon = game.Icon,
-                IgdbId = game.Igdb?.Id
+                IgdbId = game.Igdb?.Id,
+                SteamId = game.SteamId
             }).ToList();
         }
 
@@ -297,36 +273,30 @@ namespace Segra.Backend.Games
                 _gamesList = JsonSerializer.Deserialize<List<GameEntry>>(jsonContent) ?? [];
 
                 _gameExePaths.Clear();
-                _exeToGameName.Clear();
-                _exeToIgdbId.Clear();
-                _exeToCoverImageId.Clear();
-                _exeToIcon.Clear();
+                _exeToEntry.Clear();
+                _steamIdToEntry.Clear();
                 _wildcardRegexCache.Clear();
 
                 foreach (var entry in _gamesList)
                 {
+                    if (entry.SteamId is int steamId)
+                    {
+                        _steamIdToEntry.TryAdd(steamId, entry);
+                    }
+
                     foreach (var exe in entry.Executables)
                     {
                         string normalizedExe = exe.Replace("\\", "/");
                         _gameExePaths.Add(normalizedExe);
-                        _exeToGameName[normalizedExe] = entry.Name;
 
-                        if (entry.Igdb?.Id != null)
-                        {
-                            _exeToIgdbId[normalizedExe] = entry.Igdb.Id;
-                        }
-                        if (!string.IsNullOrEmpty(entry.Igdb?.CoverImageId))
-                        {
-                            _exeToCoverImageId[normalizedExe] = entry.Igdb.CoverImageId;
-                        }
-                        if (!string.IsNullOrEmpty(entry.Icon))
-                        {
-                            _exeToIcon[normalizedExe] = entry.Icon;
-                        }
+                        // When two entries share an exe pattern, keep the one with IGDB metadata.
+                        if (_exeToEntry.TryGetValue(normalizedExe, out var existing) && existing.Igdb != null && entry.Igdb == null)
+                            continue;
+                        _exeToEntry[normalizedExe] = entry;
                     }
                 }
 
-                Log.Information($"Loaded {_gamesList.Count} games with {_gameExePaths.Count} executables from games.json");
+                Log.Information($"Loaded {_gamesList.Count} games with {_gameExePaths.Count} executables and {_steamIdToEntry.Count} Steam ids from games.json");
             }
             catch (Exception ex)
             {
@@ -349,7 +319,7 @@ namespace Segra.Backend.Games
             string jsonPath = Path.Combine(appDataDir, "blacklist.json");
             string cdnUrl = "https://cdn.segra.tv/games/blacklist.json";
 
-            using (var httpClient = new HttpClient())
+            using (var httpClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All }))
             {
                 httpClient.DefaultRequestHeaders.Add("User-Agent", "Segra");
 
@@ -446,7 +416,7 @@ namespace Segra.Backend.Games
             string jsonPath = Path.Combine(appDataDir, "games.json");
             string cdnUrl = "https://cdn.segra.tv/games/games.json";
 
-            using (var httpClient = new HttpClient())
+            using (var httpClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All }))
             {
                 httpClient.DefaultRequestHeaders.Add("User-Agent", "Segra");
 
@@ -521,6 +491,9 @@ namespace Segra.Backend.Games
 
             [JsonPropertyName("igdb")]
             public IgdbInfo? Igdb { get; set; }
+
+            [JsonPropertyName("steam_id")]
+            public int? SteamId { get; set; }
 
             // CDN icon id (https://segra.tv/api/games/icon/{icon}); not present for every game.
             [JsonPropertyName("icon")]

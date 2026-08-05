@@ -22,6 +22,7 @@ import {
 import { useModal } from '../../Context/ModalContext';
 import CustomGameModal from '../CustomGameModal';
 import DropdownSelect from '../DropdownSelect';
+import { useDeleteConfirmation } from '../../Hooks/useDeleteConfirmation';
 
 const BITRATE_OPTIONS = Array.from({ length: 19 }, (_, i) => (i + 2) * 5); // 10..100 Mbps
 
@@ -121,6 +122,7 @@ export default function GameDetectionSection() {
   const updateSettings = useSettingsUpdater();
   const appState = useAppState();
   const { openModal, closeModal } = useModal();
+  const confirmDelete = useDeleteConfirmation();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -254,8 +256,15 @@ export default function GameDetectionSection() {
   };
 
   const removeGame = (name: string) => {
-    updateSettings({ games: games.filter((g) => g.name !== name) });
-    if (selectedName === name) setSelectedName(null);
+    confirmDelete({
+      title: 'Remove game settings?',
+      description: `Remove ${name} and all of its recording overrides? Existing recordings will not be deleted.`,
+      confirmText: 'Remove',
+      onConfirm: () => {
+        updateSettings({ games: games.filter((g) => g.name !== name) });
+        if (selectedName === name) setSelectedName(null);
+      },
+    });
   };
 
   return (

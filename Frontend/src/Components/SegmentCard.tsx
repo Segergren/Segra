@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SegmentCardProps } from '../Models/types';
 import { useDrag, useDrop } from 'react-dnd';
 import { Headphones } from 'lucide-react';
+import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 
 const DRAG_TYPE = 'SEGMENT_CARD';
 
@@ -62,6 +63,7 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
     };
 
     const { startTime, endTime, thumbnailDataUrl, isLoading } = segment;
+    const confirmDelete = useDeleteConfirmation();
 
     // Fade the first thumbnail in and crossfade later ones over the current
     // image, instead of flashing a loading state.
@@ -119,7 +121,11 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
         }}
         onContextMenu={(e) => {
           e.preventDefault();
-          removeSegment(segment.id);
+          confirmDelete({
+            title: 'Delete segment?',
+            description: 'Remove this segment from the clip? This action cannot be undone.',
+            onConfirm: () => removeSegment(segment.id),
+          });
         }}
       >
         {baseSrc ? (

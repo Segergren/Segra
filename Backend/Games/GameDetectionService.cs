@@ -213,6 +213,10 @@ namespace Segra.Backend.Games
 
         private static HashSet<int> EnumerateProcPids()
         {
+            // In a Flatpak our /proc holds only our own processes, so read the host's instead.
+            if (Platform.Linux.FlatpakHost.IsFlatpak)
+                return [.. Platform.Linux.FlatpakHost.RefreshProcesses().Keys];
+
             var pids = new HashSet<int>();
             try
             {
@@ -270,7 +274,11 @@ namespace Segra.Backend.Games
         {
             try
             {
-                foreach (var entry in File.ReadAllText($"/proc/{pid}/environ").Split('\0'))
+                string environ = Platform.Linux.FlatpakHost.IsFlatpak
+                    ? Platform.Linux.FlatpakHost.ReadFile($"/proc/{pid}/environ")
+                    : File.ReadAllText($"/proc/{pid}/environ");
+
+                foreach (var entry in environ.Split('\0'))
                     if (entry.StartsWith(key + "=", StringComparison.Ordinal))
                         return entry[(key.Length + 1)..];
             }
@@ -314,6 +322,15 @@ namespace Segra.Backend.Games
         // STEAM_COMPAT_INSTALL_PATH). Only reached while recording a Proton game, so scanning environ is fine.
         private static bool AnyProcessHasSteamInstall(HashSet<int> pids, string installDir)
         {
+            if (Platform.Linux.FlatpakHost.IsFlatpak)
+            {
+                // One host call for the whole process list, not a flatpak-spawn per pid.
+                var installPaths = Platform.Linux.FlatpakHost.ReadEnvVarValues("STEAM_COMPAT_INSTALL_PATH");
+                // A failed read must not look like the game exited.
+                if (installPaths == null) return true;
+                return installPaths.Any(p => PathUtils.Normalize(p).Equals(installDir, StringComparison.OrdinalIgnoreCase));
+            }
+
             foreach (int pid in pids)
             {
                 string? p = ReadProcEnvVar(pid, "STEAM_COMPAT_INSTALL_PATH");
@@ -455,7 +472,7 @@ namespace Segra.Backend.Games
                 return false;
             }
 
-            // 2. Check if the game is in the games.json list
+            // 2. Check if the game is in the games.json list by exe pattern.
             bool isKnownGame = GameUtils.IsGameExePath(exePath);
             if (isKnownGame)
             {
@@ -589,15 +606,23 @@ namespace Segra.Backend.Games
 #if !WINDOWS
             // Linux: the exe is the target of the /proc/<pid>/exe symlink.
             string procExe = string.Empty;
-            try
+            if (Platform.Linux.FlatpakHost.IsFlatpak)
             {
-                var fsi = new FileInfo($"/proc/{pid}/exe");
-                string? target = fsi.LinkTarget;
-                if (!string.IsNullOrEmpty(target))
-                    // LinkTarget may be relative; prefer the fully-resolved target when available.
-                    procExe = fsi.ResolveLinkTarget(true)?.FullName ?? target;
+                // Served from the poll's host snapshot; only re-spawns if the pid is newer than it.
+                procExe = Platform.Linux.FlatpakHost.ExePath(pid, TimeSpan.FromSeconds(2));
             }
-            catch { /* process may have exited or be inaccessible */ }
+            else
+            {
+                try
+                {
+                    var fsi = new FileInfo($"/proc/{pid}/exe");
+                    string? target = fsi.LinkTarget;
+                    if (!string.IsNullOrEmpty(target))
+                        // LinkTarget may be relative; prefer the fully-resolved target when available.
+                        procExe = fsi.ResolveLinkTarget(true)?.FullName ?? target;
+                }
+                catch { /* process may have exited or be inaccessible */ }
+            }
 
             // Steam Proton/Wine games only expose a Wine preloader here (which matches no game); resolve
             // the real Windows .exe under STEAM_COMPAT_INSTALL_PATH so detection works.
@@ -776,6 +801,12 @@ namespace Segra.Backend.Games
         {
             if (pid <= 0) return false;
 
+#if !WINDOWS
+            // Under Flatpak the tracked pid is a host pid, invisible to our own PID namespace.
+            if (Platform.Linux.FlatpakHost.IsFlatpak)
+                return Platform.Linux.FlatpakHost.IsRunning(pid, TimeSpan.FromSeconds(2));
+#endif
+
             try
             {
                 using var process = Process.GetProcessById(pid);
@@ -926,29 +957,8 @@ namespace Segra.Backend.Games
 
         private static string? AttemptSteamAcfLookup(string exeFilePath)
         {
-            try
-            {
-                string normalized = exeFilePath.Replace("\\", "/");
-                var splitAroundCommon = Regex.Split(normalized, "/steamapps/common/", RegexOptions.IgnoreCase);
-                if (splitAroundCommon.Length < 2) return null;
-
-                string folder = splitAroundCommon[1].Split('/')[0];
-                string prefix = splitAroundCommon[0].TrimEnd('/', '\\');
-                if (string.IsNullOrEmpty(prefix)) return null;
-
-                string steamAppsDir = prefix + "/steamapps";
-                if (!Directory.Exists(steamAppsDir)) return null;
-
-                foreach (string acfFile in Directory.GetFiles(steamAppsDir, "*.acf"))
-                {
-                    string contents = File.ReadAllText(acfFile);
-                    string acfDir = ExtractAcfField(contents, "installdir");
-                    string acfName = ExtractAcfField(contents, "name");
-                    if (acfDir.Equals(folder, StringComparison.OrdinalIgnoreCase)) return acfName;
-                }
-                return null;
-            }
-            catch { return null; }
+            string? name = SteamUtils.GetAppInfoFromExePath(exeFilePath)?.Name;
+            return string.IsNullOrEmpty(name) ? null : name;
         }
 
         private static string? AttemptEAGamesLookup(string exeFilePath)
@@ -1071,14 +1081,6 @@ namespace Segra.Backend.Games
                 return null;
             }
             catch { return null; }
-        }
-
-        private static string ExtractAcfField(string acfContent, string key)
-        {
-            if (string.IsNullOrEmpty(acfContent) || string.IsNullOrEmpty(key)) return string.Empty;
-            string pattern = $"\"{key}\"\\s+\"([^\"]+)\"";
-            var match = Regex.Match(acfContent, pattern, RegexOptions.IgnoreCase);
-            return match.Success && match.Groups.Count > 1 ? match.Groups[1].Value.Trim() : string.Empty;
         }
 
 #if !WINDOWS

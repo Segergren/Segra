@@ -339,6 +339,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.ConfirmBeforeDeleting != updatedSettings.ConfirmBeforeDeleting)
+            {
+                Log.Information($"ConfirmBeforeDeleting changed from '{settings.ConfirmBeforeDeleting}' to '{updatedSettings.ConfirmBeforeDeleting}'");
+                settings.ConfirmBeforeDeleting = updatedSettings.ConfirmBeforeDeleting;
+                hasChanges = true;
+            }
+
             if (settings.RemoveOriginalAfterCompression != updatedSettings.RemoveOriginalAfterCompression)
             {
                 Log.Information($"RemoveOriginalAfterCompression changed from '{settings.RemoveOriginalAfterCompression}' to '{updatedSettings.RemoveOriginalAfterCompression}'");
@@ -792,8 +799,15 @@ namespace Segra.Backend.Core
             }
         }
 
-        public static async Task LoadContentFromFolderIntoState(bool sendToFrontend = true)
+        public static async Task LoadContentFromFolderIntoState(bool sendToFrontend = true, bool awaitMigrations = true)
         {
+            // Migrations rename metadata files while they backfill ids. Loading alongside them
+            // (e.g. from the WebSocket connect handler) could read files mid-rename; wait for the
+            // backfill to finish first. Migration-internal reloads pass awaitMigrations: false,
+            // since they run while the migration is still in progress.
+            if (awaitMigrations && MigrationService.IsRunning)
+                await MigrationService.WaitForMigrationsAsync();
+
             var contentTypes = Enum.GetValues(typeof(Content.ContentType)).Cast<Content.ContentType>().ToArray();
             var content = new List<Content>();
 
@@ -808,8 +822,10 @@ namespace Segra.Backend.Core
                         continue;
                     }
 
+                    // Materialized because the id backfill below can write a renamed metadata file into this folder
                     var metadataFiles = Directory.EnumerateFiles(metadataPath, "*.json", SearchOption.TopDirectoryOnly)
-                                                 .Where(file => IsMetadataFile(file));
+                                                 .Where(file => IsMetadataFile(file))
+                                                 .ToList();
 
                     foreach (var metadataFilePath in metadataFiles)
                     {
@@ -825,11 +841,17 @@ namespace Segra.Backend.Core
                                 continue;
                             }
 
+                            // Safety net for metadata that reached disk without an id
+                            if (ContentService.EnsureContentId(serializedMetadataFilePath, metadata))
+                            {
+                                Log.Information($"Assigned content id {metadata.Id} to {metadata.FilePath}");
+                            }
+
                             // Update FileSizeKb if it is 0 (migration, remove this in the future)
                             if (metadata.FileSizeKb == 0)
                             {
                                 Log.Information($"[MIGRATION] Adding FileSizeKb to {metadata.FilePath}");
-                                var updatedMetadata = await ContentService.UpdateMetadataFile(metadataFilePath, c =>
+                                var updatedMetadata = await ContentService.UpdateMetadataFile(FolderNames.GetMetadataFilePath(metadata.Type, metadata.Id), c =>
                                 {
                                     c.FileSizeKb = ContentService.GetFileSize(c.FilePath).sizeKb;
                                 });
@@ -840,23 +862,7 @@ namespace Segra.Backend.Core
                                 }
                             }
 
-                            content.Add(new Content
-                            {
-                                Type = metadata.Type,
-                                Title = metadata.Title,
-                                Game = metadata.Game,
-                                Bookmarks = metadata.Bookmarks,
-                                FileName = metadata.FileName,
-                                FilePath = metadata.FilePath,
-                                FileSize = metadata.FileSize,
-                                FileSizeKb = metadata.FileSizeKb,
-                                Duration = metadata.Duration,
-                                CreatedAt = metadata.CreatedAt,
-                                UploadId = metadata.UploadId,
-                                IgdbId = metadata.IgdbId,
-                                AudioTrackNames = metadata.AudioTrackNames,
-                                IsImported = metadata.IsImported
-                            });
+                            content.Add(metadata);
                         }
                         catch (Exception ex)
                         {

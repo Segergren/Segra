@@ -12,6 +12,7 @@ import ContentFilters, { SortOption } from './ContentFilters';
 import { useModal } from '../Context/ModalContext';
 import { useImports } from '../Context/ImportContext';
 import Button from './Button';
+import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 
 // Escape a filename for use inside a CSS attribute-selector string. Windows
 // filenames can't contain " or \, but escape defensively all the same.
@@ -59,6 +60,7 @@ export default function ContentPage({
   const { setSelectedVideo } = useSelectedVideo();
   const { scrollPositions, setScrollPosition } = useScroll();
   const { isModalOpen } = useModal();
+  const confirmDelete = useDeleteConfirmation();
   const { imports } = useImports();
   const containerRef = useRef<HTMLDivElement>(null);
   const isSettingScroll = useRef(false);
@@ -71,7 +73,6 @@ export default function ContentPage({
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
-  const [highlightedFileName, setHighlightedFileName] = useState<string | null>(null);
   const [contentViewMode, setContentViewMode] = useState<ContentViewMode>(() => {
     const saved = localStorage.getItem(`${sectionId}-view-mode`);
     return saved === 'folders' ? 'folders' : 'default';
@@ -85,9 +86,13 @@ export default function ContentPage({
       return null;
     }
   });
+  const [highlightedContentId, setHighlightedContentId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const contentItems = state.content.filter((video) => video.type === contentType);
+  const contentItems = useMemo(
+    () => state.content.filter((video) => video.type === contentType),
+    [state.content, contentType],
+  );
   const [selectedGames, setSelectedGames] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(`${sectionId}-filters`);
@@ -115,6 +120,15 @@ export default function ContentPage({
     }
     return uniqueGameList;
   }, [contentItems]);
+
+  useEffect(() => {
+    const availableFilters = new Set(uniqueGames);
+
+    setSelectedGames((prev) => {
+      const validFilters = prev.filter((game) => availableFilters.has(game));
+      return validFilters.length === prev.length ? prev : validFilters;
+    });
+  }, [uniqueGames]);
 
   const filteredItems = useMemo(() => {
     let filtered = [...contentItems];
@@ -253,10 +267,10 @@ export default function ContentPage({
       if (isCtrlPressed) {
         setSelectedItems((prev) => {
           const newSet = new Set(prev);
-          if (newSet.has(video.fileName)) {
-            newSet.delete(video.fileName);
+          if (newSet.has(video.id)) {
+            newSet.delete(video.id);
           } else {
-            newSet.add(video.fileName);
+            newSet.add(video.id);
           }
           return newSet;
         });
@@ -274,14 +288,18 @@ export default function ContentPage({
   const handleDeleteSelected = useCallback(() => {
     if (selectedItems.size === 0) return;
 
-    const items = Array.from(selectedItems).map((fileName) => ({
-      FileName: fileName,
-      ContentType: contentType,
-    }));
+    const ids = Array.from(selectedItems);
 
-    sendMessageToBackend('DeleteMultipleContent', { Items: items });
-    setSelectedItems(new Set());
-  }, [selectedItems, contentType]);
+    const count = ids.length;
+    confirmDelete({
+      title: `Delete ${count} ${count === 1 ? 'item' : 'items'}?`,
+      description: `Are you sure you want to permanently delete the selected ${count === 1 ? 'item' : `${count} items`}?\n\nThis action cannot be undone.`,
+      onConfirm: () => {
+        sendMessageToBackend('DeleteMultipleContent', { Ids: ids });
+        setSelectedItems(new Set());
+      },
+    });
+  }, [selectedItems, confirmDelete]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -297,7 +315,7 @@ export default function ContentPage({
         if (selectedItems.size === visibleItems.length && visibleItems.length > 0) {
           setSelectedItems(new Set());
         } else {
-          setSelectedItems(new Set(visibleItems.map((item) => item.fileName)));
+          setSelectedItems(new Set(visibleItems.map((item) => item.id)));
         }
       }
 
@@ -335,29 +353,29 @@ export default function ContentPage({
     }
   }, [sectionId, selectedFolder, selectedFolderGroup]);
 
-  const prevContentFileNamesRef = useRef<string>('');
+  const prevContentIdsRef = useRef<string>('');
 
   useEffect(() => {
-    const currentKey = contentItems.map((item) => item.fileName).join(',');
+    const currentKey = contentItems.map((item) => item.id).join(',');
 
-    if (currentKey === prevContentFileNamesRef.current) return;
-    prevContentFileNamesRef.current = currentKey;
+    if (currentKey === prevContentIdsRef.current) return;
+    prevContentIdsRef.current = currentKey;
 
-    const validFileNames = new Set(contentItems.map((item) => item.fileName));
+    const validIds = new Set(contentItems.map((item) => item.id));
 
     setSelectedItems((prev) => {
       let hasInvalid = false;
-      prev.forEach((fileName) => {
-        if (!validFileNames.has(fileName)) {
+      prev.forEach((id) => {
+        if (!validIds.has(id)) {
           hasInvalid = true;
         }
       });
       if (!hasInvalid) return prev; // Return same reference if nothing changed
 
       const newSet = new Set<string>();
-      prev.forEach((fileName) => {
-        if (validFileNames.has(fileName)) {
-          newSet.add(fileName);
+      prev.forEach((id) => {
+        if (validIds.has(id)) {
+          newSet.add(id);
         }
       });
       return newSet;
@@ -374,7 +392,7 @@ export default function ContentPage({
         !handledImportIdsRef.current.has(importItem.id)
       ) {
         handledImportIdsRef.current.add(importItem.id);
-        importSnapshotRef.current = new Set(contentItems.map((item) => item.fileName));
+        importSnapshotRef.current = new Set(contentItems.map((item) => item.id));
       }
     }
   }, [imports, contentItems]);
@@ -384,19 +402,19 @@ export default function ContentPage({
     const snapshot = importSnapshotRef.current;
     if (!snapshot) return;
 
-    const newItem = contentItems.find((item) => item.isImported && !snapshot.has(item.fileName));
+    const newItem = contentItems.find((item) => item.isImported && !snapshot.has(item.id));
     if (!newItem) return; // Reloaded content hasn't arrived yet
 
     importSnapshotRef.current = null;
 
     // Pulse the card border twice to draw the eye to it (0.7s delay + 2x0.9s = 2.5s).
-    setHighlightedFileName(newItem.fileName);
+    setHighlightedContentId(newItem.id);
     if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
-    highlightTimeoutRef.current = setTimeout(() => setHighlightedFileName(null), 2600);
+    highlightTimeoutRef.current = setTimeout(() => setHighlightedContentId(null), 2600);
 
     requestAnimationFrame(() => {
       containerRef.current
-        ?.querySelector(`[data-content-filename="${escapeAttrValue(newItem.fileName)}"]`)
+        ?.querySelector(`[data-content-id="${escapeAttrValue(newItem.id)}"]`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }, [contentItems]);
@@ -552,13 +570,13 @@ export default function ContentPage({
                 <div className={CONTENT_GRID_CLASS_NAME}>
                   {selectedFolderGroup.items.map((video) => (
                     <ContentCard
-                      key={video.fileName}
+                      key={video.id}
                       content={video}
                       onClick={() => handleCardClick(video)}
                       type={contentType}
-                      isSelected={selectedItems.has(video.fileName)}
+                      isSelected={selectedItems.has(video.id)}
                       isSelectionMode={isCtrlPressed || selectedItems.size > 0}
-                      isHighlighted={video.fileName === highlightedFileName}
+                      isHighlighted={video.id === highlightedContentId}
                     />
                   ))}
                 </div>
@@ -623,13 +641,13 @@ export default function ContentPage({
 
             {filteredItems.map((video) => (
               <ContentCard
-                key={video.fileName}
+                key={video.id}
                 content={video}
                 onClick={() => handleCardClick(video)}
                 type={contentType}
-                isSelected={selectedItems.has(video.fileName)}
+                isSelected={selectedItems.has(video.id)}
                 isSelectionMode={isCtrlPressed || selectedItems.size > 0}
-                isHighlighted={video.fileName === highlightedFileName}
+                isHighlighted={video.id === highlightedContentId}
               />
             ))}
           </div>

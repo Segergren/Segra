@@ -26,12 +26,20 @@ interface AuthContextType {
   session: AuthSession | null;
   authError: string | null;
   isAuthenticating: boolean;
+  isWaitingForDiscord: boolean;
   clearAuthError: () => void;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<{ confirmEmail?: boolean }>;
   loginWithDiscord: () => void;
+  cancelDiscordLogin: () => void;
   signOut: () => void;
 }
+
+type DiscordLoginResult = {
+  status: 'success' | 'cancelled' | 'expired';
+  accessToken?: string;
+  refreshToken?: string;
+};
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -100,8 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isWaitingForDiscord, setIsWaitingForDiscord] = useState(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionGenRef = useRef(0);
+  const adoptionAttemptedRef = useRef(false);
 
   const handleSignOut = useCallback(() => {
     sessionGenRef.current++;
@@ -173,33 +183,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [session, refreshSession]);
 
-  // On mount: check URL params for Discord callback tokens, else load from localStorage
+  // On mount: restore the session from localStorage
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const accessToken = urlParams.get('access_token');
-    const refreshToken = urlParams.get('refresh_token');
-
-    if (accessToken && refreshToken) {
-      // Discord OAuth callback with tokens
-      const newSession = { access_token: accessToken, refresh_token: refreshToken };
-      const authUser = getUserFromJwt(accessToken);
-
-      if (!authUser) {
-        setAuthError('Failed to authenticate. Please try again.');
-        return;
-      }
-
-      setSession(newSession);
-      setUser(authUser);
-      saveSession(newSession);
-      // Backend login state is synced by the WebSocket onOpen handler once the connection is ready.
-
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      return;
-    }
-
-    // Load from localStorage
     const stored = loadSession();
     if (stored) {
       const storedUser = getUserFromJwt(stored.access_token);
@@ -209,6 +194,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Backend login state is synced by the WebSocket onOpen handler once the connection is ready.
       }
     }
+  }, []);
+
+  // No stored session on this origin (port change / cleared data): adopt the backend's tokens
+  // from the first Settings message only, so a sign-out can't be resurrected by a later push.
+  useEffect(() => {
+    const handleMessage = (event: CustomEvent<any>) => {
+      const message = event.detail;
+      if (message?.method !== 'Settings' || adoptionAttemptedRef.current) return;
+      adoptionAttemptedRef.current = true;
+      if (loadSession()) return;
+
+      const jwt = message.content?.auth?.jwt;
+      const refreshToken = message.content?.auth?.refreshToken;
+      if (!jwt || !refreshToken) return;
+
+      const adopted: AuthSession = { access_token: jwt, refresh_token: refreshToken };
+      const adoptedUser = getUserFromJwt(adopted.access_token);
+      if (!adoptedUser) return;
+
+      console.log('No local session; adopting persisted session from backend');
+      saveSession(adopted);
+      setSession(adopted);
+      setUser(adoptedUser);
+      // If the adopted JWT is already expired, the auto-refresh effect refreshes it immediately.
+    };
+    window.addEventListener('websocket-message', handleMessage as EventListener);
+    return () => window.removeEventListener('websocket-message', handleMessage as EventListener);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -275,9 +287,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Discord sign-in opens in the default browser; the backend relays the session back over the websocket.
   const loginWithDiscord = useCallback(() => {
-    const desktopRedirect = window.location.origin;
-    window.location.href = api.getDiscordLoginUrl(desktopRedirect);
+    setAuthError(null);
+    setIsWaitingForDiscord(true);
+    sendMessageToBackend('LoginWithDiscord');
+  }, []);
+
+  const cancelDiscordLogin = useCallback(() => {
+    setIsWaitingForDiscord(false);
+    sendMessageToBackend('CancelDiscordLogin');
+  }, []);
+
+  useEffect(() => {
+    const handleMessage = (event: Event) => {
+      const { method, content } = (event as CustomEvent).detail ?? {};
+      if (method !== 'DiscordLoginResult') return;
+
+      const result = content as DiscordLoginResult;
+      setIsWaitingForDiscord(false);
+
+      if (result.status === 'expired') {
+        setAuthError('Discord sign-in timed out. Please try again.');
+        return;
+      }
+      if (result.status !== 'success' || !result.accessToken || !result.refreshToken) {
+        return;
+      }
+
+      const newSession: AuthSession = {
+        access_token: result.accessToken,
+        refresh_token: result.refreshToken,
+      };
+      const authUser = getUserFromJwt(newSession.access_token);
+      if (!authUser) {
+        setAuthError('Failed to authenticate. Please try again.');
+        return;
+      }
+
+      sessionGenRef.current++;
+      setSession(newSession);
+      setUser(authUser);
+      saveSession(newSession);
+      sendMessageToBackend('Login', {
+        accessToken: newSession.access_token,
+        refreshToken: newSession.refresh_token,
+      });
+    };
+
+    window.addEventListener('websocket-message', handleMessage);
+    return () => window.removeEventListener('websocket-message', handleMessage);
   }, []);
 
   const value: AuthContextType = {
@@ -285,10 +344,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     authError,
     isAuthenticating,
+    isWaitingForDiscord,
     clearAuthError: () => setAuthError(null),
     login,
     register,
     loginWithDiscord,
+    cancelDiscordLogin,
     signOut: handleSignOut,
   };
 

@@ -37,7 +37,7 @@ namespace Segra.Backend.Platform.Linux
                 // `list short` exposes only the node name (e.g. alsa_output.pci-...), not a
                 // human-readable one. The long form gives both: Name (a stable node id we keep as
                 // the device Id) and Description (the friendly name shown in the UI).
-                string output = LinuxProcess.RunCapture("pactl", $"list {kind}");
+                string output = LinuxProcess.RunCapture("pactl", $"list {kind}", onHost: true);
 
                 string? nodeName = null;
                 string? description = null;
@@ -130,7 +130,7 @@ namespace Segra.Backend.Platform.Linux
             int maxHeight = 0, primaryW = 0, primaryH = 0, firstW = 0, firstH = 0;
             try
             {
-                string output = LinuxProcess.RunCapture("xrandr", "--query");
+                string output = LinuxProcess.RunCapture("xrandr", "--query", onHost: true);
                 // Lines like: "HDMI-1 connected primary 1920x1080+0+0 (normal ...) 520mm x 290mm"
                 var rx = new System.Text.RegularExpressions.Regex(
                     @"^(?<name>\S+)\s+connected\s+(?<primary>primary\s+)?(?<w>\d+)x(?<h>\d+)\+");
@@ -176,7 +176,7 @@ namespace Segra.Backend.Platform.Linux
         public async Task<string?> PickFolderAsync(string description)
         {
             string result = await LinuxProcess.RunCaptureAsync("zenity",
-                $"--file-selection --directory --title=\"{Escape(description)}\"");
+                $"--file-selection --directory --title=\"{Escape(description)}\"", onHost: true);
             result = result.Trim();
             return string.IsNullOrEmpty(result) ? null : result;
         }
@@ -184,7 +184,7 @@ namespace Segra.Backend.Platform.Linux
         public async Task<string?> PickFileAsync(string title, string filterDescription, string extension)
         {
             string result = await LinuxProcess.RunCaptureAsync("zenity",
-                $"--file-selection --title=\"{Escape(title)}\" --file-filter=\"{Escape(filterDescription)} | *.{extension}\"");
+                $"--file-selection --title=\"{Escape(title)}\" --file-filter=\"{Escape(filterDescription)} | *.{extension}\"", onHost: true);
             result = result.Trim();
             return string.IsNullOrEmpty(result) ? null : result;
         }
@@ -192,7 +192,7 @@ namespace Segra.Backend.Platform.Linux
         public async Task<string[]?> PickFilesAsync(string title, string filterDescription, string extension)
         {
             string result = await LinuxProcess.RunCaptureAsync("zenity",
-                $"--file-selection --multiple --separator=\"|\" --title=\"{Escape(title)}\" --file-filter=\"{Escape(filterDescription)} | *.{extension}\"");
+                $"--file-selection --multiple --separator=\"|\" --title=\"{Escape(title)}\" --file-filter=\"{Escape(filterDescription)} | *.{extension}\"", onHost: true);
             result = result.Trim();
             if (string.IsNullOrEmpty(result)) return null;
             return result.Split('|', StringSplitOptions.RemoveEmptyEntries);
@@ -213,12 +213,14 @@ namespace Segra.Backend.Platform.Linux
             try
             {
                 // Best-effort: put a file:// URI on the clipboard (works with most GTK/Qt managers).
+                // The clipboard belongs to the session, so run xclip on the host under Flatpak.
                 var uri = "file://" + filePath;
-                var psi = new ProcessStartInfo("xclip", "-selection clipboard -t text/uri-list")
-                {
-                    RedirectStandardInput = true,
-                    UseShellExecute = false
-                };
+                const string xclipArgs = "-selection clipboard -t text/uri-list";
+                var psi = FlatpakHost.IsFlatpak
+                    ? new ProcessStartInfo("flatpak-spawn", $"--host {FlatpakHost.DirectoryArg} xclip {xclipArgs}")
+                    : new ProcessStartInfo("xclip", xclipArgs);
+                psi.RedirectStandardInput = true;
+                psi.UseShellExecute = false;
                 using var proc = Process.Start(psi);
                 if (proc != null)
                 {
@@ -237,10 +239,14 @@ namespace Segra.Backend.Platform.Linux
 
     internal sealed class LinuxStartupManager : IStartupManager
     {
+        // Under Flatpak, ApplicationData is ~/.var/app/<id>/config, which no session scans for autostart.
+        private static string ConfigDir =>
+            FlatpakHost.IsFlatpak
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config")
+                : Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
         private static string DesktopFilePath =>
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), // ~/.config
-                "autostart", "segra.desktop");
+            Path.Combine(ConfigDir, "autostart", "segra.desktop");
 
         public void SetStartupStatus(bool enable)
         {
@@ -249,13 +255,16 @@ namespace Segra.Backend.Platform.Linux
                 string path = DesktopFilePath;
                 if (enable)
                 {
-                    string exePath = Environment.ProcessPath ?? "";
+                    // Environment.ProcessPath only exists inside the sandbox, so launch via flatpak instead.
+                    string exec = FlatpakHost.IsFlatpak
+                        ? $"flatpak run {FlatpakHost.AppId} --from-startup"
+                        : $"\"{Environment.ProcessPath ?? ""}\" --from-startup";
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     string contents =
                         "[Desktop Entry]\n" +
                         "Type=Application\n" +
                         "Name=Segra\n" +
-                        $"Exec=\"{exePath}\" --from-startup\n" +
+                        $"Exec={exec}\n" +
                         "X-GNOME-Autostart-enabled=true\n" +
                         "Terminal=false\n";
                     File.WriteAllText(path, contents);
@@ -309,11 +318,19 @@ namespace Segra.Backend.Platform.Linux
     /// <summary>Small helpers for launching Linux CLI tools.</summary>
     internal static class LinuxProcess
     {
-        public static void Start(string file, string args)
+        // Desktop-integration tools (zenity, pactl, xrandr, xclip) aren't in the runtime; run them on the host.
+        private static ProcessStartInfo StartInfo(string file, string args, bool onHost) =>
+            onHost && FlatpakHost.IsFlatpak
+                ? new ProcessStartInfo("flatpak-spawn", $"--host {FlatpakHost.DirectoryArg} {file} {args}")
+                : new ProcessStartInfo(file, args);
+
+        public static void Start(string file, string args, bool onHost = false)
         {
             try
             {
-                Process.Start(new ProcessStartInfo(file, args) { UseShellExecute = false });
+                var psi = StartInfo(file, args, onHost);
+                psi.UseShellExecute = false;
+                Process.Start(psi);
             }
             catch (Exception ex)
             {
@@ -321,39 +338,54 @@ namespace Segra.Backend.Platform.Linux
             }
         }
 
-        public static string RunCapture(string file, string args)
+        public static string RunCapture(string file, string args, bool onHost = false)
         {
-            var psi = new ProcessStartInfo(file, args)
+            try
             {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false
-            };
-            using var proc = Process.Start(psi);
-            if (proc == null) return "";
-            // Drain stderr concurrently, or a tool that fills the stderr pipe buffer would deadlock.
-            var errTask = proc.StandardError.ReadToEndAsync();
-            string output = proc.StandardOutput.ReadToEnd();
-            errTask.GetAwaiter().GetResult();
-            proc.WaitForExit(10000);
-            return output;
+                var psi = StartInfo(file, args, onHost);
+                psi.RedirectStandardOutput = true;
+                psi.RedirectStandardError = true;
+                psi.UseShellExecute = false;
+
+                using var proc = Process.Start(psi);
+                if (proc == null) return "";
+                // Drain stderr concurrently, or a tool that fills the stderr pipe buffer would deadlock.
+                var errTask = proc.StandardError.ReadToEndAsync();
+                string output = proc.StandardOutput.ReadToEnd();
+                errTask.GetAwaiter().GetResult();
+                proc.WaitForExit(10000);
+                return output;
+            }
+            catch (Exception ex)
+            {
+                // A missing tool must degrade, not throw: callers run on request/poll paths.
+                Log.Warning($"Failed to run '{file} {args}': {ex.Message}");
+                return "";
+            }
         }
 
-        public static async Task<string> RunCaptureAsync(string file, string args)
+        public static async Task<string> RunCaptureAsync(string file, string args, bool onHost = false)
         {
-            var psi = new ProcessStartInfo(file, args)
+            try
             {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false
-            };
-            using var proc = Process.Start(psi);
-            if (proc == null) return "";
-            var errTask = proc.StandardError.ReadToEndAsync();
-            string output = await proc.StandardOutput.ReadToEndAsync();
-            await errTask;
-            await proc.WaitForExitAsync();
-            return output;
+                var psi = StartInfo(file, args, onHost);
+                psi.RedirectStandardOutput = true;
+                psi.RedirectStandardError = true;
+                psi.UseShellExecute = false;
+
+                using var proc = Process.Start(psi);
+                if (proc == null) return "";
+                var errTask = proc.StandardError.ReadToEndAsync();
+                string output = await proc.StandardOutput.ReadToEndAsync();
+                await errTask;
+                await proc.WaitForExitAsync();
+                return output;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to run '{file} {args}': {ex.Message}");
+                return "";
+            }
         }
     }
 }

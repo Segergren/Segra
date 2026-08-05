@@ -2,10 +2,10 @@
 Type=Application
 Name=Segra
 GenericName=Game Recorder
-Comment=Record and clip your gameplay
-Exec=/usr/bin/segra %U
-Icon=segra
+Comment=Record and clip your games
+Exec=segra %U
+Icon=tv.segra.Segra
 Terminal=false
-Categories=AudioVideo;Recorder;GTK;
+Categories=AudioVideo;Recorder;
 Keywords=record;clip;gameplay;capture;screen;
 StartupWMClass=Segra

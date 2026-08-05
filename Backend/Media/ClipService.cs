@@ -158,9 +158,9 @@ namespace Segra.Backend.Media
                         var segmentAudioTrackNames = Settings.Instance.ClipKeepSeparateAudioTracks
                             ? extractedSegmentTrackNames[i]
                             : null;
-                        await ContentService.CreateMetadataFile(segmentOutputFilePath, Content.ContentType.Clip, segment.Game ?? "Unknown", null, segment.Title, igdbId: segment.IgdbId, audioTrackNames: segmentAudioTrackNames);
-                        await ContentService.CreateThumbnail(segmentOutputFilePath, Content.ContentType.Clip);
-                        await ContentService.CreateWaveformFile(segmentOutputFilePath, Content.ContentType.Clip);
+                        string? segmentClipId = await ContentService.CreateMetadataFile(segmentOutputFilePath, Content.ContentType.Clip, segment.Game ?? "Unknown", null, segment.Title, igdbId: segment.IgdbId, audioTrackNames: segmentAudioTrackNames);
+                        await ContentService.CreateThumbnail(segmentOutputFilePath, Content.ContentType.Clip, segmentClipId);
+                        await ContentService.CreateWaveformFile(segmentOutputFilePath, Content.ContentType.Clip, segmentClipId);
                     }
                 }
                 else
@@ -238,9 +238,9 @@ namespace Segra.Backend.Media
 
                 if (!createSeparateClips)
                 {
-                    await ContentService.CreateMetadataFile(outputFilePath!, Content.ContentType.Clip, firstSegment?.Game!, null, firstSegment?.Title, igdbId: firstSegment?.IgdbId, audioTrackNames: unionAudioLayout);
-                    await ContentService.CreateThumbnail(outputFilePath!, Content.ContentType.Clip);
-                    await ContentService.CreateWaveformFile(outputFilePath!, Content.ContentType.Clip);
+                    string? clipId = await ContentService.CreateMetadataFile(outputFilePath!, Content.ContentType.Clip, firstSegment?.Game!, null, firstSegment?.Title, igdbId: firstSegment?.IgdbId, audioTrackNames: unionAudioLayout);
+                    await ContentService.CreateThumbnail(outputFilePath!, Content.ContentType.Clip, clipId);
+                    await ContentService.CreateWaveformFile(outputFilePath!, Content.ContentType.Clip, clipId);
                 }
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, segments });
@@ -373,8 +373,39 @@ namespace Segra.Backend.Media
             string videoCodec;
             string qualityArgs;
             string presetArgs;
+            // VAAPI needs the device named before the input and frames uploaded to it; empty otherwise.
+            string hwDeviceArgs = "";
+            string hwFilterArgs = "";
             if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
             {
+#if !WINDOWS
+                // Our Linux ffmpeg only ships VAAPI hardware encoders, regardless of GPU vendor.
+                string? vaapiNode = FindVaapiRenderNode();
+                if (vaapiNode != null)
+                {
+                    if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
+                        videoCodec = "hevc_vaapi";
+                    else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
+                        videoCodec = "av1_vaapi";   // only on devices with an AV1 encode block
+                    else
+                        videoCodec = "h264_vaapi";
+
+                    // CQP is VAAPI's constant-quality mode; it has no -preset.
+                    qualityArgs = $"-rc_mode CQP -qp {settings.ClipQualityGpu}";
+                    presetArgs = "";
+                    hwDeviceArgs = $"-vaapi_device {vaapiNode} ";
+                    hwFilterArgs = "-vf \"format=nv12,hwupload\" ";
+                }
+                else
+                {
+                    Log.Warning("No VAAPI-capable render node found; falling back to CPU encoding for this clip");
+                    videoCodec = settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase)
+                        ? "libx265"
+                        : "libx264";
+                    qualityArgs = $"-crf {settings.ClipQualityCpu}";
+                    presetArgs = $"-preset {settings.ClipPreset}";
+                }
+#else
                 // GPU encoder uses hardware-accelerated codecs based on GPU vendor
                 GpuVendor gpuVendor = DetectGpuVendor();
 
@@ -433,6 +464,7 @@ namespace Segra.Backend.Media
                         presetArgs = $"-preset {settings.ClipPreset}";
                         break;
                 }
+#endif
             }
             else
             {
@@ -670,8 +702,8 @@ namespace Segra.Backend.Media
             // The concat demuxer then uses the first clip's stream params for subsequent clips, playing
             // mismatched samples at the wrong rate (the reported "shrunken audio").
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
-            string arguments = $"-y -ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+            string arguments = $"-y {hwDeviceArgs}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
+                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}{hwFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
                              $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");
@@ -723,17 +755,15 @@ namespace Segra.Backend.Media
             try
             {
                 var contentType = Enum.Parse<Content.ContentType>(segment.Type);
-                string metadataFolderPath = FolderNames.GetMetadataFolderPath(contentType);
-                string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{segment.FileName}.json");
+                var source = AppState.Instance.Content.FirstOrDefault(c =>
+                    c.Type == contentType &&
+                    (!string.IsNullOrEmpty(segment.FilePath)
+                        ? string.Equals(PathUtils.Normalize(c.FilePath), PathUtils.Normalize(segment.FilePath), StringComparison.OrdinalIgnoreCase)
+                        : string.Equals(c.FileName, segment.FileName, StringComparison.OrdinalIgnoreCase)));
 
-                if (File.Exists(metadataFilePath))
+                if (source?.AudioTrackNames != null && source.AudioTrackNames.Count > 1)
                 {
-                    var metadataContent = File.ReadAllText(metadataFilePath);
-                    var metadata = JsonSerializer.Deserialize<Content>(metadataContent);
-                    if (metadata?.AudioTrackNames != null && metadata.AudioTrackNames.Count > 1)
-                    {
-                        return metadata.AudioTrackNames;
-                    }
+                    return source.AudioTrackNames;
                 }
             }
             catch (Exception ex)

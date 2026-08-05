@@ -57,7 +57,4 @@ export const api = {
     });
     return res.json();
   },
-
-  getDiscordLoginUrl: (desktopRedirect: string) =>
-    `${API_BASE}/auth/login/discord?desktop_redirect=${encodeURIComponent(desktopRedirect)}`,
 };
