@@ -373,3 +373,9 @@ MigrationBackup/
 
 # OBS Linux bundle is a throwaway build artifact (Flatpak regenerates + bundles it)
 Obs/*linux.tar.gz
+
+data/training/**/dataset/
+data/training/**/samples/
+
+# YOLO pretrained weights (downloaded during training)
+yolo11n.pt
