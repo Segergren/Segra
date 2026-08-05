@@ -5,6 +5,8 @@ using System.Drawing.Imaging;
 using global::Windows.Media.Ocr;
 using Segra.Backend.Core.Models;
 using System.Runtime.InteropServices;
+using System.Globalization;
+using System.Text;
 using global::Windows.Graphics.Imaging;
 
 namespace Segra.Backend.Games
@@ -18,11 +20,12 @@ namespace Segra.Backend.Games
         private CancellationTokenSource? _cts;
         private readonly OcrEngine _ocrEngine;
         private readonly OcrConfig _config;
-        private readonly Dictionary<BookmarkType, DateTime> _lastEventTime;
+        private readonly Dictionary<string, DateTime> _lastEventTime;
         private readonly Dictionary<BookmarkType, PendingEvent> _pendingEvents = new();
 
         private readonly record struct PendingEvent(
             string Keyword,
+            string CooldownGroup,
             IReadOnlyList<string> ExcludeFragments,
             DateTime DetectedAtUtc,
             DateTime DetectedAtLocal);
@@ -46,6 +49,7 @@ namespace Segra.Backend.Games
             public required string Text { get; init; }
             public required BookmarkType BookmarkType { get; init; }
             public IReadOnlyList<string> ExcludeFragments { get; init; } = [];
+            public string? CooldownGroup { get; init; }
         }
 
         protected abstract OcrConfig GetConfig();
@@ -60,9 +64,9 @@ namespace Segra.Backend.Games
 
             // Initialize per-event-type cooldown tracking from configured keywords
             _lastEventTime = _config.Keywords
-                .Select(k => k.BookmarkType)
-                .Distinct()
-                .ToDictionary(bt => bt, _ => DateTime.MinValue);
+                .Select(GetCooldownGroup)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group, _ => DateTime.MinValue, StringComparer.OrdinalIgnoreCase);
         }
 
         public override Task Start()
@@ -214,7 +218,8 @@ namespace Segra.Backend.Games
                         continue;
 
                     var now = DateTime.UtcNow;
-                    if (now - _lastEventTime[keyword.BookmarkType] < _config.EventCooldown)
+                    var cooldownGroup = GetCooldownGroup(keyword);
+                    if (now - _lastEventTime[cooldownGroup] < _config.EventCooldown)
                         break;
 
                     if (keyword.ExcludeFragments.Count > 0)
@@ -227,14 +232,14 @@ namespace Segra.Backend.Games
                         if (!_pendingEvents.ContainsKey(keyword.BookmarkType))
                         {
                             _pendingEvents[keyword.BookmarkType] = new PendingEvent(
-                                keyword.Text, keyword.ExcludeFragments, now, DateTime.Now);
+                                keyword.Text, cooldownGroup, keyword.ExcludeFragments, now, DateTime.Now);
                             Log.Debug($"[{_config.LogPrefix}] Pending '{keyword.Text}' detection, waiting for confirmation");
                         }
                     }
                     else
                     {
                         // No exclude fragments — confirm immediately
-                        _lastEventTime[keyword.BookmarkType] = now;
+                        _lastEventTime[cooldownGroup] = now;
                         AddBookmark(keyword.BookmarkType);
                         Log.Information($"[{_config.LogPrefix}] Detected '{keyword.Text}' in OCR text -> {keyword.BookmarkType}");
                     }
@@ -268,35 +273,46 @@ namespace Segra.Backend.Games
         /// </summary>
         private static bool FuzzyContains(string text, string keyword)
         {
+            var normalizedKeyword = NormalizeOcrText(keyword);
+            var normalizedText = NormalizeOcrText(text);
+
             // Exact match first (fast path)
-            if (text.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            if (normalizedText.Contains(normalizedKeyword, StringComparison.OrdinalIgnoreCase))
                 return true;
 
             // Short keywords (<=5 chars): exact match only to avoid false positives
-            if (keyword.Length <= 5)
+            if (normalizedKeyword.Length <= 5)
                 return false;
 
-            var keywordLower = keyword.ToLowerInvariant();
-            int maxAllowed = keyword.Length / 4;
+            var keywordWords = SplitWords(normalizedKeyword);
+            var textWords = SplitWords(normalizedText);
+            var keywordLower = string.Join(' ', keywordWords).ToLowerInvariant();
+            var textWithSingleSpaces = string.Join(' ', textWords);
+            if (textWithSingleSpaces.Contains(keywordLower, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            var compactKeyword = string.Concat(keywordWords);
+            var compactText = string.Concat(textWords);
+            if (compactText.Contains(compactKeyword, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            int maxAllowed = normalizedKeyword.Length / 4;
 
             // OCR sometimes splits words (e.g. "DEMOL ION" for "DEMOLITION")
             // Try matching with spaces removed for single-word keywords
-            var keywordWords = keyword.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (keywordWords.Length == 1)
             {
-                var textNoSpaces = text.Replace(" ", "").ToLowerInvariant();
                 // Slide a character window over the spaceless text
                 int kwLen = keywordLower.Length;
-                for (int i = 0; i <= textNoSpaces.Length - kwLen; i++)
+                for (int i = 0; i <= compactText.Length - kwLen; i++)
                 {
-                    var window = textNoSpaces.Substring(i, kwLen);
-                    if (LevenshteinDistance(window, keywordLower) <= maxAllowed)
+                    var window = compactText.Substring(i, kwLen);
+                    if (LevenshteinDistance(window.ToLowerInvariant(), keywordLower) <= maxAllowed)
                         return true;
                 }
             }
 
             // Fuzzy: slide a window of keyword's word count over OCR words
-            var textWords = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             int windowSize = keywordWords.Length;
 
             if (textWords.Length < windowSize)
@@ -310,6 +326,29 @@ namespace Segra.Backend.Games
             }
 
             return false;
+        }
+
+        private static string[] SplitWords(string text)
+        {
+            return text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        private static string NormalizeOcrText(string text)
+        {
+            var builder = new StringBuilder(text.Length);
+            foreach (var c in text.Normalize(NormalizationForm.FormD))
+            {
+                var category = CharUnicodeInfo.GetUnicodeCategory(c);
+                if (category == UnicodeCategory.NonSpacingMark)
+                    continue;
+
+                if (char.IsLetterOrDigit(c))
+                    builder.Append(char.ToLowerInvariant(c == 'ı' ? 'i' : c));
+                else
+                    builder.Append(' ');
+            }
+
+            return builder.ToString().Normalize(NormalizationForm.FormC);
         }
 
         /// <summary>
@@ -364,14 +403,14 @@ namespace Segra.Backend.Games
                 if (now - pending.DetectedAtUtc >= _config.ExcludeCheckWindow)
                 {
                     // Another keyword (e.g. "+100") may have already fired for this type
-                    if (now - _lastEventTime[bookmarkType] < _config.EventCooldown)
+                    if (now - _lastEventTime[pending.CooldownGroup] < _config.EventCooldown)
                     {
                         Log.Debug($"[{_config.LogPrefix}] Dropped pending '{pending.Keyword}' — already bookmarked by another keyword");
                         toRemove.Add(bookmarkType);
                         continue;
                     }
 
-                    _lastEventTime[bookmarkType] = pending.DetectedAtUtc;
+                    _lastEventTime[pending.CooldownGroup] = pending.DetectedAtUtc;
                     AddBookmark(bookmarkType, pending.DetectedAtLocal);
                     Log.Information($"[{_config.LogPrefix}] Confirmed '{pending.Keyword}' in OCR text -> {bookmarkType}");
                     toRemove.Add(bookmarkType);
@@ -380,6 +419,11 @@ namespace Segra.Backend.Games
 
             foreach (var key in toRemove)
                 _pendingEvents.Remove(key);
+        }
+
+        private static string GetCooldownGroup(OcrKeyword keyword)
+        {
+            return keyword.CooldownGroup ?? keyword.BookmarkType.ToString();
         }
 
         private void AddBookmark(BookmarkType type, DateTime? detectionTime = null)
