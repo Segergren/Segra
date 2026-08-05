@@ -61,9 +61,17 @@ public static class ModelService
             if (!File.Exists(modelPath))
                 throw new FileNotFoundException($"ONNX model not found for game {id}", modelPath);
 
-            var options = new SessionOptions();
+            // ORT defaults to one intra-op thread per physical core and spins them after every
+            // Run. Disabling spin and capping threads keeps idle CPU near zero.
+            var options = new SessionOptions
+            {
+                GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+                IntraOpNumThreads = 2,
+                InterOpNumThreads = 1,
+                ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
+            };
+            options.AddSessionConfigEntry("session.intra_op.allow_spinning", "0");
             options.AppendExecutionProvider_CPU();
-            options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
             var session = new InferenceSession(modelPath, options);
 
             Log.Information("Loaded ONNX model for game {GameId}", id);

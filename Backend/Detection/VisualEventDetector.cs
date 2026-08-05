@@ -1,5 +1,7 @@
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using System.Threading.Channels;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -14,22 +16,33 @@ public class VisualEventDetector : IDisposable
 {
     private const int ModelInputSize = 640;
     private const int FpsDivisor = 30;
+    private const int TargetCaptureFps = 3;
     private const int ObsSubscribeWidth = 1920;
     private const int ObsSubscribeHeight = 1080;
+    private const int BlackCheckStride = 16;
+    private const int BlackCheckLumaThreshold = 15;
+    private const int BlackCheckMinBrightSamples = 0;
     private readonly int _detectionIntervalMs;
     private RawVideoSubscription? _subscription;
     private CancellationTokenSource? _cts;
-    private Task? _detectionLoop;
+    private Thread? _detectionThread;
     private readonly Channel<FrameData> _frameQueue = Channel.CreateBounded<FrameData>(
         new BoundedChannelOptions(2)
         {
             FullMode = BoundedChannelFullMode.DropOldest
-        });
+        },
+        static dropped => dropped.ReturnBuffer());
 
     private InferenceSession? _session;
+    private float[]? _inputBuffer;
+    private DenseTensor<float>? _inputTensor;
+    private List<NamedOnnxValue>? _inputContainer;
+    private IReadOnlyList<string>? _outputNames;
+    private RunOptions? _runOptions;
     private string? _gameId;
     private int _isProcessing;
     private List<RegionGroup> _regionGroups = new();
+    private GrayscaleStrategy _grayscaleStrategy = GrayscaleStrategy.PerGroupCrop;
     private int _numClasses;
 
     public event Action<List<DetectionResult>>? DetectionsAvailable;
@@ -41,9 +54,33 @@ public class VisualEventDetector : IDisposable
 
     private sealed class FrameData
     {
-        public byte[] Buffer { get; set; } = Array.Empty<byte>();
+        private byte[] _buffer = Array.Empty<byte>();
+
+        public byte[] Buffer
+        {
+            get => _buffer;
+            set => _buffer = value;
+        }
+
         public int Width { get; set; }
         public int Height { get; set; }
+
+        // Idempotent: returning the same array to the pool twice lets the pool hand it
+        // to two callers at once.
+        public void ReturnBuffer()
+        {
+            var buffer = Interlocked.Exchange(ref _buffer, Array.Empty<byte>());
+            if (buffer.Length > 0) ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    internal enum GrayscaleStrategy
+    {
+        // Convert each group's crop rectangle on its own, straight from BGRA.
+        PerGroupCrop,
+
+        // Convert the frame once, then cut every group out of that one grey buffer.
+        WholeFrameOnce
     }
 
     public void Start(string gameId)
@@ -51,19 +88,55 @@ public class VisualEventDetector : IDisposable
         _gameId = gameId;
         _session = ModelService.LoadModel(gameId);
 
+        // Reused across every region of every cycle: a fresh float[640*640*3] per inference is
+        // 4.9 MB straight to the LOH.
+        _inputBuffer = new float[ModelInputSize * ModelInputSize * 3];
+        _inputTensor = new DenseTensor<float>(
+            _inputBuffer.AsMemory(), new[] { 1, 3, ModelInputSize, ModelInputSize });
+        _inputContainer = new List<NamedOnnxValue>
+        {
+            NamedOnnxValue.CreateFromTensor(_session.InputNames[0], _inputTensor)
+        };
+        _outputNames = _session.OutputMetadata.Keys.ToList();
+        _runOptions = new RunOptions();
+
         var definitions = ModelService.LoadEventDefinitions(gameId);
         _numClasses = definitions.Count;
         _regionGroups = BuildRegionGroups(definitions);
+        _grayscaleStrategy = SelectGrayscaleStrategy(_regionGroups);
+
+        var divisor = ComputeFrameRateDivisor(GetConfiguredOutputFps());
 
         _subscription = Obs.SubscribeRawVideo(
             VideoFormat.BGRA,
             width: ObsSubscribeWidth,
             height: ObsSubscribeHeight,
             callback: OnFrame,
-            frameRateDivisor: FpsDivisor);
+            frameRateDivisor: (uint)divisor);
 
         _cts = new CancellationTokenSource();
-        _detectionLoop = Task.Run(() => DetectionLoopAsync(_cts.Token));
+        var token = _cts.Token;
+
+        // An exception escaping the loop would tear down the process on a dedicated thread,
+        // where Task.Run merely parked it in a Task nobody awaited.
+        _detectionThread = new Thread(() =>
+        {
+            try
+            {
+                DetectionLoop(token);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "VisualEventDetector: detection loop terminated unexpectedly");
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "Segra.VisualEventDetector",
+            Priority = ThreadPriority.BelowNormal,
+        };
+        _detectionThread.Start();
 
         Log.Information("VisualEventDetector: Started for game {GameId} with {RegionGroupCount} region groups",
             gameId, _regionGroups.Count);
@@ -76,23 +149,27 @@ public class VisualEventDetector : IDisposable
         var sub = Interlocked.Exchange(ref _subscription, null);
         sub?.Dispose();
 
-        if (_detectionLoop != null)
+        if (_detectionThread != null)
         {
-            try
-            {
-                if (!_detectionLoop.Wait(TimeSpan.FromSeconds(3)))
-                {
-                    Log.Warning("VisualEventDetector: detection loop did not exit within 3s");
-                }
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) { Log.Warning(ex, "VisualEventDetector: detection loop exit"); }
+            if (!_detectionThread.Join(TimeSpan.FromSeconds(3)))
+                Log.Warning("VisualEventDetector: detection loop did not exit within 3s");
+            _detectionThread = null;
         }
+
+        while (_frameQueue.Reader.TryRead(out var stale))
+            stale.ReturnBuffer();
 
         if (_gameId != null)
         {
             ModelService.UnloadModel(_gameId);
         }
+        _runOptions?.Dispose();
+        _runOptions = null;
+        _inputContainer = null;
+        _inputTensor = null;
+        _inputBuffer = null;
+        _outputNames = null;
+
         _session = null;
         _gameId = null;
 
@@ -113,11 +190,7 @@ public class VisualEventDetector : IDisposable
             var buffer = ArrayPool<byte>.Shared.Rent(height * rowBytes);
 
             var src = frame.GetPlane(0, (uint)height);
-            for (int y = 0; y < height; y++)
-            {
-                src.Slice(y * srcStride, rowBytes)
-                   .CopyTo(new Span<byte>(buffer, y * rowBytes, rowBytes));
-            }
+            CopyPlane(src, srcStride, buffer, rowBytes, height);
 
             _frameQueue.Writer.TryWrite(new FrameData
             {
@@ -136,7 +209,10 @@ public class VisualEventDetector : IDisposable
         }
     }
 
-    private async Task DetectionLoopAsync(CancellationToken ct)
+    // Synchronous on purpose. An async loop resumes its continuations on the thread pool after
+    // the first await, so every iteration after that would run at the pool's Normal priority and
+    // the BelowNormal thread this runs on would sit blocked, achieving nothing.
+    private void DetectionLoop(CancellationToken ct)
     {
         var session = _session;
         if (session == null) return;
@@ -145,7 +221,8 @@ public class VisualEventDetector : IDisposable
         {
             try
             {
-                await Task.Delay(_detectionIntervalMs, ct);
+                // Returns true when the token is cancelled, false on timeout.
+                if (ct.WaitHandle.WaitOne(_detectionIntervalMs)) break;
 
                 if (!_frameQueue.Reader.TryRead(out var frameData))
                 {
@@ -161,35 +238,49 @@ public class VisualEventDetector : IDisposable
                     var fW = frameData.Width;
                     var fH = frameData.Height;
 
-                    var grayFrame = BgraToGray(frameData.Buffer, fW, fH);
+                    // Skip near-black frames (loading screens, transitions) — they can produce NaN in the model.
+                    // Subsampled, so a lit region smaller than the 16px stride can fall entirely between
+                    // probes and be missed — at most a 15x15 blob. Accepted: real HUD elements (killfeed,
+                    // ammo counter, minimap) each cover tens to hundreds of probes.
+                    if (IsNearBlack(frameData.Buffer, fW, fH))
+                    {
+                        Log.Debug("DetectionLoop: skipping near-black frame");
+                        continue;
+                    }
+
+                    // Both branches feed byte-identical buffers to inference; they differ only in
+                    // how many pixels they convert. Chosen once at Start — the group set is fixed
+                    // for the session, so deciding per frame would re-derive the same answer.
+                    var frameGray = _grayscaleStrategy == GrayscaleStrategy.WholeFrameOnce
+                        ? BgraToGray(frameData.Buffer, fW, fH)
+                        : null;
+
                     try
                     {
-                        // Skip near-black frames (loading screens, transitions) — they can produce NaN in the model
-                        int brightPixels = 0;
-                        int totalPixels = fW * fH;
-                        for (int i = 0; i < totalPixels && brightPixels <= 10; i++)
-                        {
-                            if (grayFrame[i] > 15) brightPixels++;
-                        }
-                        if (brightPixels <= 10)
-                        {
-                            Log.Debug("DetectionLoop: skipping near-black frame");
-                            continue;
-                        }
-
                         foreach (var group in _regionGroups)
                         {
-                            var cropW = (int)(group.W * fW);
-                            var cropH = (int)(group.H * fH);
-                            var cropX = (int)(group.X * fW);
-                            var cropY = (int)(group.Y * fH);
+                            if (!TryGetCropRect(group, fW, fH, out var cropX, out var cropY,
+                                    out var cropW, out var cropH))
+                                continue;
 
-                            if (cropW <= 0 || cropH <= 0) continue;
-                            if (cropX + cropW > fW) cropW = fW - cropX;
-                            if (cropY + cropH > fH) cropH = fH - cropY;
-                            if (cropW <= 0 || cropH <= 0) continue;
-
-                            var resized = CropAndResizeGray(grayFrame, fW, fH, cropX, cropY, cropW, cropH, ModelInputSize, ModelInputSize);
+                            byte[] resized;
+                            if (frameGray != null)
+                            {
+                                resized = CropAndResizeGray(frameGray, fW, fH, cropX, cropY,
+                                    cropW, cropH, ModelInputSize, ModelInputSize);
+                            }
+                            else
+                            {
+                                var crop = CropBgraToGray(frameData.Buffer, fW, cropX, cropY, cropW, cropH);
+                                try
+                                {
+                                    resized = ResizeGray(crop, cropW, cropH, ModelInputSize, ModelInputSize);
+                                }
+                                finally
+                                {
+                                    ArrayPool<byte>.Shared.Return(crop);
+                                }
+                            }
 
                             try
                             {
@@ -208,7 +299,7 @@ public class VisualEventDetector : IDisposable
                     }
                     finally
                     {
-                        ArrayPool<byte>.Shared.Return(grayFrame);
+                        if (frameGray != null) ArrayPool<byte>.Shared.Return(frameGray);
                     }
 
                     Log.Debug("DetectionLoop: {Count} results across {Groups} groups", allResults.Count, _regionGroups.Count);
@@ -216,7 +307,7 @@ public class VisualEventDetector : IDisposable
                 }
                 finally
                 {
-                    ArrayPool<byte>.Shared.Return(frameData.Buffer);
+                    frameData.ReturnBuffer();
                     Interlocked.Exchange(ref _isProcessing, 0);
                 }
             }
@@ -331,31 +422,37 @@ public class VisualEventDetector : IDisposable
         {
             if (def.ScreenRegionW.HasValue && def.ScreenRegionW.Value > 0)
             {
-                var r = new RegionGroup
+                groups.Add(new RegionGroup
                 {
                     X = def.ScreenRegionX ?? 0,
                     Y = def.ScreenRegionY ?? 0,
                     W = def.ScreenRegionW.Value,
                     H = def.ScreenRegionH ?? 0
-                };
-
-                bool merged = false;
-                foreach (var g in groups)
-                {
-                    if (RegionsOverlap(g, r))
-                    {
-                        MergeRegions(g, r);
-                        merged = true;
-                        break;
-                    }
-                }
-
-                if (!merged)
-                    groups.Add(r);
+                });
             }
             else
             {
                 hasFullFrame = true;
+            }
+        }
+
+        // Merging grows a group's bounds, which can open overlaps with groups already passed
+        // over. Repeating until a pass finds nothing makes the result independent of the order
+        // events appear in events.json; the previous first-match-wins pass was not.
+        bool changed = true;
+        while (changed)
+        {
+            changed = false;
+            for (int i = 0; i < groups.Count && !changed; i++)
+            {
+                for (int j = i + 1; j < groups.Count; j++)
+                {
+                    if (!RegionsOverlap(groups[i], groups[j])) continue;
+                    MergeRegions(groups[i], groups[j]);
+                    groups.RemoveAt(j);
+                    changed = true;
+                    break;
+                }
             }
         }
 
@@ -366,6 +463,52 @@ public class VisualEventDetector : IDisposable
             groups.Add(new RegionGroup { X = 0, Y = 0, W = 1, H = 1 });
 
         return groups;
+    }
+
+    // The per-group path converts each crop independently, so its cost is the sum of the crop
+    // areas — which can exceed the frame. A full-frame group is the obvious way to get there
+    // (it alone converts every pixel, and every other group is then pure surplus), but several
+    // large overlapping groups reach the same point without one. Coverage catches both.
+    internal static GrayscaleStrategy SelectGrayscaleStrategy(IReadOnlyList<RegionGroup> groups)
+    {
+        float coverage = 0f;
+        foreach (var g in groups)
+            coverage += g.W * g.H;
+
+        // A tie goes to the per-group path: the same conversions, minus the intermediate
+        // crop copy CropAndResizeGray makes.
+        return coverage > 1f ? GrayscaleStrategy.WholeFrameOnce : GrayscaleStrategy.PerGroupCrop;
+    }
+
+    // The pixels one cycle converts to greyscale, which is the quantity the two strategies
+    // trade off. Shares TryGetCropRect with the detection loop so the two cannot drift.
+    internal static int CountGrayscalePixels(IReadOnlyList<RegionGroup> groups, int frameW, int frameH)
+    {
+        if (SelectGrayscaleStrategy(groups) == GrayscaleStrategy.WholeFrameOnce)
+            return frameW * frameH;
+
+        var total = 0;
+        foreach (var g in groups)
+        {
+            if (TryGetCropRect(g, frameW, frameH, out _, out _, out var cropW, out var cropH))
+                total += cropW * cropH;
+        }
+
+        return total;
+    }
+
+    internal static bool TryGetCropRect(RegionGroup group, int frameW, int frameH,
+        out int cropX, out int cropY, out int cropW, out int cropH)
+    {
+        cropX = (int)(group.X * frameW);
+        cropY = (int)(group.Y * frameH);
+        cropW = (int)(group.W * frameW);
+        cropH = (int)(group.H * frameH);
+
+        if (cropW <= 0 || cropH <= 0) return false;
+        if (cropX + cropW > frameW) cropW = frameW - cropX;
+        if (cropY + cropH > frameH) cropH = frameH - cropY;
+        return cropW > 0 && cropH > 0;
     }
 
     internal static bool RegionsOverlap(RegionGroup a, RegionGroup b)
@@ -392,6 +535,87 @@ public class VisualEventDetector : IDisposable
         a.Y = y;
     }
 
+    // OBS may pad each row to an alignment boundary. When it does not, the plane is one
+    // contiguous block and the per-row loop is pure overhead for the same bytes moved.
+    internal static void CopyPlane(ReadOnlySpan<byte> src, int srcStride, byte[] dst, int rowBytes, int height)
+    {
+        if (srcStride == rowBytes)
+        {
+            src.Slice(0, height * rowBytes).CopyTo(dst);
+            return;
+        }
+
+        for (int y = 0; y < height; y++)
+        {
+            src.Slice(y * srcStride, rowBytes)
+               .CopyTo(new Span<byte>(dst, y * rowBytes, rowBytes));
+        }
+    }
+
+    // The divisor is relative to OBS's configured recording framerate, not the game's render
+    // rate: OBS composites its canvas at obs_video_info fps_num/fps_den, which Segra sets from
+    // the user's FrameRate setting (OBSService.ResetVideoSettings, called at OBSService.cs:873).
+    // A game rendering at 144fps recorded at 60fps still delivers 60 frames/sec to the callback.
+    // Targeting just above the consumption rate avoids paying for full-frame readbacks that the
+    // detection loop only drops.
+    internal static int ComputeFrameRateDivisor(int outputFps)
+    {
+        if (outputFps <= 0) return FpsDivisor;
+        return Math.Max(1, outputFps / TargetCaptureFps);
+    }
+
+    // Returns 0 when the rate is unavailable, which ComputeFrameRateDivisor maps to the default.
+    private static int GetConfiguredOutputFps()
+    {
+        try
+        {
+            var info = Obs.GetVideoInfo();
+            if (info == null)
+            {
+                Log.Warning("VisualEventDetector: OBS reported no video info, using default divisor");
+                return 0;
+            }
+
+            // OBS uses fractional rates (60000/1001 for 59.94), so the numerator alone is
+            // meaningless. Rounding keeps 59.94 at 60 rather than truncating to 59.
+            var num = info.Value.FpsNum;
+            var den = info.Value.FpsDen;
+            if (num == 0 || den == 0) return 0;
+            return (int)Math.Round((double)num / den);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "VisualEventDetector: could not read OBS output fps, using default divisor");
+            return 0;
+        }
+    }
+
+    // Probes a 16x16 grid rather than every pixel and bails on the first sample above the
+    // threshold: a frame that is genuinely black is black everywhere, so the sparse grid
+    // answers the question without a full-frame pass.
+    internal static bool IsNearBlack(byte[] bgra, int w, int h)
+    {
+        var srcRowStride = w * 4;
+        var bright = 0;
+
+        for (int y = 0; y < h; y += BlackCheckStride)
+        {
+            var rowOffset = y * srcRowStride;
+            for (int x = 0; x < w; x += BlackCheckStride)
+            {
+                var i = rowOffset + x * 4;
+                var b = bgra[i];
+                var g = bgra[i + 1];
+                var r = bgra[i + 2];
+                var luma = (byte)(0.299f * r + 0.587f * g + 0.114f * b);
+                if (luma > BlackCheckLumaThreshold && ++bright > BlackCheckMinBrightSamples)
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
     internal static byte[] BgraToGray(byte[] bgra, int w, int h)
     {
         var pixels = w * h;
@@ -407,15 +631,54 @@ public class VisualEventDetector : IDisposable
         return gray;
     }
 
+    // Greyscale is a pure per-pixel function, so converting only the crop rectangle gives the
+    // same bytes as converting the whole frame and then cropping — at 19% of the work.
+    internal static byte[] CropBgraToGray(byte[] bgra, int srcW, int cropX, int cropY,
+        int cropW, int cropH)
+    {
+        var gray = ArrayPool<byte>.Shared.Rent(cropW * cropH);
+        var srcRowStride = srcW * 4;
+
+        for (int y = 0; y < cropH; y++)
+        {
+            var srcOffset = (cropY + y) * srcRowStride + cropX * 4;
+            var dstOffset = y * cropW;
+            for (int x = 0; x < cropW; x++)
+            {
+                var i = srcOffset + x * 4;
+                var b = bgra[i];
+                var g = bgra[i + 1];
+                var r = bgra[i + 2];
+                gray[dstOffset + x] = (byte)(0.299f * r + 0.587f * g + 0.114f * b);
+            }
+        }
+
+        return gray;
+    }
+
     internal static byte[] CropAndResizeGray(byte[] srcGray, int srcW, int srcH,
         int cropX, int cropY, int cropW, int cropH, int dstW, int dstH)
     {
         var crop = ArrayPool<byte>.Shared.Rent(cropW * cropH);
-        for (int y = 0; y < cropH; y++)
+        try
         {
-            Array.Copy(srcGray, (cropY + y) * srcW + cropX, crop, y * cropW, cropW);
-        }
+            for (int y = 0; y < cropH; y++)
+            {
+                Array.Copy(srcGray, (cropY + y) * srcW + cropX, crop, y * cropW, cropW);
+            }
 
+            return ResizeGray(crop, cropW, cropH, dstW, dstH);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(crop);
+        }
+    }
+
+    // Reads only columns [0, cropW-1] and rows [0, cropH-1] of crop: sx is clamped below
+    // cropW - 1, so sx1 = floor(sx) + 1 <= cropW - 1. Same for sy.
+    internal static byte[] ResizeGray(byte[] crop, int cropW, int cropH, int dstW, int dstH)
+    {
         var dst = ArrayPool<byte>.Shared.Rent(dstW * dstH);
         for (int dy = 0; dy < dstH; dy++)
         {
@@ -440,49 +703,75 @@ public class VisualEventDetector : IDisposable
                 dst[dy * dstW + dx] = (byte)v;
             }
         }
-        ArrayPool<byte>.Shared.Return(crop);
         return dst;
+    }
+
+    // The vector path reads four bytes at a time as a uint, so it needs little-endian lane order.
+    private static bool VectorFillSupported =>
+        Vector128.IsHardwareAccelerated && BitConverter.IsLittleEndian;
+
+    internal static void FillInputTensor(byte[] grayData, float[] destination, int inputSize)
+        => FillInputTensor(grayData, destination, inputSize, VectorFillSupported);
+
+    internal static void FillInputTensor(byte[] grayData, float[] destination, int inputSize, bool useVectorPath)
+    {
+        var pixels = inputSize * inputSize;
+        if (grayData.Length < pixels || destination.Length < pixels * 3)
+            throw new ArgumentException(
+                $"FillInputTensor needs {pixels} source bytes and {pixels * 3} destination floats, " +
+                $"got {grayData.Length} and {destination.Length}.");
+
+        int i = 0;
+
+        if (useVectorPath)
+        {
+            ref byte src = ref MemoryMarshal.GetArrayDataReference(grayData);
+            ref float dst = ref MemoryMarshal.GetArrayDataReference(destination);
+            // A true divide, never a multiply by 1f/255f: the rounded reciprocal differs in the
+            // last ulp for 126 of the 256 byte values, which would break the golden test.
+            var divisor = Vector128.Create(255f);
+
+            for (; i <= pixels - Vector128<float>.Count; i += Vector128<float>.Count)
+            {
+                var packed = Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref src, (nuint)i));
+                var widened = Vector128.WidenLower(Vector128.WidenLower(Vector128.CreateScalar(packed).AsByte()));
+                var v = Vector128.ConvertToSingle(widened.AsInt32()) / divisor;
+                v.StoreUnsafe(ref dst, (nuint)i);
+                v.StoreUnsafe(ref dst, (nuint)(i + pixels));
+                v.StoreUnsafe(ref dst, (nuint)(i + 2 * pixels));
+            }
+        }
+
+        for (; i < pixels; i++)
+        {
+            var val = grayData[i] / 255f;
+            destination[i] = val;
+            destination[i + pixels] = val;
+            destination[i + 2 * pixels] = val;
+        }
     }
 
     private List<DetectionResult>? RunInferenceOnGray(
         InferenceSession session, byte[] grayData)
     {
+        var buffer = _inputBuffer;
+        var container = _inputContainer;
+        var outputNames = _outputNames;
+        var runOptions = _runOptions;
+        if (buffer == null || container == null || outputNames == null || runOptions == null)
+            return null;
+
         try
         {
-            const int inputSize = ModelInputSize;
-            var pixels = inputSize * inputSize;
-            var inputTensor = new float[pixels * 3];
+            FillInputTensor(grayData, buffer, ModelInputSize);
 
-            for (int i = 0; i < pixels; i++)
-            {
-                var val = grayData[i] / 255f;
-                inputTensor[i] = val;
-                inputTensor[i + pixels] = val;
-                inputTensor[i + 2 * pixels] = val;
-            }
-
-            // Pin tensor memory to prevent GC from collecting it during native inference
-            var handle = GCHandle.Alloc(inputTensor, GCHandleType.Pinned);
-            try
-            {
-                var tensor = new DenseTensor<float>(inputTensor, new[] { 1, 3, inputSize, inputSize });
-                var inputName = session.InputNames[0];
-                var inputValue = NamedOnnxValue.CreateFromTensor(inputName, tensor);
-                var container = new List<NamedOnnxValue> { inputValue };
-
-                var outputNames = session.OutputMetadata.Keys.ToList();
-
-                    using (var runOptions = new RunOptions())
-                    using (var results = session.Run(container, outputNames, runOptions))
-                    {
-                        var result = results.First().AsTensor<float>().ToArray();
-                        return ParseYoloOutput(result.AsSpan(), inputSize, _numClasses);
-                    }
-            }
-            finally
-            {
-                handle.Free();
-            }
+            using var results = session.Run(container, outputNames, runOptions);
+            var tensor = results[0].AsTensor<float>();
+            // Backed by memory the result owns; ParseYoloOutput reads it before the using ends.
+            var span = tensor is DenseTensor<float> dense
+                ? dense.Buffer.Span
+                : tensor.ToArray().AsSpan();
+            return ParseYoloOutput(span, ModelInputSize, _numClasses);
         }
         catch (ObjectDisposedException)
         {
