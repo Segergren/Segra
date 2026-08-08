@@ -38,6 +38,7 @@ export interface State {
   gpuVendor: GpuVendor;
   preRecording?: PreRecording;
   recording?: Recording;
+  backgroundReplayBufferActive: boolean;
   hasLoadedObs: boolean;
   content: Content[];
   inputDevices: AudioDevice[];
@@ -293,6 +294,7 @@ export interface Settings {
   enableAi: boolean;
   autoGenerateHighlights: boolean;
   runOnStartup: boolean;
+  backgroundReplayBuffer: boolean;
   startupWindowMode: StartupWindowMode; // Window state when launched from startup
   closeButtonAction: CloseButtonAction;
   receiveBetaUpdates: boolean;
@@ -333,6 +335,7 @@ export interface Settings {
 export const initialState: State = {
   gpuVendor: GpuVendor.Unknown,
   recording: undefined,
+  backgroundReplayBufferActive: false,
   hasLoadedObs: false,
   content: [],
   inputDevices: [],
@@ -375,6 +378,7 @@ export const initialSettings: Settings = {
   enableAi: true,
   autoGenerateHighlights: true,
   runOnStartup: false,
+  backgroundReplayBuffer: false,
   startupWindowMode: 'Minimized',
   closeButtonAction: 'Minimize',
   receiveBetaUpdates: false,

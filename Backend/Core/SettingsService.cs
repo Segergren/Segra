@@ -198,6 +198,8 @@ namespace Segra.Backend.Core
         {
             var settings = Settings.Instance;
             bool hasChanges = false;
+            bool shouldStartBackgroundReplayBuffer = false;
+            bool shouldStopBackgroundReplayBuffer = false;
 
             // Begin bulk update to suppress multiple state updates
             settings.BeginBulkUpdate();
@@ -707,6 +709,15 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.BackgroundReplayBuffer != updatedSettings.BackgroundReplayBuffer)
+            {
+                Log.Information($"BackgroundReplayBuffer changed from '{settings.BackgroundReplayBuffer}' to '{updatedSettings.BackgroundReplayBuffer}'");
+                shouldStartBackgroundReplayBuffer = !settings.BackgroundReplayBuffer && updatedSettings.BackgroundReplayBuffer;
+                shouldStopBackgroundReplayBuffer = settings.BackgroundReplayBuffer && !updatedSettings.BackgroundReplayBuffer;
+                settings.BackgroundReplayBuffer = updatedSettings.BackgroundReplayBuffer;
+                hasChanges = true;
+            }
+
             if (settings.StartupWindowMode != updatedSettings.StartupWindowMode)
             {
                 Log.Information($"StartupWindowMode changed from '{settings.StartupWindowMode}' to '{updatedSettings.StartupWindowMode}'");
@@ -779,6 +790,19 @@ namespace Segra.Backend.Core
                 // End bulk update without saving if no changes were made
                 settings._isBulkUpdating = false;
                 Log.Information("No settings changes detected");
+            }
+
+            if (shouldStopBackgroundReplayBuffer && OBSService.IsBackgroundReplayBufferActive)
+            {
+                await OBSService.StopRecording(restartBackgroundReplayBuffer: false);
+            }
+            else if (shouldStartBackgroundReplayBuffer && OBSService.IsInitialized &&
+                AppState.Instance.Recording == null && AppState.Instance.PreRecording == null)
+            {
+                if (!OBSService.StartBackgroundReplayBuffer())
+                {
+                    Log.Warning("Background replay buffer was enabled but could not be started immediately");
+                }
             }
         }
 

@@ -16,6 +16,7 @@ namespace Segra.Backend.Core.Models
         private GpuVendor _gpuVendor = GpuVendor.Unknown;
         private PreRecording? _preRecording = null;
         private Recording? _recording = null;
+        private bool _backgroundReplayBufferActive = false;
         private bool _hasLoadedObs = false;
         private List<Content> _content = [];
 
@@ -86,6 +87,20 @@ namespace Segra.Backend.Core.Models
                 {
                     _recording = value;
                     SendToFrontend("State update: Recording");
+                }
+            }
+        }
+
+        [JsonPropertyName("backgroundReplayBufferActive")]
+        public bool BackgroundReplayBufferActive
+        {
+            get => _backgroundReplayBufferActive;
+            set
+            {
+                if (_backgroundReplayBufferActive != value)
+                {
+                    _backgroundReplayBufferActive = value;
+                    SendToFrontend("State update: BackgroundReplayBufferActive");
                 }
             }
         }

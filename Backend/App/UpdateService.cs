@@ -185,7 +185,7 @@ namespace Segra.Backend.App
                 Log.Information("Active recording detected while applying update; stopping it first.");
                 try
                 {
-                    Task.Run(() => OBSService.StopRecording()).GetAwaiter().GetResult();
+                    Task.Run(() => OBSService.StopRecording(restartBackgroundReplayBuffer: false)).GetAwaiter().GetResult();
                 }
                 catch (Exception ex)
                 {

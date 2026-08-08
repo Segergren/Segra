@@ -50,6 +50,9 @@ namespace Segra.Backend.Recorder
 
         private static RecordingOutput? _output;
         private static ReplayBuffer? _bufferOutput;
+        private static volatile bool _isBackgroundReplayBufferActive;
+
+        public static bool IsBackgroundReplayBufferActive => _isBackgroundReplayBufferActive;
 
         public static GameCapture? GameCaptureSource { get; set; }
         private static Source? _displaySource;
@@ -610,6 +613,17 @@ namespace Segra.Backend.Recorder
                 }
 
                 _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
+
+                // Start before game detection; detection can then suspend this buffer and hand off
+                // cleanly if a game is already running when Segra launches.
+                if (Settings.Instance.BackgroundReplayBuffer)
+                {
+                    if (!StartBackgroundReplayBuffer())
+                    {
+                        Log.Warning("Background replay buffer could not be started");
+                    }
+                }
+
                 _ = GameDetectionService.StartAsync();
                 GameDetectionService.ForegroundHook.Start();
             }
@@ -731,13 +745,67 @@ namespace Segra.Backend.Recorder
         private static EffectiveRecordingSettings? _activeEffectiveSettings;
         public static EffectiveRecordingSettings? ActiveEffectiveSettings => _activeEffectiveSettings;
 
-        public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null)
+        public static bool StartBackgroundReplayBuffer()
+        {
+            if (!Settings.Instance.BackgroundReplayBuffer)
+            {
+                Log.Information("Background replay buffer is disabled; skipping start");
+                return false;
+            }
+
+            Log.Information("Starting background display replay buffer");
+            _isBackgroundReplayBufferActive = true;
+            AppState.Instance.BackgroundReplayBufferActive = true;
+
+            bool started = false;
+            try
+            {
+                started = StartRecording(
+                    name: "Background Replay Buffer",
+                    startManually: true,
+                    recordingModeOverride: RecordingMode.Buffer);
+                return started;
+            }
+            finally
+            {
+                if (!started)
+                {
+                    _isBackgroundReplayBufferActive = false;
+                    AppState.Instance.BackgroundReplayBufferActive = false;
+                }
+            }
+        }
+
+        public static async Task<bool> StartRecordingReplacingBackgroundBufferAsync(
+            string name = "Manual Recording",
+            string exePath = "Unknown",
+            bool startManually = false,
+            int? pid = null)
+        {
+            bool suspendedBackgroundBuffer = IsBackgroundReplayBufferActive;
+            if (suspendedBackgroundBuffer)
+            {
+                Log.Information("Suspending background replay buffer for a normal recording");
+                await StopRecording(restartBackgroundReplayBuffer: false);
+            }
+
+            bool started = StartRecording(name, exePath, startManually, pid);
+            if (!started && suspendedBackgroundBuffer && Settings.Instance.BackgroundReplayBuffer)
+            {
+                Log.Information("Normal recording did not start; restoring background replay buffer");
+                StartBackgroundReplayBuffer();
+            }
+
+            return started;
+        }
+
+        public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null, RecordingMode? recordingModeOverride = null)
         {
             // Held for the whole call (not just a wait-then-release at entry) so Start and Stop can never interleave.
             _stopRecordingSemaphore.Wait();
             try
             {
-                return StartRecordingCore(name, exePath, startManually, pid);
+                return StartRecordingCore(name, exePath, startManually, pid, recordingModeOverride);
             }
             finally
             {
@@ -745,7 +813,7 @@ namespace Segra.Backend.Recorder
             }
         }
 
-        private static bool StartRecordingCore(string name, string exePath, bool startManually, int? pid)
+        private static bool StartRecordingCore(string name, string exePath, bool startManually, int? pid, RecordingMode? recordingModeOverride)
         {
             if (!IsOBSInstalled())
             {
@@ -763,6 +831,10 @@ namespace Segra.Backend.Recorder
             // Note: the static _activeEffectiveSettings is only published once the early-return guards
             // below have passed, so a blocked start attempt can never clobber an active recording's settings.
             EffectiveRecordingSettings eff = GameSettingsService.Resolve(exePath);
+            if (recordingModeOverride.HasValue)
+            {
+                eff.RecordingMode = recordingModeOverride.Value;
+            }
 
             bool isReplayBufferMode = eff.RecordingMode == RecordingMode.Buffer;
             bool isSessionMode = eff.RecordingMode == RecordingMode.Session;
@@ -1635,12 +1707,30 @@ namespace Segra.Backend.Recorder
             }
         }
 
-        public static async Task StopRecording()
+        public static Task StopRecording() => StopRecording(restartBackgroundReplayBuffer: true);
+
+        public static async Task StopRecording(bool restartBackgroundReplayBuffer)
         {
+            bool shouldRestartBackgroundReplayBuffer = false;
+            Recording? recordingAtRequest = AppState.Instance.Recording;
+            PreRecording? preRecordingAtRequest = AppState.Instance.PreRecording;
+
             // Prevent race conditions when multiple callers try to stop recording simultaneously
             await _stopRecordingSemaphore.WaitAsync();
             try
             {
+                // A queued duplicate stop must not stop the background buffer (or another recording)
+                // that may have started after the original recording finished.
+                bool recordingChanged = recordingAtRequest != null &&
+                    !ReferenceEquals(recordingAtRequest, AppState.Instance.Recording);
+                bool preRecordingChanged = recordingAtRequest == null && preRecordingAtRequest != null &&
+                    !ReferenceEquals(preRecordingAtRequest, AppState.Instance.PreRecording);
+                if (recordingChanged || preRecordingChanged)
+                {
+                    Log.Information("Ignoring stale StopRecording request because the active recording changed.");
+                    return;
+                }
+
                 // Check if already stopping or stopped
                 if (_isStoppingOrStopped)
                 {
@@ -1650,6 +1740,12 @@ namespace Segra.Backend.Recorder
 
                 // Mark as stopping to prevent concurrent stop attempts
                 _isStoppingOrStopped = true;
+
+                bool wasBackgroundReplayBuffer = IsBackgroundReplayBufferActive;
+                _isBackgroundReplayBufferActive = false;
+                AppState.Instance.BackgroundReplayBufferActive = false;
+                shouldRestartBackgroundReplayBuffer = restartBackgroundReplayBuffer &&
+                    !wasBackgroundReplayBuffer && Settings.Instance.BackgroundReplayBuffer;
 
                 GeneralUtils.SetProcessPriority(ProcessPriorityClass.Normal);
 
@@ -1915,6 +2011,15 @@ namespace Segra.Backend.Recorder
             finally
             {
                 _stopRecordingSemaphore.Release();
+
+                if (shouldRestartBackgroundReplayBuffer && IsInitialized && Settings.Instance.BackgroundReplayBuffer)
+                {
+                    Log.Information("Normal recording ended; restarting background replay buffer");
+                    if (!StartBackgroundReplayBuffer())
+                    {
+                        Log.Warning("Background replay buffer could not be restarted");
+                    }
+                }
             }
         }
 
