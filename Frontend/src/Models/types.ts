@@ -326,7 +326,6 @@ export interface Settings {
   confirmBeforeDeleting: boolean;
   removeOriginalAfterCompression: boolean;
   discardSessionsWithoutBookmarks: boolean;
-  disableWindowsGameMode: boolean; // When true, ensures Windows Game Mode stays off on startup
   menuItems: MenuItemPreference[];
   defaultMenuItem: MenuItemId;
 }
@@ -406,7 +405,6 @@ export const initialSettings: Settings = {
   confirmBeforeDeleting: false,
   removeOriginalAfterCompression: false,
   discardSessionsWithoutBookmarks: false,
-  disableWindowsGameMode: false,
   menuItems: DEFAULT_MENU_ITEMS,
   defaultMenuItem: 'Full Sessions',
   keybindings: [

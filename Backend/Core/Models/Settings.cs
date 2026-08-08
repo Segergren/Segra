@@ -83,7 +83,6 @@ namespace Segra.Backend.Core.Models
         private bool _confirmBeforeDeleting = false;
         private bool _removeOriginalAfterCompression = false;
         private bool _discardSessionsWithoutBookmarks = false;
-        private bool _disableWindowsGameMode = false;
         private GameIntegrations _gameIntegrations = new GameIntegrations();
 
         private List<MenuItemPreference> _menuItems = KnownMenuItemIds
@@ -874,21 +873,6 @@ namespace Segra.Backend.Core.Models
                 if (_discardSessionsWithoutBookmarks != value)
                 {
                     _discardSessionsWithoutBookmarks = value;
-                }
-            }
-        }
-
-        // When true, Segra ensures Windows Game Mode is turned off on startup.
-        // When false, Segra leaves Game Mode untouched (it never turns it back on).
-        [JsonPropertyName("disableWindowsGameMode")]
-        public bool DisableWindowsGameMode
-        {
-            get => _disableWindowsGameMode;
-            set
-            {
-                if (_disableWindowsGameMode != value)
-                {
-                    _disableWindowsGameMode = value;
                 }
             }
         }

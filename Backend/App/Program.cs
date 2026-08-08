@@ -16,7 +16,6 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 #if WINDOWS
 using Segra.Backend.Windows.Power;
-using Segra.Backend.Windows.GameMode;
 using Segra.Backend.Windows.WebView2;
 #endif
 
@@ -262,7 +261,6 @@ namespace Segra.Backend.App
                 {
                     _ = SettingsService.LoadContentFromFolderIntoState(true);
                     PlatformServices.Startup.SetStartupStatus(true);
-                    Settings.Instance.DisableWindowsGameMode = true;
                     AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
                     SettingsService.SelectDefaultDevices();
                     _ = PresetsService.ApplyVideoPreset("high");
@@ -299,9 +297,6 @@ namespace Segra.Backend.App
 #if WINDOWS
                 // Start monitoring system power state changes (sleep/wake)
                 Task.Run(PowerModeMonitor.StartMonitoring);
-
-                // Ensure Windows Game Mode is off when the user has opted in (no-op otherwise)
-                Task.Run(GameModeService.EnforceDisabledIfEnabled);
 
                 // Run the OBS Initializer in a separate thread and application to make sure someting on the main thread doesn't block
                 // (KeybindCaptureService.Start() is called from OBSService.InitializeAsync once OBS is

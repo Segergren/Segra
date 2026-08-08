@@ -17,7 +17,7 @@ A quick, practical guide to get you developing on both the backend (C#/.NET) and
 
 ### Platform targets
 The project multi-targets `net10.0-windows10.0.19041.0` (Windows) and `net10.0` (Linux). Game-capture,
-HDR, the WinRT OCR game integrations, and Game Mode are Windows-only; Linux records via OBS/PipeWire
+HDR, and the WinRT OCR game integrations are Windows-only; Linux records via OBS/PipeWire
 desktop capture.
 
 ### Building

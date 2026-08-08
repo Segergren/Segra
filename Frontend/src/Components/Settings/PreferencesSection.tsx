@@ -124,19 +124,6 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
         </label>
       </div>
 
-      <div className="flex items-center">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            name="disableWindowsGameMode"
-            checked={settings.disableWindowsGameMode}
-            onChange={(e) => updateSettings({ disableWindowsGameMode: e.target.checked })}
-            className="checkbox checkbox-primary checkbox-sm"
-          />
-          <span className="cursor-pointer">Disable Windows Game Mode</span>
-        </label>
-      </div>
-
       {/* Deletion and cleanup toggles */}
       <div className="flex items-center">
         <label className="flex items-center gap-2">
