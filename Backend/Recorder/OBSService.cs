@@ -73,6 +73,8 @@ namespace Segra.Backend.Recorder
 
         private static string? _hookedExecutableFileName;
         private static System.Threading.Timer? _gameCaptureHookTimeoutTimer = null;
+        private const int FastHookWindowMs = 5000;
+        private const int HookWaitMs = 2000;
         private static bool _isStillHookedAfterUnhook = false;
 
         // Periodic low-disk-space monitor while recording
@@ -963,8 +965,23 @@ namespace Segra.Backend.Recorder
             }
 #endif
 
+            // Fastest retries the hook every 0.2s instead of 2s. If it hasn't hooked by then it
+            // isn't going to, so back off instead of retrying that fast for the whole session.
+            GameCaptureSource?.SetHookRate(GameCapture.HookRate.Fastest);
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(FastHookWindowMs);
+                try { GameCaptureSource?.SetHookRate(GameCapture.HookRate.Normal); }
+                catch (Exception ex) { Log.Warning($"Failed to reset game capture hook rate: {ex.Message}"); }
+            });
+
             // Set scene as program output (channel 0)
             Obs.SetOutputSource(_mainScene);
+
+            // OBS doesn't try to hook until the scene is live, so give it a moment here rather
+            // than opening the recording on display capture for a hook that was about to land.
+            for (int i = 0; i < HookWaitMs / 50 && GameCaptureSource?.IsHooked == false; i++)
+                Thread.Sleep(50);
 
             string encoderId = eff.Codec!.InternalEncoderId;
             if (_isHdrRecording && _hdrEncoderId != null)
