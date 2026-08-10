@@ -154,6 +154,12 @@
   animation: import-pulse 0.9s ease-in-out 0.7s 2;
 }
 
+/* Keep the playhead cursor while dragging it, wherever the pointer is */
+body.dragging-playhead,
+body.dragging-playhead * {
+  cursor: pointer !important;
+}
+
 /* Remove all focus rings globally */
 *,
 *:focus,

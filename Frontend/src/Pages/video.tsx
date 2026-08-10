@@ -844,7 +844,7 @@ export default function VideoComponent({ video }: { video: Content }) {
 
       // Calculate new zoom level
       const zoomFactor = e.deltaY < 0 ? 1.2 : 0.8;
-      const newZoom = Math.min(Math.max(wheelZoomRef.current * zoomFactor, 1), 500);
+      const newZoom = Math.min(Math.max(wheelZoomRef.current * zoomFactor, 1), 1000);
 
       // Update zoom ref immediately
       wheelZoomRef.current = newZoom;
@@ -883,7 +883,7 @@ export default function VideoComponent({ video }: { video: Content }) {
 
     // Compute target zoom
     const newZoom = increment ? zoom * 1.5 : zoom * 0.5;
-    const targetZoom = Math.min(Math.max(newZoom, 1), 500);
+    const targetZoom = Math.min(Math.max(newZoom, 1), 1000);
 
     // Cancel any running animation
     cancelAnimationFrame(zoomAnimationRef.current);
@@ -1090,6 +1090,11 @@ export default function VideoComponent({ video }: { video: Content }) {
     setTimeout(() => setIsInteracting(false), 0);
   };
 
+  useEffect(() => {
+    document.body.classList.toggle('dragging-playhead', isDragging);
+    return () => document.body.classList.remove('dragging-playhead');
+  }, [isDragging]);
+
   // Format time in seconds to "HH:MM:SS" when needed, otherwise "MM:SS"
   const formatTime = (time: number) => {
     const totalSeconds = Math.max(0, Math.floor(time));
@@ -1153,7 +1158,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     const start = currentTime;
     // Default to 10% of the visible timeline, capped at 2 minutes and clamped to video duration
     const visibleDuration = duration / zoom;
-    const segmentDuration = Math.min(120, Math.max(6, visibleDuration * 0.1));
+    const segmentDuration = Math.min(120, Math.max(1, visibleDuration * 0.1));
     const end = Math.min(start + segmentDuration, duration);
 
     // Use the frame already on screen as an instant thumbnail; the server
@@ -2062,7 +2067,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 return (
                   <div
                     key={seg.id}
-                    className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors overflow-hidden rounded-r-sm rounded-l-sm shadow-md
+                    className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors rounded-r-sm rounded-l-sm shadow-md
                                                 bg-primary/20 border border-primary/20`}
                     style={{ left: `${left}px`, width: `${width}px` }}
                     onMouseEnter={() => {
@@ -2077,8 +2082,8 @@ export default function VideoComponent({ video }: { video: Content }) {
                       handleDeleteSegment(seg.id);
                     }}
                   >
-                    <div className="absolute left-0 top-0 h-full w-[4px] bg-accent/80 rounded-l-sm pointer-events-none" />
-                    <div className="absolute right-0 top-0 h-full w-[4px] bg-accent/80 rounded-r-sm pointer-events-none" />
+                    <div className="absolute left-0 top-0 h-full w-[3px] bg-accent/80 rounded-l-sm pointer-events-none" />
+                    <div className="absolute right-0 top-0 h-full w-[3px] bg-accent/80 rounded-r-sm pointer-events-none" />
 
                     {audioTracks.isMultiTrack &&
                       video.audioTrackNames &&
@@ -2122,12 +2127,12 @@ export default function VideoComponent({ video }: { video: Content }) {
                       )}
 
                     <div
-                      className="absolute top-0 -left-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
+                      className="absolute top-0 -left-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
                       onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
                       aria-label="Resize segment start"
                     />
                     <div
-                      className="absolute top-0 -right-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
+                      className="absolute top-0 -right-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
                       onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
                       aria-label="Resize segment end"
                     />
@@ -2392,7 +2397,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 <button
                   onClick={() => handleZoomChange(true)}
                   className="btn btn-sm btn-secondary"
-                  disabled={zoom >= 500}
+                  disabled={zoom >= 1000}
                 >
                   <Plus className="w-4 h-4" />
                 </button>
