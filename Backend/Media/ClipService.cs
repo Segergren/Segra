@@ -702,27 +702,40 @@ namespace Segra.Backend.Media
             // The concat demuxer then uses the first clip's stream params for subsequent clips, playing
             // mismatched samples at the wrong rate (the reported "shrunken audio").
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
-            string arguments = $"-y {hwDeviceArgs}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
+            string hwDecodeArgs = await BuildHwDecodeArgs(inputFilePath);
+            string BuildArguments(string decodeArgs) =>
+                             $"-y {decodeArgs}{hwDeviceArgs}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
                              $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}{hwFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
                              $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
+            string arguments = BuildArguments(hwDecodeArgs);
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");
 
+            Action<Process> trackProcess = process =>
+            {
+                // Track the process so it can be cancelled
+                lock (ProcessLock)
+                {
+                    if (!ActiveFFmpegProcesses.ContainsKey(clipId))
+                    {
+                        ActiveFFmpegProcesses[clipId] = new List<Process>();
+                    }
+                    ActiveFFmpegProcesses[clipId].Add(process);
+                    Log.Information($"[Clip {clipId}] Tracking FFmpeg process (PID: {process.Id})");
+                }
+            };
+
             try
             {
-                await FFmpegService.RunWithProgress(clipId, arguments, duration, progressCallback, process =>
+                try
                 {
-                    // Track the process so it can be cancelled
-                    lock (ProcessLock)
-                    {
-                        if (!ActiveFFmpegProcesses.ContainsKey(clipId))
-                        {
-                            ActiveFFmpegProcesses[clipId] = new List<Process>();
-                        }
-                        ActiveFFmpegProcesses[clipId].Add(process);
-                        Log.Information($"[Clip {clipId}] Tracking FFmpeg process (PID: {process.Id})");
-                    }
-                });
+                    await FFmpegService.RunWithProgress(clipId, arguments, duration, progressCallback, trackProcess);
+                }
+                catch (FFmpegException) when (hwDecodeArgs.Length > 0 && !IsClipCancelled(clipId))
+                {
+                    Log.Warning($"[Clip {clipId}] Hardware-accelerated decode failed, retrying with software decode");
+                    await FFmpegService.RunWithProgress(clipId, BuildArguments(""), duration, progressCallback, trackProcess);
+                }
             }
             finally
             {
@@ -732,6 +745,36 @@ namespace Segra.Backend.Media
                     ActiveFFmpegProcesses.Remove(clipId);
                     Log.Information($"[Clip {clipId}] Removed from active processes");
                 }
+            }
+        }
+
+        // dav1d ignores -hwaccel, so AV1 sources need ffmpeg's hwaccel-only native decoder forced.
+        // If the GPU can't decode AV1 this fails hard; the caller retries with software decode.
+        private static async Task<string> BuildHwDecodeArgs(string inputFilePath)
+        {
+#if WINDOWS
+            string? sourceCodec = await FFmpegService.DetectVideoCodec(inputFilePath);
+            if (string.Equals(sourceCodec, "av1", StringComparison.OrdinalIgnoreCase))
+            {
+                return DetectGpuVendor() switch
+                {
+                    GpuVendor.Nvidia => "-hwaccel cuda -c:v av1 ",
+                    GpuVendor.AMD or GpuVendor.Intel => "-hwaccel d3d11va -c:v av1 ",
+                    _ => "",
+                };
+            }
+            return "-hwaccel auto ";
+#else
+            await Task.CompletedTask;
+            return "-hwaccel auto ";
+#endif
+        }
+
+        private static bool IsClipCancelled(int clipId)
+        {
+            lock (ProcessLock)
+            {
+                return CancelledClipIds.Contains(clipId);
             }
         }
 
