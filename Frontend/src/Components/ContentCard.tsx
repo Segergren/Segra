@@ -498,10 +498,14 @@ export default function ContentCard({
     </>
   );
 
+  // content-visibility applies paint containment, which would clip the dropdown and re-anchor
+  // the fixed context menu to the card, so an open menu opts the card out.
+  const hasOpenMenu = isDropdownOpen || contextMenuPosition !== null;
+
   return (
     <div
       data-content-id={content!.id}
-      className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isHighlighted ? 'import-pulse' : ''} ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
+      className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${hasOpenMenu ? '' : 'content-visibility-auto'} ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isHighlighted ? 'import-pulse' : ''} ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
       onClick={() => {
         if (isBeingCompressed) return;
         if (!isSelectionMode) markAsViewed();

@@ -86,6 +86,13 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Skip layout, style and paint for off-screen content cards. The intrinsic size is a
+     placeholder until the card has rendered once, after which its real size is reused. */
+  .content-visibility-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 300px;
+  }
 }
 
 /* Highlight card gradient border animation */
