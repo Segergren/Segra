@@ -1198,7 +1198,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const handleCreateClip = () => {
     if (segments.length === 0) {
       setShowNoSegmentsIndicator(true);
-      setTimeout(() => setShowNoSegmentsIndicator(false), 2000);
+      setTimeout(() => setShowNoSegmentsIndicator(false), 1300);
       return;
     }
 
@@ -2314,20 +2314,15 @@ export default function VideoComponent({ video }: { video: Content }) {
                       </span>
                     </span>
                   </Button>
-                  <div className="indicator">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="h-10 gap-1 hover:text-accent"
-                      onClick={handleAddSegment}
-                    >
-                      {showNoSegmentsIndicator && (
-                        <span className="indicator-item badge badge-sm badge-primary animate-pulse"></span>
-                      )}
-                      <SquarePlus className="w-5 h-5" />
-                      <span>Add Segment</span>
-                    </Button>
-                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className={`h-10 gap-1 hover:text-accent ${showNoSegmentsIndicator ? 'segment-hint-flash' : ''}`}
+                    onClick={handleAddSegment}
+                  >
+                    <SquarePlus className="w-5 h-5" />
+                    <span>Add Segment</span>
+                  </Button>
                 </>
               )}
               {video.type === 'Buffer' && (

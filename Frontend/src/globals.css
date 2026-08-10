@@ -154,6 +154,18 @@
   animation: import-pulse 0.9s ease-in-out 0.7s 2;
 }
 
+/* Flash a button's border and text yellow twice (Add Segment hint) */
+@keyframes segment-hint-flash {
+  50% {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+}
+
+.segment-hint-flash {
+  animation: segment-hint-flash 0.65s ease-in-out 2;
+}
+
 /* Keep the playhead cursor while dragging it, wherever the pointer is */
 body.dragging-playhead,
 body.dragging-playhead * {
