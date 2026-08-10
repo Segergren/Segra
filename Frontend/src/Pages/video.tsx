@@ -237,7 +237,16 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   // Video state
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  // Seed duration from content metadata so the timeline and waveform render
+  // immediately; the video element refines it on loadedmetadata.
+  const metadataDuration = useMemo(() => {
+    const seconds = timeStringToSeconds(video.duration);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+  }, [video.duration]);
+  const [duration, setDuration] = useState(metadataDuration);
+  useEffect(() => {
+    setDuration(metadataDuration);
+  }, [video.id, metadataDuration]);
   const [zoom, setZoom] = useState(1);
 
   // Scale and pan state for zooming into the video element itself
@@ -1953,9 +1962,9 @@ export default function VideoComponent({ video }: { video: Content }) {
                 overflow: 'hidden',
               }}
             >
-              <AnimatePresence initial={false}>
-                {bookmarksReady &&
-                  filteredBookmarks.map((bookmark, index) => {
+              {bookmarksReady && (
+                <AnimatePresence initial={false}>
+                  {filteredBookmarks.map((bookmark, index) => {
                     const timeInSeconds = timeStringToSeconds(bookmark.time);
                     const leftPos = timeInSeconds * pixelsPerSecond;
                     const Icon =
@@ -1993,7 +2002,8 @@ export default function VideoComponent({ video }: { video: Content }) {
                       </motion.div>
                     );
                   })}
-              </AnimatePresence>
+                </AnimatePresence>
+              )}
               {minorTicks.map((tickTime) => {
                 if (tickTime >= duration) return null;
                 const leftPos = tickTime * pixelsPerSecond;
