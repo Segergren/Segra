@@ -38,7 +38,7 @@ const loadedThumbnailKeys = new Set<string>();
 interface VideoCardProps {
   content?: Content; // Optional for skeleton cards
   type: VideoType;
-  onClick?: (video: Content) => void; // Click handler for the entire card
+  onClick?: (video: Content, event: React.MouseEvent) => void; // Click handler for the entire card
   isLoading?: boolean; // Indicates if this is a loading (skeleton) card
   isSelected?: boolean; // Whether this card is selected in multi-select mode
   isSelectionMode?: boolean; // Whether multi-select mode is active
@@ -506,10 +506,10 @@ export default function ContentCard({
     <div
       data-content-id={content!.id}
       className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${hasOpenMenu ? '' : 'content-visibility-auto'} ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isHighlighted ? 'import-pulse' : ''} ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
-      onClick={() => {
+      onClick={(e) => {
         if (isBeingCompressed) return;
-        if (!isSelectionMode) markAsViewed();
-        onClick?.(content!);
+        if (!isSelectionMode && !e.ctrlKey) markAsViewed();
+        onClick?.(content!, e);
       }}
       onContextMenu={openContextMenu}
     >
@@ -539,22 +539,19 @@ export default function ContentCard({
             <span className="align-middle">{manualBookmarkCount}</span>
           </span>
         )}
-        {isSelectionMode && (
-          <input
-            type="checkbox"
-            className="checkbox checkbox-primary checkbox-sm absolute top-2 left-2 [&:not(:checked)]:bg-black/30"
-            checked={isSelected}
-            readOnly
-          />
+        <input
+          type="checkbox"
+          className={`checkbox checkbox-primary checkbox-sm absolute top-2 left-2 [&:not(:checked)]:bg-black/30 transition-opacity duration-200 ${isSelectionMode ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          checked={isSelected}
+          readOnly
+        />
+        {isRecent && (type === 'Session' || type === 'Buffer') && showNewBadgeOnVideos && (
+          <span
+            className={`absolute top-2 left-2 badge badge-primary badge-sm text-base-300 transition-opacity duration-200 ${isSelectionMode ? 'opacity-0' : 'opacity-90'}`}
+          >
+            NEW
+          </span>
         )}
-        {isRecent &&
-          (type === 'Session' || type === 'Buffer') &&
-          showNewBadgeOnVideos &&
-          !isSelectionMode && (
-            <span className="absolute top-2 left-2 badge badge-primary badge-sm text-base-300 opacity-90">
-              NEW
-            </span>
-          )}
         {currentCompressionProgress && (
           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
             <p className="text-white text-sm mb-2">

@@ -44,11 +44,8 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  const closeModal = () => {
-    if (modalRef.current) {
-      modalRef.current.close();
-    }
-    // Clear content after the close animation finishes
+  // Clear content after the close animation finishes
+  const scheduleContentClear = () => {
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
     }
@@ -59,6 +56,13 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }, 150);
   };
 
+  const closeModal = () => {
+    if (modalRef.current) {
+      modalRef.current.close();
+    }
+    scheduleContentClear();
+  };
+
   const isModalOpen = modalContent !== null;
 
   return (
@@ -67,6 +71,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       <dialog
         ref={modalRef}
         className="modal modal-bottom sm:modal-middle"
+        onClose={scheduleContentClear}
         onMouseDown={(e) => {
           // Only mark as backdrop interaction if the mousedown started on the dialog backdrop
           backdropMouseDownRef.current = e.target === modalRef.current;
