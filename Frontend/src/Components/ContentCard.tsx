@@ -35,6 +35,15 @@ let hasSeededKnownContent = false;
 // Thumbnails already loaded this session, so a remounted card shows instantly without re-animating.
 const loadedThumbnailKeys = new Set<string>();
 
+// Shared observer that collapses far off-screen cards to fixed-size placeholders.
+const offscreenCallbacks = new Map<Element, (entry: IntersectionObserverEntry) => void>();
+const offscreenObserver = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) offscreenCallbacks.get(entry.target)?.(entry);
+  },
+  { rootMargin: '600px 0px' },
+);
+
 interface VideoCardProps {
   content?: Content; // Optional for skeleton cards
   type: VideoType;
@@ -80,6 +89,31 @@ export default function ContentCard({
   } | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const uploadModalSequenceRef = useRef(0);
+
+  const cardRef = useRef<HTMLDivElement>(null);
+  // Card height while collapsed to a placeholder, or null when fully rendered.
+  const [placeholderHeight, setPlaceholderHeight] = useState<number | null>(null);
+  // An open menu opts the card out, so the dropdown/context menu never unmounts mid-use.
+  const showPlaceholder =
+    placeholderHeight !== null && !isDropdownOpen && contextMenuPosition === null;
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    offscreenCallbacks.set(el, (entry) => {
+      if (entry.isIntersecting) {
+        setPlaceholderHeight(null);
+      } else {
+        const { height } = entry.boundingClientRect;
+        setPlaceholderHeight((prev) => (height > 0 ? height : prev));
+      }
+    });
+    offscreenObserver.observe(el);
+    return () => {
+      offscreenObserver.unobserve(el);
+      offscreenCallbacks.delete(el);
+    };
+  }, [isLoading, showPlaceholder]);
 
   const thumbnailRef = useRef<HTMLImageElement>(null);
   const thumbnailKey = `${type}:${content?.id ?? ''}`;
@@ -340,16 +374,25 @@ export default function ContentCard({
     if (!contextMenuPosition) return;
 
     const closeContextMenu = () => setContextMenuPosition(null);
+    // Capture phase so this Escape doesn't also clear the page's card selection.
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closeContextMenu();
+      }
+    };
     window.addEventListener('click', closeContextMenu);
     window.addEventListener('blur', closeContextMenu);
     window.addEventListener('resize', closeContextMenu);
     window.addEventListener('scroll', closeContextMenu, true);
+    window.addEventListener('keydown', handleKeyDown, true);
 
     return () => {
       window.removeEventListener('click', closeContextMenu);
       window.removeEventListener('blur', closeContextMenu);
       window.removeEventListener('resize', closeContextMenu);
       window.removeEventListener('scroll', closeContextMenu, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [contextMenuPosition]);
 
@@ -498,14 +541,22 @@ export default function ContentCard({
     </>
   );
 
-  // content-visibility applies paint containment, which would clip the dropdown and re-anchor
-  // the fixed context menu to the card, so an open menu opts the card out.
-  const hasOpenMenu = isDropdownOpen || contextMenuPosition !== null;
+  if (showPlaceholder) {
+    return (
+      <div
+        ref={cardRef}
+        data-content-id={content!.id}
+        className={`card card-compact bg-base-300 w-full border border-[#49515b] ${isSelected ? '!outline !outline-1 !outline-primary' : ''}`}
+        style={{ height: placeholderHeight! }}
+      />
+    );
+  }
 
   return (
     <div
+      ref={cardRef}
       data-content-id={content!.id}
-      className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${hasOpenMenu ? '' : 'content-visibility-auto'} ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isHighlighted ? 'import-pulse' : ''} ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
+      className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isHighlighted ? 'import-pulse' : ''} ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
       onClick={(e) => {
         if (isBeingCompressed) return;
         if (!isSelectionMode && !e.ctrlKey) markAsViewed();
@@ -609,6 +660,12 @@ export default function ContentCard({
             ref={dropdownRef}
             className={`dropdown dropdown-end ${isBeingCompressed ? 'pointer-events-none opacity-50' : ''}`}
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                (document.activeElement as HTMLElement | null)?.blur();
+              }
+            }}
             onContextMenu={(e) => {
               e.preventDefault();
               e.stopPropagation();

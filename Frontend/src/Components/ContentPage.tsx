@@ -386,6 +386,8 @@ export default function ContentPage({
     if (e.clientX - startRect.left >= container.clientWidth) return; // Scrollbar
 
     e.preventDefault();
+    // preventDefault stops the browser's focus change, so close any focus-based dropdown manually.
+    (document.activeElement as HTMLElement | null)?.blur();
 
     const drag = {
       anchorX: e.clientX - startRect.left + container.scrollLeft,
