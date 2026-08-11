@@ -13,46 +13,6 @@ using Segra.Backend.Windows.Watchers;
 
 namespace Segra.Backend.Platform.Windows
 {
-    internal sealed class WindowsTrayIcon : ITrayIcon
-    {
-        public void Initialize(Action onOpen, Action onExit)
-        {
-            var trayThread = new Thread(() =>
-            {
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
-
-                using var icon = new NotifyIcon
-                {
-                    Icon = Properties.Resources.icon,
-                    Text = "Segra",
-                    Visible = true
-                };
-
-                var menu = new ContextMenuStrip();
-                menu.Items.Add("Open", null, (s, e) => onOpen());
-                menu.Items.Add("Exit", null, (s, e) => onExit());
-                icon.ContextMenuStrip = menu;
-
-                icon.MouseDoubleClick += (s, e) =>
-                {
-                    if (e.Button == MouseButtons.Left)
-                        onOpen();
-                };
-
-                NotifyIconService.Initialize(icon);
-
-                Application.Run();
-            });
-            trayThread.SetApartmentState(ApartmentState.STA);
-            trayThread.IsBackground = true;
-            trayThread.Start();
-        }
-
-        public void SetRecording(bool recording) =>
-            NotifyIconService.SetNotifyIconStatus(recording ? NotifyIconState.Recording : NotifyIconState.Idle);
-    }
-
     internal sealed class WindowsAudioWatcher : IPlatformWatcher
     {
         private readonly AudioDeviceWatcher _watcher = new();
