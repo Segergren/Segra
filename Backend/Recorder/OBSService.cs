@@ -22,6 +22,7 @@ using System.Text.RegularExpressions;
 using static Segra.Backend.App.MessageService;
 using static Segra.Backend.Shared.GeneralUtils;
 #if WINDOWS
+using Segra.Backend.Windows.Audio;
 using Segra.Backend.Windows.Display;
 #endif
 
@@ -555,6 +556,17 @@ namespace Segra.Backend.Recorder
                 string obsDataPath = Environment.GetEnvironmentVariable("SEGRA_OBS_DATA_PATH") ?? "./data/libobs/";
                 Log.Information($"Linux OBS runtime: data='{obsDataPath}', modules='{obsModulePath}'");
 #endif
+                // Match the default render device's mix format so game capture's WASAPI
+                // process loopback needs no engine-side resampling (its resampler audibly
+                // rings/metallics on rate mismatch, e.g. 48k games into a 44.1k project).
+                // OBS's own resampler handles every other source (mics, desktop loopbacks),
+                // so this rate only has to match where the game's audio session actually runs.
+                int audioSampleRate = 48000;
+#if WINDOWS
+                audioSampleRate = AudioDeviceService.GetDefaultOutputSampleRate();
+#endif
+                Log.Information($"OBS audio sample rate: {audioSampleRate} Hz (default render device mix format, 48 kHz fallback)");
+
                 _obsContext = Obs.Initialize(config =>
                 {
                     config
@@ -568,7 +580,7 @@ namespace Segra.Backend.Recorder
                             .Resolution(1920, 1080)
                             .Fps(60))
                         .WithAudio(a => a
-                            .WithSampleRate(44100)
+                            .WithSampleRate((uint)audioSampleRate)
                             .WithSpeakers(SpeakerLayout.Stereo))
                         .WithLogging((level, message) =>
                         {

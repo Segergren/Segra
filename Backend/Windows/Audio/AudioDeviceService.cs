@@ -10,6 +10,36 @@ namespace Segra.Backend.Windows.Audio
 
         public static List<AudioDevice> GetOutputDevices() => GetDevices(DataFlow.Render, Role.Console);
 
+        /// <summary>
+        /// Returns the sample rate (Hz) of the default render device's mix format, or 48000
+        /// when it cannot be determined or is a rate OBS shouldn't be driven at.
+        /// Games render to the default (Console role) device, and in WASAPI shared mode their
+        /// audio session runs at exactly this mix rate. OBS requests its project rate from
+        /// game capture's process loopback, so matching the mix rate avoids the Windows audio
+        /// engine resampling the game stream — its resampler audibly rings on rate mismatch.
+        /// </summary>
+        public static int GetDefaultOutputSampleRate()
+        {
+            try
+            {
+                using var enumerator = new MMDeviceEnumerator();
+                using var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
+                using var audioClient = defaultDevice.AudioClient;
+                int sampleRate = audioClient.MixFormat.SampleRate;
+
+                // Only drive OBS at rates it is routinely used with; anything else (e.g. an
+                // exotic 32 kHz endpoint) falls back to 48 kHz, the Windows/industry default.
+                return sampleRate is 44100 or 48000 or 88200 or 96000 or 176400 or 192000
+                    ? sampleRate
+                    : 48000;
+            }
+            catch
+            {
+                // No default device, or COM failure — 48 kHz is the safest fallback.
+                return 48000;
+            }
+        }
+
         private static string GetCleanDeviceName(string friendlyName)
         {
             // If it's Voicemeeter, Elgato, GoXLR or BEACN, return the original name
