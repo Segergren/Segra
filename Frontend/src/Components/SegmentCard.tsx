@@ -3,6 +3,7 @@ import { SegmentCardProps } from '../Models/types';
 import { useDrag, useDrop } from 'react-dnd';
 import { Headphones } from 'lucide-react';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
+import AudioTrackIcon from './AudioTrackIcon';
 
 const DRAG_TYPE = 'SEGMENT_CARD';
 
@@ -16,6 +17,7 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
     setHoveredSegmentId,
     removeSegment,
     audioTrackNames,
+    audioTrackTypes,
     onMutedAudioTracksChange,
     onAudioTrackVolumesChange,
   }) => {
@@ -225,6 +227,10 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
                           checked={!isMuted}
                           onChange={() => toggleTrack(i)}
                           className="checkbox checkbox-primary checkbox-xs shrink-0"
+                        />
+                        <AudioTrackIcon
+                          type={audioTrackTypes?.[i]}
+                          className="h-3.5 w-3.5 shrink-0 text-white/60"
                         />
                         <span className="text-xs text-white/80 truncate">
                           {name.replace(' (Default)', '')}
