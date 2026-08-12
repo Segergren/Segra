@@ -18,6 +18,9 @@ namespace Segra.Tests;
 // If that contract ever changes — most plausibly via an ORT package upgrade — every inference
 // after the first would score a stale frame. The failure is silent. This test exists to make
 // that loud. It loads the real ONNX model; the contract cannot be verified without the runtime.
+// Shares ModelService's reference-counted session cache with ModelSessionLifetimeTests, whose
+// assertions are about that cache's counts — so the two must not run at the same time.
+[Collection(ModelSessionCollection.Name)]
 public class InputTensorReuseTests
 {
     private const string GameId = "Overwatch";

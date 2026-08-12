@@ -23,10 +23,22 @@ namespace Segra.Backend.Core.Models
     {
         public override BookmarkType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            // A hand-edited or corrupted metadata file can hold a number, null or even an object
+            // here. GetString() would throw on those and take the whole metadata file down with it,
+            // so treat any non-string token the same way as an unknown name and fall back.
+            if (reader.TokenType != JsonTokenType.String)
+            {
+                Log.Warning("Unexpected token {TokenType} for bookmark type in JSON, defaulting to Manual", reader.TokenType);
+                // Objects and arrays must be consumed whole, otherwise the serializer faults on the
+                // tokens this converter left behind. Skipping a scalar token is a no-op.
+                reader.TrySkip();
+                return BookmarkType.Manual;
+            }
+
             var value = reader.GetString();
             if (value != null && Enum.TryParse<BookmarkType>(value, ignoreCase: true, out var result))
                 return result;
-            Log.Warning($"Unknown bookmark type '{value}' in JSON, defaulting to Manual");
+            Log.Warning("Unknown bookmark type {BookmarkType} in JSON, defaulting to Manual", value);
             return BookmarkType.Manual;
         }
 

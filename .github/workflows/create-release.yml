@@ -113,8 +113,16 @@ jobs:
           if ($vpkJob.State -ne 'Completed') { throw "vpk install job failed (state: $($vpkJob.State))" }
           if ($restoreJob.State -ne 'Completed') { throw "dotnet restore job failed (state: $($restoreJob.State))" }
 
+      - name: Run unit tests
+        # SkipFrontendBuild keeps the referenced Segra project from re-running the npm build; the
+        # unit tests never touch the UI. Gates the release on the suite rather than only compiling it.
+        run: dotnet test tests/Segra.Tests/Segra.Tests.csproj -c Release -p:SkipFrontendBuild=true --nologo
+        shell: pwsh
+
       - name: Publish the App
-        run: dotnet publish -c Release -f net10.0-windows10.0.19041.0 --self-contained -r win-x64 -o publish --no-restore -p:Version=${{ steps.extract_final_version.outputs.final_version_number }}
+        # Named explicitly: the repo root also holds Segra.sln, which now includes the net10.0-only
+        # test project, and -f net10.0-windows would not apply to it.
+        run: dotnet publish Segra.csproj -c Release -f net10.0-windows10.0.19041.0 --self-contained -r win-x64 -o publish --no-restore -p:Version=${{ steps.extract_final_version.outputs.final_version_number }}
         shell: pwsh
 
       - name: Upload Segra binaries for signing (Pass 1)

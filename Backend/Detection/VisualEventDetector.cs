@@ -1,7 +1,9 @@
 using System.Buffers;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -9,6 +11,7 @@ using ObsKit.NET;
 using ObsKit.NET.Native.Types;
 using ObsKit.NET.Video;
 using Serilog;
+using Serilog.Events;
 
 namespace Segra.Backend.Detection;
 
@@ -22,6 +25,18 @@ public class VisualEventDetector : IDisposable
     private const int BlackCheckStride = 16;
     private const int BlackCheckLumaThreshold = 15;
     private const int BlackCheckMinBrightSamples = 0;
+
+    // Past this, the loop is assumed to still be inside session.Run.
+    private const int StopJoinTimeoutSeconds = 3;
+
+    // A YOLO detect head emits 4 box rows (cx, cy, w, h) before the per-class score rows.
+    private const int YoloBoxChannels = 4;
+
+    // metadata_props holds a Python dict literal — {0: 'Elimination'} — not JSON: bare int keys,
+    // single-quoted values.
+    private static readonly Regex ClassNamePattern =
+        new(@"(?<id>\d+)\s*:\s*(?:'(?<name>[^']*)'|""(?<name>[^""]*)"")", RegexOptions.CultureInvariant);
+
     private readonly int _detectionIntervalMs;
     private RawVideoSubscription? _subscription;
     private CancellationTokenSource? _cts;
@@ -101,7 +116,7 @@ public class VisualEventDetector : IDisposable
         _runOptions = new RunOptions();
 
         var definitions = ModelService.LoadEventDefinitions(gameId);
-        _numClasses = definitions.Count;
+        _numClasses = ResolveClassCount(_session, _outputNames[0], definitions, gameId);
         _regionGroups = BuildRegionGroups(definitions);
         _grayscaleStrategy = SelectGrayscaleStrategy(_regionGroups);
 
@@ -149,21 +164,33 @@ public class VisualEventDetector : IDisposable
         var sub = Interlocked.Exchange(ref _subscription, null);
         sub?.Dispose();
 
+        // A never-started detector has no loop to wait for, so it is trivially "out of Run".
+        var loopExited = true;
         if (_detectionThread != null)
         {
-            if (!_detectionThread.Join(TimeSpan.FromSeconds(3)))
-                Log.Warning("VisualEventDetector: detection loop did not exit within 3s");
+            loopExited = _detectionThread.Join(TimeSpan.FromSeconds(StopJoinTimeoutSeconds));
+            if (!loopExited)
+            {
+                Log.Error("VisualEventDetector: detection loop for {GameId} did not exit within {TimeoutSeconds}s; leaking its ONNX session and run options rather than freeing native memory it may still be reading",
+                    _gameId, StopJoinTimeoutSeconds);
+            }
             _detectionThread = null;
         }
 
         while (_frameQueue.Reader.TryRead(out var stale))
             stale.ReturnBuffer();
 
-        if (_gameId != null)
+        // Only once the loop is provably outside session.Run: freeing native memory mid-inference
+        // crashes the process, and a leaked session is the cheaper failure.
+        if (loopExited)
         {
-            ModelService.UnloadModel(_gameId);
+            if (_gameId != null)
+            {
+                ModelService.UnloadModel(_gameId);
+            }
+            _runOptions?.Dispose();
         }
-        _runOptions?.Dispose();
+
         _runOptions = null;
         _inputContainer = null;
         _inputTensor = null;
@@ -176,10 +203,111 @@ public class VisualEventDetector : IDisposable
         Log.Information("VisualEventDetector: Stopped");
     }
 
+    // ParseYoloOutput strides the tensor by (4 + numClasses), so a count disagreeing with the
+    // exported graph decodes every box to garbage, silently. The graph's shape is authoritative;
+    // hand-edited events.json is checked against it rather than believed.
+    private static int ResolveClassCount(InferenceSession session, string outputName,
+        List<EventDefinition> definitions, string gameId)
+    {
+        var dimensions = session.OutputMetadata[outputName].Dimensions;
+        var modelClassNames = ReadModelClassNames(session);
+
+        if (!TryDeriveClassCount(dimensions, out var numClasses))
+        {
+            // A dynamic axis exports as -1/0; arithmetic on it yields a plausible-looking stride.
+            numClasses = definitions.Count;
+            Log.Warning("VisualEventDetector: output {OutputName} of model {GameId} has no static class dimension ({Dimensions}), falling back to {NumClasses} classes from events.json",
+                outputName, gameId, string.Join('x', dimensions), numClasses);
+        }
+
+        var mismatch = FindClassMapMismatch(definitions, numClasses, modelClassNames);
+        if (mismatch != null)
+        {
+            Log.Error("VisualEventDetector: events.json does not match model.onnx for {GameId}: {Mismatch}",
+                gameId, mismatch);
+            throw new InvalidOperationException(
+                $"Event definitions for {gameId} do not match model.onnx: {mismatch}");
+        }
+
+        Log.Information("VisualEventDetector: model {GameId} declares {NumClasses} classes for {EventCount} event definitions",
+            gameId, numClasses, definitions.Count);
+        return numClasses;
+    }
+
+    // A detect head outputs [batch, 4 + numClasses, numAnchors] — [1, 11, 8400] for the shipped
+    // 7-class model. Anything else is reported as underivable rather than guessed at.
+    internal static bool TryDeriveClassCount(IReadOnlyList<int>? outputDimensions, out int numClasses)
+    {
+        numClasses = 0;
+        if (outputDimensions == null || outputDimensions.Count != 3) return false;
+
+        var channels = outputDimensions[1];
+        if (channels <= YoloBoxChannels) return false;
+
+        numClasses = channels - YoloBoxChannels;
+        return true;
+    }
+
+    // Absent on models from other tooling, so a null map skips the name check; the shape check holds.
+    private static IReadOnlyDictionary<int, string>? ReadModelClassNames(InferenceSession session)
+    {
+        try
+        {
+            return session.ModelMetadata.CustomMetadataMap.TryGetValue("names", out var names)
+                ? ParseClassNames(names)
+                : null;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "VisualEventDetector: could not read the model class map, skipping the events.json name check");
+            return null;
+        }
+    }
+
+    internal static IReadOnlyDictionary<int, string>? ParseClassNames(string? names)
+    {
+        if (string.IsNullOrWhiteSpace(names)) return null;
+
+        var map = new Dictionary<int, string>();
+        foreach (Match match in ClassNamePattern.Matches(names))
+        {
+            if (int.TryParse(match.Groups["id"].ValueSpan, NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out var classId))
+                map[classId] = match.Groups["name"].Value;
+        }
+
+        return map.Count > 0 ? map : null;
+    }
+
+    // events.json keys bookmarks by classId; the model decides what each classId means. An entry
+    // added, removed or renamed without retraining mislabels every detection. Null when they agree.
+    internal static string? FindClassMapMismatch(IReadOnlyList<EventDefinition> definitions,
+        int numClasses, IReadOnlyDictionary<int, string>? modelClassNames)
+    {
+        foreach (var def in definitions)
+        {
+            if (def.ClassId < 0 || def.ClassId >= numClasses)
+                return $"classId {def.ClassId} ('{def.Name}') falls outside the model's {numClasses} classes";
+
+            if (modelClassNames == null) continue;
+
+            if (!modelClassNames.TryGetValue(def.ClassId, out var modelName))
+                return $"classId {def.ClassId} ('{def.Name}') is missing from the model's class map";
+
+            if (!string.Equals(modelName, def.Name, StringComparison.OrdinalIgnoreCase))
+                return $"classId {def.ClassId} is '{def.Name}' in events.json but '{modelName}' in the model";
+        }
+
+        return null;
+    }
+
     private void OnFrame(in RawVideoFrame frame)
     {
         if (Interlocked.CompareExchange(ref _isProcessing, 1, 0) != 0)
             return;
+
+        byte[]? buffer = null;
+        var queued = false;
 
         try
         {
@@ -187,17 +315,21 @@ public class VisualEventDetector : IDisposable
             var width = (int)frame.Width;
             var height = (int)frame.Height;
             var rowBytes = width * 4;
-            var buffer = ArrayPool<byte>.Shared.Rent(height * rowBytes);
+            buffer = ArrayPool<byte>.Shared.Rent(height * rowBytes);
 
             var src = frame.GetPlane(0, (uint)height);
             CopyPlane(src, srcStride, buffer, rowBytes, height);
 
-            _frameQueue.Writer.TryWrite(new FrameData
+            queued = _frameQueue.Writer.TryWrite(new FrameData
             {
                 Buffer = buffer,
                 Width = width,
                 Height = height
             });
+
+            // DropOldest only refuses once the channel is completed, which nothing does today.
+            if (!queued)
+                Log.Warning("VisualEventDetector: frame queue rejected a frame, dropping it");
         }
         catch (Exception ex)
         {
@@ -205,6 +337,9 @@ public class VisualEventDetector : IDisposable
         }
         finally
         {
+            // Ownership passes to the channel only on a successful write; GetPlane and CopyPlane
+            // both throw on a short plane.
+            if (!queued && buffer != null) ArrayPool<byte>.Shared.Return(buffer);
             Interlocked.Exchange(ref _isProcessing, 0);
         }
     }
@@ -287,7 +422,7 @@ public class VisualEventDetector : IDisposable
                                 var results = RunInferenceOnGray(session, resized);
                                 if (results != null)
                                 {
-                                    MapDetectionsToFullFrame(results, group, fW, fH);
+                                    MapDetectionsToFullFrame(results, cropX, cropY, cropW, cropH, fW, fH);
                                     allResults.AddRange(results);
                                 }
                             }
@@ -307,109 +442,30 @@ public class VisualEventDetector : IDisposable
                 }
                 finally
                 {
+                    // OnFrame owns _isProcessing and clears it in its own finally; resetting it
+                    // here could unlock an OnFrame still mid-copy.
                     frameData.ReturnBuffer();
-                    Interlocked.Exchange(ref _isProcessing, 0);
                 }
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
                 Log.Warning(ex, "VisualEventDetector: detection error");
-                Interlocked.Exchange(ref _isProcessing, 0);
             }
         }
     }
 
-    internal static byte[]? CropFrame(byte[] src, int srcW, int srcH, RegionGroup region)
-    {
-        var cropX = (int)(region.X * srcW);
-        var cropY = (int)(region.Y * srcH);
-        var cropW = (int)(region.W * srcW);
-        var cropH = (int)(region.H * srcH);
-
-        if (cropW <= 0 || cropH <= 0) return null;
-
-        if (cropX + cropW > srcW) cropW = srcW - cropX;
-        if (cropY + cropH > srcH) cropH = srcH - cropY;
-        if (cropW <= 0 || cropH <= 0) return null;
-
-        var cropBuffer = ArrayPool<byte>.Shared.Rent(cropW * cropH * 4);
-        var srcRowStride = srcW * 4;
-
-        for (int y = 0; y < cropH; y++)
-        {
-            var srcOffset = (cropY + y) * srcRowStride + cropX * 4;
-            var dstOffset = y * cropW * 4;
-            Buffer.BlockCopy(src, srcOffset, cropBuffer, dstOffset, cropW * 4);
-        }
-
-        return cropBuffer;
-    }
-
-    internal static byte[] ResizeBgra(byte[] src, int srcW, int srcH, int dstW, int dstH)
-    {
-        var dst = ArrayPool<byte>.Shared.Rent(dstW * dstH * 4);
-        var srcBytesPerRow = srcW * 4;
-
-        for (int dy = 0; dy < dstH; dy++)
-        {
-            float sy = (dy + 0.5f) * srcH / dstH - 0.5f;
-            if (sy < 0) sy = 0;
-            if (sy >= srcH - 1) sy = srcH - 1.001f;
-            int sy0 = (int)sy;
-            int sy1 = sy0 + 1;
-            float fy = sy - sy0;
-
-            for (int dx = 0; dx < dstW; dx++)
-            {
-                float sx = (dx + 0.5f) * srcW / dstW - 0.5f;
-                if (sx < 0) sx = 0;
-                if (sx >= srcW - 1) sx = srcW - 1.001f;
-                int sx0 = (int)sx;
-                int sx1 = sx0 + 1;
-                float fx = sx - sx0;
-
-                var idx00 = sy0 * srcBytesPerRow + sx0 * 4;
-                var idx01 = sy0 * srcBytesPerRow + sx1 * 4;
-                var idx10 = sy1 * srcBytesPerRow + sx0 * 4;
-                var idx11 = sy1 * srcBytesPerRow + sx1 * 4;
-
-                var dstIdx = (dy * dstW + dx) * 4;
-
-                for (int c = 0; c < 4; c++)
-                {
-                    float v =
-                        (1 - fx) * (1 - fy) * src[idx00 + c] +
-                        fx * (1 - fy) * src[idx01 + c] +
-                        (1 - fx) * fy * src[idx10 + c] +
-                        fx * fy * src[idx11 + c];
-                    dst[dstIdx + c] = (byte)v;
-                }
-            }
-        }
-
-        return dst;
-    }
-
+    // Takes the crop rect the detections came from, not the group: TryGetCropRect trims a region
+    // overhanging a frame edge, and the untrimmed size would misplace every box.
     internal static void MapDetectionsToFullFrame(List<DetectionResult> detections,
-        RegionGroup group, int frameW, int frameH)
+        int cropX, int cropY, int cropW, int cropH, int frameW, int frameH)
     {
-        float cropW = group.W * frameW;
-        float cropH = group.H * frameH;
-        float regionLeft = group.X * frameW;
-        float regionTop = group.Y * frameH;
-
         foreach (var det in detections)
         {
-            float fullX = det.X * cropW + regionLeft;
-            float fullY = det.Y * cropH + regionTop;
-            float fullW = det.Width * cropW;
-            float fullH = det.Height * cropH;
-
-            det.X = fullX / frameW;
-            det.Y = fullY / frameH;
-            det.Width = fullW / frameW;
-            det.Height = fullH / frameH;
+            det.X = (det.X * cropW + cropX) / frameW;
+            det.Y = (det.Y * cropH + cropY) / frameH;
+            det.Width = det.Width * cropW / frameW;
+            det.Height = det.Height * cropH / frameH;
         }
     }
 
@@ -675,25 +731,31 @@ public class VisualEventDetector : IDisposable
         }
     }
 
-    // Reads only columns [0, cropW-1] and rows [0, cropH-1] of crop: sx is clamped below
-    // cropW - 1, so sx1 = floor(sx) + 1 <= cropW - 1. Same for sy.
+    // Reads only columns [0, cropW-1] and rows [0, cropH-1] of crop: both taps of each axis are
+    // held inside the crop, so cropping before greyscale conversion stays byte-identical.
     internal static byte[] ResizeGray(byte[] crop, int cropW, int cropH, int dstW, int dstH)
     {
+        // A 1px axis has no second tap: `extent - 1.001f` alone yields -0.001, leaving tap 1
+        // outside the crop with a negative weight. Flooring the clamp and capping the tap collapses
+        // both onto pixel 0. For extent >= 2 both are no-ops, so real crops stay byte-identical.
+        var maxX = cropW - 1;
+        var maxY = cropH - 1;
+
         var dst = ArrayPool<byte>.Shared.Rent(dstW * dstH);
         for (int dy = 0; dy < dstH; dy++)
         {
             float sy = (dy + 0.5f) * cropH / dstH - 0.5f;
             if (sy < 0) sy = 0;
-            if (sy >= cropH - 1) sy = cropH - 1.001f;
-            int sy0 = (int)sy, sy1 = sy0 + 1;
+            if (sy >= maxY) sy = Math.Max(cropH - 1.001f, 0f);
+            int sy0 = (int)sy, sy1 = Math.Min(sy0 + 1, maxY);
             float fy = sy - sy0;
 
             for (int dx = 0; dx < dstW; dx++)
             {
                 float sx = (dx + 0.5f) * cropW / dstW - 0.5f;
                 if (sx < 0) sx = 0;
-                if (sx >= cropW - 1) sx = cropW - 1.001f;
-                int sx0 = (int)sx, sx1 = sx0 + 1;
+                if (sx >= maxX) sx = Math.Max(cropW - 1.001f, 0f);
+                int sx0 = (int)sx, sx1 = Math.Min(sx0 + 1, maxX);
                 float fx = sx - sx0;
 
                 var v = (1 - fx) * (1 - fy) * crop[sy0 * cropW + sx0]
@@ -829,27 +891,33 @@ public class VisualEventDetector : IDisposable
             });
         }
 
-        var highestConf = results.Count > 0
-            ? results.Max(r => r.Confidence)
-            : 0f;
-
-        if (results.Count == 0 && numDetections > 0)
+        // The rescan below re-walks the whole 8400-anchor tensor on the zero-detection path, for
+        // every region group of every cycle. Ask the sink before paying for it.
+        if (Log.IsEnabled(LogEventLevel.Debug))
         {
-            for (int i = 0; i < numDetections; i++)
+            var highestConf = results.Count > 0
+                ? results.Max(r => r.Confidence)
+                : 0f;
+
+            if (results.Count == 0 && numDetections > 0)
             {
-                for (int c = 0; c < numClasses; c++)
+                for (int i = 0; i < numDetections; i++)
                 {
-                    var conf = output[(4 + c) * numDetections + i];
-                    if (conf > highestConf) highestConf = conf;
+                    for (int c = 0; c < numClasses; c++)
+                    {
+                        var conf = output[(4 + c) * numDetections + i];
+                        if (conf > highestConf) highestConf = conf;
+                    }
                 }
             }
+
+            var classIds = results.Count > 0
+                ? string.Join(",", results.Select(r => $"{r.ClassId}({r.Confidence:F2})"))
+                : "none";
+            Log.Debug("ParseYoloOutput: {Results} results, highestConf={Conf:F4}, classIds=[{ClassIds}], {Total} detections, numClasses={Classes}",
+                results.Count, highestConf, classIds, numDetections, numClasses);
         }
 
-        var classIds = results.Count > 0
-            ? string.Join(",", results.Select(r => $"{r.ClassId}({r.Confidence:F2})"))
-            : "none";
-        Log.Debug("ParseYoloOutput: {Results} results, highestConf={Conf:F4}, classIds=[{ClassIds}], {Total} detections, numClasses={Classes}",
-            results.Count, highestConf, classIds, numDetections, numClasses);
         return results;
     }
 

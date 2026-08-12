@@ -69,3 +69,7 @@ packaging/linux/segra.desktop text eol=lf
 packaging/linux/control.in text eol=lf
 # The apt signing key is binary; never line-ending-normalize it.
 packaging/linux/segra-archive-keyring.gpg binary
+
+# ONNX detection models are multi-MB binaries that stay in the repo. Marking them binary stops git
+# from line-ending-normalizing them, attempting text deltas, or rendering a diff on every change.
+*.onnx binary
