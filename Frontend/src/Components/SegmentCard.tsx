@@ -28,15 +28,18 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
 
     const indexRef = useRef(index);
     const moveCardRef = useRef(moveCard);
+    const audioMenuOpenRef = useRef(false);
     useLayoutEffect(() => {
       indexRef.current = index;
       moveCardRef.current = moveCard;
+      audioMenuOpenRef.current = !!audioMenuPos?.visible;
     });
 
     const [{ isDragging }, dragRef] = useDrag(
       () => ({
         type: DRAG_TYPE,
         item: { index },
+        canDrag: () => !audioMenuOpenRef.current,
         collect: (monitor) => ({
           isDragging: monitor.isDragging(),
         }),
@@ -213,6 +216,10 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
                 }`}
                 style={{ right: window.innerWidth - audioMenuPos.x, top: audioMenuPos.y }}
                 onClick={(e) => e.stopPropagation()}
+                onDragStart={(e) => e.preventDefault()}
+                onTransitionEnd={() =>
+                  setAudioMenuPos((prev) => (prev && !prev.visible ? null : prev))
+                }
               >
                 {audioTrackNames.map((name, i) => {
                   const isMuted = mutedTracks.includes(i);

@@ -168,7 +168,6 @@ function TopInfoBar({ video }: { video: Content }) {
           <a
             className="text-gray-300 cursor-pointer hover:underline hover:text-gray-200 truncate"
             onClick={() => openFileLocation(video.filePath)}
-            title={video.filePath}
           >
             {video.filePath}
           </a>
