@@ -1,6 +1,7 @@
 using Serilog;
 using Segra.Backend.App;
 using Segra.Backend.Core;
+using Segra.Backend.Platform;
 using Segra.Backend.Shared;
 using Segra.Backend.Core.Models;
 
@@ -8,6 +9,112 @@ namespace Segra.Backend.Media
 {
     internal static class CompressionService
     {
+        // Compresses the video to a temp file capped at maxSizeMb and puts it on the clipboard.
+        // The original file is never touched.
+        public static async Task CopyCompressedToClipboard(string filePath, int maxSizeMb)
+        {
+            int processId = Guid.NewGuid().GetHashCode();
+
+            try
+            {
+                if (!File.Exists(filePath))
+                {
+                    Log.Error($"File not found for clipboard compression: {filePath}");
+                    await MessageService.SendFrontendMessage("ClipboardCompressionProgress", new { filePath, progress = -1, status = "error", message = "File not found" });
+                    return;
+                }
+
+                long maxBytes = (long)maxSizeMb * 1024 * 1024;
+                if (new FileInfo(filePath).Length <= maxBytes)
+                {
+                    Log.Information($"File already under {maxSizeMb}MB, copying original to clipboard: {filePath}");
+                    PlatformServices.Dialogs.CopyFileToClipboard(filePath);
+                    await MessageService.SendFrontendMessage("ClipboardCompressionProgress", new { filePath, progress = 100, status = "done" });
+                    return;
+                }
+
+                string clipboardDir = PathUtils.Combine(FolderNames.CacheFolder, "clipboard");
+                Directory.CreateDirectory(clipboardDir);
+                foreach (string oldFile in Directory.GetFiles(clipboardDir))
+                {
+                    try { File.Delete(oldFile); } catch { }
+                }
+
+                TimeSpan durationTs = await FFmpegService.GetVideoDuration(filePath);
+                double duration = durationTs.TotalSeconds;
+                if (duration <= 0)
+                {
+                    Log.Error($"Could not determine duration for clipboard compression: {filePath}");
+                    await MessageService.SendFrontendMessage("ClipboardCompressionProgress", new { filePath, progress = -1, status = "error", message = "Could not read video duration" });
+                    return;
+                }
+
+                string outputPath = PathUtils.Combine(clipboardDir, $"{Path.GetFileNameWithoutExtension(filePath)}.mp4");
+                await MessageService.SendFrontendMessage("ClipboardCompressionProgress", new { filePath, progress = 0, status = "compressing" });
+                Log.Information($"Compressing for clipboard (max {maxSizeMb}MB): {filePath}");
+
+                // Aim below the cap so container overhead doesn't push it over, retry lower on overshoot
+                double targetBytes = maxBytes * 0.95;
+                int audioKbps = 128;
+                int videoKbps = (int)(targetBytes * 8 / duration / 1000) - audioKbps;
+                if (videoKbps < 300)
+                {
+                    audioKbps = 64;
+                    videoKbps = (int)(targetBytes * 8 / duration / 1000) - audioKbps;
+                }
+                videoKbps = Math.Max(100, videoKbps);
+
+                bool success = false;
+                for (int attempt = 1; attempt <= 3 && !success; attempt++)
+                {
+                    int maxHeight = videoKbps < 500 ? 480 : videoKbps < 1500 ? 720 : 1080;
+                    string arguments = $"-y -i \"{filePath}\" -map 0:v:0 -map 0:a:0? " +
+                        $"-vf \"scale=-2:'min({maxHeight},ih)'\" " +
+                        $"-c:v libx264 -preset veryfast -b:v {videoKbps}k -maxrate {videoKbps}k -bufsize {videoKbps * 2}k " +
+                        $"-c:a aac -b:a {audioKbps}k -movflags +faststart \"{outputPath}\"";
+
+                    await FFmpegService.RunWithProgress(processId, arguments, duration, (progress) =>
+                    {
+                        _ = MessageService.SendFrontendMessage("ClipboardCompressionProgress", new { filePath, progress = (int)(progress * 100), status = "compressing" });
+                    });
+
+                    if (!File.Exists(outputPath))
+                    {
+                        Log.Error($"Clipboard compression failed for: {filePath}");
+                        await MessageService.SendFrontendMessage("ClipboardCompressionProgress", new { filePath, progress = -1, status = "error", message = "Compression failed" });
+                        return;
+                    }
+
+                    long actualBytes = new FileInfo(outputPath).Length;
+                    Log.Information($"Clipboard compression attempt {attempt}: {actualBytes / 1024 / 1024.0:F1}MB (max {maxSizeMb}MB) at {videoKbps}kbps");
+
+                    if (actualBytes <= maxBytes)
+                    {
+                        success = true;
+                    }
+                    else
+                    {
+                        videoKbps = Math.Max(100, (int)(videoKbps * ((double)maxBytes / actualBytes) * 0.9));
+                    }
+                }
+
+                if (!success)
+                {
+                    try { File.Delete(outputPath); } catch { }
+                    await MessageService.SendFrontendMessage("ClipboardCompressionProgress", new { filePath, progress = -1, status = "error", message = $"Could not compress under {maxSizeMb}MB" });
+                    return;
+                }
+
+                PlatformServices.Dialogs.CopyFileToClipboard(outputPath);
+                await MessageService.SendFrontendMessage("ClipboardCompressionProgress", new { filePath, progress = 100, status = "done" });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, $"Error compressing video for clipboard: {filePath}");
+                await MessageService.SendFrontendMessage("ClipboardCompressionProgress", new { filePath, progress = -1, status = "error", message = ex.Message });
+            }
+        }
+
         public static async Task CompressVideo(Content originalContent)
         {
             int processId = Guid.NewGuid().GetHashCode();

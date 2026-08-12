@@ -41,6 +41,7 @@ import {
   Headphones,
   Copy,
   Check,
+  ChevronDown,
 } from 'lucide-react';
 import SegmentCard from '../Components/SegmentCard';
 import { useAudioTracks } from '../Hooks/useAudioTracks';
@@ -1552,12 +1553,185 @@ export default function VideoComponent({ video }: { video: Content }) {
   };
 
   const [fileCopied, setFileCopied] = useState(false);
+  const [compressCopyProgress, setCompressCopyProgress] = useState<number | null>(null);
 
   const handleCopyFile = () => {
     sendMessageToBackend('CopyFileToClipboard', { FilePath: video.filePath });
     setFileCopied(true);
     setTimeout(() => setFileCopied(false), 1500);
   };
+
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
+  const copyMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!copyMenuOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (!copyMenuRef.current?.contains(e.target as Node)) setCopyMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCopyMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [copyMenuOpen]);
+
+  // Last backend progress update plus its estimated speed (% per ms), used to
+  // extrapolate between the sparse ffmpeg updates
+  const compressRateRef = useRef<{ progress: number; time: number; rate: number } | null>(null);
+
+  const handleCopyCompressed = (maxSizeMb: number) => {
+    setCopyMenuOpen(false);
+    // The dropdown also stays visible via :focus-within, so drop focus too
+    (document.activeElement as HTMLElement | null)?.blur();
+    if (compressCopyProgress !== null) return;
+    // time 0 is fine: extrapolation contributes nothing while rate is 0
+    compressRateRef.current = { progress: 0, time: 0, rate: 0 };
+    setCompressCopyProgress(0);
+    sendMessageToBackend('CopyCompressedFileToClipboard', {
+      FilePath: video.filePath,
+      MaxSizeMb: maxSizeMb,
+    });
+  };
+
+  useEffect(() => {
+    const handler = (event: CustomEvent<{ method: string; content: any }>) => {
+      const { method, content } = event.detail;
+      if (method !== 'ClipboardCompressionProgress' || content?.filePath !== video.filePath) return;
+      if (content.status === 'compressing') {
+        const progress = content.progress ?? 0;
+        const now = performance.now();
+        const prev = compressRateRef.current;
+        const rate =
+          prev && prev.time > 0 && progress > prev.progress && now > prev.time
+            ? (progress - prev.progress) / (now - prev.time)
+            : (prev?.rate ?? 0);
+        compressRateRef.current = { progress, time: now, rate };
+        setCompressCopyProgress(progress);
+      } else {
+        compressRateRef.current = null;
+        setCompressCopyProgress(null);
+        if (content.status === 'done') {
+          setFileCopied(true);
+          setTimeout(() => setFileCopied(false), 1500);
+        }
+      }
+    };
+    window.addEventListener('websocket-message', handler as EventListener);
+    return () => window.removeEventListener('websocket-message', handler as EventListener);
+  }, [video.filePath]);
+
+  // Ease the shown percent toward the extrapolated progress: catches up fast
+  // when far behind, keeps crawling between updates, never passes 99 early
+  const [displayedCopyProgress, setDisplayedCopyProgress] = useState(0);
+  useEffect(() => {
+    if (compressCopyProgress === null) {
+      setDisplayedCopyProgress(0);
+      return;
+    }
+    let rafId = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = now - last;
+      last = now;
+      const known = compressRateRef.current;
+      const target = known
+        ? Math.min(99, known.progress + known.rate * (now - known.time))
+        : compressCopyProgress;
+      setDisplayedCopyProgress((shown) => {
+        const gap = target - shown;
+        if (gap <= 0) return shown;
+        return Math.min(target, shown + Math.max(gap * (dt / 300), dt / 200));
+      });
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [compressCopyProgress]);
+
+  const copySizeOptions = [...(settings.copyCompressSizesMb ?? [])]
+    .sort((a, b) => a - b)
+    .filter((mb) => mb > 0 && mb * 1024 < video.fileSizeKb);
+
+  const copyButtons = (
+    <div className="join">
+      <Button
+        variant="primary"
+        size="sm"
+        className="h-10 hover:text-accent join-item"
+        onClick={handleCopyFile}
+      >
+        <label className={`swap overflow-hidden justify-center ${fileCopied ? 'swap-active' : ''}`}>
+          <div className="swap-off">
+            <Copy className="w-5 h-5" />
+          </div>
+          <div className="swap-on">
+            <Check className="w-5 h-5" />
+          </div>
+        </label>
+        <span>Copy</span>
+      </Button>
+      {copySizeOptions.length > 0 && (
+        <div
+          ref={copyMenuRef}
+          className={`dropdown dropdown-top dropdown-end ${copyMenuOpen ? 'dropdown-open' : ''}`}
+        >
+          <Button
+            variant="primary"
+            size="sm"
+            className={`h-10 hover:text-accent join-item border-l-0 px-2 ${compressCopyProgress !== null ? 'pointer-events-none' : ''}`}
+            aria-label="Copy as compressed file"
+            aria-expanded={copyMenuOpen}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (compressCopyProgress !== null) return;
+              setCopyMenuOpen((open) => !open);
+            }}
+          >
+            <motion.span
+              className="inline-flex items-center justify-center overflow-hidden"
+              animate={{ width: compressCopyProgress !== null ? 30 : 16 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            >
+              {compressCopyProgress !== null ? (
+                <span className="text-xs tabular-nums whitespace-nowrap">
+                  {String(Math.floor(displayedCopyProgress)).padStart(2, '0')}%
+                </span>
+              ) : (
+                <motion.span
+                  aria-hidden
+                  className="inline-flex items-center"
+                  animate={{ rotate: copyMenuOpen ? 180 : 0 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </motion.span>
+              )}
+            </motion.span>
+          </Button>
+          <ul
+            tabIndex={0}
+            className="dropdown-content menu bg-base-300 border border-base-400 rounded-lg z-[100] w-28 p-1 mb-1 shadow"
+          >
+            {copySizeOptions.map((mb) => (
+              <li key={mb}>
+                <button
+                  className="text-gray-300 text-sm hover:text-primary"
+                  onClick={() => handleCopyCompressed(mb)}
+                >
+                  {mb} MB
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 
   const [selectedBookmarkTypes, setSelectedBookmarkTypes] = useState<Set<BookmarkType>>(
     new Set(Object.values(BookmarkType)),
@@ -2302,24 +2476,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       <span>Upload</span>
                     </Button>
                   )}
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="h-10 hover:text-accent"
-                    onClick={handleCopyFile}
-                  >
-                    <label
-                      className={`swap overflow-hidden justify-center ${fileCopied ? 'swap-active' : ''}`}
-                    >
-                      <div className="swap-off">
-                        <Copy className="w-5 h-5" />
-                      </div>
-                      <div className="swap-on">
-                        <Check className="w-5 h-5" />
-                      </div>
-                    </label>
-                    <span>Copy</span>
-                  </Button>
+                  {copyButtons}
                 </>
               )}
               {(video.type === 'Session' || video.type === 'Buffer') && (
@@ -2351,26 +2508,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   </Button>
                 </>
               )}
-              {video.type === 'Buffer' && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  className="h-10 hover:text-accent"
-                  onClick={handleCopyFile}
-                >
-                  <label
-                    className={`swap overflow-hidden justify-center ${fileCopied ? 'swap-active' : ''}`}
-                  >
-                    <div className="swap-off">
-                      <Copy className="w-5 h-5" />
-                    </div>
-                    <div className="swap-on">
-                      <Check className="w-5 h-5" />
-                    </div>
-                  </label>
-                  <span>Copy</span>
-                </Button>
-              )}
+              {video.type === 'Buffer' && copyButtons}
             </div>
 
             <div className="flex items-center gap-3">

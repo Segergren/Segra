@@ -312,6 +312,7 @@ export interface Settings {
   clipAudioQuality: ClipAudioQuality;
   clipPreset: ClipPreset;
   clipKeepSeparateAudioTracks: boolean;
+  copyCompressSizesMb: number[]; // Hidden setting (no UI), sizes for "Copy as X MB"
   keybindings: Keybind[];
   games: GameSetting[];
   gameIntegrations: GameIntegrations;
@@ -394,6 +395,7 @@ export const initialSettings: Settings = {
   clipAudioQuality: '128k',
   clipPreset: 'veryfast',
   clipKeepSeparateAudioTracks: false,
+  copyCompressSizesMb: [10, 50, 100, 500],
   soundEffectsVolume: 1,
   showNewBadgeOnVideos: false,
   showGameBackground: true,
