@@ -440,6 +440,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     direction: 'start' | 'end';
     startClientX: number;
   } | null>(null);
+  const resizePlaybackRef = useRef<{ wasPlaying: boolean; cursorTime: number } | null>(null);
 
   const videoWrapperClassName = [
     'block relative w-full',
@@ -675,7 +676,11 @@ export default function VideoComponent({ video }: { video: Content }) {
     if (!vid) return;
     let rafId = 0;
     const tick = () => {
-      setCurrentTime(vid.currentTime);
+      // While resizing a segment the video previews the dragged edge; the
+      // playhead must not follow it.
+      if (resizeDirectionRef.current == null) {
+        setCurrentTime(vid.currentTime);
+      }
 
       // Per-segment audio mute/volume override
       const at = audioTracksRef.current;
@@ -1269,7 +1274,11 @@ export default function VideoComponent({ video }: { video: Content }) {
       if (dragState.id !== null) {
         handleSegmentDragEnd();
       }
-      if (resizingSegmentId !== null) {
+      if (
+        resizingSegmentId !== null ||
+        resizeDirectionRef.current != null ||
+        resizePlaybackRef.current != null
+      ) {
         handleSegmentResizeEnd();
       }
       dragCandidateRef.current = null;
@@ -1405,6 +1414,13 @@ export default function VideoComponent({ video }: { video: Content }) {
   ) => {
     // Do not stop propagation so timeline click can still happen
     resizeCandidateRef.current = { id, direction, startClientX: e.clientX };
+    // Freeze playback at the grab point so the cursor restore isn't drifted
+    // by playback continuing before the drag threshold is crossed
+    if (!resizePlaybackRef.current && videoRef.current) {
+      const wasPlaying = !videoRef.current.paused;
+      resizePlaybackRef.current = { wasPlaying, cursorTime: videoRef.current.currentTime };
+      if (wasPlaying) videoRef.current.pause();
+    }
   };
 
   const handleSegmentResize = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -1442,13 +1458,11 @@ export default function VideoComponent({ video }: { video: Content }) {
     latestDraggedSegmentRef.current = updatedSegment;
     updateSegment(updatedSegment);
 
-    // While resizing, keep the video time at the active edge and update marker state
+    // While resizing, preview the frame at the active edge; the playhead stays put
     const edgeTime = activeDir === 'start' ? updatedSegment.startTime : updatedSegment.endTime;
     if (videoRef.current) {
-      const clamped = Math.max(0, Math.min(edgeTime, duration));
-      videoRef.current.currentTime = clamped;
+      videoRef.current.currentTime = Math.max(0, Math.min(edgeTime, duration));
     }
-    setCurrentTime(edgeTime);
   };
 
   const handleSegmentResizeEnd = () => {
@@ -1457,14 +1471,29 @@ export default function VideoComponent({ video }: { video: Content }) {
     setResizingSegmentId(null);
     setResizeDirection(null);
     resizeCandidateRef.current = null;
-    setIsInteracting(false);
-    if (latestDraggedSegmentRef.current) {
-      const seg = latestDraggedSegmentRef.current;
-      latestDraggedSegmentRef.current = null;
-      // Thumbnail is the start frame, so only refresh when the start edge moved.
-      if (direction === 'start') {
-        void refreshSegmentThumbnail(seg);
+    setTimeout(() => setIsInteracting(false), 0);
+    const seg = latestDraggedSegmentRef.current;
+    latestDraggedSegmentRef.current = null;
+    const playback = resizePlaybackRef.current;
+    resizePlaybackRef.current = null;
+    if (playback && videoRef.current) {
+      if (direction === 'start' && seg) {
+        // Moving the start edge lands the playhead on the new start
+        const t = Math.max(0, Math.min(seg.startTime, duration));
+        videoRef.current.currentTime = t;
+        setCurrentTime(t);
+      } else if (direction != null) {
+        // Moving the end edge leaves the playhead where it was
+        videoRef.current.currentTime = playback.cursorTime;
       }
+      // No direction: simple click on a handle; the click-through seek decides
+      if (playback.wasPlaying) {
+        void videoRef.current.play();
+      }
+    }
+    // Thumbnail is the start frame, so only refresh when the start edge moved.
+    if (seg && direction === 'start') {
+      void refreshSegmentThumbnail(seg);
     }
   };
 
@@ -2138,13 +2167,11 @@ export default function VideoComponent({ video }: { video: Content }) {
                   </div>
                 );
               })}
-              {resizingSegmentId == null && (
-                <div
-                  className="absolute top-0 left-0 z-10 w-1 h-full -translate-x-1/2 rounded-sm shadow cursor-pointer marker bg-accent"
-                  style={{ left: `${currentTime * pixelsPerSecond}px` }}
-                  onMouseDown={handleMarkerDragStart}
-                />
-              )}
+              <div
+                className="absolute top-0 left-0 z-10 w-1 h-full -translate-x-1/2 rounded-sm shadow cursor-pointer marker bg-accent"
+                style={{ left: `${currentTime * pixelsPerSecond}px` }}
+                onMouseDown={handleMarkerDragStart}
+              />
             </div>
           </div>
           {timelineAudioMenu &&
