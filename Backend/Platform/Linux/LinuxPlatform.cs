@@ -7,7 +7,7 @@ namespace Segra.Backend.Platform.Linux
     /// <summary>Linux has no portable, cross-desktop tray API this milestone, so the tray is a no-op.</summary>
     internal sealed class LinuxTrayIcon : ITrayIcon
     {
-        public void Initialize(Action onOpen, Action onExit) { }
+        public void Initialize(Action onOpen, Action onResetWindowSize, Action onExit, Func<bool> isWindowOpen) { }
         public void SetRecording(bool recording) { }
     }
 
