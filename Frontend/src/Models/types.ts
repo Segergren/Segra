@@ -5,6 +5,7 @@ export type RecordingMode = 'Session' | 'Buffer' | 'Hybrid';
 export type DisplayCaptureMethod = 'Auto' | 'DXGI' | 'WGC';
 
 export type AudioOutputMode = 'All' | 'GameOnly' | 'GameAndDiscord';
+export type AudioTrackType = 'mix' | 'input' | 'output';
 
 export type StartupWindowMode = 'Normal' | 'Minimized';
 export type CloseButtonAction = 'Minimize' | 'Exit';
@@ -26,6 +27,7 @@ export interface Content {
   isImported: boolean;
   compressed: boolean;
   audioTrackNames?: string[];
+  audioTrackTypes?: AudioTrackType[];
 }
 
 export interface OBSVersion {
@@ -456,6 +458,7 @@ export interface SegmentCardProps {
   setHoveredSegmentId: (id: number | null) => void;
   removeSegment: (id: number) => void;
   audioTrackNames?: string[];
+  audioTrackTypes?: AudioTrackType[];
   onMutedAudioTracksChange?: (id: number, mutedTracks: number[]) => void;
   onAudioTrackVolumesChange?: (id: number, volumes: Record<number, number>) => void;
 }

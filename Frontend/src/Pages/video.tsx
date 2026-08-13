@@ -48,6 +48,7 @@ import { useAudioTracks } from '../Hooks/useAudioTracks';
 import { AnimatePresence, motion } from 'framer-motion';
 import Button from '../Components/Button';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
+import AudioTrackIcon from '../Components/AudioTrackIcon';
 
 const Crosshair2Dot = React.forwardRef<SVGSVGElement, React.ComponentProps<typeof Icon>>(
   (props, ref) => <Icon {...props} ref={ref} iconNode={crosshair2Dot} />,
@@ -2030,6 +2031,10 @@ export default function VideoComponent({ video }: { video: Content }) {
                                   onChange={() => audioTracks.toggleTrackMute(track.index)}
                                   className="checkbox checkbox-primary checkbox-xs shrink-0"
                                 />
+                                <AudioTrackIcon
+                                  type={video.audioTrackTypes?.[track.index]}
+                                  className="h-3.5 w-3.5 shrink-0 text-white/60"
+                                />
                                 <span className="text-xs text-white/80 truncate select-none">
                                   {track.name.replace(' (Default)', '')}
                                 </span>
@@ -2398,6 +2403,10 @@ export default function VideoComponent({ video }: { video: Content }) {
                             }}
                             className="checkbox checkbox-primary checkbox-xs shrink-0"
                           />
+                          <AudioTrackIcon
+                            type={video.audioTrackTypes?.[i]}
+                            className="h-3.5 w-3.5 shrink-0 text-white/60"
+                          />
                           <span className="text-xs text-white/80 truncate">
                             {name.replace(' (Default)', '')}
                           </span>
@@ -2578,6 +2587,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   setHoveredSegmentId={setHoveredSegmentId}
                   removeSegment={removeSegment}
                   audioTrackNames={video.audioTrackNames}
+                  audioTrackTypes={video.audioTrackTypes}
                   onMutedAudioTracksChange={(id, mutedTracks) =>
                     updateSegment({
                       ...segments.find((s) => s.id === id)!,
