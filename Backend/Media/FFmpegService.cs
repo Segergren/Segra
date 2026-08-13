@@ -181,6 +181,48 @@ namespace Segra.Backend.Media
 #endif
 
         /// <summary>
+        /// Returns the codec name of the first video stream (e.g. "av1", "h264"), or null if it cannot be determined.
+        /// </summary>
+        public static async Task<string?> DetectVideoCodec(string filePath)
+        {
+            try
+            {
+                var processStartInfo = new ProcessStartInfo
+                {
+                    FileName = GetFFmpegPath(),
+                    Arguments = $"-hide_banner -i \"{filePath}\"",
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+
+                using var process = Process.Start(processStartInfo);
+                if (process == null) return null;
+
+                var stderrTask = process.StandardError.ReadToEndAsync();
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                try
+                {
+                    await process.WaitForExitAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    try { process.Kill(); } catch { /* ignore */ }
+                    return null;
+                }
+
+                string stderr = await stderrTask;
+                var match = Regex.Match(stderr, @"Stream #\d+:\d+.*?Video: (\w+)");
+                return match.Success ? match.Groups[1].Value.ToLowerInvariant() : null;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to detect video codec for {filePath}: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Runs ffmpeg with progress tracking and callbacks
         /// </summary>
         public static async Task RunWithProgress(

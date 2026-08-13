@@ -16,7 +16,6 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 #if WINDOWS
 using Segra.Backend.Windows.Power;
-using Segra.Backend.Windows.GameMode;
 using Segra.Backend.Windows.WebView2;
 #endif
 
@@ -262,7 +261,6 @@ namespace Segra.Backend.App
                 {
                     _ = SettingsService.LoadContentFromFolderIntoState(true);
                     PlatformServices.Startup.SetStartupStatus(true);
-                    Settings.Instance.DisableWindowsGameMode = true;
                     AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
                     SettingsService.SelectDefaultDevices();
                     _ = PresetsService.ApplyVideoPreset("high");
@@ -294,14 +292,13 @@ namespace Segra.Backend.App
                 // Tray icon (WinForms NotifyIcon on Windows; no-op on Linux)
                 PlatformServices.Tray.Initialize(
                     onOpen: () => _ = ShowApplicationWindow(),
-                    onExit: () => { Shutdown(); Environment.Exit(0); });
+                    onResetWindowSize: ResetWindowSize,
+                    onExit: () => { Shutdown(); Environment.Exit(0); },
+                    isWindowOpen: () => Window != null && !Window.Minimized);
 
 #if WINDOWS
                 // Start monitoring system power state changes (sleep/wake)
                 Task.Run(PowerModeMonitor.StartMonitoring);
-
-                // Ensure Windows Game Mode is off when the user has opted in (no-op otherwise)
-                Task.Run(GameModeService.EnforceDisabledIfEnabled);
 
                 // Run the OBS Initializer in a separate thread and application to make sure someting on the main thread doesn't block
                 // (KeybindCaptureService.Start() is called from OBSService.InitializeAsync once OBS is
@@ -356,6 +353,8 @@ namespace Segra.Backend.App
         private static Size? _windowSizeBeforeFullscreen;
         private static Point? _windowLocationBeforeFullscreen;
         private static bool _wasMaximizedBeforeFullscreen;
+        private static Point? _lastNormalLocation;
+        private static Size? _lastNormalSize;
 
         public static void SetFullscreen(bool enabled)
         {
@@ -568,20 +567,25 @@ namespace Segra.Backend.App
             Log.Information("Loading frontend, app url is " + appUrl);
 
 #if WINDOWS
-            // Photino sizes windows in physical pixels, so scale the default size by the
-            // OS display scale (e.g. 150% on 4K monitors) and clamp it to the usable screen area
-            double displayScale = GetDpiForSystem() / 96.0;
-            var windowSize = new Size(
-                Math.Min((int)(1280 * displayScale), GetSystemMetrics(SM_CXFULLSCREEN)),
-                Math.Min((int)(720 * displayScale), GetSystemMetrics(SM_CYFULLSCREEN)));
             string iconFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico");
 #else
-            // WebKitGTK handles DPI scaling itself; use a sensible default size.
-            var windowSize = new Size(1280, 720);
             string iconFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.png");
 #endif
+            var windowSize = GetDefaultWindowSize();
 
             bool hasRestoredLocation = TryGetRestoredWindowLocation(out Point restoredLocation);
+
+            // Restore the last window size too (older saved states have no size; keep the default then).
+            var savedState = Settings.Instance.LastWindowState;
+            bool restoreMaximized = false;
+            if (hasRestoredLocation && savedState != null)
+            {
+                if (savedState.Width > 0 && savedState.Height > 0)
+                {
+                    windowSize = new Size(savedState.Width, savedState.Height);
+                }
+                restoreMaximized = savedState.Maximized;
+            }
 
             // Initialize the PhotinoWindow
             var windowBuilder = new PhotinoWindow();
@@ -604,6 +608,12 @@ namespace Segra.Backend.App
                 ? windowBuilder.SetUseOsDefaultLocation(false).SetLocation(restoredLocation)
                 : windowBuilder.Center();
 
+            // The window maximizes on the monitor containing the restored location.
+            if (restoreMaximized)
+            {
+                windowBuilder = windowBuilder.SetMaximized(true);
+            }
+
             Window = windowBuilder
                 .RegisterWebMessageReceivedHandler((sender, message) =>
                 {
@@ -616,6 +626,23 @@ namespace Segra.Backend.App
 
             // intentional space after name because of https://github.com/tryphotino/photino.NET/issues/106
             Window.SetTitle("Segra ");
+
+            // Track the last normal (not maximized/minimized) bounds so SaveWindowState can persist
+            // a sensible restore size even when the window is closed while maximized.
+            Window.RegisterLocationChangedHandler((sender, location) =>
+            {
+                if (Window != null && !Window.Maximized && !Window.Minimized)
+                {
+                    _lastNormalLocation = location;
+                }
+            });
+            Window.RegisterSizeChangedHandler((sender, size) =>
+            {
+                if (Window != null && !Window.Maximized && !Window.Minimized)
+                {
+                    _lastNormalSize = size;
+                }
+            });
 
             Window.RegisterWindowClosingHandler((sender, eventArgs) =>
             {
@@ -632,6 +659,59 @@ namespace Segra.Backend.App
             });
 
             Window.WaitForClose();
+        }
+
+        private static Size GetDefaultWindowSize()
+        {
+#if WINDOWS
+            // Photino sizes windows in physical pixels, so scale the default size by the
+            // OS display scale (e.g. 150% on 4K monitors) and clamp it to the usable screen area
+            double displayScale = GetDpiForSystem() / 96.0;
+            return new Size(
+                Math.Min((int)(1280 * displayScale), GetSystemMetrics(SM_CXFULLSCREEN)),
+                Math.Min((int)(720 * displayScale), GetSystemMetrics(SM_CYFULLSCREEN)));
+#else
+            // WebKitGTK handles DPI scaling itself; use a sensible default size.
+            return new Size(1280, 720);
+#endif
+        }
+
+        // Returns the window to its default size while keeping its position. Triggered from the tray menu.
+        public static void ResetWindowSize()
+        {
+            // Task.Run keeps the work off the tray thread (see Shutdown for the reasoning).
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (Window == null)
+                    {
+                        // No window to resize; drop the saved size (keeping the position) so the
+                        // next launch uses the default.
+                        var saved = Settings.Instance.LastWindowState;
+                        if (saved != null)
+                        {
+                            Settings.Instance.LastWindowState = new WindowState { X = saved.X, Y = saved.Y };
+                            SettingsService.SaveSettings();
+                        }
+                        return;
+                    }
+
+                    // Show the window first so the resize is visible and not applied while minimized.
+                    await ShowApplicationWindow();
+                    Window.Invoke(() =>
+                    {
+                        Window.SetMaximized(false);
+                        Window.SetSize(GetDefaultWindowSize());
+                    });
+
+                    Log.Information("Window size reset to default");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error resetting window size");
+                }
+            });
         }
 
         // Validates the saved location still lands on a currently connected monitor
@@ -666,10 +746,28 @@ namespace Segra.Backend.App
 
             try
             {
+                bool maximized = Window.Maximized;
+                Point location = Window.Location;
+                Size size = Window.Size;
+
+                // A maximized window reports its maximized bounds, so persist the last
+                // tracked normal bounds (or the previously saved ones) instead.
+                if (maximized)
+                {
+                    var previous = Settings.Instance.LastWindowState;
+                    location = _lastNormalLocation
+                        ?? (previous != null ? new Point(previous.X, previous.Y) : location);
+                    size = _lastNormalSize
+                        ?? (previous is { Width: > 0, Height: > 0 } ? new Size(previous.Width, previous.Height) : size);
+                }
+
                 Settings.Instance.LastWindowState = new WindowState
                 {
-                    X = Window.Location.X,
-                    Y = Window.Location.Y
+                    X = location.X,
+                    Y = location.Y,
+                    Width = size.Width,
+                    Height = size.Height,
+                    Maximized = maximized
                 };
 
                 SettingsService.SaveSettings();

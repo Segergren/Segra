@@ -9,9 +9,6 @@ using Segra.Backend.Platform;
 using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Storage;
 using System.Text.Json.Serialization;
-#if WINDOWS
-using Segra.Backend.Windows.GameMode;
-#endif
 
 namespace Segra.Backend.Core
 {
@@ -225,6 +222,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (!settings.CopyCompressSizesMb.SequenceEqual(updatedSettings.CopyCompressSizesMb))
+            {
+                Log.Information($"CopyCompressSizesMb changed from '[{string.Join(", ", settings.CopyCompressSizesMb)}]' to '[{string.Join(", ", updatedSettings.CopyCompressSizesMb)}]'");
+                settings.CopyCompressSizesMb = updatedSettings.CopyCompressSizesMb;
+                hasChanges = true;
+            }
+
             if (settings.ClipShowInBrowserAfterUpload != updatedSettings.ClipShowInBrowserAfterUpload)
             {
                 Log.Information($"ClipShowInBrowserAfterUpload changed from '{settings.ClipShowInBrowserAfterUpload}' to '{updatedSettings.ClipShowInBrowserAfterUpload}'");
@@ -357,20 +361,6 @@ namespace Segra.Backend.Core
             {
                 Log.Information($"DiscardSessionsWithoutBookmarks changed from '{settings.DiscardSessionsWithoutBookmarks}' to '{updatedSettings.DiscardSessionsWithoutBookmarks}'");
                 settings.DiscardSessionsWithoutBookmarks = updatedSettings.DiscardSessionsWithoutBookmarks;
-                hasChanges = true;
-            }
-
-            if (settings.DisableWindowsGameMode != updatedSettings.DisableWindowsGameMode)
-            {
-                Log.Information($"DisableWindowsGameMode changed from '{settings.DisableWindowsGameMode}' to '{updatedSettings.DisableWindowsGameMode}'");
-                settings.DisableWindowsGameMode = updatedSettings.DisableWindowsGameMode;
-                // Enabling the option proactively disables Game Mode; disabling it leaves Game Mode untouched.
-                if (settings.DisableWindowsGameMode)
-                {
-#if WINDOWS
-                    GameModeService.EnforceDisabledIfEnabled();
-#endif
-                }
                 hasChanges = true;
             }
 

@@ -35,10 +35,19 @@ let hasSeededKnownContent = false;
 // Thumbnails already loaded this session, so a remounted card shows instantly without re-animating.
 const loadedThumbnailKeys = new Set<string>();
 
+// Shared observer that collapses far off-screen cards to fixed-size placeholders.
+const offscreenCallbacks = new Map<Element, (entry: IntersectionObserverEntry) => void>();
+const offscreenObserver = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) offscreenCallbacks.get(entry.target)?.(entry);
+  },
+  { rootMargin: '600px 0px' },
+);
+
 interface VideoCardProps {
   content?: Content; // Optional for skeleton cards
   type: VideoType;
-  onClick?: (video: Content) => void; // Click handler for the entire card
+  onClick?: (video: Content, event: React.MouseEvent) => void; // Click handler for the entire card
   isLoading?: boolean; // Indicates if this is a loading (skeleton) card
   isSelected?: boolean; // Whether this card is selected in multi-select mode
   isSelectionMode?: boolean; // Whether multi-select mode is active
@@ -80,6 +89,31 @@ export default function ContentCard({
   } | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const uploadModalSequenceRef = useRef(0);
+
+  const cardRef = useRef<HTMLDivElement>(null);
+  // Card height while collapsed to a placeholder, or null when fully rendered.
+  const [placeholderHeight, setPlaceholderHeight] = useState<number | null>(null);
+  // An open menu opts the card out, so the dropdown/context menu never unmounts mid-use.
+  const showPlaceholder =
+    placeholderHeight !== null && !isDropdownOpen && contextMenuPosition === null;
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    offscreenCallbacks.set(el, (entry) => {
+      if (entry.isIntersecting) {
+        setPlaceholderHeight(null);
+      } else {
+        const { height } = entry.boundingClientRect;
+        setPlaceholderHeight((prev) => (height > 0 ? height : prev));
+      }
+    });
+    offscreenObserver.observe(el);
+    return () => {
+      offscreenObserver.unobserve(el);
+      offscreenCallbacks.delete(el);
+    };
+  }, [isLoading, showPlaceholder]);
 
   const thumbnailRef = useRef<HTMLImageElement>(null);
   const thumbnailKey = `${type}:${content?.id ?? ''}`;
@@ -340,16 +374,25 @@ export default function ContentCard({
     if (!contextMenuPosition) return;
 
     const closeContextMenu = () => setContextMenuPosition(null);
+    // Capture phase so this Escape doesn't also clear the page's card selection.
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closeContextMenu();
+      }
+    };
     window.addEventListener('click', closeContextMenu);
     window.addEventListener('blur', closeContextMenu);
     window.addEventListener('resize', closeContextMenu);
     window.addEventListener('scroll', closeContextMenu, true);
+    window.addEventListener('keydown', handleKeyDown, true);
 
     return () => {
       window.removeEventListener('click', closeContextMenu);
       window.removeEventListener('blur', closeContextMenu);
       window.removeEventListener('resize', closeContextMenu);
       window.removeEventListener('scroll', closeContextMenu, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [contextMenuPosition]);
 
@@ -498,14 +541,26 @@ export default function ContentCard({
     </>
   );
 
+  if (showPlaceholder) {
+    return (
+      <div
+        ref={cardRef}
+        data-content-id={content!.id}
+        className={`card card-compact bg-base-300 w-full border border-[#49515b] ${isSelected ? '!outline !outline-1 !outline-primary' : ''}`}
+        style={{ height: placeholderHeight! }}
+      />
+    );
+  }
+
   return (
     <div
+      ref={cardRef}
       data-content-id={content!.id}
       className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isHighlighted ? 'import-pulse' : ''} ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
-      onClick={() => {
+      onClick={(e) => {
         if (isBeingCompressed) return;
-        if (!isSelectionMode) markAsViewed();
-        onClick?.(content!);
+        if (!isSelectionMode && !e.ctrlKey) markAsViewed();
+        onClick?.(content!, e);
       }}
       onContextMenu={openContextMenu}
     >
@@ -535,22 +590,19 @@ export default function ContentCard({
             <span className="align-middle">{manualBookmarkCount}</span>
           </span>
         )}
-        {isSelectionMode && (
-          <input
-            type="checkbox"
-            className="checkbox checkbox-primary checkbox-sm absolute top-2 left-2 [&:not(:checked)]:bg-black/30"
-            checked={isSelected}
-            readOnly
-          />
+        <input
+          type="checkbox"
+          className={`checkbox checkbox-primary checkbox-sm absolute top-2 left-2 [&:not(:checked)]:bg-black/30 transition-opacity duration-200 ${isSelectionMode ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          checked={isSelected}
+          readOnly
+        />
+        {isRecent && (type === 'Session' || type === 'Buffer') && showNewBadgeOnVideos && (
+          <span
+            className={`absolute top-2 left-2 badge badge-primary badge-sm text-base-300 transition-opacity duration-200 ${isSelectionMode ? 'opacity-0' : 'opacity-90'}`}
+          >
+            NEW
+          </span>
         )}
-        {isRecent &&
-          (type === 'Session' || type === 'Buffer') &&
-          showNewBadgeOnVideos &&
-          !isSelectionMode && (
-            <span className="absolute top-2 left-2 badge badge-primary badge-sm text-base-300 opacity-90">
-              NEW
-            </span>
-          )}
         {currentCompressionProgress && (
           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
             <p className="text-white text-sm mb-2">
@@ -608,6 +660,12 @@ export default function ContentCard({
             ref={dropdownRef}
             className={`dropdown dropdown-end ${isBeingCompressed ? 'pointer-events-none opacity-50' : ''}`}
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                (document.activeElement as HTMLElement | null)?.blur();
+              }
+            }}
             onContextMenu={(e) => {
               e.preventDefault();
               e.stopPropagation();

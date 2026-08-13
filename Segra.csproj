@@ -93,7 +93,6 @@
     <Compile Remove="Backend\Windows\Display\DisplayService.cs" />
     <Compile Remove="Backend\Windows\Display\HdrDetectionService.cs" />
     <Compile Remove="Backend\Windows\Display\WindowUtils.cs" />
-    <Compile Remove="Backend\Windows\GameMode\GameModeService.cs" />
     <Compile Remove="Backend\Windows\Power\PowerModeMonitor.cs" />
     <Compile Remove="Backend\Windows\WebView2\WebView2RuntimeService.cs" />
     <Compile Remove="Backend\App\NotifyIconService.cs" />

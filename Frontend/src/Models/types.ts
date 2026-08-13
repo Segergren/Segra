@@ -5,6 +5,7 @@ export type RecordingMode = 'Session' | 'Buffer' | 'Hybrid';
 export type DisplayCaptureMethod = 'Auto' | 'DXGI' | 'WGC';
 
 export type AudioOutputMode = 'All' | 'GameOnly' | 'GameAndDiscord';
+export type AudioTrackType = 'mix' | 'input' | 'output';
 
 export type StartupWindowMode = 'Normal' | 'Minimized';
 export type CloseButtonAction = 'Minimize' | 'Exit';
@@ -27,6 +28,7 @@ export interface Content {
   isImported: boolean;
   compressed: boolean;
   audioTrackNames?: string[];
+  audioTrackTypes?: AudioTrackType[];
 }
 
 export interface OBSVersion {
@@ -313,6 +315,7 @@ export interface Settings {
   clipAudioQuality: ClipAudioQuality;
   clipPreset: ClipPreset;
   clipKeepSeparateAudioTracks: boolean;
+  copyCompressSizesMb: number[]; // Hidden setting (no UI), sizes for "Copy as X MB"
   keybindings: Keybind[];
   games: GameSetting[];
   gameIntegrations: GameIntegrations;
@@ -327,7 +330,6 @@ export interface Settings {
   confirmBeforeDeleting: boolean;
   removeOriginalAfterCompression: boolean;
   discardSessionsWithoutBookmarks: boolean;
-  disableWindowsGameMode: boolean; // When true, ensures Windows Game Mode stays off on startup
   menuItems: MenuItemPreference[];
   defaultMenuItem: MenuItemId;
 }
@@ -396,6 +398,7 @@ export const initialSettings: Settings = {
   clipAudioQuality: '128k',
   clipPreset: 'veryfast',
   clipKeepSeparateAudioTracks: false,
+  copyCompressSizesMb: [10, 50, 100, 500],
   soundEffectsVolume: 1,
   showNewBadgeOnVideos: false,
   showGameBackground: true,
@@ -407,7 +410,6 @@ export const initialSettings: Settings = {
   confirmBeforeDeleting: false,
   removeOriginalAfterCompression: false,
   discardSessionsWithoutBookmarks: false,
-  disableWindowsGameMode: false,
   menuItems: DEFAULT_MENU_ITEMS,
   defaultMenuItem: 'Full Sessions',
   keybindings: [
@@ -457,6 +459,7 @@ export interface SegmentCardProps {
   setHoveredSegmentId: (id: number | null) => void;
   removeSegment: (id: number) => void;
   audioTrackNames?: string[];
+  audioTrackTypes?: AudioTrackType[];
   onMutedAudioTracksChange?: (id: number, mutedTracks: number[]) => void;
   onAudioTrackVolumesChange?: (id: number, volumes: Record<number, number>) => void;
 }
