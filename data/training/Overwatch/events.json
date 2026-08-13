@@ -1,0 +1,76 @@
+[
+  {
+    "id": 1510541668,
+    "name": "Elimination",
+    "type": "Trigger",
+    "classId": 0,
+    "bookmarkType": "Kill",
+    "lifetimeMs": 5000,
+    "screenRegionX": 0.2583,
+    "screenRegionY": 0.5101,
+    "screenRegionW": 0.5375,
+    "screenRegionH": 0.3161
+  },
+  {
+    "id": 1510682244,
+    "name": "Death Spectating",
+    "type": "Exclusion",
+    "classId": 1,
+    "screenRegionX": 0.1028,
+    "screenRegionY": 0.0336,
+    "screenRegionW": 0.1236,
+    "screenRegionH": 0.0469
+  },
+  {
+    "id": 1510769621,
+    "name": "Turret",
+    "type": "Exclusion",
+    "classId": 2,
+    "screenRegionX": 0.2583,
+    "screenRegionY": 0.5101,
+    "screenRegionW": 0.5375,
+    "screenRegionH": 0.3161
+  },
+  {
+    "id": 1510853791,
+    "name": "Kill Cam",
+    "type": "Exclusion",
+    "classId": 3,
+    "screenRegionX": 0.4681,
+    "screenRegionY": 0.8706,
+    "screenRegionW": 0.0708,
+    "screenRegionH": 0.0543
+  },
+  {
+    "id": 1510890928,
+    "name": "Assist",
+    "type": "Trigger",
+    "classId": 4,
+    "bookmarkType": "Assist",
+    "lifetimeMs": 5000,
+    "screenRegionX": 0.2583,
+    "screenRegionY": 0.5101,
+    "screenRegionW": 0.5375,
+    "screenRegionH": 0.3161
+  },
+  {
+    "id": 1511960590,
+    "name": "POTG",
+    "type": "Exclusion",
+    "classId": 5,
+    "screenRegionX": 0.0097,
+    "screenRegionY": 0.0114,
+    "screenRegionW": 0.1514,
+    "screenRegionH": 0.0568
+  },
+  {
+    "id": 1591136249,
+    "name": "Steel Trap",
+    "type": "Exclusion",
+    "classId": 6,
+    "screenRegionX": 0.45,
+    "screenRegionY": 0.6,
+    "screenRegionW": 0.2,
+    "screenRegionH": 0.15
+  }
+]

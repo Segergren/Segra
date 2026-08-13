@@ -86,6 +86,14 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     bookmarks: ['Deaths'],
     backgroundImage: 'https://segra.tv/api/games/cover/ar3en0',
   },
+  {
+    id: 'overwatch',
+    name: 'Overwatch',
+    settingsKey: 'overwatch',
+    bookmarks: ['Eliminations', 'Assists'],
+    backgroundImage: 'https://segra.tv/api/games/cover/coc99p',
+    isBeta: true,
+  },
 ];
 
 const getBookmarkBadgeClass = (bookmark: string): string => {

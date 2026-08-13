@@ -31,7 +31,9 @@
     <!-- Exclude leftover build output from the removed Inspector sub-project. Its generated
          AssemblyInfo.cs sits under this project folder and would otherwise be globbed into
          this compilation, leaking a duplicate AssemblyVersion (and masking the real version). -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);Inspector\**</DefaultItemExcludes>
+    <!-- tests\ and bench\ are separate projects nested under this one; their sources
+         would otherwise be globbed in here too. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Inspector\**;tests\**;bench\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!-- Windows-only build settings -->
@@ -67,6 +69,13 @@
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageReference Include="Velopack" Version="1.2.0" />
     <PackageReference Include="ObsKit.NET" Version="1.5.4" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.28.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Segra.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <!-- Windows-only packages (NAudio/WASAPI, WMI, DirectX) -->
@@ -178,7 +187,7 @@
     </Content>
   </ItemGroup>
 
-  <Target Name="BuildFrontendAssets" Inputs="@(FrontendSourceFiles)" Outputs="Resources\wwwroot\index.html">
+  <Target Name="BuildFrontendAssets" Inputs="@(FrontendSourceFiles)" Outputs="Resources\wwwroot\index.html" Condition="'$(SkipFrontendBuild)' != 'true'">
     <Exec WorkingDirectory="Frontend" Command="npm ci" Condition="!Exists('Frontend\node_modules')" />
     <Exec WorkingDirectory="Frontend" Command="npm run build" />
     <MakeDir Directories="Resources\wwwroot" />
@@ -190,12 +199,22 @@
     <Copy SourceFiles="@(FrontendDistFiles)" DestinationFiles="@(FrontendDistFiles->'Resources\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
-  <Target Name="IncludeFrontendAssets" BeforeTargets="_CalculateEmbeddedFilesManifestInputs" DependsOnTargets="BuildFrontendAssets">
+  <Target Name="IncludeFrontendAssets" BeforeTargets="_CalculateEmbeddedFilesManifestInputs" DependsOnTargets="BuildFrontendAssets" Condition="'$(SkipFrontendBuild)' != 'true'">
     <ItemGroup>
       <EmbeddedResource Include="Resources\wwwroot\**\*" />
     </ItemGroup>
   </Target>
 
   <Target Name="EnsureResourcesBeforeCompile" BeforeTargets="_GenerateCompileInputs" DependsOnTargets="PrepareResources" />
+
+  <ItemGroup>
+    <!-- Copy model + events for runtime ML detection -->
+    <Content Include="data\training\**\model.onnx" Exclude="data\training\**\dataset\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\training\**\events.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
 </Project>
