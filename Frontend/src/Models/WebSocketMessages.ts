@@ -9,6 +9,7 @@ export interface ModalMessage {
 
 export interface UploadProgressMessage {
   fileName: string;
+  thumbnailPath?: string;
   progress: number;
   status: 'uploading' | 'processing' | 'done' | 'error';
   message?: string;

@@ -60,6 +60,7 @@ namespace Segra.Backend.Media
 
                 string filePath = content.FilePath;
                 fileName = Path.GetFileName(filePath);
+                string thumbnailPath = FolderNames.GetThumbnailFilePath(content.Type, content.Id);
 
                 cts = new CancellationTokenSource();
                 lock (_uploadLock)
@@ -86,6 +87,7 @@ namespace Segra.Backend.Media
                             {
                                 title,
                                 fileName,
+                                thumbnailPath,
                                 progress = 100,
                                 status = "processing",
                                 message = "Processing..."
@@ -97,6 +99,7 @@ namespace Segra.Backend.Media
                             {
                                 title,
                                 fileName,
+                                thumbnailPath,
                                 progress,
                                 status = "uploading",
                                 message = $"Uploading... {progress}%"
@@ -124,6 +127,7 @@ namespace Segra.Backend.Media
                 {
                     title,
                     fileName,
+                    thumbnailPath,
                     progress = 0,
                     status = "uploading",
                     message = "Starting upload..."

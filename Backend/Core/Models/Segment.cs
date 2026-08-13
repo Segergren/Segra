@@ -5,6 +5,7 @@ namespace Segra.Backend.Core.Models
         public long Id { get; set; }
         // TODO (os): make this of type ContentType
         public required string Type { get; set; }
+        public string? ContentId { get; set; }
         public double StartTime { get; set; }
         public double EndTime { get; set; }
         public required string FileName { get; set; }

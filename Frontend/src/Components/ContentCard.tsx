@@ -3,7 +3,7 @@ import { useSettings } from '../Context/SettingsContext';
 import { useAppState, usePatchContent } from '../Context/AppStateContext';
 import { BookmarkType, Content, includeInHighlight } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
-import { openFileLocation } from '../Utils/FileUtils';
+import { openFileLocation, contentTypeToFolderName } from '../Utils/FileUtils';
 import { useModal } from '../Context/ModalContext';
 import UploadModal from './UploadModal';
 import {
@@ -238,16 +238,7 @@ export default function ContentCard({
   }
 
   const getThumbnailPath = (): string => {
-    // Map type to folder name for thumbnails in AppData
-    const folderName =
-      type === 'Session'
-        ? 'Full Sessions'
-        : type === 'Buffer'
-          ? 'Replay Buffers'
-          : type === 'Clip'
-            ? 'Clips'
-            : 'Highlights';
-    const thumbnailPath = `${cacheFolder}/thumbnails/${folderName}/${content?.id}.jpeg`;
+    const thumbnailPath = `${cacheFolder}/thumbnails/${contentTypeToFolderName(type)}/${content?.id}.jpeg`;
     return `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(thumbnailPath)}`;
   };
 

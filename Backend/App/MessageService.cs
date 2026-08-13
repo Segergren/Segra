@@ -618,6 +618,7 @@ namespace Segra.Backend.App
                         {
                             Id = id,
                             Type = content.Type.ToString(),
+                            ContentId = content.Id,
                             StartTime = startTime,
                             EndTime = endTime,
                             FileName = content.FileName,
