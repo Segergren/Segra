@@ -49,7 +49,7 @@ namespace Segra.Backend.Platform.Windows
         private bool _recording;
         private bool _registered;
 
-        public void Initialize(Action onOpen, Action onExit)
+        public void Initialize(Action onOpen, Action onResetWindowSize, Action onExit, Func<bool> isWindowOpen)
         {
             _onOpen = onOpen;
             _onExit = onExit;
@@ -68,8 +68,12 @@ namespace Segra.Backend.Platform.Windows
                 }
 
                 _menu = new ContextMenuStrip();
-                _menu.Items.Add("Open", null, (s, e) => onOpen());
+                var openItem = new ToolStripMenuItem("Open", null, (s, e) => onOpen());
+                _menu.Items.Add(openItem);
+                _menu.Items.Add("Reset window size", null, (s, e) => onResetWindowSize());
+                _menu.Items.Add(new ToolStripSeparator());
                 _menu.Items.Add("Exit", null, (s, e) => onExit());
+                _menu.Opening += (s, e) => openItem.Visible = !isWindowOpen();
 
                 AddIcon(_idleIcon);
                 if (_registered)

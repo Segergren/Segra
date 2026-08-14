@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useClipping } from '../Hooks/useClipping';
+import { useAppState } from '../Context/AppStateContext';
+import { contentTypeToFolderName } from '../Utils/FileUtils';
 import { X } from 'lucide-react';
 import CircularProgress from './CircularProgress';
 
@@ -11,8 +13,17 @@ interface ClippingCardProps {
 
 const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
   const { cancelClip } = useClipping();
+  const appState = useAppState();
   const [displayProgress, setDisplayProgress] = useState(0);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Thumbnail of the source recording/replay buffer the first segment came from
+  const firstSegment = clipping.segments?.[0];
+  const thumbnailUrl = (() => {
+    if (!firstSegment?.contentId) return null;
+    const thumbnailPath = `${appState.cacheFolder}/thumbnails/${contentTypeToFolderName(firstSegment.type)}/${firstSegment.contentId}.jpeg`;
+    return `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(thumbnailPath)}`;
+  })();
 
   useEffect(() => {
     if (clipping.progress > 95) {
@@ -41,9 +52,23 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
   return (
     <div className="w-full px-2">
       <div
-        className={`bg-base-300 border ${isError ? 'border-error' : 'border-base-400'} border-opacity-75 rounded-lg p-3`}
+        className={`bg-base-300 border ${isError ? 'border-error' : 'border-base-400'} border-opacity-75 rounded-lg p-3 relative overflow-hidden`}
       >
-        <div className="flex items-center gap-3 w-full relative">
+        {/* Background image with source recording thumbnail */}
+        {thumbnailUrl && (
+          <div className="absolute inset-0 z-0 opacity-25">
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `url(${thumbnailUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }}
+            ></div>
+          </div>
+        )}
+        <div className="flex items-center gap-3 w-full relative z-10">
           {/* Progress */}
           {isError ? (
             <div className="w-4 h-4 rounded-full bg-error"></div>

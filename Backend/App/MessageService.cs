@@ -162,6 +162,20 @@ namespace Segra.Backend.App
                                 }
                             }
                             break;
+                        case "CopyCompressedFileToClipboard":
+                            root.TryGetProperty("Parameters", out JsonElement copyCompressedParams);
+                            if (copyCompressedParams.TryGetProperty("FilePath", out JsonElement copyCompressedFilePath) &&
+                                copyCompressedParams.TryGetProperty("MaxSizeMb", out JsonElement copyCompressedMaxSizeMb))
+                            {
+                                string compressedSourcePath = copyCompressedFilePath.GetString()!;
+                                int maxSizeMb = copyCompressedMaxSizeMb.GetInt32();
+                                _ = Task.Run(() => CompressionService.CopyCompressedToClipboard(compressedSourcePath, maxSizeMb));
+                            }
+                            else
+                            {
+                                Log.Warning("FilePath or MaxSizeMb parameter not found in CopyCompressedFileToClipboard message");
+                            }
+                            break;
                         case "OpenInBrowser":
                             root.TryGetProperty("Parameters", out JsonElement openInBrowserParameterElement);
                             if (openInBrowserParameterElement.TryGetProperty("Url", out JsonElement urlElement))
@@ -604,6 +618,7 @@ namespace Segra.Backend.App
                         {
                             Id = id,
                             Type = content.Type.ToString(),
+                            ContentId = content.Id,
                             StartTime = startTime,
                             EndTime = endTime,
                             FileName = content.FileName,

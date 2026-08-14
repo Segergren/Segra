@@ -101,7 +101,7 @@ namespace Segra.Backend.Media
 
                 // Create metadata, thumbnail, and waveform.
                 // Highlights use stream-copy extract+concat, so they preserve the source's audio tracks.
-                string? highlightId = await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Highlight, content.Game!, null, content.Title, igdbId: content.IgdbId, audioTrackNames: content.AudioTrackNames);
+                string? highlightId = await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Highlight, content.Game!, null, content.Title, igdbId: content.IgdbId, audioTrackNames: content.AudioTrackNames, audioTrackTypes: content.AudioTrackTypes);
 
                 progressCallback?.Invoke(95, "Creating thumbnail...");
                 await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Highlight, highlightId);

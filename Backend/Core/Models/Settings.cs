@@ -71,6 +71,7 @@ namespace Segra.Backend.Core.Models
         private string _clipAudioQuality = "128k";
         private string _clipPreset = "veryfast";
         private bool _clipKeepSeparateAudioTracks = false;
+        private List<int> _copyCompressSizesMb = new List<int> { 10, 50, 100, 500 };
         private float _soundEffectsVolume = 0.5f;
         private bool _showNewBadgeOnVideos = false;
         private bool _showGameBackground = true;
@@ -630,6 +631,17 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        // Hidden setting (no UI), editable via settings.json
+        [JsonPropertyName("copyCompressSizesMb")]
+        public List<int> CopyCompressSizesMb
+        {
+            get => _copyCompressSizesMb;
+            set
+            {
+                _copyCompressSizesMb = value ?? new List<int> { 10, 50, 100, 500 };
+            }
+        }
+
         [JsonPropertyName("clipEncoder")]
         public string ClipEncoder
         {
@@ -1077,6 +1089,9 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("audioTrackNames")]
         public List<string>? AudioTrackNames { get; set; }
 
+        [JsonPropertyName("audioTrackTypes")]
+        public List<string>? AudioTrackTypes { get; set; }
+
         public void AddBookmark(Bookmark bookmark)
         {
             lock (_bookmarksLock)
@@ -1164,6 +1179,10 @@ namespace Segra.Backend.Core.Models
         // Subsequent tracks correspond to each configured audio source
         // in the same order they are added (inputs, then outputs), up to 6 total tracks in OBS.
         public List<string>? AudioTrackNames { get; set; }
+
+        // Semantic type for each audio track: "mix", "input", or "output".
+        // Kept parallel to AudioTrackNames so older metadata remains compatible.
+        public List<string>? AudioTrackTypes { get; set; }
 
         public bool IsImported { get; set; } = false;
 

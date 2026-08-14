@@ -222,6 +222,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (!settings.CopyCompressSizesMb.SequenceEqual(updatedSettings.CopyCompressSizesMb))
+            {
+                Log.Information($"CopyCompressSizesMb changed from '[{string.Join(", ", settings.CopyCompressSizesMb)}]' to '[{string.Join(", ", updatedSettings.CopyCompressSizesMb)}]'");
+                settings.CopyCompressSizesMb = updatedSettings.CopyCompressSizesMb;
+                hasChanges = true;
+            }
+
             if (settings.ClipShowInBrowserAfterUpload != updatedSettings.ClipShowInBrowserAfterUpload)
             {
                 Log.Information($"ClipShowInBrowserAfterUpload changed from '{settings.ClipShowInBrowserAfterUpload}' to '{updatedSettings.ClipShowInBrowserAfterUpload}'");

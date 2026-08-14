@@ -14,7 +14,7 @@ namespace Segra.Backend.Platform
     /// <summary>System tray / notification-area icon. No-op on platforms without a tray.</summary>
     internal interface ITrayIcon
     {
-        void Initialize(Action onOpen, Action onExit);
+        void Initialize(Action onOpen, Action onResetWindowSize, Action onExit, Func<bool> isWindowOpen);
         void SetRecording(bool recording);
     }
 

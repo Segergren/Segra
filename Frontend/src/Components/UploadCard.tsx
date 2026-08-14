@@ -13,6 +13,10 @@ export default function UploadCard({ upload }: UploadCardProps) {
   const [isCancelling, setIsCancelling] = useState(false);
   const isUploading = upload.status === 'uploading';
 
+  const thumbnailUrl = upload.thumbnailPath
+    ? `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(upload.thumbnailPath)}`
+    : null;
+
   const handleCancel = () => {
     setIsCancelling(true);
     cancelUpload(upload.fileName);
@@ -35,8 +39,22 @@ export default function UploadCard({ upload }: UploadCardProps) {
 
   return (
     <div className="w-full px-2">
-      <div className="bg-base-300 border border-base-400 border-opacity-75 rounded-lg p-3">
-        <div className="flex items-center gap-3 w-full relative">
+      <div className="bg-base-300 border border-base-400 border-opacity-75 rounded-lg p-3 relative overflow-hidden">
+        {/* Background image with clip thumbnail */}
+        {thumbnailUrl && (
+          <div className="absolute inset-0 z-0 opacity-25">
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `url(${thumbnailUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }}
+            ></div>
+          </div>
+        )}
+        <div className="flex items-center gap-3 w-full relative z-10">
           {/* Progress indicator */}
           {isUploading ? (
             <CircularProgress progress={upload.progress} size={24} strokeWidth={3} duration={20} />
