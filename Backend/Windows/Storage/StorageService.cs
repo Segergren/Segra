@@ -51,6 +51,148 @@ namespace Segra.Backend.Windows.Storage
         // with the configured bitrate (see OBSService), but never drops below this so OBS can always
         // finalize the file cleanly instead of slamming into a completely full disk.
         public const long MinimumRecordingFreeSpaceBytes = 250L * 1024 * 1024; // 250 MB
+        public const long MinimumOperationalFreeSpaceBytes = 100L * 1024 * 1024; // 100 MB
+
+        public enum StorageLocationProblem
+        {
+            None,
+            InvalidPath,
+            Unavailable,
+            NotWritable,
+            InsufficientSpace
+        }
+
+        public sealed record StorageLocationCheck(
+            string Label,
+            string Path,
+            string? Root,
+            bool IsAvailable,
+            StorageLocationProblem Problem,
+            string Description,
+            long? AvailableFreeBytes = null);
+
+        public static StorageLocationCheck CheckStorageLocation(
+            string label,
+            string path,
+            long minimumFreeBytes = MinimumOperationalFreeSpaceBytes)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return Failure(StorageLocationProblem.InvalidPath, "No folder is configured.");
+            }
+
+            string fullPath;
+            string? root;
+            try
+            {
+                fullPath = Path.GetFullPath(path);
+                root = Path.GetPathRoot(fullPath);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                return Failure(StorageLocationProblem.InvalidPath, $"The configured path is invalid: {ex.Message}");
+            }
+
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            {
+                return new StorageLocationCheck(
+                    label,
+                    fullPath,
+                    root,
+                    false,
+                    StorageLocationProblem.Unavailable,
+                    "The drive or network share is not currently available.");
+            }
+
+            long? availableFreeBytes = TryGetAvailableFreeSpace(root);
+            if (availableFreeBytes.HasValue && availableFreeBytes.Value < minimumFreeBytes)
+            {
+                double freeMb = availableFreeBytes.Value / (1024.0 * 1024.0);
+                return new StorageLocationCheck(
+                    label,
+                    fullPath,
+                    root,
+                    false,
+                    StorageLocationProblem.InsufficientSpace,
+                    $"The drive only has {freeMb:F0} MB free.",
+                    availableFreeBytes);
+            }
+
+            string? probePath = null;
+            try
+            {
+                Directory.CreateDirectory(fullPath);
+                probePath = Path.Combine(fullPath, $".segra-write-test-{Guid.NewGuid():N}.tmp");
+                using (var probe = new FileStream(probePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.None))
+                {
+                    probe.WriteByte(0);
+                    probe.Flush();
+                }
+
+                File.Delete(probePath);
+                probePath = null;
+
+                return new StorageLocationCheck(
+                    label,
+                    fullPath,
+                    root,
+                    true,
+                    StorageLocationProblem.None,
+                    string.Empty,
+                    availableFreeBytes);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
+            {
+                StorageLocationProblem problem = IsDiskFull(ex)
+                    ? StorageLocationProblem.InsufficientSpace
+                    : ex is UnauthorizedAccessException
+                        ? StorageLocationProblem.NotWritable
+                        : StorageLocationProblem.Unavailable;
+
+                string description = problem switch
+                {
+                    StorageLocationProblem.InsufficientSpace => "The drive is full or does not have enough free space.",
+                    StorageLocationProblem.NotWritable => "Segra does not have permission to write to this folder.",
+                    _ => "The drive or network share became unavailable."
+                };
+
+                Log.Warning(ex, "Storage location check failed for {Label} at {Path}", label, fullPath);
+                return new StorageLocationCheck(label, fullPath, root, false, problem, description, availableFreeBytes);
+            }
+            finally
+            {
+                if (probePath != null)
+                {
+                    try { File.Delete(probePath); }
+                    catch { /* best-effort cleanup of the write probe */ }
+                }
+            }
+
+            StorageLocationCheck Failure(StorageLocationProblem problem, string description) =>
+                new(label, path, null, false, problem, description);
+        }
+
+        public static bool IsDiskFull(Exception exception)
+        {
+            int nativeError = exception.HResult & 0xFFFF;
+            return nativeError is 39 or 112 ||
+                exception.Message.Contains("no space left", StringComparison.OrdinalIgnoreCase) ||
+                exception.Message.Contains("disk full", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static long? TryGetAvailableFreeSpace(string root)
+        {
+            try
+            {
+                var drive = new DriveInfo(root);
+                return drive.IsReady ? drive.AvailableFreeSpace : null;
+            }
+            catch
+            {
+                // Some network providers allow file access but do not expose capacity through DriveInfo.
+                return null;
+            }
+        }
 
         // Returns the free space (in bytes) on the drive holding the content folder,
         // or null if it cannot be determined (so callers can choose not to act on errors).
