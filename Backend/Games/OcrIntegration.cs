@@ -1,5 +1,4 @@
 using Serilog;
-using System.Drawing;
 using Segra.Backend.Recorder;
 using System.Drawing.Imaging;
 using global::Windows.Media.Ocr;

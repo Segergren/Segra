@@ -1,6 +1,5 @@
 using Serilog;
 using Segra.Backend.App;
-using Segra.Backend.Core;
 using Segra.Backend.Platform;
 using System.Text.Json.Serialization;
 

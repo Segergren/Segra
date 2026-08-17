@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using Segra.Backend.Auth;
 using Segra.Backend.Core;
-using System.Diagnostics;
 using Segra.Backend.Games;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;

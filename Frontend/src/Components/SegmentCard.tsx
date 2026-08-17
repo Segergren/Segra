@@ -280,5 +280,4 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
   },
 );
 
-export { DRAG_TYPE };
 export default SegmentCard;

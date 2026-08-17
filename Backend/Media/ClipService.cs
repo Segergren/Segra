@@ -1,5 +1,4 @@
 using Serilog;
-using System.Text.Json;
 using Segra.Backend.App;
 using Segra.Backend.Core;
 using System.Diagnostics;

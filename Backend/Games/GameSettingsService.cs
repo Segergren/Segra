@@ -1,4 +1,3 @@
-using System.Linq;
 using Segra.Backend.Core;
 using Segra.Backend.Core.Models;
 

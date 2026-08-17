@@ -1,12 +1,9 @@
 using System.Diagnostics;
-using System.Windows.Forms;
 using NAudio.Wave;
 using NAudio.CoreAudioApi;
 using NAudio.Wave.SampleProviders;
 using Segra.Backend.App;
-using Segra.Backend.Core;
 using Segra.Backend.Core.Models;
-using Segra.Backend.Shared;
 using Segra.Backend.Windows.Audio;
 using Segra.Backend.Windows.Display;
 using Segra.Backend.Windows.Watchers;

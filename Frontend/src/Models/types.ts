@@ -255,7 +255,7 @@ export const DEFAULT_MENU_ITEMS: MenuItemPreference[] = [
   { id: 'Settings', visible: true },
 ];
 
-export const MENU_ITEM_CONTENT_TYPES: Record<MenuItemId, ContentType[]> = {
+const MENU_ITEM_CONTENT_TYPES: Record<MenuItemId, ContentType[]> = {
   'Full Sessions': ['Session'],
   'Replay Buffer': ['Buffer'],
   Clips: ['Clip'],

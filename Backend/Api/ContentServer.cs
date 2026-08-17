@@ -25,26 +25,6 @@ namespace Segra.Backend.Api
             _ = Task.Run(() => AcceptRequestsAsync(_cancellationTokenSource.Token));
         }
 
-        public static void StopServer()
-        {
-            try
-            {
-                _cancellationTokenSource?.Cancel();
-                _httpListener.Stop();
-                _httpListener.Close();
-                Log.Information("ContentServer stopped");
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error stopping ContentServer");
-            }
-            finally
-            {
-                _cancellationTokenSource?.Dispose();
-                _cancellationTokenSource = null;
-            }
-        }
-
         private static async Task AcceptRequestsAsync(CancellationToken cancellationToken)
         {
             Log.Information("ContentServer now accepting requests");
