@@ -188,7 +188,7 @@ namespace Segra.Backend.Media
                     ? $"Replaced original with compressed file: {finalPath}"
                     : $"Saved compressed file as: {finalPath}");
 
-                string? compressedId = await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId, originalContent.IsImported, audioTrackNames, originalContent.AudioTrackTypes, compressed: true);
+                string? compressedId = await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId, originalContent.IsImported, audioTrackNames, originalContent.AudioTrackTypes, compressed: true, gameExePath: originalContent.GameExePath);
                 await ContentService.CreateThumbnail(finalPath, contentType, compressedId);
                 await ContentService.CreateWaveformFile(finalPath, contentType, compressedId);
 

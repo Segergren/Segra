@@ -171,7 +171,7 @@ namespace Segra.Backend.Media
                         var segmentAudioTrackTypes = Settings.Instance.ClipKeepSeparateAudioTracks
                             ? extractedSegmentTrackTypes[i]
                             : null;
-                        string? segmentClipId = await ContentService.CreateMetadataFile(segmentOutputFilePath, Content.ContentType.Clip, segment.Game ?? "Unknown", null, segment.Title, igdbId: segment.IgdbId, audioTrackNames: segmentAudioTrackNames, audioTrackTypes: segmentAudioTrackTypes);
+                        string? segmentClipId = await ContentService.CreateMetadataFile(segmentOutputFilePath, Content.ContentType.Clip, segment.Game ?? "Unknown", null, segment.Title, igdbId: segment.IgdbId, audioTrackNames: segmentAudioTrackNames, audioTrackTypes: segmentAudioTrackTypes, gameExePath: GetSourceGameExePath(segment));
                         await ContentService.CreateThumbnail(segmentOutputFilePath, Content.ContentType.Clip, segmentClipId);
                         await ContentService.CreateWaveformFile(segmentOutputFilePath, Content.ContentType.Clip, segmentClipId);
                     }
@@ -251,7 +251,7 @@ namespace Segra.Backend.Media
 
                 if (!createSeparateClips)
                 {
-                    string? clipId = await ContentService.CreateMetadataFile(outputFilePath!, Content.ContentType.Clip, firstSegment?.Game!, null, firstSegment?.Title, igdbId: firstSegment?.IgdbId, audioTrackNames: unionAudioLayout, audioTrackTypes: unionAudioTrackTypes);
+                    string? clipId = await ContentService.CreateMetadataFile(outputFilePath!, Content.ContentType.Clip, firstSegment?.Game!, null, firstSegment?.Title, igdbId: firstSegment?.IgdbId, audioTrackNames: unionAudioLayout, audioTrackTypes: unionAudioTrackTypes, gameExePath: firstSegment != null ? GetSourceGameExePath(firstSegment) : null);
                     await ContentService.CreateThumbnail(outputFilePath!, Content.ContentType.Clip, clipId);
                     await ContentService.CreateWaveformFile(outputFilePath!, Content.ContentType.Clip, clipId);
                 }
@@ -877,6 +877,26 @@ namespace Segra.Backend.Media
             }
 
             return null;
+        }
+
+        private static string? GetSourceGameExePath(Segment segment)
+        {
+            try
+            {
+                var contentType = Enum.Parse<Content.ContentType>(segment.Type);
+                var source = AppState.Instance.Content.FirstOrDefault(c =>
+                    c.Type == contentType &&
+                    (!string.IsNullOrEmpty(segment.FilePath)
+                        ? string.Equals(PathUtils.Normalize(c.FilePath), PathUtils.Normalize(segment.FilePath), StringComparison.OrdinalIgnoreCase)
+                        : string.Equals(c.FileName, segment.FileName, StringComparison.OrdinalIgnoreCase)));
+
+                return source?.GameExePath;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to read source game exe path: {ex.Message}");
+                return null;
+            }
         }
 
         private static void SafeDelete(string path)

@@ -119,6 +119,11 @@ namespace Segra.Backend.Media
                 {
                     formData.Add(new StringContent(content.IgdbId.Value.ToString()), "igdbid");
                 }
+                string? gameExeSubPath = GetGameExeSubPath(content.GameExePath);
+                if (!string.IsNullOrEmpty(gameExeSubPath))
+                {
+                    formData.Add(new StringContent(gameExeSubPath), "gameexepath");
+                }
                 AddOptionalContent(formData, message, "Title");
                 AddOptionalContent(formData, message, "Description");
                 AddOptionalContent(formData, message, "Visibility");
@@ -314,6 +319,18 @@ namespace Segra.Backend.Media
             {
                 formData.Add(new StringContent(element.GetString()!), field.ToLower());
             }
+        }
+
+        // Sends only the exe name and its parent folder, never the full local path.
+        private static string? GetGameExeSubPath(string? exePath)
+        {
+            if (string.IsNullOrWhiteSpace(exePath))
+            {
+                return null;
+            }
+
+            var parts = PathUtils.Normalize(exePath).Split('/', StringSplitOptions.RemoveEmptyEntries);
+            return string.Join('/', parts.TakeLast(2));
         }
     }
 }

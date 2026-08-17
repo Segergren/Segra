@@ -1173,6 +1173,14 @@ namespace Segra.Backend.Core.Models
 
         public int? IgdbId { get; set; }
 
+        // Full path of the game exe this video was recorded from, for diagnostics.
+        private string? _gameExePath;
+        public string? GameExePath
+        {
+            get => _gameExePath;
+            set => _gameExePath = Segra.Backend.Shared.PathUtils.NormalizeOrNull(value);
+        }
+
         // Names for the audio tracks in the recording/container.
         // Track 1 is always the mixed track ("Full Mix").
         // Subsequent tracks correspond to each configured audio source
