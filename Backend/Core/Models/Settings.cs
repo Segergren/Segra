@@ -70,7 +70,7 @@ namespace Segra.Backend.Core.Models
         private string _clipAudioQuality = "128k";
         private string _clipPreset = "veryfast";
         private bool _clipKeepSeparateAudioTracks = false;
-        private List<int> _copyCompressSizesMb = new List<int> { 10, 50, 100, 500 };
+        private List<int> _copyCompressSizesMb = new List<int> { 20, 50, 100, 500 };
         private float _soundEffectsVolume = 0.5f;
         private bool _showNewBadgeOnVideos = false;
         private bool _showGameBackground = true;
@@ -637,7 +637,7 @@ namespace Segra.Backend.Core.Models
             get => _copyCompressSizesMb;
             set
             {
-                _copyCompressSizesMb = value ?? new List<int> { 10, 50, 100, 500 };
+                _copyCompressSizesMb = value ?? new List<int> { 20, 50, 100, 500 };
             }
         }
 

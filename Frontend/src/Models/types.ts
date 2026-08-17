@@ -398,7 +398,7 @@ export const initialSettings: Settings = {
   clipAudioQuality: '128k',
   clipPreset: 'veryfast',
   clipKeepSeparateAudioTracks: false,
-  copyCompressSizesMb: [10, 50, 100, 500],
+  copyCompressSizesMb: [20, 50, 100, 500],
   soundEffectsVolume: 1,
   showNewBadgeOnVideos: false,
   showGameBackground: true,
