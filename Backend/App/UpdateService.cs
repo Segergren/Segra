@@ -353,8 +353,8 @@ namespace Segra.Backend.App
                     }
 
                     // Skip releases whose tag is not a parseable version. Prerelease tags
-                    // (release candidate / beta) are validated on their base version.
-                    string versionToValidate = versionString.Contains("-rc.") || versionString.Contains("-beta.")
+                    // are validated on their base version.
+                    string versionToValidate = versionString.Contains('-')
                         ? versionString.Split('-')[0]
                         : versionString;
                     if (!NuGet.Versioning.SemanticVersion.TryParse(versionToValidate, out _))
