@@ -53,6 +53,7 @@ import Button from '../Components/Button';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 import AudioTrackIcon from '../Components/AudioTrackIcon';
 import ConfirmationModal from '../Components/ConfirmationModal';
+import GenericModal from '../Components/GenericModal';
 
 const Crosshair2Dot = React.forwardRef<SVGSVGElement, React.ComponentProps<typeof Icon>>(
   (props, ref) => <Icon {...props} ref={ref} iconNode={crosshair2Dot} />,
@@ -1226,9 +1227,29 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   const trimDuration = Math.max(0, trimEnd - trimStart);
   const isUnchangedTrimRange = trimStart <= 0.001 && trimEnd >= duration - 0.001;
+  const currentVideoSegmentCount = segments.filter(
+    (segment) => segment.contentId === video.id,
+  ).length;
+
+  const showTrimSegmentsWarning = () => {
+    const segmentLabel = currentVideoSegmentCount === 1 ? 'segment' : 'segments';
+    openModal(
+      <GenericModal
+        title="Trim unavailable"
+        description={`This session has ${currentVideoSegmentCount} selected ${segmentLabel}. Create the clip or clear the ${segmentLabel} before trimming so they do not reference timestamps that no longer exist.`}
+        type="warning"
+        onClose={closeModal}
+      />,
+      { size: 'md' },
+    );
+  };
 
   const handleToggleTrimMode = () => {
     if (isTrimming) return;
+    if (!isTrimMode && currentVideoSegmentCount > 0) {
+      showTrimSegmentsWarning();
+      return;
+    }
     setIsTrimMode((enabled) => {
       if (!enabled) {
         setTrimStart(0);
@@ -1347,6 +1368,10 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   const saveTrim = (overwrite: boolean) => {
     if (isTrimming || trimDuration < 0.1 || isUnchangedTrimRange) return;
+    if (overwrite && currentVideoSegmentCount > 0) {
+      showTrimSegmentsWarning();
+      return;
+    }
     setIsTrimming(true);
     sendMessageToBackend('TrimContent', {
       Id: video.id,
@@ -1357,6 +1382,10 @@ export default function VideoComponent({ video }: { video: Content }) {
   };
 
   const handleOverwriteTrim = () => {
+    if (currentVideoSegmentCount > 0) {
+      showTrimSegmentsWarning();
+      return;
+    }
     openModal(
       <ConfirmationModal
         title="Overwrite original video?"
