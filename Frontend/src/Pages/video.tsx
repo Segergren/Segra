@@ -42,6 +42,9 @@ import {
   Copy,
   Check,
   ChevronDown,
+  Scissors,
+  LoaderCircle,
+  MoveHorizontal,
 } from 'lucide-react';
 import SegmentCard from '../Components/SegmentCard';
 import { useAudioTracks } from '../Hooks/useAudioTracks';
@@ -49,6 +52,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Button from '../Components/Button';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 import AudioTrackIcon from '../Components/AudioTrackIcon';
+import ConfirmationModal from '../Components/ConfirmationModal';
+import GenericModal from '../Components/GenericModal';
 
 const Crosshair2Dot = React.forwardRef<SVGSVGElement, React.ComponentProps<typeof Icon>>(
   (props, ref) => <Icon {...props} ref={ref} iconNode={crosshair2Dot} />,
@@ -200,6 +205,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const { uploads } = useUploads();
   const { openModal, closeModal } = useModal();
   const confirmDelete = useDeleteConfirmation();
+  const { setSelectedVideo } = useSelectedVideo();
   const {
     segments,
     addSegment,
@@ -224,6 +230,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const peaksMaxRef = useRef<number>(128);
   const waveformStateRef = useRef({ pixelsPerSecond: 0, duration: 0 });
   const waveformBufferRef = useRef({ regionLeft: 0, regionRight: 0 });
+  const trimRangeDragOffsetRef = useRef(0);
 
   // Audio tracks
   const audioTracks = useAudioTracks(videoRef, video);
@@ -245,8 +252,20 @@ export default function VideoComponent({ video }: { video: Content }) {
     return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
   }, [video.duration]);
   const [duration, setDuration] = useState(metadataDuration);
+  const [isTrimMode, setIsTrimMode] = useState(false);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(metadataDuration);
+  const [trimDragDirection, setTrimDragDirection] = useState<'start' | 'end' | 'range' | null>(
+    null,
+  );
+  const [isTrimming, setIsTrimming] = useState(false);
   useEffect(() => {
     setDuration(metadataDuration);
+    setTrimStart(0);
+    setTrimEnd(metadataDuration);
+    setTrimDragDirection(null);
+    setIsTrimMode(false);
+    setIsTrimming(false);
   }, [video.id, metadataDuration]);
   const [zoom, setZoom] = useState(1);
 
@@ -528,6 +547,7 @@ export default function VideoComponent({ video }: { video: Content }) {
 
     const onLoadedMetadata = () => {
       setDuration(vid.duration);
+      setTrimEnd(vid.duration);
       setZoom(1);
     };
 
@@ -725,7 +745,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     };
   }, []);
 
-  // Update container width on window resize
+  // Keep the timeline fitted when the window or surrounding editor layout changes.
   useEffect(() => {
     if (scrollContainerRef.current) {
       setContainerWidth(scrollContainerRef.current.clientWidth);
@@ -736,6 +756,10 @@ export default function VideoComponent({ video }: { video: Content }) {
         setContainerWidth(scrollContainerRef.current.clientWidth);
       }
     };
+    const resizeObserver = new ResizeObserver(handleResize);
+    if (scrollContainerRef.current) {
+      resizeObserver.observe(scrollContainerRef.current);
+    }
 
     const preventPageZoom = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
@@ -747,6 +771,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     window.addEventListener('wheel', preventPageZoom, { passive: false });
 
     return () => {
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('wheel', preventPageZoom);
     };
@@ -1199,6 +1224,200 @@ export default function VideoComponent({ video }: { video: Content }) {
       refreshSegmentThumbnail(newSegment);
     }
   };
+
+  const trimDuration = Math.max(0, trimEnd - trimStart);
+  const isUnchangedTrimRange = trimStart <= 0.001 && trimEnd >= duration - 0.001;
+  const currentVideoSegmentCount = segments.filter(
+    (segment) => segment.contentId === video.id,
+  ).length;
+
+  const showTrimSegmentsWarning = () => {
+    const segmentLabel = currentVideoSegmentCount === 1 ? 'segment' : 'segments';
+    openModal(
+      <GenericModal
+        title="Trim unavailable"
+        description={`This session has ${currentVideoSegmentCount} selected ${segmentLabel}. Create the clip or clear the ${segmentLabel} before trimming so they do not reference timestamps that no longer exist.`}
+        type="warning"
+        onClose={closeModal}
+      />,
+      { size: 'md' },
+    );
+  };
+
+  const handleToggleTrimMode = () => {
+    if (isTrimming) return;
+    if (!isTrimMode && currentVideoSegmentCount > 0) {
+      showTrimSegmentsWarning();
+      return;
+    }
+    setIsTrimMode((enabled) => {
+      if (!enabled) {
+        setTrimStart(0);
+        setTrimEnd(duration);
+      }
+      setTrimDragDirection(null);
+      return !enabled;
+    });
+  };
+
+  const handleSetTrimStart = () => {
+    setTrimStart(Math.max(0, Math.min(currentTime, trimEnd - 0.1)));
+  };
+
+  const handleSetTrimEnd = () => {
+    setTrimEnd(Math.min(duration, Math.max(currentTime, trimStart + 0.1)));
+  };
+
+  const setTrimBoundaryFromClientX = useCallback(
+    (clientX: number, direction: 'start' | 'end') => {
+      const scroller = scrollContainerRef.current;
+      if (!scroller || pixelsPerSecond <= 0) return;
+
+      const rect = scroller.getBoundingClientRect();
+      const time = Math.max(
+        0,
+        Math.min((clientX - rect.left + scroller.scrollLeft) / pixelsPerSecond, duration),
+      );
+      const nextTime =
+        direction === 'start' ? Math.min(time, trimEnd - 0.1) : Math.max(time, trimStart + 0.1);
+
+      if (direction === 'start') setTrimStart(nextTime);
+      else setTrimEnd(nextTime);
+
+      setCurrentTime(nextTime);
+      if (videoRef.current) videoRef.current.currentTime = nextTime;
+    },
+    [duration, pixelsPerSecond, trimEnd, trimStart],
+  );
+
+  const setTrimRangeFromClientX = useCallback(
+    (clientX: number) => {
+      const scroller = scrollContainerRef.current;
+      if (!scroller || pixelsPerSecond <= 0) return;
+
+      const rect = scroller.getBoundingClientRect();
+      const time = (clientX - rect.left + scroller.scrollLeft) / pixelsPerSecond;
+      const nextStart = Math.max(
+        0,
+        Math.min(time - trimRangeDragOffsetRef.current, duration - trimDuration),
+      );
+      const nextEnd = nextStart + trimDuration;
+
+      setTrimStart(nextStart);
+      setTrimEnd(nextEnd);
+      setCurrentTime(nextStart);
+      if (videoRef.current) videoRef.current.currentTime = nextStart;
+    },
+    [duration, pixelsPerSecond, trimDuration],
+  );
+
+  const handleTrimRangeMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    const scroller = scrollContainerRef.current;
+    if (!scroller || pixelsPerSecond <= 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = scroller.getBoundingClientRect();
+    const time = (event.clientX - rect.left + scroller.scrollLeft) / pixelsPerSecond;
+    trimRangeDragOffsetRef.current = Math.max(0, Math.min(time - trimStart, trimDuration));
+    videoRef.current?.pause();
+    setTrimDragDirection('range');
+    setIsInteracting(true);
+  };
+
+  const handleTrimEdgeMouseDown = (
+    event: React.MouseEvent<HTMLDivElement>,
+    direction: 'start' | 'end',
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    videoRef.current?.pause();
+    setTrimDragDirection(direction);
+    setIsInteracting(true);
+    setTrimBoundaryFromClientX(event.clientX, direction);
+  };
+
+  useEffect(() => {
+    if (!trimDragDirection) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (trimDragDirection === 'range') {
+        setTrimRangeFromClientX(event.clientX);
+      } else {
+        setTrimBoundaryFromClientX(event.clientX, trimDragDirection);
+      }
+    };
+    const handleMouseUp = () => {
+      setTrimDragDirection(null);
+      setTimeout(() => setIsInteracting(false), 0);
+    };
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = trimDragDirection === 'range' ? 'grabbing' : 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [setTrimBoundaryFromClientX, setTrimRangeFromClientX, trimDragDirection]);
+
+  const saveTrim = (overwrite: boolean) => {
+    if (isTrimming || trimDuration < 0.1 || isUnchangedTrimRange) return;
+    if (overwrite && currentVideoSegmentCount > 0) {
+      showTrimSegmentsWarning();
+      return;
+    }
+    setIsTrimming(true);
+    sendMessageToBackend('TrimContent', {
+      Id: video.id,
+      StartTime: trimStart,
+      EndTime: trimEnd,
+      Overwrite: overwrite,
+    });
+  };
+
+  const handleOverwriteTrim = () => {
+    if (currentVideoSegmentCount > 0) {
+      showTrimSegmentsWarning();
+      return;
+    }
+    openModal(
+      <ConfirmationModal
+        title="Overwrite original video?"
+        description="This permanently replaces the original video with the selected trim range. This action cannot be undone."
+        confirmText="Overwrite"
+        onConfirm={() => {
+          closeModal();
+          saveTrim(true);
+        }}
+        onCancel={closeModal}
+      />,
+      { size: 'md' },
+    );
+  };
+
+  useEffect(() => {
+    const handler = (event: CustomEvent<{ method: string; content: any }>) => {
+      const { method, content } = event.detail;
+      if (method !== 'TrimProgress' || content?.sourceId !== video.id) return;
+      setIsTrimming(content.status === 'trimming');
+      if (content.status === 'done') {
+        setTrimDragDirection(null);
+        setIsTrimMode(false);
+        if (content.overwritten && content.trimmedContent) {
+          setSelectedVideo(content.trimmedContent as Content);
+        }
+      }
+    };
+
+    window.addEventListener('websocket-message', handler as EventListener);
+    return () => window.removeEventListener('websocket-message', handler as EventListener);
+  }, [setSelectedVideo, video.id]);
 
   // Create a clip from current segments
   const handleCreateClip = () => {
@@ -2258,85 +2477,126 @@ export default function VideoComponent({ video }: { video: Content }) {
                   }}
                 />
               )}
-              {sortedSegments.map((seg) => {
-                const left = seg.startTime * pixelsPerSecond;
-                const width = (seg.endTime - seg.startTime) * pixelsPerSecond;
-                const hidden = seg.fileName !== video.fileName;
-                return (
+              {isTrimMode && duration > 0 && (
+                <>
                   <div
-                    key={seg.id}
-                    className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors rounded-r-sm rounded-l-sm shadow-md
-                                                bg-primary/20 border border-primary/20`}
-                    style={{ left: `${left}px`, width: `${width}px` }}
-                    onMouseEnter={() => {
-                      setHoveredSegmentId(seg.id);
+                    className="absolute inset-y-0 left-0 z-[5] bg-black/55 pointer-events-none"
+                    style={{ width: `${trimStart * pixelsPerSecond}px` }}
+                  />
+                  <div
+                    className="absolute inset-y-0 z-[6] bg-white/[0.06] cursor-grab hover:bg-white/[0.1] active:cursor-grabbing"
+                    style={{
+                      left: `${trimStart * pixelsPerSecond}px`,
+                      width: `${trimDuration * pixelsPerSecond}px`,
                     }}
-                    onMouseLeave={() => {
-                      setHoveredSegmentId(null);
-                    }}
-                    onMouseDown={(e) => handleSegmentMouseDown(e, seg.id)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      handleDeleteSegment(seg.id);
-                    }}
+                    onMouseDown={handleTrimRangeMouseDown}
+                    title="Drag to move the trim range"
+                  />
+                  <div
+                    className="absolute top-1/2 z-20 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-col-resize items-center justify-center rounded-full border border-white/25 bg-base-100/90 text-white/80 shadow-md hover:bg-base-100 hover:text-white"
+                    style={{ left: `${trimStart * pixelsPerSecond}px` }}
+                    onMouseDown={(event) => handleTrimEdgeMouseDown(event, 'start')}
+                    aria-label="Drag trim start"
                   >
-                    <div className="absolute left-0 top-0 h-full w-[3px] bg-accent/80 rounded-l-sm pointer-events-none" />
-                    <div className="absolute right-0 top-0 h-full w-[3px] bg-accent/80 rounded-r-sm pointer-events-none" />
-
-                    {audioTracks.isMultiTrack &&
-                      video.audioTrackNames &&
-                      video.audioTrackNames.length > 1 && (
-                        <button
-                          className={`absolute top-[4px] right-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSegmentId === seg.id || (timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible) ? 'opacity-100' : 'opacity-0'}`}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible) {
-                              setTimelineAudioMenu((prev) =>
-                                prev ? { ...prev, visible: false } : null,
-                              );
-                              return;
-                            }
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const trackCount = video.audioTrackNames?.length ?? 0;
-                            const estimatedHeight = 16 + trackCount * 24;
-                            const fitsBelow =
-                              rect.bottom + 4 + estimatedHeight <= window.innerHeight;
-                            const top = fitsBelow
-                              ? rect.bottom + 4
-                              : Math.max(8, rect.top - 4 - estimatedHeight);
-                            const next = {
-                              segId: seg.id,
-                              x: rect.left,
-                              y: top,
-                              flipUp: !fitsBelow,
-                              visible: false,
-                            };
-                            setTimelineAudioMenu(next);
-                            requestAnimationFrame(() =>
-                              setTimelineAudioMenu((prev) =>
-                                prev ? { ...prev, visible: true } : null,
-                              ),
-                            );
-                          }}
-                        >
-                          <Headphones className="w-2.5 h-2.5" />
-                        </button>
-                      )}
-
-                    <div
-                      className="absolute top-0 -left-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
-                      onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
-                      aria-label="Resize segment start"
-                    />
-                    <div
-                      className="absolute top-0 -right-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
-                      onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
-                      aria-label="Resize segment end"
-                    />
+                    <MoveHorizontal className="w-4 h-4" />
                   </div>
-                );
-              })}
+                  <div
+                    className="absolute top-1/2 z-20 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-col-resize items-center justify-center rounded-full border border-white/25 bg-base-100/90 text-white/80 shadow-md hover:bg-base-100 hover:text-white"
+                    style={{ left: `${trimEnd * pixelsPerSecond}px` }}
+                    onMouseDown={(event) => handleTrimEdgeMouseDown(event, 'end')}
+                    aria-label="Drag trim end"
+                  >
+                    <MoveHorizontal className="w-4 h-4" />
+                  </div>
+                  <div
+                    className="absolute inset-y-0 right-0 z-[5] bg-black/55 pointer-events-none"
+                    style={{ width: `${(duration - trimEnd) * pixelsPerSecond}px` }}
+                  />
+                </>
+              )}
+              {!isTrimMode &&
+                sortedSegments.map((seg) => {
+                  const left = seg.startTime * pixelsPerSecond;
+                  const width = (seg.endTime - seg.startTime) * pixelsPerSecond;
+                  const hidden = seg.fileName !== video.fileName;
+                  return (
+                    <div
+                      key={seg.id}
+                      className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors rounded-r-sm rounded-l-sm shadow-md
+                                                bg-primary/20 border border-primary/20`}
+                      style={{ left: `${left}px`, width: `${width}px` }}
+                      onMouseEnter={() => {
+                        setHoveredSegmentId(seg.id);
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredSegmentId(null);
+                      }}
+                      onMouseDown={(e) => handleSegmentMouseDown(e, seg.id)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        handleDeleteSegment(seg.id);
+                      }}
+                    >
+                      <div className="absolute left-0 top-0 h-full w-[3px] bg-accent/80 rounded-l-sm pointer-events-none" />
+                      <div className="absolute right-0 top-0 h-full w-[3px] bg-accent/80 rounded-r-sm pointer-events-none" />
+
+                      {audioTracks.isMultiTrack &&
+                        video.audioTrackNames &&
+                        video.audioTrackNames.length > 1 && (
+                          <button
+                            className={`absolute top-[4px] right-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSegmentId === seg.id || (timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible) ? 'opacity-100' : 'opacity-0'}`}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (
+                                timelineAudioMenu?.segId === seg.id &&
+                                timelineAudioMenu.visible
+                              ) {
+                                setTimelineAudioMenu((prev) =>
+                                  prev ? { ...prev, visible: false } : null,
+                                );
+                                return;
+                              }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const trackCount = video.audioTrackNames?.length ?? 0;
+                              const estimatedHeight = 16 + trackCount * 24;
+                              const fitsBelow =
+                                rect.bottom + 4 + estimatedHeight <= window.innerHeight;
+                              const top = fitsBelow
+                                ? rect.bottom + 4
+                                : Math.max(8, rect.top - 4 - estimatedHeight);
+                              const next = {
+                                segId: seg.id,
+                                x: rect.left,
+                                y: top,
+                                flipUp: !fitsBelow,
+                                visible: false,
+                              };
+                              setTimelineAudioMenu(next);
+                              requestAnimationFrame(() =>
+                                setTimelineAudioMenu((prev) =>
+                                  prev ? { ...prev, visible: true } : null,
+                                ),
+                              );
+                            }}
+                          >
+                            <Headphones className="w-2.5 h-2.5" />
+                          </button>
+                        )}
+
+                      <div
+                        className="absolute top-0 -left-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
+                        onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
+                        aria-label="Resize segment start"
+                      />
+                      <div
+                        className="absolute top-0 -right-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
+                        onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
+                        aria-label="Resize segment end"
+                      />
+                    </div>
+                  );
+                })}
               <div
                 className="absolute top-0 left-0 z-10 w-1 h-full -translate-x-1/2 rounded-sm shadow cursor-pointer marker bg-accent"
                 style={{ left: `${currentTime * pixelsPerSecond}px` }}
@@ -2459,7 +2719,64 @@ export default function VideoComponent({ video }: { video: Content }) {
                   <RotateCw className="w-5 h-5" />
                 </button>
               </div>
-              {(video.type === 'Clip' || video.type === 'Highlight') && (
+              <Button
+                variant="primary"
+                size="sm"
+                className={`h-10 gap-1 hover:text-accent ${isTrimMode ? 'text-accent' : ''}`}
+                onClick={handleToggleTrimMode}
+                disabled={isTrimming}
+              >
+                <Scissors className="w-5 h-5" />
+                <span>{isTrimMode ? 'Cancel Trim' : 'Trim'}</span>
+              </Button>
+              {isTrimMode && (
+                <div className="flex items-center h-10 gap-1 px-1 border rounded-lg bg-base-300 border-base-400">
+                  <button
+                    type="button"
+                    className="h-8 px-2 text-xs text-gray-300 btn btn-sm btn-secondary"
+                    onClick={handleSetTrimStart}
+                    disabled={isTrimming || currentTime >= trimEnd - 0.1}
+                  >
+                    Start {formatTime(trimStart)}
+                  </button>
+                  <button
+                    type="button"
+                    className="h-8 px-2 text-xs text-gray-300 btn btn-sm btn-secondary"
+                    onClick={handleSetTrimEnd}
+                    disabled={isTrimming || currentTime <= trimStart + 0.1}
+                  >
+                    End {formatTime(trimEnd)}
+                  </button>
+                  <span className="px-1 text-xs text-gray-400 tabular-nums">
+                    {formatTime(trimDuration)}
+                  </span>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="h-8 gap-1"
+                    onClick={() => saveTrim(false)}
+                    disabled={isTrimming || trimDuration < 0.1 || isUnchangedTrimRange}
+                  >
+                    {isTrimming ? (
+                      <LoaderCircle className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Scissors className="w-4 h-4" />
+                    )}
+                    <span>{isTrimming ? 'Saving' : 'Save Copy'}</span>
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    className="h-8"
+                    onClick={handleOverwriteTrim}
+                    disabled={isTrimming || trimDuration < 0.1 || isUnchangedTrimRange}
+                    title="Permanently replace the original video"
+                  >
+                    Overwrite
+                  </Button>
+                </div>
+              )}
+              {!isTrimMode && (video.type === 'Clip' || video.type === 'Highlight') && (
                 <>
                   {!settings.airplaneMode && (
                     <Button
@@ -2479,7 +2796,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   {copyButtons}
                 </>
               )}
-              {(video.type === 'Session' || video.type === 'Buffer') && (
+              {!isTrimMode && (video.type === 'Session' || video.type === 'Buffer') && (
                 <>
                   <Button
                     variant="primary"
@@ -2508,11 +2825,11 @@ export default function VideoComponent({ video }: { video: Content }) {
                   </Button>
                 </>
               )}
-              {video.type === 'Buffer' && copyButtons}
+              {!isTrimMode && video.type === 'Buffer' && copyButtons}
             </div>
 
             <div className="flex items-center gap-3">
-              {(video.type === 'Session' || video.type === 'Buffer') && (
+              {!isTrimMode && (video.type === 'Session' || video.type === 'Buffer') && (
                 <>
                   {availableBookmarkTypes.length > 0 && (
                     <div className="flex items-center h-10 gap-0 px-0 border rounded-lg bg-base-300 join border-base-400">
