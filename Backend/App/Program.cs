@@ -590,9 +590,19 @@ namespace Segra.Backend.App
             // Initialize the PhotinoWindow
             var windowBuilder = new PhotinoWindow();
 #if WINDOWS
-            // Chromium/WebView2-only flag; WebKitGTK on Linux parses this natively and crashes on the
-            // leading "--", so it must only be set on Windows.
-            windowBuilder = windowBuilder.SetBrowserControlInitParameters("--enable-blink-features=AudioVideoTracks");
+            // Chromium/WebView2-only flags; WebKitGTK on Linux parses these natively and crashes on the
+            // leading "--", so they must only be set on Windows.
+            string browserArgs = "--enable-blink-features=AudioVideoTracks";
+
+            // Without this, Chromium runs system proxy auto-detection (WPAD) on launch and the
+            // webview's first request to the local server stalls ~1s waiting for it. Only skip
+            // proxy support when the user has no proxy configured, since the frontend also
+            // calls segra.tv directly.
+            if (!HasUserConfiguredProxy())
+            {
+                browserArgs += " --no-proxy-server";
+            }
+            windowBuilder = windowBuilder.SetBrowserControlInitParameters(browserArgs);
 #endif
             windowBuilder = windowBuilder
                 .SetNotificationsEnabled(false) // Disabled due to it creating a second start menu entry with incorrect start path. See https://github.com/tryphotino/photino.NET/issues/85
@@ -835,6 +845,27 @@ namespace Segra.Backend.App
             pipeServerThread.IsBackground = true;
             pipeServerThread.Start();
         }
+
+#if WINDOWS
+        // True when the user has an explicit proxy or PAC script configured in Windows.
+        private static bool HasUserConfiguredProxy()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Internet Settings");
+                if (key == null) return false;
+
+                bool proxyEnabled = key.GetValue("ProxyEnable") is int enabled && enabled != 0;
+                bool hasPacUrl = !string.IsNullOrEmpty(key.GetValue("AutoConfigURL") as string);
+                return proxyEnabled || hasPacUrl;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+#endif
 
         // Check if the application was launched from startup
         private static bool IsLaunchedFromStartup()

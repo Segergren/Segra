@@ -162,12 +162,6 @@ function getReleaseChannel(version: string): { text: string; className: string }
       className: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
     };
   }
-  if (version.includes('-rc')) {
-    return {
-      text: 'RC',
-      className: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
-    };
-  }
   return null;
 }
 

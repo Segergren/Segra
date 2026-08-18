@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-
 namespace Segra.Backend.Platform
 {
     /// <summary>
@@ -9,9 +7,6 @@ namespace Segra.Backend.Platform
     /// </summary>
     internal static class PlatformServices
     {
-        public static bool IsWindows { get; } = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        public static bool IsLinux { get; } = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-
         public static ITrayIcon Tray { get; private set; } = null!;
         public static IAudioDeviceService Audio { get; private set; } = null!;
         public static IDisplayService Display { get; private set; } = null!;

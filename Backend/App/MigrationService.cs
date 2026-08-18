@@ -150,8 +150,33 @@ internal static class MigrationService
             new("0012_backfill_custom_game_icons", Apply_0012_BackfillCustomGameIcons),
             new("0013_backfill_compressed_flag", Apply_0013_BackfillCompressedFlag),
             new("0014_id_keyed_sidecars", Apply_0014_IdKeyedSidecars),
-            new("0015_delete_empty_game_folders", Apply_0015_DeleteEmptyGameFolders)
+            new("0015_delete_empty_game_folders", Apply_0015_DeleteEmptyGameFolders),
+            new("0016_copy_compress_10mb_to_20mb", Apply_0016_CopyCompress10MbTo20Mb)
         ];
+    }
+
+    // Migration 0016: The default "Copy as X MB" sizes changed from 10/50/100/500 to 20/50/100/500.
+    // Update users still on the old default; customized lists are left alone.
+    private static void Apply_0016_CopyCompress10MbTo20Mb()
+    {
+        try
+        {
+            var settings = Settings.Instance;
+            if (!settings.CopyCompressSizesMb.SequenceEqual([10, 50, 100, 500]))
+            {
+                Log.Debug("CopyCompressSizesMb is customized, skipping migration");
+                return;
+            }
+
+            settings.CopyCompressSizesMb = [20, 50, 100, 500];
+            SettingsService.SaveSettings();
+            _ = MessageService.SendSettingsToFrontend("Migrated copy compress sizes");
+            Log.Information("Updated CopyCompressSizesMb default from 10 MB to 20 MB");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to migrate CopyCompressSizesMb default");
+        }
     }
 
     // Migration 0015: The post-delete cleanup of empty game folders never matched on Windows,

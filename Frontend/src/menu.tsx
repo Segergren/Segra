@@ -54,6 +54,17 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { obsDownloadProgress } = useObsDownload();
   const { migrations: contentMigrations, isMigrating } = useContentMigration();
   const [buttonCooldown, setButtonCooldown] = useState(false);
+  // Only show the "Starting OBS" indicator once OBS has been starting for a while,
+  // so a fast start doesn't cause a flash of the spinner.
+  const [showObsStarting, setShowObsStarting] = useState(false);
+
+  useEffect(() => {
+    if (!hasLoadedObs) {
+      const timeoutId = setTimeout(() => setShowObsStarting(true), 1000);
+      return () => clearTimeout(timeoutId);
+    }
+    setShowObsStarting(false);
+  }, [hasLoadedObs]);
 
   const buttonRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [indicatorPosition, setIndicatorPosition] = useState({ top: 12 });
@@ -280,8 +291,8 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
               </div>
               <p className="text-gray-500 text-xs mt-1">{obsDownloadProgress}%</p>
             </>
-          ) : (
-            <>
+          ) : showObsStarting ? (
+            <div className="w-full bg-base-200 border border-base-400 border-opacity-75 rounded-lg px-3 py-3 flex flex-col items-center">
               <div
                 style={{
                   width: '3.5rem',
@@ -290,8 +301,8 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
                 className="loading loading-infinity"
               ></div>
               <p className="text-center mt-2 disabled">Starting OBS</p>
-            </>
-          )}
+            </div>
+          ) : null}
         </div>
       )}
 

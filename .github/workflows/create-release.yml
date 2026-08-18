@@ -3,8 +3,8 @@ name: Create Release
 on:
   workflow_dispatch:
     inputs:
-      rc_tag:
-        description: 'The prerelease tag to use as a base (e.g., v0.1.0-rc.1 or v0.1.0-beta.1)'
+      beta_tag:
+        description: 'The beta tag to use as a base (e.g., v0.1.0-beta.1)'
         required: true
         type: string
 
@@ -18,39 +18,34 @@ jobs:
       final_version_number: ${{ steps.extract_final_version.outputs.final_version_number }}
 
     steps:
-      - name: Get Prerelease Tag Input
-        id: get_rc_tag_input
-        shell: bash
-        run: echo "rc_tag_name=${{ github.event.inputs.rc_tag }}" >> $GITHUB_OUTPUT
-
-      - name: Validate Prerelease Tag Format
-        id: validate_rc_tag
+      - name: Validate Beta Tag Format
+        id: validate_beta_tag
         shell: bash
         run: |
-          rc_tag="${{ steps.get_rc_tag_input.outputs.rc_tag_name }}"
-          if [[ ! "$rc_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(rc|beta)\.[0-9]+$ ]]; then
-            echo "::error::Invalid prerelease tag format: $rc_tag. Expected format: vX.Y.Z-rc.N or vX.Y.Z-beta.N"
+          beta_tag="${{ github.event.inputs.beta_tag }}"
+          if [[ ! "$beta_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+            echo "::error::Invalid beta tag format: $beta_tag. Expected format: vX.Y.Z-beta.N"
             exit 1
           fi
-          echo "Prerelease tag $rc_tag is valid."
+          echo "Beta tag $beta_tag is valid."
 
-      - name: Extract Final Version from Prerelease Tag
+      - name: Extract Final Version from Beta Tag
         id: extract_final_version
         shell: bash
         run: |
-          rc_tag="${{ steps.get_rc_tag_input.outputs.rc_tag_name }}"
-          final_version_tag=$(echo "$rc_tag" | sed -E 's/-(rc|beta)\.[0-9]+$//')
+          beta_tag="${{ github.event.inputs.beta_tag }}"
+          final_version_tag=$(echo "$beta_tag" | sed -E 's/-beta\.[0-9]+$//')
           final_version_number=$(echo "$final_version_tag" | sed 's/^v//')
           echo "final_version_tag=$final_version_tag" >> $GITHUB_OUTPUT
           echo "final_version_number=$final_version_number" >> $GITHUB_OUTPUT
           echo "Extracted final version tag: $final_version_tag"
           echo "Extracted final version number: $final_version_number"
 
-      - name: Checkout Code at Prerelease Tag
+      - name: Checkout Code at Beta Tag
         uses: actions/checkout@v6
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          ref: ${{ steps.get_rc_tag_input.outputs.rc_tag_name }} # Checkout the specific prerelease tag
+          ref: ${{ github.event.inputs.beta_tag }} # Checkout the specific beta tag
           submodules: recursive
           fetch-depth: 0 # Fetch all history for all tags and branches
 
@@ -300,17 +295,17 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - name: Compute final version from the prerelease tag
+      - name: Compute final version from the beta tag
         id: ver
         run: |
-          rc='${{ github.event.inputs.rc_tag }}'
-          num=$(echo "$rc" | sed -E 's/-(rc|beta)\.[0-9]+$//' | sed 's/^v//')
+          beta='${{ github.event.inputs.beta_tag }}'
+          num=$(echo "$beta" | sed -E 's/-beta\.[0-9]+$//' | sed 's/^v//')
           echo "num=$num" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout Code at Prerelease Tag
+      - name: Checkout Code at Beta Tag
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.rc_tag }}
+          ref: ${{ github.event.inputs.beta_tag }}
           submodules: recursive
 
       - name: Setup .NET 10

@@ -3,7 +3,7 @@ import { Content, BookmarkType, Segment, Bookmark } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAppState } from '../Context/AppStateContext';
-import { openFileLocation } from '../Utils/FileUtils';
+import { openFileLocation, contentTypeToFolderName } from '../Utils/FileUtils';
 import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -1514,16 +1514,7 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   // Get audio waveform URL - waveforms are stored in AppData
   const getWaveformPath = (): string => {
-    // Map type to folder name for waveforms in AppData
-    const folderName =
-      video.type === 'Session'
-        ? 'Full Sessions'
-        : video.type === 'Buffer'
-          ? 'Replay Buffers'
-          : video.type === 'Clip'
-            ? 'Clips'
-            : 'Highlights';
-    const waveformPath = `${appState.cacheFolder}/waveforms/${folderName}/${video.id}.peaks.json`;
+    const waveformPath = `${appState.cacheFolder}/waveforms/${contentTypeToFolderName(video.type)}/${video.id}.peaks.json`;
     return `http://localhost:2222/api/content?input=${encodeURIComponent(waveformPath)}&type=${video.type.toLowerCase()}`;
   };
 

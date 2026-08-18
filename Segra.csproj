@@ -81,7 +81,6 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
     <PackageReference Include="System.Resources.Extensions" Version="10.0.0" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.0" />
   </ItemGroup>
 
   <!-- Windows-only source files (WASAPI/WMI/WinForms/WinRT/registry/DirectX). Excluded from the
@@ -120,19 +119,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="Resources\app.png" />
     <None Remove="Resources\icon.ico" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Frontend\public\" />
-    <Folder Include="Frontend\src\lib\supabase\" />
-    <Folder Include="Frontend\src\Hooks\" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include=".github\workflows\build-pre-release.yml" />
-    <None Include=".github\workflows\finalize-release.yml" />
   </ItemGroup>
 
   <ItemGroup>
@@ -151,11 +138,6 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-    <Compile Update="Properties\Settings.Designer.cs">
-      <DesignTimeSharedInput>True</DesignTimeSharedInput>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Settings.settings</DependentUpon>
-    </Compile>
   </ItemGroup>
 
   <ItemGroup>
@@ -163,13 +145,6 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Properties\Settings.settings">
-      <Generator>SettingsSingleFileGenerator</Generator>
-      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
-    </None>
   </ItemGroup>
 
   <ItemGroup>

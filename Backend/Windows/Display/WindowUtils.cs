@@ -46,7 +46,6 @@ namespace Segra.Backend.Windows.Display
         private const int GWL_EXSTYLE = -20;
         private const uint WS_VISIBLE = 0x10000000;
         private const uint WS_MINIMIZE = 0x20000000;
-        private const uint WS_POPUP = 0x80000000;
         private const uint WS_CHILD = 0x40000000;
         private const uint WS_EX_TOOLWINDOW = 0x00000080;
         private const uint WS_EX_APPWINDOW = 0x00040000;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { FileText, RefreshCw, Plane } from 'lucide-react';
-import { GithubIcon } from '../icons/BrandIcons';
+import { FileText, RefreshCw, Plane, BookOpen } from 'lucide-react';
+import { GithubIcon, DiscordIcon } from '../icons/BrandIcons';
 import DropdownSelect from '../DropdownSelect';
 import { Settings as SettingsType } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
@@ -177,14 +177,36 @@ export default function AdvancedSection({
       {/* Version */}
       <div className="text-center mt-4 text-sm text-gray-500">
         <div className="flex flex-col items-center gap-2">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => sendMessageToBackend('OpenLogsLocation')}
-          >
-            <FileText className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span className="leading-none">View Logs</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() =>
+                sendMessageToBackend('OpenInBrowser', { Url: 'https://docs.segra.tv' })
+              }
+            >
+              <BookOpen className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span className="leading-none">Docs</span>
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() =>
+                sendMessageToBackend('OpenInBrowser', { Url: 'https://discord.gg/6JbPTS9weF' })
+              }
+            >
+              <DiscordIcon size={16} className="shrink-0" aria-hidden="true" />
+              <span className="leading-none">Discord</span>
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => sendMessageToBackend('OpenLogsLocation')}
+            >
+              <FileText className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span className="leading-none">Logs</span>
+            </Button>
+          </div>
           <div>
             Segra{' '}
             {__APP_VERSION__ === 'Developer Preview' ? __APP_VERSION__ : 'v' + __APP_VERSION__}

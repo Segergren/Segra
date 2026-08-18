@@ -37,8 +37,6 @@ namespace Segra.Backend.Auth
             Auth.RefreshToken = string.Empty;
         }
 
-        public static bool IsAuthenticated() => Auth.HasCredentials();
-
         public static async Task<string> GetJwtAsync()
         {
             var jwt = Auth.Jwt;

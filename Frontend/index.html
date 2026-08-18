@@ -8,6 +8,16 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Segra</title>
+    <style>
+      /* Critical CSS applied before the bundle loads, so the first paint of the page is
+         the app background instead of a white flash. The rest of the theme lives in
+         globals.css (--color-base-300: #171f2a). */
+      html,
+      body,
+      #root {
+        background-color: #171f2a;
+      }
+    </style>
   </head>
   <body style="font-family: Roboto, sans-serif">
     <div id="root"></div>

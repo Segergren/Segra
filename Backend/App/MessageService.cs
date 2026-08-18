@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using Segra.Backend.Auth;
 using Segra.Backend.Core;
-using System.Diagnostics;
 using Segra.Backend.Games;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
@@ -618,6 +617,7 @@ namespace Segra.Backend.App
                         {
                             Id = id,
                             Type = content.Type.ToString(),
+                            ContentId = content.Id,
                             StartTime = startTime,
                             EndTime = endTime,
                             FileName = content.FileName,

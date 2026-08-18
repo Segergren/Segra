@@ -1,6 +1,5 @@
 using Serilog;
 using Segra.Backend.App;
-using Segra.Backend.Core;
 using Segra.Backend.Platform;
 using System.Text.Json.Serialization;
 
@@ -71,7 +70,7 @@ namespace Segra.Backend.Core.Models
         private string _clipAudioQuality = "128k";
         private string _clipPreset = "veryfast";
         private bool _clipKeepSeparateAudioTracks = false;
-        private List<int> _copyCompressSizesMb = new List<int> { 10, 50, 100, 500 };
+        private List<int> _copyCompressSizesMb = new List<int> { 20, 50, 100, 500 };
         private float _soundEffectsVolume = 0.5f;
         private bool _showNewBadgeOnVideos = false;
         private bool _showGameBackground = true;
@@ -638,7 +637,7 @@ namespace Segra.Backend.Core.Models
             get => _copyCompressSizesMb;
             set
             {
-                _copyCompressSizesMb = value ?? new List<int> { 10, 50, 100, 500 };
+                _copyCompressSizesMb = value ?? new List<int> { 20, 50, 100, 500 };
             }
         }
 
@@ -1173,6 +1172,14 @@ namespace Segra.Backend.Core.Models
         public string? UploadId { get; set; }
 
         public int? IgdbId { get; set; }
+
+        // Full path of the game exe this video was recorded from, for diagnostics.
+        private string? _gameExePath;
+        public string? GameExePath
+        {
+            get => _gameExePath;
+            set => _gameExePath = Segra.Backend.Shared.PathUtils.NormalizeOrNull(value);
+        }
 
         // Names for the audio tracks in the recording/container.
         // Track 1 is always the mixed track ("Full Mix").
