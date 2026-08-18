@@ -63,6 +63,7 @@ namespace Segra.Backend.Recorder
         private static readonly (string Name, string Window)[] VoiceChatApps =
         [
             ("Discord", "Discord:Chrome_WidgetWin_1:Discord.exe"),
+            ("Discord Canary", "DiscordCanary:Chrome_WidgetWin_1:DiscordCanary.exe"),
             ("TeamSpeak", "TeamSpeak:Chrome_WidgetWin_1:TeamSpeak.exe"),
             ("TeamSpeak 3", "TeamSpeak 3:Qt5152QWindowIcon:ts3client_win64.exe"),
             ("TeamSpeak 3", "TeamSpeak 3:Qt5152QWindowIcon:ts3client_win32.exe"),
