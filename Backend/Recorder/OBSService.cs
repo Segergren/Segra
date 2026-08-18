@@ -789,6 +789,33 @@ namespace Segra.Backend.Recorder
             // checks below intentionally run after this so they estimate using the per-game bitrate.
             _activeEffectiveSettings = eff;
 
+            StorageService.StorageLocationCheck[] unavailableLocations =
+            [
+                StorageService.CheckStorageLocation(
+                    "Recording folder",
+                    Settings.Instance.ContentFolder,
+                    GetRecordingFreeSpaceThresholdBytes()),
+                StorageService.CheckStorageLocation("Cache folder", Settings.Instance.CacheFolder),
+                StorageService.CheckStorageLocation("Temporary folder", Path.GetTempPath())
+            ];
+            unavailableLocations = unavailableLocations.Where(check => !check.IsAvailable).ToArray();
+            if (unavailableLocations.Length > 0)
+            {
+                MessageService.StorageLocationModalContent modal =
+                    MessageService.BuildStorageLocationModal(unavailableLocations);
+                Log.Error(
+                    "Cannot start recording because required storage is unavailable: {Details}",
+                    modal.Description);
+                GameDetectionService.PreventRetryRecording = true;
+                Task.Run(() => ShowModal(
+                    "Storage unavailable",
+                    modal.Description,
+                    "error"));
+                Task.Run(() => PlaySound("error"));
+                AppState.Instance.PreRecording = null;
+                return false;
+            }
+
             // Prevent starting if any of the system, recording or temp drives are almost full
             List<StorageService.FullDrive> fullDrives = StorageService.GetFullDrives();
             if (fullDrives.Count > 0)

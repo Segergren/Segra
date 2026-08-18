@@ -13,6 +13,7 @@ using System.Net.WebSockets;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
+using System.Collections.Concurrent;
 
 namespace Segra.Backend.App
 {
@@ -20,6 +21,8 @@ namespace Segra.Backend.App
     {
         private static WebSocket? activeWebSocket;
         private static readonly SemaphoreSlim sendLock = new SemaphoreSlim(1, 1);
+        private sealed record PendingModal(string Title, string Description, string Type, string? Subtitle);
+        private static readonly ConcurrentQueue<PendingModal> pendingModals = new();
         private static readonly JsonSerializerOptions jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -244,6 +247,7 @@ namespace Segra.Backend.App
                             });
 
                             await UpdateService.SendCurrentUpdateProgressToFrontend();
+                            await FlushPendingModals();
                             _ = Task.Run(() => UpdateService.GetReleaseNotes());
                             break;
                         case "SetVideoLocation":
@@ -484,6 +488,63 @@ namespace Segra.Backend.App
             }
         }
 
+        public static void QueueModal(string title, string description, string type = "info", string? subtitle = null)
+        {
+            pendingModals.Enqueue(new PendingModal(title, description, type, subtitle));
+        }
+
+        private static async Task FlushPendingModals()
+        {
+            while (pendingModals.TryDequeue(out PendingModal? modal))
+            {
+                await ShowModal(modal.Title, modal.Description, modal.Type, modal.Subtitle);
+            }
+        }
+
+        internal sealed record StorageLocationModalContent(string Description);
+
+        internal static StorageLocationModalContent BuildStorageLocationModal(
+            IEnumerable<StorageService.StorageLocationCheck> checks)
+        {
+            StorageService.StorageLocationCheck[] failures = checks
+                .Where(check => !check.IsAvailable)
+                .ToArray();
+
+            var locations = failures
+                .GroupBy(check => check.Path, StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    string[] labels = group
+                        .Select(check => check.Label.Replace(" folder", string.Empty, StringComparison.OrdinalIgnoreCase))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+                    string label = labels.Length == 1
+                        ? $"{labels[0]} folder"
+                        : $"{labels[0]} and {string.Join(" and ", labels.Skip(1).Select(value => value.ToLowerInvariant()))} folders";
+                    string reason = string.Join(
+                        " ",
+                        group.Select(check => check.Description).Distinct(StringComparer.OrdinalIgnoreCase));
+                    return $"{label}\n{group.Key}\n{reason}";
+                })
+                .ToArray();
+
+            string action = failures.All(check => check.Problem == StorageService.StorageLocationProblem.Unavailable)
+                ? "Reconnect the drive or network share, or choose another folder in Settings."
+                : failures.All(check => check.Problem == StorageService.StorageLocationProblem.InsufficientSpace)
+                    ? "Free up space or choose another folder in Settings."
+                    : failures.All(check => check.Problem == StorageService.StorageLocationProblem.NotWritable)
+                        ? "Check the folder permissions or choose another folder in Settings."
+                        : "Resolve the storage issues or choose another folder in Settings.";
+
+            return new StorageLocationModalContent($"{string.Join("\n\n", locations)}\n\n{action}");
+        }
+
+        private static Task ShowStorageLocationError(StorageService.StorageLocationCheck check)
+        {
+            StorageLocationModalContent modal = BuildStorageLocationModal([check]);
+            return ShowModal("Storage unavailable", modal.Description, "error");
+        }
+
         public static async Task ShowModal(string title, string description, string type = "info", string? subtitle = null)
         {
             if (type != "info" && type != "warning" && type != "error")
@@ -650,6 +711,15 @@ namespace Segra.Backend.App
                 string selectedPath = Shared.PathUtils.Normalize(picked);
                 Log.Information($"Selected Folder: {selectedPath}");
 
+                StorageService.StorageLocationCheck locationCheck = StorageService.CheckStorageLocation(
+                    "Recording folder",
+                    selectedPath,
+                    StorageService.MinimumRecordingFreeSpaceBytes);
+                if (!locationCheck.IsAvailable)
+                {
+                    await ShowStorageLocationError(locationCheck);
+                    return;
+                }
                 // Check if the new folder would exceed storage limit
                 bool shouldProceed = await StorageWarningService.CheckContentFolderChange(selectedPath);
                 if (shouldProceed)
@@ -675,6 +745,15 @@ namespace Segra.Backend.App
                 string selectedPath = Shared.PathUtils.Normalize(picked);
                 string oldCacheFolder = Settings.Instance.CacheFolder;
                 Log.Information($"Selected Cache Folder: {selectedPath}");
+
+                StorageService.StorageLocationCheck locationCheck = StorageService.CheckStorageLocation(
+                    "Cache folder",
+                    selectedPath);
+                if (!locationCheck.IsAvailable)
+                {
+                    await ShowStorageLocationError(locationCheck);
+                    return;
+                }
 
                 Settings.Instance.CacheFolder = selectedPath;
                 SettingsService.SaveSettings();

@@ -138,13 +138,24 @@ namespace Segra.Backend.App
 
             StartNamedPipeServer();
 
-            var logDirectory = Path.GetDirectoryName(LogFilePath);
-            if (logDirectory != null && !Directory.Exists(logDirectory))
+            try
             {
-                Directory.CreateDirectory(logDirectory);
-            }
+                var logDirectory = Path.GetDirectoryName(LogFilePath);
+                if (logDirectory != null && !Directory.Exists(logDirectory))
+                {
+                    Directory.CreateDirectory(logDirectory);
+                }
 
-            ConfigureLogging();
+                ConfigureLogging();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Could not initialize file logging: {ex}");
+                Log.Logger = new LoggerConfiguration()
+                    .MinimumLevel.Debug()
+                    .WriteTo.Debug()
+                    .CreateLogger();
+            }
 
             VelopackApp.Build()
                 .OnBeforeUpdateFastCallback((v) =>
@@ -267,10 +278,38 @@ namespace Segra.Backend.App
                     _ = PresetsService.ApplyClipPreset("standard");
                 }
 
-                // Ensure content folder exists
-                if (!Directory.Exists(Settings.Instance.ContentFolder))
+                StorageService.StorageLocationCheck[] storageChecks =
+                [
+                    StorageService.CheckStorageLocation(
+                        "Recording folder",
+                        Settings.Instance.ContentFolder,
+                        StorageService.MinimumRecordingFreeSpaceBytes),
+                    StorageService.CheckStorageLocation("Cache folder", Settings.Instance.CacheFolder),
+                    StorageService.CheckStorageLocation("Temporary folder", Path.GetTempPath()),
+                    StorageService.CheckStorageLocation(
+                        "Application data folder",
+                        Path.GetDirectoryName(LogFilePath) ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData))
+                ];
+
+                StorageService.StorageLocationCheck[] unavailableLocations =
+                    storageChecks.Where(check => !check.IsAvailable).ToArray();
+                foreach (StorageService.StorageLocationCheck check in unavailableLocations)
                 {
-                    Directory.CreateDirectory(Settings.Instance.ContentFolder);
+                    Log.Error(
+                        "Storage location unavailable: {Label} at {Path}. {Description}",
+                        check.Label,
+                        check.Path,
+                        check.Description);
+                }
+
+                if (unavailableLocations.Length > 0)
+                {
+                    MessageService.StorageLocationModalContent modal =
+                        MessageService.BuildStorageLocationModal(unavailableLocations);
+                    MessageService.QueueModal(
+                        "Storage unavailable",
+                        modal.Description,
+                        "error");
                 }
 
                 // Run data migrations
