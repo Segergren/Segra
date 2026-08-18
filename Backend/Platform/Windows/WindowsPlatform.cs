@@ -10,50 +10,6 @@ using Segra.Backend.Windows.Watchers;
 
 namespace Segra.Backend.Platform.Windows
 {
-    internal sealed class WindowsTrayIcon : ITrayIcon
-    {
-        public void Initialize(Action onOpen, Action onResetWindowSize, Action onExit, Func<bool> isWindowOpen)
-        {
-            var trayThread = new Thread(() =>
-            {
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
-
-                using var icon = new NotifyIcon
-                {
-                    Icon = Properties.Resources.icon,
-                    Text = "Segra",
-                    Visible = true
-                };
-
-                var menu = new ContextMenuStrip();
-                var openItem = new ToolStripMenuItem("Open", null, (s, e) => onOpen());
-                menu.Items.Add(openItem);
-                menu.Items.Add("Reset window size", null, (s, e) => onResetWindowSize());
-                menu.Items.Add(new ToolStripSeparator());
-                menu.Items.Add("Quit", null, (s, e) => onExit());
-                menu.Opening += (s, e) => openItem.Visible = !isWindowOpen();
-                icon.ContextMenuStrip = menu;
-
-                icon.MouseDoubleClick += (s, e) =>
-                {
-                    if (e.Button == MouseButtons.Left)
-                        onOpen();
-                };
-
-                NotifyIconService.Initialize(icon);
-
-                Application.Run();
-            });
-            trayThread.SetApartmentState(ApartmentState.STA);
-            trayThread.IsBackground = true;
-            trayThread.Start();
-        }
-
-        public void SetRecording(bool recording) =>
-            NotifyIconService.SetNotifyIconStatus(recording ? NotifyIconState.Recording : NotifyIconState.Idle);
-    }
-
     internal sealed class WindowsAudioWatcher : IPlatformWatcher
     {
         private readonly AudioDeviceWatcher _watcher = new();

@@ -1,3 +1,5 @@
+using Segra.Backend.Platform;
+
 namespace Segra.Backend.App;
 
 internal enum NotifyIconState
@@ -6,12 +8,16 @@ internal enum NotifyIconState
     Recording
 }
 
+/// <summary>
+/// Routes tray icon state changes from the recorder to the platform tray icon
+/// without coupling OBSService to a concrete implementation.
+/// </summary>
 internal static class NotifyIconService
 {
-    private static NotifyIcon? _trayIcon;
+    private static ITrayIcon? _trayIcon;
     private static readonly Lock Lock = new();
 
-    public static void Initialize(NotifyIcon trayIcon)
+    public static void Initialize(ITrayIcon trayIcon)
     {
         lock (Lock)
         {
@@ -25,12 +31,7 @@ internal static class NotifyIconService
         {
             if (_trayIcon == null) return;
 
-            _trayIcon.Icon = state switch
-            {
-                NotifyIconState.Idle => Properties.Resources.icon,
-                NotifyIconState.Recording => Properties.Resources.iconRecording,
-                _ => throw new ArgumentOutOfRangeException(nameof(state), state, null)
-            };
+            _trayIcon.SetRecording(state == NotifyIconState.Recording);
         }
     }
 }
