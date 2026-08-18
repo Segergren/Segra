@@ -31,13 +31,22 @@ interface SettingsProviderProps {
   children: ReactNode;
 }
 
+const mergeSettingsWithDefaults = (value: Partial<Settings>): Settings => ({
+  ...initialSettings,
+  ...value,
+  gameIntegrations: {
+    ...initialSettings.gameIntegrations,
+    ...value.gameIntegrations,
+  },
+});
+
 export function SettingsProvider({ children }: SettingsProviderProps) {
   const loadCachedSettings = (): Settings | null => {
     try {
       const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (!raw) return null;
       const cached = JSON.parse(raw);
-      return { ...initialSettings, ...cached };
+      return mergeSettingsWithDefaults(cached);
     } catch {
       return null;
     }
@@ -59,7 +68,15 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   const updateSettings = useCallback<SettingsUpdateContextType>(
     (newSettings, fromBackend = false) => {
       setSettings((prev) => {
-        const updatedSettings: Settings = { ...prev, ...newSettings };
+        const updatedSettings: Settings = {
+          ...prev,
+          ...newSettings,
+          gameIntegrations: {
+            ...initialSettings.gameIntegrations,
+            ...prev.gameIntegrations,
+            ...newSettings.gameIntegrations,
+          },
+        };
         saveCachedSettings(updatedSettings);
         if (!fromBackend) {
           pendingBackendUpdateRef.current = updatedSettings;
