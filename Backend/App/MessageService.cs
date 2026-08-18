@@ -205,13 +205,14 @@ namespace Segra.Backend.App
                             await HandleSelectGameExecutable();
                             break;
                         case "StartRecording":
-                            if (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null)
+                            if ((AppState.Instance.Recording != null && !OBSService.IsBackgroundReplayBufferActive) ||
+                                AppState.Instance.PreRecording != null)
                             {
                                 Log.Information("Recording already in progress. Skipping...");
                                 return;
                             }
 
-                            _ = Task.Run(() => OBSService.StartRecording(startManually: true));
+                            _ = Task.Run(() => OBSService.StartRecordingReplacingBackgroundBufferAsync(startManually: true));
                             break;
                         case "StopRecording":
                             _ = Task.Run(OBSService.StopRecording);

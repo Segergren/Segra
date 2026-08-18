@@ -24,6 +24,7 @@ namespace Segra.Backend.Games
 #endif
         private static readonly Dictionary<string, string> deviceToDrive = new();
         private static bool _running;
+        private static int _gameRecordingStartInProgress;
         private static System.Threading.Timer? _processCheckTimer;
 #if !WINDOWS
         // Snapshot of PIDs seen on the previous /proc scan, to synthesize start/stop events.
@@ -164,7 +165,7 @@ namespace Segra.Backend.Games
                 {
                     if (_knownPids.Contains(pid)) continue;
                     string exePath = ResolveProcessPath(pid);
-                    bool wasRecording = AppState.Instance.Recording != null;
+                    bool wasRecording = AppState.Instance.Recording != null && !OBSService.IsBackgroundReplayBufferActive;
                     HandleProcessStarted(pid, exePath);
                     // If this process just started a Steam/Proton recording, remember the game's install
                     // dir so we can stop when it closes (its Wine PIDs come and go, but all share the dir).
@@ -413,9 +414,11 @@ namespace Segra.Backend.Games
 
         private static void StartGameRecording(int pid, string exePath)
         {
-            if (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null)
+            if ((AppState.Instance.Recording != null && !OBSService.IsBackgroundReplayBufferActive) ||
+                AppState.Instance.PreRecording != null ||
+                Interlocked.CompareExchange(ref _gameRecordingStartInProgress, 1, 0) != 0)
             {
-                Log.Information("[StartGameRecording] Recording already in progress. Skipping...");
+                Log.Information("[StartGameRecording] Recording already in progress or starting. Skipping...");
                 return;
             }
 
@@ -424,8 +427,73 @@ namespace Segra.Backend.Games
             string gameName = ExtractGameName(exePath);
             string? coverImageId = GameUtils.GetCoverImageIdFromExePath(exePath);
 
-            AppState.Instance.PreRecording = new PreRecording { Game = gameName, Status = "Waiting to start", CoverImageId = coverImageId, Pid = pid, Exe = exePath };
-            OBSService.StartRecording(gameName, exePath, pid: pid);
+            _ = Task.Run(async () =>
+            {
+                bool suspendedBackgroundBuffer = false;
+                try
+                {
+                    suspendedBackgroundBuffer = OBSService.IsBackgroundReplayBufferActive;
+                    if (suspendedBackgroundBuffer)
+                    {
+                        Log.Information("[StartGameRecording] Suspending background replay buffer");
+                        await OBSService.StopRecording(restartBackgroundReplayBuffer: false);
+                    }
+
+                    if (!IsProcessRunning(pid))
+                    {
+                        Log.Information("[StartGameRecording] Game exited during buffer handoff. Skipping recording.");
+                        if (suspendedBackgroundBuffer && Settings.Instance.BackgroundReplayBuffer)
+                        {
+                            OBSService.StartBackgroundReplayBuffer();
+                        }
+                        return;
+                    }
+
+                    AppState.Instance.PreRecording = new PreRecording { Game = gameName, Status = "Waiting to start", CoverImageId = coverImageId, Pid = pid, Exe = exePath };
+                    bool started = OBSService.StartRecording(gameName, exePath, pid: pid);
+                    if (!started)
+                    {
+                        if (AppState.Instance.PreRecording?.Pid == pid)
+                        {
+                            AppState.Instance.PreRecording = null;
+                        }
+
+                        if (suspendedBackgroundBuffer && Settings.Instance.BackgroundReplayBuffer)
+                        {
+                            Log.Information("[StartGameRecording] Game recording did not start; restoring background replay buffer");
+                            OBSService.StartBackgroundReplayBuffer();
+                        }
+                    }
+#if !WINDOWS
+                    else if (_recordingSteamInstallPath == null)
+                    {
+                        _recordingSteamInstallPath = SteamInstallDirFromExe(exePath);
+                    }
+#endif
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "[StartGameRecording] Failed to hand off from the background replay buffer to game recording");
+
+                    if (AppState.Instance.PreRecording?.Pid == pid)
+                    {
+                        AppState.Instance.PreRecording = null;
+                    }
+
+                    if (suspendedBackgroundBuffer &&
+                        Settings.Instance.BackgroundReplayBuffer &&
+                        AppState.Instance.Recording == null &&
+                        !OBSService.IsBackgroundReplayBufferActive)
+                    {
+                        Log.Information("[StartGameRecording] Restoring background replay buffer after handoff failure");
+                        OBSService.StartBackgroundReplayBuffer();
+                    }
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _gameRecordingStartInProgress, 0);
+                }
+            });
         }
 
 #if WINDOWS
@@ -451,7 +519,8 @@ namespace Segra.Backend.Games
 
         private static bool ShouldRecordGame(string exePath, string? fileDescription = null)
         {
-            if (string.IsNullOrEmpty(exePath) || AppState.Instance.Recording != null || AppState.Instance.PreRecording != null) return false;
+            if (string.IsNullOrEmpty(exePath) || AppState.Instance.PreRecording != null ||
+                (AppState.Instance.Recording != null && !OBSService.IsBackgroundReplayBufferActive)) return false;
 
             // Normalize path for consistent comparison
             string normalizedExePath = exePath.Replace("\\", "/");
@@ -742,7 +811,7 @@ namespace Segra.Backend.Games
             try
             {
                 // First, check if we're currently recording and if that process is still alive
-                if (AppState.Instance.Recording != null)
+                if (AppState.Instance.Recording != null && !OBSService.IsBackgroundReplayBufferActive)
                 {
                     int? recordingPid = AppState.Instance.Recording.Pid;
                     if (recordingPid.HasValue && !IsProcessRunning(recordingPid.Value))
@@ -1228,7 +1297,7 @@ namespace Segra.Backend.Games
                     // Reset retry recording flag to allow retrying recording if the user has changed foreground window
                     PreventRetryRecording = false;
 
-                    if (AppState.Instance.Recording != null) return;
+                    if (AppState.Instance.Recording != null && !OBSService.IsBackgroundReplayBufferActive) return;
 
                     // The foreground hook can fire repeatedly for the same window; skip if it matches what we last logged
                     if (hwnd == _lastLoggedHwnd) return;

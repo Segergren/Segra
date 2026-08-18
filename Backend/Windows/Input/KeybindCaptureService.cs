@@ -189,7 +189,7 @@ namespace Segra.Backend.Windows.Input
                     break;
 
                 case KeybindAction.ToggleRecording:
-                    if (recording != null || preRecording != null)
+                    if ((recording != null && !OBSService.IsBackgroundReplayBufferActive) || preRecording != null)
                     {
                         Log.Information("Hotkey: stopping recording");
                         Task.Run(OBSService.StopRecording);
@@ -197,7 +197,7 @@ namespace Segra.Backend.Windows.Input
                     else
                     {
                         Log.Information("Hotkey: starting display recording");
-                        Task.Run(() => OBSService.StartRecording(startManually: true));
+                        Task.Run(() => OBSService.StartRecordingReplacingBackgroundBufferAsync(startManually: true));
                     }
                     break;
 

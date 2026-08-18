@@ -48,7 +48,9 @@ const MENU_ICONS: Record<MenuItemId, LucideIcon> = {
 export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const settings = useSettings();
   const appState = useAppState();
-  const { hasLoadedObs, recording, preRecording } = appState;
+  const { hasLoadedObs, recording, preRecording, backgroundReplayBufferActive } = appState;
+  const hasNormalRecording =
+    !backgroundReplayBufferActive && (recording != null || preRecording != null);
   const { updateInfo } = useUpdate();
   const { aiProgress } = useAiHighlights();
   const { obsDownloadProgress } = useObsDownload();
@@ -315,17 +317,15 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
             disabled={
               buttonCooldown ||
               !appState.hasLoadedObs ||
-              (appState.recording && recording && recording.endTime !== null)
+              (hasNormalRecording && recording && recording.endTime !== null)
             }
             onClick={() => {
               setButtonCooldown(true);
               setTimeout(() => setButtonCooldown(false), 1000);
-              sendMessageToBackend(
-                appState.recording || appState.preRecording ? 'StopRecording' : 'StartRecording',
-              );
+              sendMessageToBackend(hasNormalRecording ? 'StopRecording' : 'StartRecording');
             }}
           >
-            {appState.recording || appState.preRecording ? (
+            {hasNormalRecording ? (
               <>
                 <OctagonX className="w-4 h-4" />
                 Stop
