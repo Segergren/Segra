@@ -24,6 +24,7 @@ export interface Content {
   createdAt: string;
   uploadId?: string;
   igdbId?: number;
+  coverImageId?: string;
   gameExePath?: string;
   isImported: boolean;
   compressed: boolean;

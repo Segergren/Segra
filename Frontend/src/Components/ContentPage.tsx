@@ -5,7 +5,7 @@ import { Content, ContentType } from '../Models/types';
 import { useScroll } from '../Context/ScrollContext';
 import { useLayoutEffect, useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { FileUp, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileUp, Folder, Grid3X3, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import ContentFilters, { SortOption } from './ContentFilters';
@@ -17,6 +17,25 @@ import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 // Escape a filename for use inside a CSS attribute-selector string. Windows
 // filenames can't contain " or \, but escape defensively all the same.
 const escapeAttrValue = (value: string) => value.replace(/["\\]/g, '\\$&');
+
+type ContentViewMode = 'default' | 'folders';
+
+const CONTENT_GRID_CLASS_NAME =
+  'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4';
+
+const getContentFolderName = (item: Content) => {
+  if (item.isImported) return 'Imported';
+  return item.game?.trim() || 'Unknown Game';
+};
+
+const getContentTypeFolderName = (type: ContentType) =>
+  type === 'Session'
+    ? 'Full Sessions'
+    : type === 'Buffer'
+      ? 'Replay Buffers'
+      : type === 'Clip'
+        ? 'Clips'
+        : 'Highlights';
 
 interface ContentPageProps {
   contentType: ContentType;
@@ -54,6 +73,19 @@ export default function ContentPage({
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
+  const [contentViewMode, setContentViewMode] = useState<ContentViewMode>(() => {
+    const saved = localStorage.getItem(`${sectionId}-view-mode`);
+    return saved === 'folders' ? 'folders' : 'default';
+  });
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(() => {
+    if (contentViewMode !== 'folders') return null;
+
+    try {
+      return sessionStorage.getItem(`${sectionId}-selected-folder`);
+    } catch {
+      return null;
+    }
+  });
   const [highlightedContentId, setHighlightedContentId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -101,7 +133,7 @@ export default function ContentPage({
   const filteredItems = useMemo(() => {
     let filtered = [...contentItems];
 
-    if (selectedGames.length > 0) {
+    if (contentViewMode === 'default' && selectedGames.length > 0) {
       filtered = filtered.filter((item) => {
         if (selectedGames.includes('Imported') && item.isImported) {
           return true;
@@ -135,7 +167,52 @@ export default function ContentPage({
     });
 
     return filtered;
-  }, [contentItems, selectedGames, sortOption]);
+  }, [contentItems, contentViewMode, selectedGames, sortOption]);
+
+  const folderGroups = useMemo(() => {
+    const groups = new Map<string, Content[]>();
+
+    for (const item of filteredItems) {
+      const folderName = getContentFolderName(item);
+      const existing = groups.get(folderName) ?? [];
+      existing.push(item);
+      groups.set(folderName, existing);
+    }
+
+    return Array.from(groups.entries()).map(([name, items]) => {
+      const sortedItems = [...items].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      const latestItem = sortedItems[0];
+      const coverImageId = sortedItems.find((item) => item.coverImageId)?.coverImageId;
+      const totalSizeKb = items.reduce((total, item) => total + (item.fileSizeKb ?? 0), 0);
+
+      return {
+        name,
+        items,
+        latestItem,
+        coverImageId,
+        totalSizeKb,
+      };
+    });
+  }, [filteredItems]);
+
+  const selectedFolderGroup = useMemo(
+    () => folderGroups.find((group) => group.name === selectedFolder) ?? null,
+    [folderGroups, selectedFolder],
+  );
+  const visibleItems = selectedFolderGroup?.items ?? filteredItems;
+
+  const getFolderArtworkUrl = (group: (typeof folderGroups)[number]) => {
+    if (group.coverImageId) {
+      return `https://segra.tv/api/games/cover/${group.coverImageId}`;
+    }
+
+    if (!group.latestItem) return null;
+
+    const thumbnailPath = `${state.cacheFolder}/thumbnails/${getContentTypeFolderName(contentType)}/${group.latestItem.fileName}.jpeg`;
+    return `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(thumbnailPath)}`;
+  };
 
   const handleGameFilterChange = (games: string[]) => {
     setSelectedGames(games);
@@ -147,9 +224,43 @@ export default function ContentPage({
     localStorage.setItem(`${sectionId}-sort`, JSON.stringify(option));
   };
 
-  const handlePlay = (video: Content) => {
-    setSelectedVideo(video);
+  const handleViewModeChange = (mode: ContentViewMode) => {
+    setContentViewMode(mode);
+    localStorage.setItem(`${sectionId}-view-mode`, mode);
+    if (mode === 'default') {
+      setSelectedFolder(null);
+      sessionStorage.removeItem(`${sectionId}-selected-folder`);
+    }
   };
+
+  const formatFolderSize = (sizeKb: number) => {
+    if (sizeKb <= 0) return null;
+
+    const sizeMb = sizeKb / 1024;
+    if (sizeMb < 1024) {
+      return `${Math.round(sizeMb)} MB`;
+    }
+
+    return `${(sizeMb / 1024).toFixed(1)} GB`;
+  };
+
+  const formatFolderDate = (date: string) => {
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
+  const handlePlay = useCallback(
+    (video: Content) => {
+      if (selectedFolder) {
+        sessionStorage.setItem(`${sectionId}-selected-folder`, selectedFolder);
+      } else {
+        sessionStorage.removeItem(`${sectionId}-selected-folder`);
+      }
+      setSelectedVideo(video);
+    },
+    [sectionId, selectedFolder, setSelectedVideo],
+  );
 
   const handleCardClick = useCallback(
     (video: Content, event?: React.MouseEvent) => {
@@ -171,7 +282,7 @@ export default function ContentPage({
         }
       }
     },
-    [isCtrlPressed, selectedItems.size],
+    [handlePlay, isCtrlPressed, selectedItems.size],
   );
 
   const handleDeleteSelected = useCallback(() => {
@@ -201,10 +312,10 @@ export default function ContentPage({
 
       if (e.ctrlKey && e.key === 'a') {
         e.preventDefault();
-        if (selectedItems.size === filteredItems.length && filteredItems.length > 0) {
+        if (selectedItems.size === visibleItems.length && visibleItems.length > 0) {
           setSelectedItems(new Set());
         } else {
-          setSelectedItems(new Set(filteredItems.map((item) => item.id)));
+          setSelectedItems(new Set(visibleItems.map((item) => item.id)));
         }
       }
 
@@ -237,7 +348,14 @@ export default function ContentPage({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [selectedItems, filteredItems, isModalOpen, handleDeleteSelected]);
+  }, [selectedItems, visibleItems, isModalOpen, handleDeleteSelected]);
+
+  useEffect(() => {
+    if (selectedFolder && !selectedFolderGroup) {
+      setSelectedFolder(null);
+      sessionStorage.removeItem(`${sectionId}-selected-folder`);
+    }
+  }, [sectionId, selectedFolder, selectedFolderGroup]);
 
   const prevContentIdsRef = useRef<string>('');
 
@@ -506,6 +624,32 @@ export default function ContentPage({
               Import
             </Button>
           )}
+          <div className="join">
+            <button
+              type="button"
+              className={`join-item h-8 inline-flex cursor-pointer items-center gap-1.5 rounded-l-lg border border-base-400 px-3 text-sm font-semibold transition-colors ${
+                contentViewMode === 'default'
+                  ? 'bg-base-300 text-primary'
+                  : 'bg-transparent text-gray-300 hover:bg-white/10 hover:text-primary'
+              }`}
+              onClick={() => handleViewModeChange('default')}
+            >
+              <Grid3X3 size={16} />
+              Default
+            </button>
+            <button
+              type="button"
+              className={`join-item h-8 inline-flex cursor-pointer items-center gap-1.5 rounded-r-lg border border-base-400 px-3 text-sm font-semibold transition-colors ${
+                contentViewMode === 'folders'
+                  ? 'bg-base-300 text-primary'
+                  : 'bg-transparent text-gray-300 hover:bg-white/10 hover:text-primary'
+              }`}
+              onClick={() => handleViewModeChange('folders')}
+            >
+              <Folder size={16} />
+              Folders
+            </button>
+          </div>
           <ContentFilters
             uniqueGames={uniqueGames}
             onGameFilterChange={handleGameFilterChange}
@@ -513,26 +657,124 @@ export default function ContentPage({
             sectionId={sectionId}
             selectedGames={selectedGames}
             sortOption={sortOption}
+            showGameFilter={contentViewMode === 'default'}
           />
         </div>
       </div>
 
       {contentItems.length > 0 || hasProgress ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-          {isProgressVisible && progressCardElement}
+        contentViewMode === 'folders' ? (
+          <div className="space-y-4">
+            {isProgressVisible && progressCardElement && (
+              <div className={CONTENT_GRID_CLASS_NAME}>{progressCardElement}</div>
+            )}
 
-          {filteredItems.map((video) => (
-            <ContentCard
-              key={video.id}
-              content={video}
-              onClick={(v, e) => handleCardClick(v, e)}
-              type={contentType}
-              isSelected={selectedItems.has(video.id)}
-              isSelectionMode={isCtrlPressed || selectedItems.size > 0 || marqueeRect !== null}
-              isHighlighted={video.id === highlightedContentId}
-            />
-          ))}
-        </div>
+            {selectedFolderGroup ? (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="no-animation h-8 cursor-pointer gap-1"
+                    onClick={() => {
+                      setSelectedFolder(null);
+                      sessionStorage.removeItem(`${sectionId}-selected-folder`);
+                    }}
+                  >
+                    <ArrowLeft size={16} />
+                    Back to Folders
+                  </Button>
+                  <span className="text-sm text-gray-400">
+                    {selectedFolderGroup.name} · {selectedFolderGroup.items.length}{' '}
+                    {selectedFolderGroup.items.length === 1 ? 'item' : 'items'}
+                  </span>
+                </div>
+
+                <div className={CONTENT_GRID_CLASS_NAME}>
+                  {selectedFolderGroup.items.map((video) => (
+                    <ContentCard
+                      key={video.id}
+                      content={video}
+                      onClick={(v, e) => handleCardClick(v, e)}
+                      type={contentType}
+                      isSelected={selectedItems.has(video.id)}
+                      isSelectionMode={isCtrlPressed || selectedItems.size > 0 || marqueeRect !== null}
+                      isHighlighted={video.id === highlightedContentId}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className={CONTENT_GRID_CLASS_NAME}>
+                {folderGroups.map((group) => {
+                  const artworkUrl = getFolderArtworkUrl(group);
+                  const folderSize = formatFolderSize(group.totalSizeKb);
+                  const latestDate = group.latestItem
+                    ? formatFolderDate(group.latestItem.createdAt)
+                    : null;
+
+                  return (
+                    <button
+                      key={group.name}
+                      type="button"
+                      className="relative aspect-video cursor-pointer overflow-hidden rounded-box border border-custom bg-base-300 text-left shadow"
+                      onClick={() => setSelectedFolder(group.name)}
+                    >
+                      {artworkUrl ? (
+                        <img
+                          src={artworkUrl}
+                          alt=""
+                          className="absolute inset-0 h-full w-full object-cover"
+                          loading="lazy"
+                          draggable={false}
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-base-300">
+                          <Folder size={56} className="text-primary/70" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" />
+                      <div className="absolute inset-x-0 bottom-0 p-4">
+                        <div className="flex items-end justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-lg font-bold text-white">
+                              {group.name}
+                            </div>
+                            <div className="mt-1 text-sm text-gray-300">
+                              {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
+                              {folderSize && ` · ${folderSize}`}
+                            </div>
+                          </div>
+                          {latestDate && (
+                            <div className="shrink-0 rounded bg-black/55 px-2 py-1 text-xs text-gray-200">
+                              {latestDate}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className={CONTENT_GRID_CLASS_NAME}>
+            {isProgressVisible && progressCardElement}
+
+            {filteredItems.map((video) => (
+              <ContentCard
+                key={video.id}
+                content={video}
+                onClick={(v, e) => handleCardClick(v, e)}
+                type={contentType}
+                isSelected={selectedItems.has(video.id)}
+                isSelectionMode={isCtrlPressed || selectedItems.size > 0 || marqueeRect !== null}
+                isHighlighted={video.id === highlightedContentId}
+              />
+            ))}
+          </div>
+        )
       ) : (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
           <Icon size={60} className="mb-4" />
