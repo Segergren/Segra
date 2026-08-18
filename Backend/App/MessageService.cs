@@ -100,6 +100,10 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement clipParameterElement);
                             _ = Task.Run(() => HandleCreateClip(clipParameterElement));
                             break;
+                        case "TrimContent":
+                            root.TryGetProperty("Parameters", out JsonElement trimParameterElement);
+                            _ = Task.Run(() => TrimService.HandleTrimContent(trimParameterElement));
+                            break;
                         case "CreateAiClip":
                             root.TryGetProperty("Parameters", out JsonElement aiClipParameterElement);
                             _ = Task.Run(() => HandleCreateAiClip(aiClipParameterElement));
