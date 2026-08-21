@@ -79,14 +79,12 @@ namespace Segra.Backend.Media
                     perSegmentTrackTypes.AddRange(Enumerable.Repeat<List<string>?>(null, segments.Count));
                 }
 
-                // Union of all track names across sources -- used to normalise every temp clip to the same stream layout
-                List<string>? unionAudioLayout = Settings.Instance.ClipKeepSeparateAudioTracks
-                    ? BuildUnionAudioLayout(perSegmentTrackNames)
-                    : null;
-                List<string>? unionAudioTrackTypes = BuildUnionAudioTrackTypes(
-                    unionAudioLayout,
-                    perSegmentTrackNames,
-                    perSegmentTrackTypes);
+                // Union of all track names across sources -- used to normalise every temp clip
+                // while preserving devices that share a display name but have different input/output types.
+                (List<string>? unionAudioLayout, List<string>? unionAudioTrackTypes) =
+                    Settings.Instance.ClipKeepSeparateAudioTracks
+                        ? BuildUnionAudioLayout(perSegmentTrackNames, perSegmentTrackTypes)
+                        : (null, null);
 
                 double processedDuration = 0;
                 int segmentIndex = 0;
@@ -118,7 +116,9 @@ namespace Segra.Backend.Media
                     List<string>? segmentTrackNames = perSegmentTrackNames[segmentIndex];
                     List<string>? targetLayout = Settings.Instance.ClipKeepSeparateAudioTracks ? unionAudioLayout : null;
 
-                    await ExtractClip(id, inputFilePath, tempFileName, segment.StartTime, segment.EndTime, segmentTrackNames, segment.MutedAudioTracks, segment.AudioTrackVolumes, targetLayout, progress =>
+                    await ExtractClip(id, inputFilePath, tempFileName, segment.StartTime, segment.EndTime,
+                        segmentTrackNames, perSegmentTrackTypes[segmentIndex], segment.MutedAudioTracks,
+                        segment.AudioTrackVolumes, targetLayout, unionAudioTrackTypes, progress =>
                     {
                         double clampedProgress = Math.Min(progress, 1.0);
                         double currentProgress = (processedDuration + (clampedProgress * clipDuration)) / totalDuration * 95;
@@ -378,7 +378,9 @@ namespace Segra.Backend.Media
         }
 
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
-                            List<string>? audioTrackNames, List<int>? mutedAudioTracks, Dictionary<int, double>? audioTrackVolumes, List<string>? targetAudioLayout, Action<double> progressCallback)
+                            List<string>? audioTrackNames, List<string>? audioTrackTypes, List<int>? mutedAudioTracks,
+                            Dictionary<int, double>? audioTrackVolumes, List<string>? targetAudioLayout,
+                            List<string>? targetAudioLayoutTypes, Action<double> progressCallback)
         {
             double duration = endTime - startTime;
             var settings = Settings.Instance;
@@ -507,7 +509,7 @@ namespace Segra.Backend.Media
                 // with real decoded streams inside filter_complex -- mixing synthetic sources and real
                 // streams in the same filtergraph causes a scheduler deadlock in FFmpeg.
                 var filterParts = new List<string>();
-                var mapParts = new List<string> { "-map 0:v:0" };
+                var mapParts = new List<string>();
                 var metaParts = new List<string>();
                 var extraInputParts = new List<string>();
                 int silenceInputIdx = 1; // lavfi inputs start at 1 (0 is the main file)
@@ -531,7 +533,21 @@ namespace Segra.Backend.Media
                 {
                     for (int j = 1; j < targetAudioLayout.Count; j++)
                     {
-                        int srcIdx = audioTrackNames!.FindIndex(n => string.Equals(n, targetAudioLayout[j], StringComparison.OrdinalIgnoreCase));
+                        string? targetType = targetAudioLayoutTypes != null && j < targetAudioLayoutTypes.Count
+                            ? targetAudioLayoutTypes[j]
+                            : null;
+                        int srcIdx = -1;
+                        for (int i = 1; i < audioTrackNames!.Count; i++)
+                        {
+                            bool sameName = string.Equals(audioTrackNames[i], targetAudioLayout[j], StringComparison.OrdinalIgnoreCase);
+                            bool sameType = targetType == null || audioTrackTypes == null || i >= audioTrackTypes.Count ||
+                                string.Equals(audioTrackTypes[i], targetType, StringComparison.OrdinalIgnoreCase);
+                            if (sameName && sameType)
+                            {
+                                srcIdx = i;
+                                break;
+                            }
+                        }
                         if (srcIdx > 0 && (mutedAudioTracks == null || !mutedAudioTracks.Contains(srcIdx)))
                             indivSourceMap[j] = srcIdx;
                     }
@@ -662,7 +678,7 @@ namespace Segra.Backend.Media
 
                         if (enabledTracks.Count == 1 && !anyVolChange)
                         {
-                            mapArgs = $"-map 0:v:0 -map 0:a:{enabledTracks[0]} ";
+                            mapArgs = $"-map 0:a:{enabledTracks[0]} ";
                         }
                         else
                         {
@@ -687,14 +703,14 @@ namespace Segra.Backend.Media
                             {
                                 // Single track with volume change
                                 filterArgs = $"-filter_complex \"{string.Join(";", filterPartsList)}\" ";
-                                mapArgs = $"-map 0:v:0 -map \"{mixInputLabels[0]}\" ";
+                                mapArgs = $"-map \"{mixInputLabels[0]}\" ";
                             }
                             else
                             {
                                 string allInputs = string.Join("", mixInputLabels);
                                 filterPartsList.Add($"{allInputs}amix=inputs={enabledTracks.Count}:duration=longest[mix]");
                                 filterArgs = $"-filter_complex \"{string.Join(";", filterPartsList)}\" ";
-                                mapArgs = "-map 0:v:0 -map \"[mix]\" ";
+                                mapArgs = "-map \"[mix]\" ";
                             }
                         }
 
@@ -703,7 +719,7 @@ namespace Segra.Backend.Media
                 }
                 else if (settings.ClipKeepSeparateAudioTracks && audioTrackNames != null)
                 {
-                    mapArgs = "-map 0:v:0 -map 0:a ";
+                    mapArgs = "-map 0:a ";
                     for (int i = 0; i < audioTrackNames.Count; i++)
                         metadataArgs += $"-metadata:s:a:{i} title=\"{audioTrackNames[i]}\" ";
                 }
@@ -716,13 +732,12 @@ namespace Segra.Backend.Media
             // mismatched samples at the wrong rate (the reported "shrunken audio").
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
             string hwDecodeArgs = await BuildHwDecodeArgs(inputFilePath);
+            string combinedMapArgs = string.IsNullOrWhiteSpace(mapArgs) ? "" : $"-map 0:v:0 {mapArgs}";
             string BuildArguments(string decodeArgs) =>
                              $"-y {decodeArgs}{hwDeviceArgs}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}{hwFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{combinedMapArgs}{hwFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
                              $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
-            string arguments = BuildArguments(hwDecodeArgs);
             Log.Information("Extracting clip");
-            Log.Information($"FFmpeg arguments: {arguments}");
 
             Action<Process> trackProcess = process =>
             {
@@ -740,6 +755,37 @@ namespace Segra.Backend.Media
 
             try
             {
+                bool requiresStagedAudio = !string.IsNullOrWhiteSpace(filterArgs) || !string.IsNullOrWhiteSpace(extraInputArgs);
+                if (requiresStagedAudio)
+                {
+                    await ExtractClipInStages(
+                        clipId,
+                        inputFilePath,
+                        outputFilePath,
+                        startTime,
+                        duration,
+                        filterArgs,
+                        extraInputArgs,
+                        mapArgs,
+                        metadataArgs,
+                        audioRateArg,
+                        hwDecodeArgs,
+                        hwDeviceArgs,
+                        hwFilterArgs,
+                        videoCodec,
+                        presetArgs,
+                        qualityArgs,
+                        fpsArg,
+                        settings.ClipAudioQuality,
+                        progressCallback,
+                        trackProcess);
+
+                    await EnsureVideoReachesEnd(outputFilePath, duration);
+                    return;
+                }
+
+                string arguments = BuildArguments(hwDecodeArgs);
+                Log.Information($"FFmpeg arguments: {arguments}");
                 try
                 {
                     await FFmpegService.RunWithProgress(clipId, arguments, duration, progressCallback, trackProcess);
@@ -749,6 +795,7 @@ namespace Segra.Backend.Media
                     Log.Warning($"[Clip {clipId}] Hardware-accelerated decode failed, retrying with software decode");
                     await FFmpegService.RunWithProgress(clipId, BuildArguments(""), duration, progressCallback, trackProcess);
                 }
+                await EnsureVideoReachesEnd(outputFilePath, duration);
             }
             finally
             {
@@ -760,6 +807,120 @@ namespace Segra.Backend.Media
                 }
             }
         }
+
+        private static async Task ExtractClipInStages(
+            int clipId,
+            string inputFilePath,
+            string outputFilePath,
+            double startTime,
+            double duration,
+            string filterArgs,
+            string extraInputArgs,
+            string audioMapArgs,
+            string metadataArgs,
+            string audioRateArg,
+            string hwDecodeArgs,
+            string hwDeviceArgs,
+            string hwFilterArgs,
+            string videoCodec,
+            string presetArgs,
+            string qualityArgs,
+            string fpsArg,
+            string audioQuality,
+            Action<double> progressCallback,
+            Action<Process> trackProcess)
+        {
+            string outputDirectory = Path.GetDirectoryName(Path.GetFullPath(outputFilePath))!;
+            string tempBaseName = PathUtils.Combine(outputDirectory, $".segra-clip-stage-{Guid.NewGuid()}");
+            string tempVideoPath = $"{tempBaseName}-video.mp4";
+            string tempAudioPath = $"{tempBaseName}-audio.mka";
+            string startArg = startTime.ToString(CultureInfo.InvariantCulture);
+            string durationArg = duration.ToString(CultureInfo.InvariantCulture);
+            bool completed = false;
+
+            try
+            {
+                string BuildVideoArguments(string decodeArgs) =>
+                    $"-y {decodeArgs}{hwDeviceArgs}-ss {startArg} -t {durationArg} -i \"{inputFilePath}\" " +
+                    $"-map 0:v:0 -an {hwFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                    $"-t {durationArg} -movflags +faststart \"{tempVideoPath}\"";
+
+                try
+                {
+                    await FFmpegService.RunWithProgress(
+                        clipId,
+                        BuildVideoArguments(hwDecodeArgs),
+                        duration,
+                        progress => progressCallback(Math.Min(progress, 1.0) * 0.85),
+                        trackProcess);
+                }
+                catch (FFmpegException) when (hwDecodeArgs.Length > 0 && !IsClipCancelled(clipId))
+                {
+                    SafeDelete(tempVideoPath);
+                    Log.Warning($"[Clip {clipId}] Hardware-accelerated decode failed, retrying video stage with software decode");
+                    await FFmpegService.RunWithProgress(
+                        clipId,
+                        BuildVideoArguments(""),
+                        duration,
+                        progress => progressCallback(Math.Min(progress, 1.0) * 0.85),
+                        trackProcess);
+                }
+
+                if (!File.Exists(tempVideoPath))
+                    throw new InvalidOperationException("The video stage did not produce an output file.");
+
+                string audioArguments =
+                    $"-y -ss {startArg} -t {durationArg} -i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{audioMapArgs}" +
+                    $"-vn -c:a aac -b:a {audioQuality} {audioRateArg}{metadataArgs}-t {durationArg} \"{tempAudioPath}\"";
+                await FFmpegService.RunWithProgress(
+                    clipId,
+                    audioArguments,
+                    duration,
+                    progress => progressCallback(0.85 + Math.Min(progress, 1.0) * 0.12),
+                    trackProcess);
+
+                if (!File.Exists(tempAudioPath))
+                    throw new InvalidOperationException("The audio stage did not produce an output file.");
+
+                string muxArguments =
+                    $"-y -i \"{tempVideoPath}\" -i \"{tempAudioPath}\" -map 0:v:0 -map 1:a -c copy " +
+                    $"{metadataArgs}-movflags +faststart \"{outputFilePath}\"";
+                await FFmpegService.RunWithProgress(clipId, muxArguments, null, _ => { }, trackProcess);
+
+                if (!File.Exists(outputFilePath))
+                    throw new InvalidOperationException("The final mux did not produce an output file.");
+
+                progressCallback(1.0);
+                completed = true;
+            }
+            finally
+            {
+                SafeDelete(tempVideoPath);
+                SafeDelete(tempAudioPath);
+                if (!completed)
+                    SafeDelete(outputFilePath);
+            }
+        }
+
+        private static async Task EnsureVideoReachesEnd(string outputFilePath, double expectedDuration)
+        {
+            double probeTime = expectedDuration <= 2 ? expectedDuration / 2 : expectedDuration - 1;
+
+            try
+            {
+                byte[] frame = await FFmpegService.GenerateThumbnail(outputFilePath, probeTime, 16);
+                if (frame.Length == 0)
+                    throw new InvalidOperationException("FFmpeg returned no video frame.");
+            }
+            catch (Exception ex)
+            {
+                SafeDelete(outputFilePath);
+                throw new InvalidOperationException(
+                    "The exported clip video ended before the requested duration.",
+                    ex);
+            }
+        }
+
 
         // dav1d ignores -hwaccel, so AV1 sources need ffmpeg's hwaccel-only native decoder forced.
         // If the GPU can't decode AV1 this fails hard; the caller retries with software decode.
@@ -791,46 +952,42 @@ namespace Segra.Backend.Media
             }
         }
 
-        private static List<string>? BuildUnionAudioLayout(List<List<string>?> perSegmentTrackNames)
+        private static (List<string>? Names, List<string>? Types) BuildUnionAudioLayout(
+            List<List<string>?> perSegmentTrackNames,
+            List<List<string>?> perSegmentTrackTypes)
         {
-            var union = new List<string> { "Full Mix" };
-            foreach (var trackNames in perSegmentTrackNames)
+            var union = new List<(string Name, string? Type)> { ("Full Mix", "mix") };
+            for (int segmentIndex = 0; segmentIndex < perSegmentTrackNames.Count; segmentIndex++)
             {
+                var trackNames = perSegmentTrackNames[segmentIndex];
                 if (trackNames == null) continue;
-                foreach (var name in trackNames.Skip(1))
+                var trackTypes = segmentIndex < perSegmentTrackTypes.Count
+                    ? perSegmentTrackTypes[segmentIndex]
+                    : null;
+
+                for (int trackIndex = 1; trackIndex < trackNames.Count; trackIndex++)
                 {
-                    if (!union.Any(u => string.Equals(u, name, StringComparison.OrdinalIgnoreCase)))
-                        union.Add(name);
+                    string name = trackNames[trackIndex];
+                    string? type = trackTypes != null && trackIndex < trackTypes.Count
+                        ? trackTypes[trackIndex]
+                        : null;
+                    bool alreadyIncluded = union.Any(existing =>
+                        string.Equals(existing.Name, name, StringComparison.OrdinalIgnoreCase) &&
+                        (existing.Type == null || type == null ||
+                         string.Equals(existing.Type, type, StringComparison.OrdinalIgnoreCase)));
+                    if (!alreadyIncluded)
+                        union.Add((name, type));
                 }
             }
-            return union.Count > 1 ? union : null;
-        }
 
-        private static List<string>? BuildUnionAudioTrackTypes(List<string>? unionNames, List<List<string>?> sourceNames, List<List<string>?> sourceTypes)
-        {
-            if (unionNames == null) return null;
+            if (union.Count <= 1)
+                return (null, null);
 
-            var unionTypes = new List<string>(unionNames.Count) { "mix" };
-            foreach (var unionName in unionNames.Skip(1))
-            {
-                string? type = null;
-                for (int sourceIndex = 0; sourceIndex < sourceNames.Count; sourceIndex++)
-                {
-                    int trackIndex = sourceNames[sourceIndex]?.FindIndex(name =>
-                        string.Equals(name, unionName, StringComparison.OrdinalIgnoreCase)) ?? -1;
-                    if (trackIndex >= 0 && sourceTypes[sourceIndex] != null && trackIndex < sourceTypes[sourceIndex]!.Count)
-                    {
-                        type = sourceTypes[sourceIndex]![trackIndex];
-                        break;
-                    }
-                }
-
-                // Legacy recordings do not have type metadata. Avoid showing a misleading icon
-                // on their exported clips when the source type cannot be established.
-                if (type == null) return null;
-                unionTypes.Add(type);
-            }
-            return unionTypes;
+            var names = union.Select(track => track.Name).ToList();
+            var types = union.All(track => track.Type != null)
+                ? union.Select(track => track.Type!).ToList()
+                : null;
+            return (names, types);
         }
 
         private static List<string>? GetSourceAudioTrackNames(Segment segment)
