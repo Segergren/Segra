@@ -716,13 +716,27 @@ namespace Segra.Backend.Media
             // mismatched samples at the wrong rate (the reported "shrunken audio").
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
             string hwDecodeArgs = await BuildHwDecodeArgs(inputFilePath);
-            string BuildArguments(string decodeArgs) =>
-                             $"-y {decodeArgs}{hwDeviceArgs}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}{hwFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
-                             $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
-            string arguments = BuildArguments(hwDecodeArgs);
-            Log.Information("Extracting clip");
-            Log.Information($"FFmpeg arguments: {arguments}");
+            string ssArgs = $"-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} ";
+            string audioMapArgs = mapArgs.Replace("-map 0:v:0 ", "");
+            string videoTempPath = outputFilePath + ".video.mp4";
+            string audioTempPath = outputFilePath + ".audio.mp4";
+
+            // Video and audio are encoded in separate ffmpeg processes and muxed together afterwards.
+            // On very long clips a single process handling both streams can stop the video encode early
+            // while audio keeps running to completion, silently producing a truncated video track.
+            string BuildVideoArguments(string decodeArgs) =>
+                             $"-y {decodeArgs}{hwDeviceArgs}{ssArgs}" +
+                             $"-i \"{inputFilePath}\" -map 0:v:0 {hwFilterArgs}-an -c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                             $"-t {duration.ToString(CultureInfo.InvariantCulture)} \"{videoTempPath}\"";
+            string audioArguments =
+                             $"-y {ssArgs}" +
+                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{audioMapArgs}-vn " +
+                             $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} \"{audioTempPath}\"";
+            string videoArguments = BuildVideoArguments(hwDecodeArgs);
+            Log.Information("Extracting clip video");
+            Log.Information($"FFmpeg arguments: {videoArguments}");
+            Log.Information("Extracting clip audio");
+            Log.Information($"FFmpeg arguments: {audioArguments}");
 
             Action<Process> trackProcess = process =>
             {
@@ -742,12 +756,25 @@ namespace Segra.Backend.Media
             {
                 try
                 {
-                    await FFmpegService.RunWithProgress(clipId, arguments, duration, progressCallback, trackProcess);
+                    try
+                    {
+                        await FFmpegService.RunWithProgress(clipId, videoArguments, duration, progressCallback, trackProcess);
+                    }
+                    catch (FFmpegException) when (hwDecodeArgs.Length > 0 && !IsClipCancelled(clipId))
+                    {
+                        Log.Warning($"[Clip {clipId}] Hardware-accelerated decode failed, retrying with software decode");
+                        await FFmpegService.RunWithProgress(clipId, BuildVideoArguments(""), duration, progressCallback, trackProcess);
+                    }
+
+                    await FFmpegService.RunWithProgress(clipId, audioArguments, duration, _ => { }, trackProcess);
+
+                    string muxArguments = $"-y -i \"{videoTempPath}\" -i \"{audioTempPath}\" -map 0:v:0 -map 1:a? -c copy -shortest -movflags +faststart \"{outputFilePath}\"";
+                    await FFmpegService.RunWithProgress(clipId, muxArguments, duration, _ => { }, trackProcess);
                 }
-                catch (FFmpegException) when (hwDecodeArgs.Length > 0 && !IsClipCancelled(clipId))
+                finally
                 {
-                    Log.Warning($"[Clip {clipId}] Hardware-accelerated decode failed, retrying with software decode");
-                    await FFmpegService.RunWithProgress(clipId, BuildArguments(""), duration, progressCallback, trackProcess);
+                    SafeDelete(videoTempPath);
+                    SafeDelete(audioTempPath);
                 }
             }
             finally
