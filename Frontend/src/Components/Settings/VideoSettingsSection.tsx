@@ -484,6 +484,23 @@ export default function VideoSettingsSection({
         </div>
       </div>
 
+      {/* Auto-start Display Capture on launch */}
+      <label className="flex items-center gap-3 cursor-pointer p-4 bg-base-200 rounded-lg border border-base-400 mt-3">
+        <input
+          type="checkbox"
+          className="checkbox checkbox-primary checkbox-sm"
+          checked={settings.autoStartDisplayCaptureOnLaunch}
+          onChange={(e) => updateSettings({ autoStartDisplayCaptureOnLaunch: e.target.checked })}
+        />
+        <div>
+          <div className="font-semibold">Auto-start Display Capture on Launch</div>
+          <div className="text-xs opacity-70 mt-0.5">
+            Automatically start a Display Capture recording whenever Segra launches, using your
+            current recording settings.
+          </div>
+        </div>
+      </label>
+
       {/* 4:3 Stretch Option */}
       <div className="mt-3">
         <label

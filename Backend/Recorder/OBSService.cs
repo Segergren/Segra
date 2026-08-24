@@ -615,6 +615,12 @@ namespace Segra.Backend.Recorder
                     Log.Error(ex, "Failed to register keybind hotkeys");
                 }
 
+                if (Settings.Instance.AutoStartDisplayCaptureOnLaunch)
+                {
+                    Log.Information("Auto-starting Display Capture recording on launch");
+                    _ = Task.Run(() => StartRecording(startManually: true));
+                }
+
                 _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
                 _ = GameDetectionService.StartAsync();
                 GameDetectionService.ForegroundHook.Start();

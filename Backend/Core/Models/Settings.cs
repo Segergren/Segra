@@ -60,6 +60,7 @@ namespace Segra.Backend.Core.Models
         private List<Keybind> _keybindings;
         private List<GameSetting> _games = new List<GameSetting>();
         private bool _autoRecordGames = true;
+        private bool _autoStartDisplayCaptureOnLaunch = false;
         private Auth _auth = new Auth();
         private bool _clipClearSegmentsAfterCreatingClip = false;
         private bool _clipShowInBrowserAfterUpload = false;
@@ -538,6 +539,14 @@ namespace Segra.Backend.Core.Models
         {
             get => _autoRecordGames;
             set => _autoRecordGames = value;
+        }
+
+        // When true, Segra automatically starts a Display Capture recording once OBS finishes initializing at launch.
+        [JsonPropertyName("autoStartDisplayCaptureOnLaunch")]
+        public bool AutoStartDisplayCaptureOnLaunch
+        {
+            get => _autoStartDisplayCaptureOnLaunch;
+            set => _autoStartDisplayCaptureOnLaunch = value;
         }
 
         // Legacy lists kept only so the pre-rework whitelist/blacklist survive a settings load until the

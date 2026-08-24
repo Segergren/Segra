@@ -319,6 +319,7 @@ export interface Settings {
   keybindings: Keybind[];
   games: GameSetting[];
   autoRecordGames: boolean; // When false, don't auto-start recording when a game launches
+  autoStartDisplayCaptureOnLaunch: boolean; // Automatically start a Display Capture recording when Segra launches
   gameIntegrations: GameIntegrations;
   soundEffectsVolume: number; // Volume for UI sound effects (0.0 to 1.0)
   showNewBadgeOnVideos: boolean;
@@ -421,6 +422,7 @@ export const initialSettings: Settings = {
   ],
   games: [],
   autoRecordGames: true,
+  autoStartDisplayCaptureOnLaunch: false,
   gameIntegrations: {
     counterStrike2: { enabled: true },
     leagueOfLegends: { enabled: true },

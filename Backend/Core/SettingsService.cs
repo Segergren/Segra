@@ -451,6 +451,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.AutoStartDisplayCaptureOnLaunch != updatedSettings.AutoStartDisplayCaptureOnLaunch)
+            {
+                Log.Information($"AutoStartDisplayCaptureOnLaunch changed from '{settings.AutoStartDisplayCaptureOnLaunch}' to '{updatedSettings.AutoStartDisplayCaptureOnLaunch}'");
+                settings.AutoStartDisplayCaptureOnLaunch = updatedSettings.AutoStartDisplayCaptureOnLaunch;
+                hasChanges = true;
+            }
+
             if (settings.ContentFolder != updatedSettings.ContentFolder)
             {
                 Log.Information($"ContentFolder changed from '{settings.ContentFolder}' to '{updatedSettings.ContentFolder}'");
