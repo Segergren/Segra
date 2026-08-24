@@ -414,7 +414,7 @@ namespace Segra.Backend.Shared
                         }
                     }
                 }
-                catch (IOException ex)
+                catch (Exception ex)
                 {
                     Log.Warning($"File not ready yet (attempt {i + 1}/{maxRetries}): {ex.Message}");
                 }
