@@ -290,6 +290,26 @@ namespace Segra.Backend.App
                     }
                 }
 
+                if (!Directory.Exists(Settings.Instance.CacheFolder))
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(Settings.Instance.CacheFolder);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, $"Cache folder '{Settings.Instance.CacheFolder}' is not accessible, falling back to default");
+                        var unreachableCacheFolder = Settings.Instance.CacheFolder;
+                        Settings.Instance.CacheFolder = Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra"));
+                        Directory.CreateDirectory(Settings.Instance.CacheFolder);
+                        SettingsService.SaveSettings();
+                        _ = Task.Run(() => MessageService.ShowModal(
+                            "Cache folder unavailable",
+                            $"The cache folder '{unreachableCacheFolder}' could not be accessed. Segra will use '{Settings.Instance.CacheFolder}' instead. You can change it in Settings.",
+                            "warning"));
+                    }
+                }
+
                 // Run data migrations
                 Task.Run(MigrationService.RunMigrations);
 
