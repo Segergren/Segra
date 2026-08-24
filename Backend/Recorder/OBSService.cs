@@ -784,6 +784,20 @@ namespace Segra.Backend.Recorder
                 return false;
             }
 
+            // The persisted codec may no longer be available (e.g. a dGPU got disabled since last run), so
+            // re-validate against the currently enumerated encoders before committing to it.
+            if (eff.Codec != null && !AppState.Instance.Codecs.Any(c => c.InternalEncoderId.Equals(eff.Codec.InternalEncoderId, StringComparison.OrdinalIgnoreCase)))
+            {
+                Codec? fallbackCodec = SelectDefaultCodec(eff.Encoder, AppState.Instance.Codecs);
+                Log.Warning($"Configured encoder '{eff.Codec.InternalEncoderId}' is not available on this system; falling back to '{fallbackCodec?.InternalEncoderId ?? "none"}'.");
+                if (Settings.Instance.Codec != null && Settings.Instance.Codec.InternalEncoderId.Equals(eff.Codec.InternalEncoderId, StringComparison.OrdinalIgnoreCase))
+                {
+                    Settings.Instance.Codec = fallbackCodec;
+                    SettingsService.SaveSettings();
+                }
+                eff.Codec = fallbackCodec;
+            }
+
             // Publish the effective settings only now that we know no other recording is active, so a
             // blocked start can never overwrite the in-progress recording's settings. The disk-space
             // checks below intentionally run after this so they estimate using the per-game bitrate.
