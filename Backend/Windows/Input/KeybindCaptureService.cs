@@ -161,7 +161,7 @@ namespace Segra.Backend.Windows.Input
             switch (action)
             {
                 case KeybindAction.CreateBookmark:
-                    if (recording != null && (recordingMode == RecordingMode.Session || recordingMode == RecordingMode.Hybrid))
+                    if (recording != null)
                     {
                         Log.Information("Saving bookmark...");
                         var bookmark = new Bookmark
