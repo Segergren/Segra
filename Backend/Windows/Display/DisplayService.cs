@@ -11,9 +11,6 @@ namespace Segra.Backend.Windows.Display
         private static List<Core.Models.Display> pendingDisplays = new();
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfoEx lpmi);
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
@@ -25,8 +22,27 @@ namespace Segra.Backend.Windows.Display
         [DllImport("user32.dll")]
         private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
+        [DllImport("user32.dll")]
+        private static extern int GetDisplayConfigBufferSizes(uint flags, out uint pathCount, out uint modeCount);
+
+        [DllImport("user32.dll")]
+        private static extern int QueryDisplayConfig(
+            uint flags,
+            ref uint pathCount,
+            [Out] DISPLAYCONFIG_PATH_INFO[] paths,
+            ref uint modeCount,
+            [Out] DISPLAYCONFIG_MODE_INFO[] modes,
+            IntPtr currentTopologyId);
+
+        [DllImport("user32.dll")]
+        private static extern int DisplayConfigGetDeviceInfo(ref DISPLAYCONFIG_TARGET_DEVICE_NAME requestPacket);
+
         private const int ENUM_CURRENT_SETTINGS = -1;
         private const uint MONITOR_DEFAULTTONEAREST = 2;
+        private const uint QDC_ONLY_ACTIVE_PATHS = 0x00000002;
+        private const uint DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME = 2;
+        private const int ERROR_SUCCESS = 0;
+        private const int ERROR_INSUFFICIENT_BUFFER = 122;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct DEVMODE
@@ -102,6 +118,96 @@ namespace Segra.Backend.Windows.Display
             public string DeviceKey;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LUID
+        {
+            public uint LowPart;
+            public int HighPart;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DISPLAYCONFIG_DEVICE_INFO_HEADER
+        {
+            public uint type;
+            public uint size;
+            public LUID adapterId;
+            public uint id;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DISPLAYCONFIG_RATIONAL
+        {
+            public uint Numerator;
+            public uint Denominator;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINTL
+        {
+            public int x;
+            public int y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DISPLAYCONFIG_PATH_SOURCE_INFO
+        {
+            public LUID adapterId;
+            public uint id;
+            public uint modeInfoIdx;
+            public uint statusFlags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DISPLAYCONFIG_PATH_TARGET_INFO
+        {
+            public LUID adapterId;
+            public uint id;
+            public uint modeInfoIdx;
+            public int outputTechnology;
+            public int rotation;
+            public int scaling;
+            public DISPLAYCONFIG_RATIONAL refreshRate;
+            public int scanLineOrdering;
+            public int targetAvailable;
+            public uint statusFlags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DISPLAYCONFIG_PATH_INFO
+        {
+            public DISPLAYCONFIG_PATH_SOURCE_INFO sourceInfo;
+            public DISPLAYCONFIG_PATH_TARGET_INFO targetInfo;
+            public uint flags;
+        }
+
+        [StructLayout(LayoutKind.Sequential, Size = 64)]
+        private struct DISPLAYCONFIG_MODE_INFO
+        {
+            public uint infoType;
+            public uint id;
+            public LUID adapterId;
+            public uint width;
+            public uint height;
+            public int pixelFormat;
+            public POINTL position;
+            public DISPLAYCONFIG_RATIONAL pixelRate;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct DISPLAYCONFIG_TARGET_DEVICE_NAME
+        {
+            public DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+            public uint flags;
+            public int outputTechnology;
+            public ushort edidManufactureId;
+            public ushort edidProductCodeId;
+            public uint connectorInstance;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
+            public string monitorFriendlyDeviceName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string monitorDevicePath;
+        }
+
         public static bool GetPrimaryMonitorPhysicalResolution(out uint width, out uint height)
         {
             width = 0;
@@ -132,8 +238,7 @@ namespace Segra.Backend.Windows.Display
 
         public static bool LoadAvailableMonitorsIntoState()
         {
-            pendingDisplays.Clear();
-            EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, MonitorEnumProc, IntPtr.Zero);
+            pendingDisplays = EnumerateActiveDisplays();
 
             var newMaxHeight = GetMaxDisplayHeight();
             var currentDisplays = AppState.Instance.Displays;
@@ -242,32 +347,80 @@ namespace Segra.Backend.Windows.Display
             }
         }
 
-        private static bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData)
+        private static List<Core.Models.Display> EnumerateActiveDisplays()
         {
-            MonitorInfoEx mi = new MonitorInfoEx();
-            mi.Size = Marshal.SizeOf(mi);
+            var displays = new List<Core.Models.Display>();
 
-            if (GetMonitorInfo(hMonitor, ref mi))
+            try
             {
-                DisplayDevice device = new DisplayDevice();
-                device.Size = Marshal.SizeOf(device);
-
-                if (EnumDisplayDevices(mi.DeviceName, 0, ref device, 1))
+                int error = GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out uint pathCount, out uint modeCount);
+                if (error != ERROR_SUCCESS)
                 {
-                    string friendlyName = GetFriendlyMonitorName(device.DeviceID, device.DeviceString);
-                    var display = new Core.Models.Display
+                    Log.Warning("Failed to get display configuration buffer sizes: {Error}", error);
+                    return displays;
+                }
+
+                var paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
+                var modes = new DISPLAYCONFIG_MODE_INFO[modeCount];
+                error = QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
+
+                // The topology can change between the size query and QueryDisplayConfig.
+                if (error == ERROR_INSUFFICIENT_BUFFER)
+                {
+                    error = GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out pathCount, out modeCount);
+                    if (error == ERROR_SUCCESS)
+                    {
+                        paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
+                        modes = new DISPLAYCONFIG_MODE_INFO[modeCount];
+                        error = QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
+                    }
+                }
+
+                if (error != ERROR_SUCCESS)
+                {
+                    Log.Warning("Failed to query active display configuration: {Error}", error);
+                    return displays;
+                }
+
+                for (int i = 0; i < pathCount; i++)
+                {
+                    var target = paths[i].targetInfo;
+                    var targetName = new DISPLAYCONFIG_TARGET_DEVICE_NAME();
+                    targetName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME;
+                    targetName.header.size = (uint)Marshal.SizeOf<DISPLAYCONFIG_TARGET_DEVICE_NAME>();
+                    targetName.header.adapterId = target.adapterId;
+                    targetName.header.id = target.id;
+
+                    if (DisplayConfigGetDeviceInfo(ref targetName) != ERROR_SUCCESS ||
+                        string.IsNullOrWhiteSpace(targetName.monitorDevicePath))
+                    {
+                        continue;
+                    }
+
+                    bool isPrimary = paths[i].sourceInfo.modeInfoIdx < modeCount &&
+                        modes[paths[i].sourceInfo.modeInfoIdx].position.x == 0 &&
+                        modes[paths[i].sourceInfo.modeInfoIdx].position.y == 0;
+                    string friendlyName = GetFriendlyMonitorName(
+                        targetName.monitorDevicePath,
+                        string.IsNullOrWhiteSpace(targetName.monitorFriendlyDeviceName)
+                            ? targetName.monitorDevicePath
+                            : targetName.monitorFriendlyDeviceName);
+
+                    displays.Add(new Core.Models.Display
                     {
                         DeviceName = friendlyName,
-                        DeviceId = device.DeviceID,
-                        IsPrimary = (mi.Flags & 1) != 0,
-                        IsHdr = HdrDetectionService.IsDisplayHdrActive(device.DeviceID)
-                    };
-
-                    pendingDisplays.Add(display);
+                        DeviceId = targetName.monitorDevicePath,
+                        IsPrimary = isPrimary,
+                        IsHdr = HdrDetectionService.IsDisplayHdrActive(targetName.monitorDevicePath)
+                    });
                 }
             }
+            catch (Exception ex)
+            {
+                Log.Warning("Failed to enumerate active displays: {Message}", ex.Message);
+            }
 
-            return true;
+            return displays;
         }
 
         private static string GetFriendlyMonitorName(string deviceId, string fallback)
