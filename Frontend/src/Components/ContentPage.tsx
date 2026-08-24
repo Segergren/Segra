@@ -1,11 +1,12 @@
 import { useAppState } from '../Context/AppStateContext';
 import ContentCard from './ContentCard';
+import GameFolderCard from './GameFolderCard';
 import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { Content, ContentType } from '../Models/types';
 import { useScroll } from '../Context/ScrollContext';
 import { useLayoutEffect, useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { FileUp, Trash2 } from 'lucide-react';
+import { FileUp, Trash2, LayoutGrid, Folder } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import ContentFilters, { SortOption } from './ContentFilters';
@@ -79,6 +80,14 @@ export default function ContentPage({
     }
   });
 
+  const [viewMode, setViewMode] = useState<'flat' | 'folder'>(() => {
+    try {
+      return localStorage.getItem(`${sectionId}-viewMode`) === 'folder' ? 'folder' : 'flat';
+    } catch {
+      return 'flat';
+    }
+  });
+
   const uniqueGames = useMemo(() => {
     const games = contentItems.map((item) => item.game);
     const uniqueGameList = [...new Set(games)].sort();
@@ -137,6 +146,25 @@ export default function ContentPage({
     return filtered;
   }, [contentItems, selectedGames, sortOption]);
 
+  const gameFolders = useMemo(() => {
+    const byGame = new Map<string, Content[]>();
+    for (const item of filteredItems) {
+      const list = byGame.get(item.game);
+      if (list) {
+        list.push(item);
+      } else {
+        byGame.set(item.game, [item]);
+      }
+    }
+    return Array.from(byGame.entries())
+      .map(([game, items]) => ({ game, items }))
+      .sort((a, b) => {
+        const latest = (items: Content[]) =>
+          Math.max(...items.map((item) => new Date(item.createdAt).getTime()));
+        return latest(b.items) - latest(a.items);
+      });
+  }, [filteredItems]);
+
   const handleGameFilterChange = (games: string[]) => {
     setSelectedGames(games);
     localStorage.setItem(`${sectionId}-filters`, JSON.stringify(games));
@@ -145,6 +173,21 @@ export default function ContentPage({
   const handleSortChange = (option: SortOption) => {
     setSortOption(option);
     localStorage.setItem(`${sectionId}-sort`, JSON.stringify(option));
+  };
+
+  const handleViewModeChange = (mode: 'flat' | 'folder') => {
+    setViewMode(mode);
+    setSelectedItems(new Set());
+    try {
+      localStorage.setItem(`${sectionId}-viewMode`, mode);
+    } catch {
+      /* no-op */
+    }
+  };
+
+  const handleFolderClick = (game: string) => {
+    handleGameFilterChange([game]);
+    handleViewModeChange('flat');
   };
 
   const handlePlay = (video: Content) => {
@@ -199,7 +242,7 @@ export default function ContentPage({
         setIsCtrlPressed(true);
       }
 
-      if (e.ctrlKey && e.key === 'a') {
+      if (e.ctrlKey && e.key === 'a' && viewMode === 'flat') {
         e.preventDefault();
         if (selectedItems.size === filteredItems.length && filteredItems.length > 0) {
           setSelectedItems(new Set());
@@ -237,7 +280,7 @@ export default function ContentPage({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [selectedItems, filteredItems, isModalOpen, handleDeleteSelected]);
+  }, [selectedItems, filteredItems, isModalOpen, handleDeleteSelected, viewMode]);
 
   const prevContentIdsRef = useRef<string>('');
 
@@ -370,6 +413,7 @@ export default function ContentPage({
   } | null>(null);
 
   const handleMarqueeMouseDown = (e: React.MouseEvent) => {
+    if (viewMode !== 'flat') return;
     const container = containerRef.current;
     if (!container || e.button !== 0) return;
 
@@ -514,25 +558,54 @@ export default function ContentPage({
             selectedGames={selectedGames}
             sortOption={sortOption}
           />
+          <div className="flex items-center border border-base-400 rounded-lg h-8 overflow-hidden">
+            <button
+              title="Grid view"
+              className={`h-full px-2 flex items-center cursor-pointer hover:text-primary ${viewMode === 'flat' ? 'text-primary bg-base-100' : 'text-gray-300 bg-base-300'}`}
+              onClick={() => handleViewModeChange('flat')}
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              title="Folder view"
+              className={`h-full px-2 flex items-center cursor-pointer hover:text-primary border-l border-base-400 ${viewMode === 'folder' ? 'text-primary bg-base-100' : 'text-gray-300 bg-base-300'}`}
+              onClick={() => handleViewModeChange('folder')}
+            >
+              <Folder size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
       {contentItems.length > 0 || hasProgress ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-          {isProgressVisible && progressCardElement}
+        viewMode === 'folder' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+            {gameFolders.map(({ game, items }) => (
+              <GameFolderCard
+                key={game}
+                game={game}
+                items={items}
+                onClick={() => handleFolderClick(game)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+            {isProgressVisible && progressCardElement}
 
-          {filteredItems.map((video) => (
-            <ContentCard
-              key={video.id}
-              content={video}
-              onClick={(v, e) => handleCardClick(v, e)}
-              type={contentType}
-              isSelected={selectedItems.has(video.id)}
-              isSelectionMode={isCtrlPressed || selectedItems.size > 0 || marqueeRect !== null}
-              isHighlighted={video.id === highlightedContentId}
-            />
-          ))}
-        </div>
+            {filteredItems.map((video) => (
+              <ContentCard
+                key={video.id}
+                content={video}
+                onClick={(v, e) => handleCardClick(v, e)}
+                type={contentType}
+                isSelected={selectedItems.has(video.id)}
+                isSelectionMode={isCtrlPressed || selectedItems.size > 0 || marqueeRect !== null}
+                isHighlighted={video.id === highlightedContentId}
+              />
+            ))}
+          </div>
+        )
       ) : (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
           <Icon size={60} className="mb-4" />
