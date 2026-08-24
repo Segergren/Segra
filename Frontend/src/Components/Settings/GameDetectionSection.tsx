@@ -276,6 +276,23 @@ export default function GameDetectionSection() {
         add one only if it isn&apos;t being recorded, or when you want different settings for it.
       </p>
 
+      {/* Global auto-record toggle */}
+      <label className="flex items-center gap-3 cursor-pointer p-4 bg-base-200 rounded-lg border border-base-400 mb-5">
+        <input
+          type="checkbox"
+          className="checkbox checkbox-primary checkbox-sm"
+          checked={settings.autoRecordGames}
+          onChange={(e) => updateSettings({ autoRecordGames: e.target.checked })}
+        />
+        <div>
+          <div className="font-semibold">Auto-record Games</div>
+          <div className="text-xs opacity-70 mt-0.5">
+            Automatically start recording when a game launches. Games you&apos;ve added with
+            recording enabled and manual recordings are unaffected.
+          </div>
+        </div>
+      </label>
+
       {/* Add game search */}
       <div className="mb-5 relative" ref={searchRef}>
         <label className="label pb-1">

@@ -472,7 +472,14 @@ namespace Segra.Backend.Games
                 return false;
             }
 
-            // 2. Check if the game is in the games.json list by exe pattern.
+            // 2. Global toggle: automatic recording can be disabled entirely (explicit per-game
+            // entries above still apply, as does manual recording).
+            if (!Settings.Instance.AutoRecordGames)
+            {
+                return false;
+            }
+
+            // 3. Check if the game is in the games.json list by exe pattern.
             bool isKnownGame = GameUtils.IsGameExePath(exePath);
             if (isKnownGame)
             {
@@ -481,20 +488,20 @@ namespace Segra.Backend.Games
                 return true;
             }
 
-            // 3. Check if the file path contains blacklisted text
+            // 4. Check if the file path contains blacklisted text
             if (ContainsBlacklistedTextInFilePath(exePath))
             {
                 return false;
             }
 
-            // 4. Check for anticheat in file description and log window information
+            // 5. Check for anticheat in file description and log window information
             if (IsAntiCheatClient(exePath, fileDescription))
             {
                 Log.Information($"Detected anticheat client for this executable, will not record");
                 return false;
             }
 
-            // 5. Launcher-based detection (Steam, EA, Epic, Ubisoft, Xbox)
+            // 6. Launcher-based detection (Steam, EA, Epic, Ubisoft, Xbox)
             string[] launcherMarkers = { "/steamapps/common/", "/EA Games/", "/Epic Games/", "/Ubisoft/", "/XboxGames/" };
             string[] launcherNames = { "Steam", "EA", "Epic", "Ubisoft", "Xbox" };
 

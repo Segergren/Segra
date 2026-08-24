@@ -444,6 +444,13 @@ namespace Segra.Backend.Core
                 }
             }
 
+            if (settings.AutoRecordGames != updatedSettings.AutoRecordGames)
+            {
+                Log.Information($"AutoRecordGames changed from '{settings.AutoRecordGames}' to '{updatedSettings.AutoRecordGames}'");
+                settings.AutoRecordGames = updatedSettings.AutoRecordGames;
+                hasChanges = true;
+            }
+
             if (settings.ContentFolder != updatedSettings.ContentFolder)
             {
                 Log.Information($"ContentFolder changed from '{settings.ContentFolder}' to '{updatedSettings.ContentFolder}'");

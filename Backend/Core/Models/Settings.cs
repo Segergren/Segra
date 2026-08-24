@@ -59,6 +59,7 @@ namespace Segra.Backend.Core.Models
         private int _replayBufferMaxSize = 1000;
         private List<Keybind> _keybindings;
         private List<GameSetting> _games = new List<GameSetting>();
+        private bool _autoRecordGames = true;
         private Auth _auth = new Auth();
         private bool _clipClearSegmentsAfterCreatingClip = false;
         private bool _clipShowInBrowserAfterUpload = false;
@@ -528,6 +529,15 @@ namespace Segra.Backend.Core.Models
             {
                 _games = value ?? new List<GameSetting>();
             }
+        }
+
+        // When false, Segra won't automatically start recording when a game launches.
+        // Explicit per-game entries (Record == true) still record, and manual recording still works.
+        [JsonPropertyName("autoRecordGames")]
+        public bool AutoRecordGames
+        {
+            get => _autoRecordGames;
+            set => _autoRecordGames = value;
         }
 
         // Legacy lists kept only so the pre-rework whitelist/blacklist survive a settings load until the
