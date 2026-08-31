@@ -123,11 +123,11 @@ export default function KeybindingsSection({ settings, updateSettings }: Keybind
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <h2 className="text-xl font-semibold mb-4">Keybindings</h2>
-      <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
         {settings.keybindings.map((keybind, index) => (
           <div
             key={index}
-            className="flex items-center justify-between bg-base-200 rounded-lg py-2 px-3 border border-base-400 w-1/2"
+            className="flex items-center justify-between bg-base-200 rounded-lg py-2 px-3 border border-base-400"
           >
             <label className="flex items-center gap-3 cursor-pointer">
               <input

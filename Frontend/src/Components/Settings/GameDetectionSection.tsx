@@ -22,6 +22,7 @@ import {
 import { useModal } from '../../Context/ModalContext';
 import CustomGameModal from '../CustomGameModal';
 import DropdownSelect from '../DropdownSelect';
+import RangeSlider from '../RangeSlider';
 import { useDeleteConfirmation } from '../../Hooks/useDeleteConfirmation';
 
 const BITRATE_OPTIONS = Array.from({ length: 19 }, (_, i) => (i + 2) * 5); // 10..100 Mbps
@@ -680,8 +681,7 @@ function GamePanel({
       >
         <div className="flex items-center gap-3">
           <VolumeX className="w-4 h-4 text-gray-400 shrink-0" />
-          <input
-            type="range"
+          <RangeSlider
             min="0"
             max="2"
             step="0.02"
@@ -696,7 +696,7 @@ function GamePanel({
               onUpdate({ volumeOverride: draggingVolume ?? game.volumeOverride ?? 1.0 });
               setDraggingVolume(null);
             }}
-            className="range range-xs range-primary w-48 [--range-fill:0]"
+            className="w-48"
           />
           <Volume2 className="w-4 h-4 text-gray-400 shrink-0" />
           <span className="text-xs w-10 text-right">

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TriangleAlert, X, CircleAlert, Volume2, Gamepad2 } from 'lucide-react';
 import { DiscordIcon, TeamSpeakIcon } from '../icons/BrandIcons';
 import Button from '../Button';
+import RangeSlider from '../RangeSlider';
 import { Settings as SettingsType, AudioDevice, AudioOutputMode } from '../../Models/types';
 import { useAppState } from '../../Context/AppStateContext';
 
@@ -162,8 +163,7 @@ export default function AudioDevicesSection({
                     draggingVolume.deviceType === deviceType;
                   return (
                     <div className="flex items-center gap-1 w-32">
-                      <input
-                        type="range"
+                      <RangeSlider
                         min="0"
                         max="2"
                         step="0.02"
@@ -173,7 +173,7 @@ export default function AudioDevicesSection({
                             : (selectedDevices.find((d) => d.id === device.id)?.volume ?? 1.0)
                         }
                         disabled={isRecording}
-                        className="range range-xs range-primary [--range-fill:0] disabled:opacity-60"
+                        className="min-w-0 flex-1"
                         onChange={(e) => {
                           if (isDragging) {
                             setDraggingVolume({
@@ -252,14 +252,13 @@ export default function AudioDevicesSection({
                     draggingVolume.deviceType === deviceType;
                   return (
                     <div className="flex items-center gap-1 w-32">
-                      <input
-                        type="range"
+                      <RangeSlider
                         min="0"
                         max="2"
                         step="0.02"
                         value={isDragging ? (draggingVolume.volume ?? 0) : deviceSetting.volume}
                         disabled={isRecording}
-                        className="range range-xs range-primary [--range-fill:0] disabled:opacity-60"
+                        className="min-w-0 flex-1"
                         onChange={(e) => {
                           if (isDragging) {
                             setDraggingVolume({
@@ -371,13 +370,23 @@ export default function AudioDevicesSection({
           </label>
           <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
             {renderDeviceList('output')}
+            <AnimatePresence initial={false}>
+              {settings.audioOutputMode !== 'All' && settings.outputDevices.length > 0 && (
+                <motion.div
+                  key="outputFallbackNote"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-2 px-1 text-xs text-base-content/60 leading-snug">
+                    Used as fallback audio when no game is hooked.
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          {settings.audioOutputMode !== 'All' && settings.outputDevices.length > 0 && (
-            <div className="mt-2 text-xs text-base-content/60 leading-snug">
-              Used as fallback audio when no game is hooked. Automatically muted while a game
-              capture is active.
-            </div>
-          )}
 
           <div className="flex flex-col gap-1 w-80 mt-2">
             {[
@@ -405,7 +414,7 @@ export default function AudioDevicesSection({
             ].map((option) => (
               <label
                 key={option.value}
-                className={`flex items-center gap-2 p-1 rounded ${isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-base-200'}`}
+                className={`flex items-center gap-2 p-1 rounded ${isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
               >
                 <input
                   type="radio"
@@ -442,7 +451,7 @@ export default function AudioDevicesSection({
           >
             <div className="py-2 flex items-center w-full">
               <TriangleAlert className="h-5 w-5 mr-2 shrink-0" />
-              <motion.span className="flex-1">
+              <motion.span className="min-w-0 flex-1">
                 You have selected more than 5 audio sources. Only the first 5 will be saved as
                 separate audio tracks. Any additional sources will be recorded in the Full Mix only.
               </motion.span>
