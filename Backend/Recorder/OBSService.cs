@@ -1173,12 +1173,20 @@ namespace Segra.Backend.Recorder
             int voiceChatGroupIndex = -1;
             if (audioOutputMode != AudioOutputMode.All && GameCaptureSource != null)
             {
-                // Desktop sources are fallback-only: assign to full mix (Track 1) only, no separate tracks
+                // Desktop sources are fallback-only: assign to full mix (Track 1) only, no separate tracks.
+                // Mute them here if the game hooked before they were added (the hook event missed them).
+                bool gameAlreadyHooked = GameCaptureSource.IsHooked;
                 foreach (var desktopSource in _desktopSources)
                 {
-                    try { desktopSource.AudioMixers = 1u << 0; }
+                    try
+                    {
+                        desktopSource.AudioMixers = 1u << 0;
+                        desktopSource.IsMuted = gameAlreadyHooked;
+                    }
                     catch (Exception ex) { Log.Warning($"Failed to set mixer for fallback desktop source: {ex.Message}"); }
                 }
+                if (gameAlreadyHooked)
+                    Log.Information("Muted desktop audio sources (game already hooked before sources were added)");
 
                 // Remove desktop sources from the list that gets separate tracks
                 trackGroups = [];
@@ -1694,6 +1702,7 @@ namespace Segra.Backend.Recorder
                 bool effectiveDiscard = _activeEffectiveSettings?.DiscardSessionsWithoutBookmarks ?? Settings.Instance.DiscardSessionsWithoutBookmarks;
                 bool isReplayBufferMode = effectiveMode == RecordingMode.Buffer;
                 bool isHybridMode = effectiveMode == RecordingMode.Hybrid;
+                string? sessionContentId = null;
 
                 if (isReplayBufferMode && _bufferOutput != null)
                 {
@@ -1791,9 +1800,9 @@ namespace Segra.Backend.Recorder
                             int? igdbId = !string.IsNullOrEmpty(AppState.Instance.Recording.ExePath)
                                 ? GameUtils.GetIgdbIdFromExePath(AppState.Instance.Recording.ExePath)
                                 : null;
-                            string? sessionId = await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames, audioTrackTypes: AppState.Instance.Recording.AudioTrackTypes, gameExePath: AppState.Instance.Recording.ExePath);
-                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
-                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
+                            sessionContentId = await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames, audioTrackTypes: AppState.Instance.Recording.AudioTrackTypes, gameExePath: AppState.Instance.Recording.ExePath);
+                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionContentId);
+                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionContentId);
 
                             Log.Information($"Recording details:");
                             Log.Information($"Start Time: {AppState.Instance.Recording.StartTime}");
@@ -1891,9 +1900,9 @@ namespace Segra.Backend.Recorder
                             int? igdbId = !string.IsNullOrEmpty(AppState.Instance.Recording.ExePath)
                                 ? GameUtils.GetIgdbIdFromExePath(AppState.Instance.Recording.ExePath)
                                 : null;
-                            string? sessionId = await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames, audioTrackTypes: AppState.Instance.Recording.AudioTrackTypes, gameExePath: AppState.Instance.Recording.ExePath);
-                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
-                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionId);
+                            sessionContentId = await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames, audioTrackTypes: AppState.Instance.Recording.AudioTrackTypes, gameExePath: AppState.Instance.Recording.ExePath);
+                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionContentId);
+                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionContentId);
                         }
                     }
 
@@ -1925,9 +1934,6 @@ namespace Segra.Backend.Recorder
                     return;
                 }
 
-                // Get the file path before nullifying the recording (FilePath is not null at this point because of the previous check)
-                string filePath = AppState.Instance.Recording.FilePath!;
-
                 // Get the bookmarks before nullifying the recording
                 List<Bookmark> bookmarks = AppState.Instance.Recording.Bookmarks;
 
@@ -1935,11 +1941,10 @@ namespace Segra.Backend.Recorder
                 AppState.Instance.Recording = null;
                 AppState.Instance.PreRecording = null;
 
-                // If the recording is not a replay buffer recording, AI is enabled, user is authenticated, and auto generate highlights is enabled -> analyze the video!
-                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && !isReplayBufferMode && bookmarks.Any(b => b.Type.IncludeInHighlight()))
+                // If the recording is not a replay buffer recording, AI is enabled and auto generate highlights is enabled -> analyze the video!
+                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && !isReplayBufferMode && sessionContentId != null && bookmarks.Any(b => b.Type.IncludeInHighlight()))
                 {
-                    string fileName = Path.GetFileNameWithoutExtension(filePath);
-                    _ = AiService.CreateHighlight(fileName);
+                    _ = AiService.CreateHighlight(sessionContentId);
                 }
             }
             finally

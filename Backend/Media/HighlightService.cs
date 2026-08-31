@@ -174,6 +174,7 @@ namespace Segra.Backend.Media
                         "-ss", segment.StartTime.ToString(CultureInfo.InvariantCulture),
                         "-t", segmentDuration.ToString(CultureInfo.InvariantCulture),
                         "-i", inputFilePath,
+                        "-map", "0",
                         "-c", "copy",
                         "-avoid_negative_ts", "make_zero",
                         tempFile
@@ -218,6 +219,7 @@ namespace Segra.Backend.Media
                     "-f", "concat",
                     "-safe", "0",
                     "-i", concatFilePath,
+                    "-map", "0",
                     "-c", "copy",
                     "-movflags", "+faststart",
                     outputFilePath
