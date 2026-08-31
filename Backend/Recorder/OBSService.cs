@@ -1139,16 +1139,16 @@ namespace Segra.Backend.Recorder
                 }
             }
 
-            // In GameAndDiscord mode, capture audio from running voice chat apps. Sources start muted
-            // (desktop audio covers voice chat until the game hooks); apps launched mid-recording are
-            // added via OnVoiceChatAppStarted.
+            // In GameAndDiscord mode, capture audio from running voice chat apps. Sources are muted
+            // while the game is not hooked (desktop audio covers voice chat); apps launched
+            // mid-recording are added via OnVoiceChatAppStarted.
             if (audioOutputMode == AudioOutputMode.GameAndDiscord && GameCaptureSource != null)
             {
                 foreach (var app in VoiceChatApps)
                 {
                     string processName = Path.GetFileNameWithoutExtension(app.Window.Split(':')[^1]);
                     if (IsProcessRunning(processName))
-                        TryAddVoiceChatSource(app, muted: true);
+                        TryAddVoiceChatSource(app);
                 }
             }
 
@@ -2219,15 +2219,18 @@ namespace Segra.Backend.Recorder
             }
         }
 
-        private static Source? TryAddVoiceChatSource((string Name, string Window) app, bool muted)
+        private static Source? TryAddVoiceChatSource((string Name, string Window) app)
         {
             try
             {
                 var voiceSource = new ApplicationAudioCapture($"{app.Name} Audio")
                     .SetWindow(app.Window, ApplicationAudioCapture.WindowPriority.Executable);
-                voiceSource.IsMuted = muted;
+                voiceSource.IsMuted = true;
                 _mainScene!.AddSource(voiceSource);
                 _voiceChatSources.Add((app.Name, app.Window, voiceSource));
+
+                bool muted = GameCaptureSource?.IsHooked != true;
+                voiceSource.IsMuted = muted;
                 Log.Information($"Added {app.Name} application audio capture source{(muted ? " (muted until game hooks)" : "")}");
                 return voiceSource;
             }
@@ -2256,7 +2259,7 @@ namespace Segra.Backend.Recorder
                     if (!string.Equals(fileName, appExe, StringComparison.OrdinalIgnoreCase)) continue;
                     if (_voiceChatSources.Any(v => v.Window == app.Window)) return;
 
-                    var voiceSource = TryAddVoiceChatSource(app, muted: !GameCaptureSource.IsHooked);
+                    var voiceSource = TryAddVoiceChatSource(app);
                     if (voiceSource != null)
                     {
                         try { voiceSource.AudioMixers = _voiceChatMixerMask; }
