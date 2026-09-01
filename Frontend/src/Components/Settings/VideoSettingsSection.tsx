@@ -49,6 +49,53 @@ export default function VideoSettingsSection({
     sendMessageToBackend('ApplyVideoPreset', { preset });
   };
 
+  const monitorSelectionField = (
+    <div className="form-control">
+      <label className="label">
+        <span className="label-text text-base-content">Monitor Selection</span>
+      </label>
+      <DropdownSelect
+        items={[
+          { value: 'Automatic', label: 'Automatic' },
+          ...appState.displays.map((d, i) => {
+            const hasDuplicateName = appState.displays.some(
+              (other, j) => j !== i && other.deviceName === d.deviceName,
+            );
+            const label = hasDuplicateName
+              ? `${d.deviceName} (${i + 1})${d.isPrimary ? ' (Primary)' : ''}`
+              : `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`;
+            return { value: d.deviceId, label };
+          }),
+        ]}
+        value={settings.selectedDisplay?.deviceId || 'Automatic'}
+        onChange={(val) =>
+          updateSettings({
+            selectedDisplay:
+              val === 'Automatic' ? undefined : appState.displays.find((d) => d.deviceId === val),
+          })
+        }
+      />
+    </div>
+  );
+
+  const captureMethodField = (
+    <div className="form-control">
+      <label className="label">
+        <span className="label-text text-base-content">Capture Method</span>
+      </label>
+      <DropdownSelect
+        items={[
+          { value: 'Auto', label: 'Auto' },
+          { value: 'DXGI', label: 'DXGI (Desktop Duplication)' },
+          { value: 'WGC', label: 'WGC (Windows Graphics Capture)' },
+        ]}
+        value={settings.displayCaptureMethod}
+        onChange={(val) => updateSettings({ displayCaptureMethod: val as DisplayCaptureMethod })}
+        disabled={isRecording}
+      />
+    </div>
+  );
+
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <div className="flex items-center gap-2 mb-4">
@@ -435,54 +482,20 @@ export default function VideoSettingsSection({
                   disabled={isRecording || appState.codecs.length === 0}
                 />
               </div>
+
+              {monitorSelectionField}
+              {captureMethodField}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-2 gap-4 mt-3">
-        <div className="flex flex-col">
-          <span className="font-medium">Monitor Selection</span>
-          <DropdownSelect
-            items={[
-              { value: 'Automatic', label: 'Automatic' },
-              ...appState.displays.map((d, i) => {
-                const hasDuplicateName = appState.displays.some(
-                  (other, j) => j !== i && other.deviceName === d.deviceName,
-                );
-                const label = hasDuplicateName
-                  ? `${d.deviceName} (${i + 1})${d.isPrimary ? ' (Primary)' : ''}`
-                  : `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`;
-                return { value: d.deviceId, label };
-              }),
-            ]}
-            value={settings.selectedDisplay?.deviceId || 'Automatic'}
-            onChange={(val) =>
-              updateSettings({
-                selectedDisplay:
-                  val === 'Automatic'
-                    ? undefined
-                    : appState.displays.find((d) => d.deviceId === val),
-              })
-            }
-          />
+      {settings.videoQualityPreset !== 'custom' && (
+        <div className="grid grid-cols-2 gap-4 mt-3">
+          {monitorSelectionField}
+          {captureMethodField}
         </div>
-        <div className="flex flex-col">
-          <span className="font-medium">Capture Method</span>
-          <DropdownSelect
-            items={[
-              { value: 'Auto', label: 'Auto' },
-              { value: 'DXGI', label: 'DXGI (Desktop Duplication)' },
-              { value: 'WGC', label: 'WGC (Windows Graphics Capture)' },
-            ]}
-            value={settings.displayCaptureMethod}
-            onChange={(val) =>
-              updateSettings({ displayCaptureMethod: val as DisplayCaptureMethod })
-            }
-            disabled={isRecording}
-          />
-        </div>
-      </div>
+      )}
 
       {/* 4:3 Stretch Option */}
       <div className="mt-3">
