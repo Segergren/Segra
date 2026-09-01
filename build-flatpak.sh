@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds the Segra Flatpak, one artifact for every distro.
 #
-#   SEGRA_VERSION=1.7.0 OBS_VERSION=32.2.0 ./build-flatpak.sh
+#   SEGRA_VERSION=1.7.0 OBS_VERSION=32.2.2 ./build-flatpak.sh
 #
 # Requires: flatpak, flatpak-builder, dotnet 10 SDK, node, ffmpeg (installs the GNOME 47 runtime/SDK +
 # ffmpeg-full from Flathub if missing).
@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 VERSION="${SEGRA_VERSION:-1.0.0}"
-OBS_VERSION="${OBS_VERSION:-32.2.0}"
+OBS_VERSION="${OBS_VERSION:-32.2.2}"
 # Exported so csproj's BuildFrontendAssets target stamps the frontend build with the same version.
 export SEGRA_VERSION="$VERSION"
 APP_ID="tv.segra.Segra"
