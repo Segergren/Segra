@@ -168,6 +168,8 @@ namespace Segra.Backend.Media
                     string tempFile = PathUtils.Combine(Path.GetTempPath(), $"highlight_segment_{Guid.NewGuid()}.mp4");
                     double segmentDuration = segment.EndTime - segment.StartTime;
 
+                    progressCallback?.Invoke(processedDuration / totalDuration, $"Extracting clip {i + 1} of {segments.Count}");
+
                     var arguments = new List<string>
                     {
                         "-y",
