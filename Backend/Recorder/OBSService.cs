@@ -844,7 +844,7 @@ namespace Segra.Backend.Recorder
                         ? GetCaptureTargetDeviceId()
                         : ResolveGameHdrTargetDeviceId();
 
-                    if (HdrDetectionService.IsDisplayHdrActive(hdrTargetDeviceId))
+                    if (DisplayConfigService.IsDisplayHdrActive(hdrTargetDeviceId))
                     {
                         string userEncoderId = eff.Codec?.InternalEncoderId ?? string.Empty;
                         string? hdrEncoderId = EncoderInfo.FindHdrCapable(userEncoderId)?.Id;
@@ -1602,8 +1602,8 @@ namespace Segra.Backend.Recorder
             if (displays == null || displays.Count < 2)
                 return false;
 
-            bool fallbackHdr = HdrDetectionService.IsDisplayHdrActive(fallbackDeviceId);
-            return displays.Any(d => HdrDetectionService.IsDisplayHdrActive(d.DeviceId) != fallbackHdr);
+            bool fallbackHdr = DisplayConfigService.IsDisplayHdrActive(fallbackDeviceId);
+            return displays.Any(d => DisplayConfigService.IsDisplayHdrActive(d.DeviceId) != fallbackHdr);
         }
 #endif
 

@@ -11,9 +11,6 @@ namespace Segra.Backend.Windows.Display
         private static List<Core.Models.Display> pendingDisplays = new();
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfoEx lpmi);
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
@@ -74,8 +71,6 @@ namespace Segra.Backend.Windows.Display
             public int Bottom;
         }
 
-        private delegate bool MonitorEnumDelegate(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
-
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         private struct MonitorInfoEx
         {
@@ -132,8 +127,15 @@ namespace Segra.Backend.Windows.Display
 
         public static bool LoadAvailableMonitorsIntoState()
         {
-            pendingDisplays.Clear();
-            EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, MonitorEnumProc, IntPtr.Zero);
+            pendingDisplays = DisplayConfigService.QueryActiveDisplays()
+                .Select(d => new Core.Models.Display
+                {
+                    DeviceName = GetFriendlyMonitorName(d.DevicePath, d.FriendlyName),
+                    DeviceId = d.DevicePath,
+                    IsPrimary = d.IsPrimary,
+                    IsHdr = d.IsHdr
+                })
+                .ToList();
 
             var newMaxHeight = GetMaxDisplayHeight();
             var currentDisplays = AppState.Instance.Displays;
@@ -240,34 +242,6 @@ namespace Segra.Backend.Windows.Display
                 Log.Warning("Failed to resolve device id for window: {Message}", ex.Message);
                 return null;
             }
-        }
-
-        private static bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData)
-        {
-            MonitorInfoEx mi = new MonitorInfoEx();
-            mi.Size = Marshal.SizeOf(mi);
-
-            if (GetMonitorInfo(hMonitor, ref mi))
-            {
-                DisplayDevice device = new DisplayDevice();
-                device.Size = Marshal.SizeOf(device);
-
-                if (EnumDisplayDevices(mi.DeviceName, 0, ref device, 1))
-                {
-                    string friendlyName = GetFriendlyMonitorName(device.DeviceID, device.DeviceString);
-                    var display = new Core.Models.Display
-                    {
-                        DeviceName = friendlyName,
-                        DeviceId = device.DeviceID,
-                        IsPrimary = (mi.Flags & 1) != 0,
-                        IsHdr = HdrDetectionService.IsDisplayHdrActive(device.DeviceID)
-                    };
-
-                    pendingDisplays.Add(display);
-                }
-            }
-
-            return true;
         }
 
         private static string GetFriendlyMonitorName(string deviceId, string fallback)

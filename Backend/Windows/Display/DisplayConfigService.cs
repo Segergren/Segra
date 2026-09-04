@@ -4,12 +4,12 @@ using System.Runtime.InteropServices;
 namespace Segra.Backend.Windows.Display
 {
     /// <summary>
-    /// Detects whether a Windows display is currently in HDR mode, using the Win32 DisplayConfig API.
-    /// This is the same signal Windows exposes to apps: a display reports HDR only when the user has
-    /// turned the "Use HDR" toggle on. Recording then mirrors what OBS captures (OBS produces HDR
+    /// Enumerates active displays and their HDR state through the Win32 DisplayConfig API.
+    /// HDR here is the same signal Windows exposes to apps: a display reports HDR only when the user
+    /// has turned the "Use HDR" toggle on. Recording then mirrors what OBS captures (OBS produces HDR
     /// content automatically when the monitor is in HDR mode), so no user configuration is required.
     /// </summary>
-    public static class HdrDetectionService
+    public static class DisplayConfigService
     {
         // QueryDisplayConfig flags
         private const uint QDC_ONLY_ACTIVE_PATHS = 0x00000002;
@@ -17,12 +17,15 @@ namespace Segra.Backend.Windows.Display
         // DisplayConfigGetDeviceInfo request types
         private const uint DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME = 2;
         private const uint DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO = 9;   // pre-24H2 HDR boolean
-        private const uint DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2 = 13; // 24H2+, distinguishes HDR vs WCG
+        private const uint DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2 = 15; // 24H2+, distinguishes HDR vs WCG
 
         // DISPLAYCONFIG_ADVANCED_COLOR_MODE (used by the _2 query)
         private const int DISPLAYCONFIG_ADVANCED_COLOR_MODE_HDR = 2;
 
+        private const uint DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE = 1;
+
         private const int ERROR_SUCCESS = 0;
+        private const int ERROR_INSUFFICIENT_BUFFER = 122;
 
         [DllImport("user32.dll")]
         private static extern int GetDisplayConfigBufferSizes(uint flags, out uint numPathArrayElements, out uint numModeInfoArrayElements);
@@ -100,14 +103,24 @@ namespace Segra.Backend.Windows.Display
             public uint flags;
         }
 
-        // We never read mode info; the array just has to be the right element size (64 bytes) so
-        // QueryDisplayConfig can fill it. The union payload is left as padding via the Size field.
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINTL
+        {
+            public int x;
+            public int y;
+        }
+
+        // Only the source-mode union member is mapped; Size pads out the larger target-mode member.
         [StructLayout(LayoutKind.Sequential, Size = 64)]
         private struct DISPLAYCONFIG_MODE_INFO
         {
             public uint infoType;
             public uint id;
             public LUID adapterId;
+            public uint width;
+            public uint height;
+            public int pixelFormat;
+            public POINTL position;
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -161,15 +174,7 @@ namespace Segra.Backend.Windows.Display
 
             try
             {
-                int err = GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out uint pathCount, out uint modeCount);
-                if (err != ERROR_SUCCESS || pathCount == 0)
-                    return false;
-
-                var paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
-                var modes = new DISPLAYCONFIG_MODE_INFO[modeCount];
-
-                err = QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
-                if (err != ERROR_SUCCESS)
+                if (!TryQueryPaths(out var paths, out _, out uint pathCount, out _))
                     return false;
 
                 for (int i = 0; i < pathCount; i++)
@@ -201,6 +206,101 @@ namespace Segra.Backend.Windows.Display
                 Log.Warning("HDR detection failed for {DeviceId}: {Message}", deviceId, ex.Message);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// One active display, as reported by the CCD API.
+        /// </summary>
+        public sealed record ActiveDisplay(string DevicePath, string FriendlyName, bool IsPrimary, bool IsHdr);
+
+        /// <summary>
+        /// Enumerates the currently active displays. This reflects the real topology after a monitor
+        /// is surprise-removed and reattached, which EnumDisplayMonitors does not.
+        /// </summary>
+        public static List<ActiveDisplay> QueryActiveDisplays()
+        {
+            var displays = new List<ActiveDisplay>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                if (!TryQueryPaths(out var paths, out var modes, out uint pathCount, out uint modeCount))
+                    return displays;
+
+                for (int i = 0; i < pathCount; i++)
+                {
+                    var target = paths[i].targetInfo;
+
+                    var name = new DISPLAYCONFIG_TARGET_DEVICE_NAME();
+                    name.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME;
+                    name.header.size = (uint)Marshal.SizeOf<DISPLAYCONFIG_TARGET_DEVICE_NAME>();
+                    name.header.adapterId = target.adapterId;
+                    name.header.id = target.id;
+
+                    if (DisplayConfigGetDeviceInfo(ref name) != ERROR_SUCCESS)
+                        continue;
+
+                    // Clone configurations repeat the same monitor across several paths.
+                    if (string.IsNullOrWhiteSpace(name.monitorDevicePath) || !seen.Add(name.monitorDevicePath))
+                        continue;
+
+                    uint sourceIdx = paths[i].sourceInfo.modeInfoIdx;
+                    bool isPrimary = sourceIdx < modeCount &&
+                        modes[sourceIdx].infoType == DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE &&
+                        modes[sourceIdx].position.x == 0 &&
+                        modes[sourceIdx].position.y == 0;
+
+                    string friendlyName = string.IsNullOrWhiteSpace(name.monitorFriendlyDeviceName)
+                        ? name.monitorDevicePath
+                        : name.monitorFriendlyDeviceName;
+
+                    displays.Add(new ActiveDisplay(
+                        name.monitorDevicePath,
+                        friendlyName,
+                        isPrimary,
+                        QueryHdrActive(target.adapterId, target.id, friendlyName)));
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("Failed to enumerate active displays: {Message}", ex.Message);
+            }
+
+            return displays;
+        }
+
+        private static bool TryQueryPaths(
+            out DISPLAYCONFIG_PATH_INFO[] paths,
+            out DISPLAYCONFIG_MODE_INFO[] modes,
+            out uint pathCount,
+            out uint modeCount)
+        {
+            paths = [];
+            modes = [];
+            pathCount = 0;
+            modeCount = 0;
+
+            // The topology can change between sizing and querying, so retry a few times.
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out pathCount, out modeCount) != ERROR_SUCCESS)
+                    return false;
+
+                if (pathCount == 0 || modeCount == 0)
+                    return false;
+
+                paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
+                modes = new DISPLAYCONFIG_MODE_INFO[modeCount];
+
+                int err = QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
+                if (err == ERROR_SUCCESS)
+                    return true;
+
+                if (err != ERROR_INSUFFICIENT_BUFFER)
+                    return false;
+            }
+
+            return false;
         }
 
         private static bool QueryHdrActive(LUID adapterId, uint targetId, string friendlyName)
