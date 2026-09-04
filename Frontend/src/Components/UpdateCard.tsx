@@ -1,5 +1,5 @@
 import { useUpdate } from '../Context/UpdateContext';
-import { Download, Check, TriangleAlert } from 'lucide-react';
+import { Download, Check, TriangleAlert, X } from 'lucide-react';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { GithubIcon } from './icons/BrandIcons';
 import Button from './Button';
@@ -31,7 +31,7 @@ export default function UpdateCard() {
   // Compact version for the sidebar
   return (
     <div className="w-full px-2 py-1">
-      <div className="bg-base-300 border border-base-400 border-opacity-75 shadow-lg rounded-lg p-2">
+      <div className="bg-base-300 border border-base-400 border-opacity-75 shadow-lg rounded-lg p-2 relative">
         {/* Header with status and version */}
         <div className="flex items-center justify-between mb-2 p-1">
           <div className="flex items-center gap-2">
@@ -46,6 +46,13 @@ export default function UpdateCard() {
             </div>
           </div>
         </div>
+        <button
+          onClick={clearUpdateInfo}
+          className="absolute top-2.5 right-1 p-1 rounded hover:bg-base-100 transition-colors cursor-pointer"
+          aria-label="Dismiss update notification"
+        >
+          <X size={14} />
+        </button>
 
         {/* Action Buttons */}
         <div className="flex flex-col gap-2">

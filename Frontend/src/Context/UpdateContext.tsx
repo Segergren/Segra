@@ -48,6 +48,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       message: 'Downloading update...',
     });
   }, []);
+  */
 
   // Ready to install
   useEffect(() => {
@@ -58,7 +59,6 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       message: 'Update ready to install',
     });
   }, []);
-  */
 
   // Access the global release notes context
   const globalReleaseNotes = useContext(ReleaseNotesContext);
