@@ -58,4 +58,21 @@ namespace Segra.Backend.Platform
     {
         void Play(byte[] wavData, float volume);
     }
+
+    /// <summary>
+    /// Streams raw PCM audio through the Segra process itself (not the webview runtime), so the
+    /// audio session belongs to Segra.exe. This makes Windows "application audio" capture
+    /// (Discord streaming an app window, OBS Application Audio Capture) pick up in-app playback.
+    /// </summary>
+    internal interface IAudioStreamPlayer
+    {
+        /// <summary>Starts a fresh playback stream, discarding any previous buffered data.</summary>
+        void Start(int sampleRate, int channels);
+
+        /// <summary>Queues raw interleaved IEEE float32 PCM for the current stream.</summary>
+        void Write(byte[] pcmData);
+
+        /// <summary>Stops playback and discards all buffered (unplayed) samples.</summary>
+        void Flush();
+    }
 }

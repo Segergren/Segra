@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react
 import { createFile, MP4BoxBuffer } from 'mp4box';
 import type { ISOFile } from 'mp4box';
 import { Content } from '../Models/types';
+import { attachNativeCaptureTap, type NativeAudioSink } from '../Services/nativeAudioSink';
 
 export interface AudioTrackInfo {
   index: number;
@@ -105,6 +106,8 @@ export function useAudioTracks(
   const audioCtxRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   const trackDataRef = useRef<Map<number, AudioTrackData>>(new Map());
+  const captureNodeRef = useRef<AudioWorkletNode | null>(null);
+  const sinkRef = useRef<NativeAudioSink | null>(null);
 
   const fetchUrlRef = useRef<string>('');
   const pumpingRef = useRef<boolean>(false);
@@ -402,8 +405,28 @@ export function useAudioTracks(
       audioCtxRef.current = ctx;
       const master = ctx.createGain();
       master.gain.value = 1;
-      master.connect(ctx.destination);
       masterGainRef.current = master;
+
+      // Prefer playing through Segra.exe itself (native audio stream server) so Windows
+      // application-audio capture (Discord/OBS) picks the sound up. When that's unavailable,
+      // fall back to webview-rendered audio exactly as before.
+      const captureTap = await attachNativeCaptureTap(ctx, master).catch(() => null);
+      if (cancelled || abortController.signal.aborted) {
+        if (captureTap) {
+          try {
+            captureTap.node.disconnect();
+          } catch {
+            // ignore
+          }
+        }
+        return;
+      }
+      if (captureTap) {
+        captureNodeRef.current = captureTap.node;
+        sinkRef.current = captureTap.sink;
+      } else {
+        master.connect(ctx.destination);
+      }
 
       const url = `http://localhost:2222/api/content?input=${encodeURIComponent(video.filePath)}`;
       fetchUrlRef.current = url;
@@ -646,6 +669,27 @@ export function useAudioTracks(
       }
       trackDataRef.current.clear();
 
+      const captureNode = captureNodeRef.current;
+      if (captureNode) {
+        try {
+          captureNode.disconnect();
+        } catch {
+          // ignore
+        }
+        try {
+          captureNode.port.close();
+        } catch {
+          // ignore
+        }
+      }
+      captureNodeRef.current = null;
+      try {
+        sinkRef.current?.flush();
+      } catch {
+        // ignore
+      }
+      sinkRef.current = null;
+
       const master = masterGainRef.current;
       if (master) {
         try {
@@ -679,6 +723,29 @@ export function useAudioTracks(
 
     vid.muted = true;
 
+    // The native sink plays in real time from a small queue, so starts/restarts must be
+    // explicit: drop anything buffered for the old position, then start a fresh stream.
+    const nativeStart = () => {
+      try {
+        sinkRef.current?.play(audioCtxRef.current?.sampleRate ?? 48000, 2);
+      } catch {
+        // ignore
+      }
+    };
+    const nativeFlush = () => {
+      try {
+        sinkRef.current?.flush();
+      } catch {
+        // ignore
+      }
+    };
+
+    const resyncNative = () => {
+      nativeFlush();
+      resyncTo(vid.currentTime, vid.playbackRate);
+      if (!vid.paused) nativeStart();
+    };
+
     const onPlay = async () => {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
@@ -689,19 +756,22 @@ export function useAudioTracks(
           // ignore
         }
       }
+      nativeFlush();
       resyncTo(vid.currentTime, vid.playbackRate);
+      nativeStart();
     };
 
     const onPause = () => {
       stopAllSources();
+      nativeFlush();
     };
 
     const onSeeked = () => {
-      resyncTo(vid.currentTime, vid.playbackRate);
+      resyncNative();
     };
 
     const onRateChange = () => {
-      resyncTo(vid.currentTime, vid.playbackRate);
+      resyncNative();
     };
 
     const onTimeUpdate = () => {

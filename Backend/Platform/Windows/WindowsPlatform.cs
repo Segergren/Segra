@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Serilog;
 using NAudio.Wave;
 using NAudio.CoreAudioApi;
 using NAudio.Wave.SampleProviders;
@@ -208,6 +209,95 @@ namespace Segra.Backend.Platform.Windows
 
             while (waveOut.PlaybackState == PlaybackState.Playing)
                 Thread.Sleep(10);
+        }
+    }
+
+    /// <summary>
+    /// Streams IEEE float32 PCM to the default render endpoint through NAudio from inside the
+    /// Segra process. Unlike webview-rendered audio (which lives in msedgewebview2.exe), the
+    /// resulting WASAPI session belongs to Segra.exe so Discord/OBS "application audio" capture
+    /// of the Segra window includes it.
+    /// </summary>
+    internal sealed class WindowsAudioStreamPlayer : IAudioStreamPlayer
+    {
+        private readonly object gate = new();
+        private WasapiOut? waveOut;
+        private BufferedWaveProvider? provider;
+
+        public void Start(int sampleRate, int channels)
+        {
+            lock (gate)
+            {
+                FlushLocked();
+
+                if (sampleRate <= 0 || channels <= 0)
+                    return;
+
+                provider = new BufferedWaveProvider(
+                    WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels))
+                {
+                    BufferDuration = TimeSpan.FromSeconds(1),
+                    DiscardOnBufferOverflow = true
+                };
+
+                waveOut = new WasapiOut(AudioClientShareMode.Shared, 40);
+                try
+                {
+                    waveOut.Init(provider);
+                    waveOut.Play();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to start native audio stream: {ex.Message}");
+                    FlushLocked();
+                }
+            }
+        }
+
+        public void Write(byte[] pcmData)
+        {
+            if (pcmData.Length == 0)
+                return;
+            lock (gate)
+            {
+                if (provider == null || waveOut == null)
+                    return;
+                try
+                {
+                    provider.AddSamples(pcmData, 0, pcmData.Length);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to queue PCM samples");
+                }
+            }
+        }
+
+        public void Flush()
+        {
+            lock (gate)
+            {
+                FlushLocked();
+            }
+        }
+
+        private void FlushLocked()
+        {
+            if (waveOut != null)
+            {
+                try
+                {
+                    if (waveOut.PlaybackState == PlaybackState.Playing)
+                        waveOut.Stop();
+                    waveOut.Dispose();
+                }
+                catch
+                {
+                    // best effort shutdown
+                }
+                waveOut = null;
+            }
+            provider = null;
         }
     }
 }
