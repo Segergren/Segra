@@ -18,6 +18,14 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("isHdr")]
         public bool IsHdr { get; set; }
 
+        // Current resolution of the display. Not required so displays saved by an older
+        // version (e.g. a persisted SelectedDisplay) still deserialize.
+        [JsonPropertyName("width")]
+        public int Width { get; set; }
+
+        [JsonPropertyName("height")]
+        public int Height { get; set; }
+
         public bool Equals(Display? other)
         {
             if (other == null) return false;
@@ -25,7 +33,9 @@ namespace Segra.Backend.Core.Models
             return DeviceName == other.DeviceName &&
                    DeviceId == other.DeviceId &&
                    IsPrimary == other.IsPrimary &&
-                   IsHdr == other.IsHdr;
+                   IsHdr == other.IsHdr &&
+                   Width == other.Width &&
+                   Height == other.Height;
         }
 
         public override bool Equals(object? obj)
@@ -39,7 +49,7 @@ namespace Segra.Backend.Core.Models
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(DeviceName, DeviceId, IsPrimary, IsHdr);
+            return HashCode.Combine(DeviceName, DeviceId, IsPrimary, IsHdr, Width, Height);
         }
     }
 }

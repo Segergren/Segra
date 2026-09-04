@@ -130,6 +130,8 @@ export interface Display {
   deviceName: string;
   isPrimary: boolean;
   isHdr: boolean; // Display is currently in HDR mode (Windows "Use HDR" enabled)
+  width: number; // Current resolution width
+  height: number; // Current resolution height
 }
 
 export interface Codec {

@@ -211,7 +211,13 @@ namespace Segra.Backend.Windows.Display
         /// <summary>
         /// One active display, as reported by the CCD API.
         /// </summary>
-        public sealed record ActiveDisplay(string DevicePath, string FriendlyName, bool IsPrimary, bool IsHdr);
+        public sealed record ActiveDisplay(
+            string DevicePath,
+            string FriendlyName,
+            bool IsPrimary,
+            bool IsHdr,
+            uint Width,
+            uint Height);
 
         /// <summary>
         /// Enumerates the currently active displays. This reflects the real topology after a monitor
@@ -245,10 +251,13 @@ namespace Segra.Backend.Windows.Display
                         continue;
 
                     uint sourceIdx = paths[i].sourceInfo.modeInfoIdx;
-                    bool isPrimary = sourceIdx < modeCount &&
-                        modes[sourceIdx].infoType == DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE &&
+                    bool isSourceMode = sourceIdx < modeCount &&
+                        modes[sourceIdx].infoType == DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE;
+                    bool isPrimary = isSourceMode &&
                         modes[sourceIdx].position.x == 0 &&
                         modes[sourceIdx].position.y == 0;
+                    uint width = isSourceMode ? modes[sourceIdx].width : 0;
+                    uint height = isSourceMode ? modes[sourceIdx].height : 0;
 
                     string friendlyName = string.IsNullOrWhiteSpace(name.monitorFriendlyDeviceName)
                         ? name.monitorDevicePath
@@ -258,7 +267,9 @@ namespace Segra.Backend.Windows.Display
                         name.monitorDevicePath,
                         friendlyName,
                         isPrimary,
-                        QueryHdrActive(target.adapterId, target.id, friendlyName)));
+                        QueryHdrActive(target.adapterId, target.id, friendlyName),
+                        width,
+                        height));
                 }
             }
             catch (Exception ex)

@@ -18,6 +18,10 @@ interface DropdownSelectProps {
   disabled?: boolean;
   align?: 'start' | 'end';
   size?: 'sm' | 'md' | 'lg';
+  // Replaces the selected-item label in the trigger (the chevron still renders).
+  buttonContent?: React.ReactNode;
+  // Override the automatic open direction (default: auto based on available space).
+  forceDirection?: 'up' | 'down';
 }
 
 export default function DropdownSelect({
@@ -31,6 +35,8 @@ export default function DropdownSelect({
   disabled = false,
   align = 'end',
   size = 'md',
+  buttonContent,
+  forceDirection,
 }: DropdownSelectProps) {
   const selected = items.find((i) => i.value === value);
   const [isOpen, setIsOpen] = useState(false);
@@ -40,6 +46,11 @@ export default function DropdownSelect({
   const [menuMaxHeight, setMenuMaxHeight] = useState<number | undefined>();
 
   const computeMenuFit = React.useCallback(() => {
+    if (forceDirection) {
+      setOpenDirection(forceDirection);
+      setMenuMaxHeight(undefined);
+      return;
+    }
     const btn = buttonRef.current;
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
@@ -55,7 +66,7 @@ export default function DropdownSelect({
     }
     setOpenDirection(dir);
     setMenuMaxHeight(Math.min(260, Math.max(120, Math.floor(available - 8))));
-  }, []);
+  }, [forceDirection]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -111,12 +122,16 @@ export default function DropdownSelect({
           }
         }}
       >
-        <span className="flex-1 text-left truncate text-base-content font-medium">
-          {selected ? selected.label : placeholder}
-        </span>
+        {buttonContent !== undefined ? (
+          buttonContent
+        ) : (
+          <span className="flex-1 text-left truncate text-base-content font-medium">
+            {selected ? selected.label : placeholder}
+          </span>
+        )}
         <motion.span
           aria-hidden
-          className="ml-2 inline-flex items-center"
+          className={`inline-flex items-center ${buttonContent !== undefined && buttonContent !== null ? 'ml-2' : ''}`}
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 20 }}
         >

@@ -133,7 +133,9 @@ namespace Segra.Backend.Windows.Display
                     DeviceName = GetFriendlyMonitorName(d.DevicePath, d.FriendlyName),
                     DeviceId = d.DevicePath,
                     IsPrimary = d.IsPrimary,
-                    IsHdr = d.IsHdr
+                    IsHdr = d.IsHdr,
+                    Width = (int)d.Width,
+                    Height = (int)d.Height
                 })
                 .ToList();
 
@@ -154,8 +156,8 @@ namespace Segra.Backend.Windows.Display
                 Log.Information("=== Available Monitors ===");
                 foreach (var display in pendingDisplays)
                 {
-                    Log.Information("Monitor: {FriendlyName}, DeviceId: {DeviceID}, Primary: {IsPrimary}, HDR: {IsHdr}",
-                        display.DeviceName, display.DeviceId, display.IsPrimary, display.IsHdr);
+                    Log.Information("Monitor: {FriendlyName}, DeviceId: {DeviceID}, Primary: {IsPrimary}, HDR: {IsHdr}, Resolution: {Width}x{Height}",
+                        display.DeviceName, display.DeviceId, display.IsPrimary, display.IsHdr, display.Width, display.Height);
                 }
                 Log.Information("=== End Monitor List ===");
 

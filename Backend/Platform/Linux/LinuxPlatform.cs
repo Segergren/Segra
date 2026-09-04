@@ -142,7 +142,15 @@ namespace Segra.Backend.Platform.Linux
                     bool isPrimary = m.Groups["primary"].Success;
                     int w = int.Parse(m.Groups["w"].Value);
                     int h = int.Parse(m.Groups["h"].Value);
-                    displays.Add(new Display { DeviceName = name, DeviceId = name, IsPrimary = isPrimary, IsHdr = false });
+                    displays.Add(new Display
+                    {
+                        DeviceName = name,
+                        DeviceId = name,
+                        IsPrimary = isPrimary,
+                        IsHdr = false,
+                        Width = w,
+                        Height = h
+                    });
                     if (h > maxHeight) maxHeight = h;
                     if (firstW == 0) { firstW = w; firstH = h; }
                     if (isPrimary) { primaryW = w; primaryH = h; }
@@ -155,7 +163,15 @@ namespace Segra.Backend.Platform.Linux
 
             if (displays.Count == 0)
             {
-                displays.Add(new Display { DeviceName = "Display", DeviceId = "default", IsPrimary = true, IsHdr = false });
+                displays.Add(new Display
+                {
+                    DeviceName = "Display",
+                    DeviceId = "default",
+                    IsPrimary = true,
+                    IsHdr = false,
+                    Width = DefaultWidth,
+                    Height = DefaultHeight
+                });
                 maxHeight = DefaultHeight; primaryW = DefaultWidth; primaryH = DefaultHeight;
             }
             else if (primaryW == 0)
