@@ -16,7 +16,7 @@ namespace Segra.Backend.Core
     {
         public static readonly string SettingsFilePath = PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "settings.json"));
 
-        public static void SaveSettings(bool force = false)
+        public static void SaveSettings(bool force = false, bool suppressLog = false)
         {
             if (!force && !Program.hasLoadedInitialSettings)
             {
@@ -38,7 +38,11 @@ namespace Segra.Backend.Core
                 });
 
                 File.WriteAllText(SettingsFilePath, json);
-                Log.Information($"Settings saved to {SettingsFilePath}");
+
+                if (!suppressLog)
+                {
+                    Log.Information($"Settings saved to {SettingsFilePath}");
+                }
             }
             catch (Exception ex)
             {
@@ -644,14 +648,6 @@ namespace Segra.Backend.Core
             {
                 Log.Information($"CqLevel changed from '{settings.CqLevel}' to '{updatedSettings.CqLevel}'");
                 settings.CqLevel = updatedSettings.CqLevel;
-                hasChanges = true;
-            }
-
-            if ((settings.LastWindowState == null && updatedSettings.LastWindowState != null) ||
-                (settings.LastWindowState != null && updatedSettings.LastWindowState == null) ||
-                (settings.LastWindowState != null && updatedSettings.LastWindowState != null && !settings.LastWindowState.Equals(updatedSettings.LastWindowState)))
-            {
-                settings.LastWindowState = updatedSettings.LastWindowState;
                 hasChanges = true;
             }
 

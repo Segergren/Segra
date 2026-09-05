@@ -398,6 +398,8 @@ namespace Segra.Backend.App
         private static bool _wasMaximizedBeforeFullscreen;
         private static Point? _lastNormalLocation;
         private static Size? _lastNormalSize;
+        private static CancellationTokenSource? _windowStateSaveDebounceCts;
+        private const int WindowStateSaveDebounceMs = 5000;
 
         public static void SetFullscreen(bool enabled)
         {
@@ -440,6 +442,9 @@ namespace Segra.Backend.App
         private static void Shutdown()
         {
             Log.Information("Application shutting down.");
+
+            // Cancel any pending debounced window-state save; the synchronous save below is final.
+            _windowStateSaveDebounceCts?.Cancel();
 
             SaveWindowState();
 
@@ -681,12 +686,15 @@ namespace Segra.Backend.App
             Window.SetTitle("Segra ");
 
             // Track the last normal (not maximized/minimized) bounds so SaveWindowState can persist
-            // a sensible restore size even when the window is closed while maximized.
+            // a sensible restore size even when the window is closed while maximized. The move/size
+            // events also debounce-persist the window state so a crash or force-kill doesn't lose
+            // the latest position/size.
             Window.RegisterLocationChangedHandler((sender, location) =>
             {
                 if (Window != null && !Window.Maximized && !Window.Minimized)
                 {
                     _lastNormalLocation = location;
+                    ScheduleWindowStateSave();
                 }
             });
             Window.RegisterSizeChangedHandler((sender, size) =>
@@ -694,8 +702,15 @@ namespace Segra.Backend.App
                 if (Window != null && !Window.Maximized && !Window.Minimized)
                 {
                     _lastNormalSize = size;
+                    ScheduleWindowStateSave();
                 }
             });
+
+            // Maximizing doesn't pass the normal-bounds guard above (Window.Maximized is already
+            // true when the size event fires), so schedule a save from the state events to persist
+            // Maximized=true. Restored is registered too for symmetry (e.g. restore-from-minimize).
+            Window.RegisterMaximizedHandler((sender, eventArgs) => ScheduleWindowStateSave());
+            Window.RegisterRestoredHandler((sender, eventArgs) => ScheduleWindowStateSave());
 
             Window.RegisterWindowClosingHandler((sender, eventArgs) =>
             {
@@ -793,6 +808,31 @@ namespace Segra.Backend.App
             return false;
         }
 
+        // Persists the window bounds shortly after the user stops moving or resizing it.
+        // Photino fires the location/size handlers continuously while dragging, so the write is
+        // debounced (each new event resets the timer) and only runs after the drag settles.
+        private static void ScheduleWindowStateSave()
+        {
+            try
+            {
+                _windowStateSaveDebounceCts?.Cancel();
+                var cts = new CancellationTokenSource();
+                _windowStateSaveDebounceCts = cts;
+
+                _ = Task.Delay(WindowStateSaveDebounceMs, cts.Token).ContinueWith(_ =>
+                {
+                    if (!cts.Token.IsCancellationRequested && Window != null)
+                    {
+                        SaveWindowState();
+                    }
+                }, CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error scheduling window state save");
+            }
+        }
+
         private static void SaveWindowState()
         {
             if (Window == null || Window.Minimized) return;
@@ -814,7 +854,7 @@ namespace Segra.Backend.App
                         ?? (previous is { Width: > 0, Height: > 0 } ? new Size(previous.Width, previous.Height) : size);
                 }
 
-                Settings.Instance.LastWindowState = new WindowState
+                var windowState = new WindowState
                 {
                     X = location.X,
                     Y = location.Y,
@@ -823,7 +863,18 @@ namespace Segra.Backend.App
                     Maximized = maximized
                 };
 
-                SettingsService.SaveSettings();
+                // Skip the disk write when nothing changed (e.g. a debounced save racing the
+                // close/exit handler, which already persisted the same bounds).
+                if (Settings.Instance.LastWindowState?.Equals(windowState) == true)
+                {
+                    return;
+                }
+
+                Settings.Instance.LastWindowState = windowState;
+
+                // Window-state saves run frequently (debounced on move/resize/maximize), so
+                // suppress the "Settings saved" log line for them.
+                SettingsService.SaveSettings(suppressLog: true);
             }
             catch (Exception ex)
             {
