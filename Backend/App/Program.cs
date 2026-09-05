@@ -60,6 +60,7 @@ namespace Segra.Backend.App
         private static readonly AutoResetEvent ShowWindowEvent = new(false);
         public static bool hasLoadedInitialSettings = false;
         public static PhotinoWindow? Window { get; private set; }
+        private static PhotinoApplication? App;
         private static readonly string LogFilePath =
           Segra.Backend.Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "logs.log"));
         private const string PipeName = "Segra_SingleInstance";
@@ -337,7 +338,7 @@ namespace Segra.Backend.App
                     onOpen: () => _ = ShowApplicationWindow(),
                     onResetWindowSize: ResetWindowSize,
                     onExit: () => { Shutdown(); Environment.Exit(0); },
-                    isWindowOpen: () => Window != null && !Window.Minimized);
+                    isWindowOpen: () => Window != null && Window.WindowState != PhotinoWindowState.Minimized);
 
 #if WINDOWS
                 // Start monitoring system power state changes (sleep/wake)
@@ -409,7 +410,7 @@ namespace Segra.Backend.App
 
                 if (enabled)
                 {
-                    _wasMaximizedBeforeFullscreen = Window.Maximized;
+                    _wasMaximizedBeforeFullscreen = Window.WindowState == PhotinoWindowState.Maximized;
                     _windowSizeBeforeFullscreen = Window.Size;
                     _windowLocationBeforeFullscreen = Window.Location;
                     Window.SetMaximized(true);
@@ -531,10 +532,9 @@ namespace Segra.Backend.App
             Window.Invoke(() =>
             {
                 Window.SetMinimized(false);
-                Window.SetTopMost(true);
             });
             await Task.Delay(200);
-            Window.Invoke(() => Window.SetTopMost(false));
+            Window.Invoke(() => Window.BringToFront());
             FocusApplicationWindow();
             Log.Information("Application window brought to foreground");
         }
@@ -636,6 +636,7 @@ namespace Segra.Backend.App
             }
 
             // Initialize the PhotinoWindow
+            App ??= new PhotinoApplication { NotificationsEnabled = false }; // Disabled due to it creating a second start menu entry with incorrect start path. See https://github.com/tryphotino/photino.NET/issues/85
             var windowBuilder = new PhotinoWindow();
 #if WINDOWS
             // Chromium/WebView2-only flags; WebKitGTK on Linux parses these natively and crashes on the
@@ -653,7 +654,6 @@ namespace Segra.Backend.App
             windowBuilder = windowBuilder.SetBrowserControlInitParameters(browserArgs);
 #endif
             windowBuilder = windowBuilder
-                .SetNotificationsEnabled(false) // Disabled due to it creating a second start menu entry with incorrect start path. See https://github.com/tryphotino/photino.NET/issues/85
                 .SetUseOsDefaultSize(false)
                 .SetIconFile(iconFile)
                 .SetSize(windowSize)
@@ -673,60 +673,61 @@ namespace Segra.Backend.App
             }
 
             Window = windowBuilder
-                .RegisterWebMessageReceivedHandler((sender, message) =>
+                .RegisterWebMessageReceivedHandler((sender, args) =>
                 {
                     Window = (PhotinoWindow)sender!;
-                    _ = MessageService.HandleMessage(message);
+                    _ = MessageService.HandleMessage(args.Message);
                 })
-                .Load(appUrl);
+                .Load(appUrl!);
 
             Log.Information("Window variable has been set");
 
-            // intentional space after name because of https://github.com/tryphotino/photino.NET/issues/106
-            Window.SetTitle("Segra ");
+            Window.SetTitle("Segra");
 
             // Track the last normal (not maximized/minimized) bounds so SaveWindowState can persist
             // a sensible restore size even when the window is closed while maximized. The move/size
             // events also debounce-persist the window state so a crash or force-kill doesn't lose
             // the latest position/size.
-            Window.RegisterLocationChangedHandler((sender, location) =>
+            Window.RegisterLocationChangedHandler((sender, e) =>
             {
-                if (Window != null && !Window.Maximized && !Window.Minimized)
+                if (Window != null && Window.WindowState != PhotinoWindowState.Maximized &&
+                    Window.WindowState != PhotinoWindowState.Minimized)
                 {
-                    _lastNormalLocation = location;
+                    _lastNormalLocation = e.Location;
                     ScheduleWindowStateSave();
                 }
             });
-            Window.RegisterSizeChangedHandler((sender, size) =>
+            Window.RegisterSizeChangedHandler((sender, e) =>
             {
-                if (Window != null && !Window.Maximized && !Window.Minimized)
+                if (Window != null && Window.WindowState != PhotinoWindowState.Maximized &&
+                    Window.WindowState != PhotinoWindowState.Minimized)
                 {
-                    _lastNormalSize = size;
+                    _lastNormalSize = e.Size;
                     ScheduleWindowStateSave();
                 }
             });
 
-            // Maximizing doesn't pass the normal-bounds guard above (Window.Maximized is already
-            // true when the size event fires), so schedule a save from the state events to persist
-            // Maximized=true. Restored is registered too for symmetry (e.g. restore-from-minimize).
+            // Maximizing doesn't pass the normal-bounds guard above (the window is already
+            // maximized when the size event fires), so schedule a save from the state events to
+            // persist Maximized=true. Restored is registered too for symmetry (e.g. restore-from-minimize).
             Window.RegisterMaximizedHandler((sender, eventArgs) => ScheduleWindowStateSave());
             Window.RegisterRestoredHandler((sender, eventArgs) => ScheduleWindowStateSave());
 
-            Window.RegisterWindowClosingHandler((sender, eventArgs) =>
+            Window.RegisterClosingHandler((sender, e) =>
             {
+                e.Cancel = true;
                 if (Settings.Instance.CloseButtonAction == CloseButtonAction.Exit)
                 {
                     Shutdown();
                     Environment.Exit(0);
-                    return false;
+                    return;
                 }
 
                 SaveWindowState();
                 HideApplicationWindow();
-                return true;
             });
 
-            Window.WaitForClose();
+            App.Run(Window);
         }
 
         private static Size GetDefaultWindowSize()
@@ -835,11 +836,11 @@ namespace Segra.Backend.App
 
         private static void SaveWindowState()
         {
-            if (Window == null || Window.Minimized) return;
+            if (Window == null || Window.WindowState == PhotinoWindowState.Minimized) return;
 
             try
             {
-                bool maximized = Window.Maximized;
+                bool maximized = Window.WindowState == PhotinoWindowState.Maximized;
                 Point location = Window.Location;
                 Size size = Window.Size;
 
@@ -904,10 +905,9 @@ namespace Segra.Backend.App
                                         Window.Invoke(() =>
                                         {
                                             Window.SetMinimized(false);
-                                            Window.SetTopMost(true);
                                         });
                                         Thread.Sleep(200);
-                                        Window.Invoke(() => Window.SetTopMost(false));
+                                        Window.Invoke(() => Window.BringToFront());
                                         Log.Information("Window brought to foreground directly from pipe server");
                                     }
                                     else

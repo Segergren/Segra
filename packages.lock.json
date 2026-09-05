@@ -23,20 +23,20 @@
         "resolved": "1.6.0",
         "contentHash": "BpNdzjUGOdTI1I0npWo/l9u+DnKDQ37DJ7ivDQV43W/0i5fk5v0cQYFT8lRMPbKkWPTHwgLm0xIigruJ1CseYw=="
       },
-      "Photino.NET": {
+      "PhotinoX": {
         "type": "Direct",
-        "requested": "[4.0.16, )",
-        "resolved": "4.0.16",
-        "contentHash": "2oTFsxt8XpLlVvtChlBD8HzLw6MgfHF+DQ4aLEDfgc4GbYjumEywB1JMfWDChm2Whfkr4ZF7DV2deRrpitiBcw==",
+        "requested": "[5.1.1, )",
+        "resolved": "5.1.1",
+        "contentHash": "wevVml//OEx4gm20zUhUiQsp0XX1Tl6JhDoQ/JKs0a4w+1J9z28B2Nahy1Gd4HEuK5MasCuVC67b6Yp6/zC5Og==",
         "dependencies": {
-          "Photino.Native": "4.0.22"
+          "PhotinoX.Native": "5.1.1"
         }
       },
-      "Photino.NET.Server": {
+      "PhotinoX.Server": {
         "type": "Direct",
-        "requested": "[4.0.12, )",
-        "resolved": "4.0.12",
-        "contentHash": "m6tUz9CAOkvPWo48xnJj7HZGh8OvEQTpJ1zf96HkT4DB17R1u6xqYRWg55jH5u/HJOgYngHfMYiGcxpTNXwRGQ=="
+        "requested": "[5.0.0, )",
+        "resolved": "5.0.0",
+        "contentHash": "TEDIgOYeXixVNMJS7QWsVhvJKHixv/dU1A8V4ltUe3lW1kMa2hEsS2HVbF09daR7vh8C9I7d9h+jbJZz91IDvA=="
       },
       "Serilog": {
         "type": "Direct",
@@ -95,10 +95,10 @@
         "resolved": "10.0.0",
         "contentHash": "bYdnhuD0XxcVTrxc8RyBjXo+AXYWJPnda3clhGz2Kakleyun1PyrzYV8RezT7ZYmR9OBSOgvpFQcvHo/K8Y90w=="
       },
-      "Photino.Native": {
+      "PhotinoX.Native": {
         "type": "Transitive",
-        "resolved": "4.0.22",
-        "contentHash": "VIHipEOe4CZ7HElZE8zTwcvANOsCZ2yak/4nQ4LXzjdlwIjdbY8htmHfNR6rRPgWlCfTfT349GCa6V6Id2/Xyg=="
+        "resolved": "5.1.1",
+        "contentHash": "8Arx1nCKBQoD9z5Spl47fjHGDMbXEKSjYuOXuM1bv90xQW/geu9ep4FAkXbf4DnX+wsfTYgfpF5m2k/h6nat8Q=="
       },
       "System.Formats.Nrbf": {
         "type": "Transitive",
@@ -112,10 +112,10 @@
         "resolved": "10.0.0",
         "contentHash": "bYdnhuD0XxcVTrxc8RyBjXo+AXYWJPnda3clhGz2Kakleyun1PyrzYV8RezT7ZYmR9OBSOgvpFQcvHo/K8Y90w=="
       },
-      "Photino.Native": {
+      "PhotinoX.Native": {
         "type": "Transitive",
-        "resolved": "4.0.22",
-        "contentHash": "VIHipEOe4CZ7HElZE8zTwcvANOsCZ2yak/4nQ4LXzjdlwIjdbY8htmHfNR6rRPgWlCfTfT349GCa6V6Id2/Xyg=="
+        "resolved": "5.1.1",
+        "contentHash": "8Arx1nCKBQoD9z5Spl47fjHGDMbXEKSjYuOXuM1bv90xQW/geu9ep4FAkXbf4DnX+wsfTYgfpF5m2k/h6nat8Q=="
       }
     },
     "net10.0/win-x64": {
@@ -124,10 +124,10 @@
         "resolved": "10.0.0",
         "contentHash": "bYdnhuD0XxcVTrxc8RyBjXo+AXYWJPnda3clhGz2Kakleyun1PyrzYV8RezT7ZYmR9OBSOgvpFQcvHo/K8Y90w=="
       },
-      "Photino.Native": {
+      "PhotinoX.Native": {
         "type": "Transitive",
-        "resolved": "4.0.22",
-        "contentHash": "VIHipEOe4CZ7HElZE8zTwcvANOsCZ2yak/4nQ4LXzjdlwIjdbY8htmHfNR6rRPgWlCfTfT349GCa6V6Id2/Xyg=="
+        "resolved": "5.1.1",
+        "contentHash": "8Arx1nCKBQoD9z5Spl47fjHGDMbXEKSjYuOXuM1bv90xQW/geu9ep4FAkXbf4DnX+wsfTYgfpF5m2k/h6nat8Q=="
       }
     },
     "net10.0-windows10.0.19041": {
@@ -166,20 +166,20 @@
         "resolved": "1.6.0",
         "contentHash": "BpNdzjUGOdTI1I0npWo/l9u+DnKDQ37DJ7ivDQV43W/0i5fk5v0cQYFT8lRMPbKkWPTHwgLm0xIigruJ1CseYw=="
       },
-      "Photino.NET": {
+      "PhotinoX": {
         "type": "Direct",
-        "requested": "[4.0.16, )",
-        "resolved": "4.0.16",
-        "contentHash": "2oTFsxt8XpLlVvtChlBD8HzLw6MgfHF+DQ4aLEDfgc4GbYjumEywB1JMfWDChm2Whfkr4ZF7DV2deRrpitiBcw==",
+        "requested": "[5.1.1, )",
+        "resolved": "5.1.1",
+        "contentHash": "wevVml//OEx4gm20zUhUiQsp0XX1Tl6JhDoQ/JKs0a4w+1J9z28B2Nahy1Gd4HEuK5MasCuVC67b6Yp6/zC5Og==",
         "dependencies": {
-          "Photino.Native": "4.0.22"
+          "PhotinoX.Native": "5.1.1"
         }
       },
-      "Photino.NET.Server": {
+      "PhotinoX.Server": {
         "type": "Direct",
-        "requested": "[4.0.12, )",
-        "resolved": "4.0.12",
-        "contentHash": "m6tUz9CAOkvPWo48xnJj7HZGh8OvEQTpJ1zf96HkT4DB17R1u6xqYRWg55jH5u/HJOgYngHfMYiGcxpTNXwRGQ=="
+        "requested": "[5.0.0, )",
+        "resolved": "5.0.0",
+        "contentHash": "TEDIgOYeXixVNMJS7QWsVhvJKHixv/dU1A8V4ltUe3lW1kMa2hEsS2HVbF09daR7vh8C9I7d9h+jbJZz91IDvA=="
       },
       "Serilog": {
         "type": "Direct",
@@ -277,10 +277,10 @@
           "NAudio.Core": "2.3.0"
         }
       },
-      "Photino.Native": {
+      "PhotinoX.Native": {
         "type": "Transitive",
-        "resolved": "4.0.22",
-        "contentHash": "VIHipEOe4CZ7HElZE8zTwcvANOsCZ2yak/4nQ4LXzjdlwIjdbY8htmHfNR6rRPgWlCfTfT349GCa6V6Id2/Xyg=="
+        "resolved": "5.1.1",
+        "contentHash": "8Arx1nCKBQoD9z5Spl47fjHGDMbXEKSjYuOXuM1bv90xQW/geu9ep4FAkXbf4DnX+wsfTYgfpF5m2k/h6nat8Q=="
       },
       "SharpGen.Runtime": {
         "type": "Transitive",
@@ -308,10 +308,10 @@
         "resolved": "10.0.10",
         "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA=="
       },
-      "Photino.Native": {
+      "PhotinoX.Native": {
         "type": "Transitive",
-        "resolved": "4.0.22",
-        "contentHash": "VIHipEOe4CZ7HElZE8zTwcvANOsCZ2yak/4nQ4LXzjdlwIjdbY8htmHfNR6rRPgWlCfTfT349GCa6V6Id2/Xyg=="
+        "resolved": "5.1.1",
+        "contentHash": "8Arx1nCKBQoD9z5Spl47fjHGDMbXEKSjYuOXuM1bv90xQW/geu9ep4FAkXbf4DnX+wsfTYgfpF5m2k/h6nat8Q=="
       }
     },
     "net10.0-windows10.0.19041/win-x64": {
@@ -321,10 +321,10 @@
         "resolved": "10.0.10",
         "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA=="
       },
-      "Photino.Native": {
+      "PhotinoX.Native": {
         "type": "Transitive",
-        "resolved": "4.0.22",
-        "contentHash": "VIHipEOe4CZ7HElZE8zTwcvANOsCZ2yak/4nQ4LXzjdlwIjdbY8htmHfNR6rRPgWlCfTfT349GCa6V6Id2/Xyg=="
+        "resolved": "5.1.1",
+        "contentHash": "8Arx1nCKBQoD9z5Spl47fjHGDMbXEKSjYuOXuM1bv90xQW/geu9ep4FAkXbf4DnX+wsfTYgfpF5m2k/h6nat8Q=="
       }
     }
   }
