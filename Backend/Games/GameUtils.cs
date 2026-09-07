@@ -17,6 +17,7 @@ namespace Segra.Backend.Games
         private static Dictionary<string, GameEntry> _exeToEntry = new(StringComparer.OrdinalIgnoreCase);
         private static Dictionary<int, GameEntry> _steamIdToEntry = new();
         private static List<GameEntry> _gamesList = [];
+        private static List<GameEntry>? _cachedGameList;
         private static BlacklistEntry _blacklist = new();
         private static readonly ConcurrentDictionary<string, Regex> _wildcardRegexCache = new();
         private static bool _isInitialized = false;
@@ -155,7 +156,7 @@ namespace Segra.Backend.Games
 
         public static List<GameEntry> GetGameList()
         {
-            return _gamesList.Select(game => new GameEntry
+            return _cachedGameList ??= _gamesList.Select(game => new GameEntry
             {
                 Name = game.Name,
                 Executables = game.Executables.Select(exe => exe.Replace("/", "\\")).ToList(),
@@ -269,9 +270,12 @@ namespace Segra.Backend.Games
 
             try
             {
-                string jsonContent = File.ReadAllText(jsonPath);
-                _gamesList = JsonSerializer.Deserialize<List<GameEntry>>(jsonContent) ?? [];
+                using (var stream = File.OpenRead(jsonPath))
+                {
+                    _gamesList = JsonSerializer.Deserialize<List<GameEntry>>(stream) ?? [];
+                }
 
+                _cachedGameList = null;
                 _gameExePaths.Clear();
                 _exeToEntry.Clear();
                 _steamIdToEntry.Clear();
@@ -509,9 +513,6 @@ namespace Segra.Backend.Games
         {
             [JsonPropertyName("id")]
             public int Id { get; set; }
-
-            [JsonPropertyName("name")]
-            public string? Name { get; set; }
 
             [JsonPropertyName("cover_image_id")]
             public string? CoverImageId { get; set; }

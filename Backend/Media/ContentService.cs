@@ -1,4 +1,5 @@
 using Serilog;
+using System.Buffers;
 using System.Text.Json;
 using Segra.Backend.App;
 using Segra.Backend.Core;
@@ -411,8 +412,7 @@ namespace Segra.Backend.Media
                 }
 
                 // Read PCM and compute min/max pairs as 8-bit integers similar to audiowaveform output
-                byte[] pcmBytes = await File.ReadAllBytesAsync(tempPcmPath);
-                int totalSamples = pcmBytes.Length / 2; // 16-bit mono
+                long totalSamples = new FileInfo(tempPcmPath).Length / 2; // 16-bit mono
                 if (totalSamples == 0)
                 {
                     Log.Warning("No audio samples found when generating waveform peaks.");
@@ -438,18 +438,12 @@ namespace Segra.Backend.Media
 
                 var data = new List<int>(columns * 2);
 
-                for (int i = 0; i < totalSamples; i += samplesPerPixel)
+                short min16 = short.MaxValue;
+                short max16 = short.MinValue;
+                long blockCount = 0;
+
+                void FlushBlock()
                 {
-                    int end = Math.Min(totalSamples, i + samplesPerPixel);
-                    short min16 = short.MaxValue;
-                    short max16 = short.MinValue;
-                    for (int s = i; s < end; s++)
-                    {
-                        int byteIndex = s * 2;
-                        short sample = BitConverter.ToInt16(pcmBytes, byteIndex);
-                        if (sample < min16) min16 = sample;
-                        if (sample > max16) max16 = sample;
-                    }
                     // Scale 16-bit PCM to 8-bit range approximately -128..127
                     int min8 = (int)Math.Round(min16 / 256.0);
                     int max8 = (int)Math.Round(max16 / 256.0);
@@ -458,7 +452,57 @@ namespace Segra.Backend.Media
                     max8 = Math.Max(-128, Math.Min(127, max8));
                     data.Add(min8);
                     data.Add(max8);
+                    min16 = short.MaxValue;
+                    max16 = short.MinValue;
+                    blockCount = 0;
                 }
+
+                void Consume(short sample)
+                {
+                    if (sample < min16) min16 = sample;
+                    if (sample > max16) max16 = sample;
+                    if (++blockCount == samplesPerPixel) FlushBlock();
+                }
+
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(1 << 16);
+                try
+                {
+                    using var pcmStream = new FileStream(tempPcmPath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+                    long samplesRead = 0;
+                    bool hasCarry = false;
+                    byte carry = 0;
+                    int read;
+
+                    while (samplesRead < totalSamples && (read = await pcmStream.ReadAsync(buffer)) > 0)
+                    {
+                        int offset = 0;
+                        if (hasCarry)
+                        {
+                            Consume((short)(carry | (buffer[0] << 8)));
+                            samplesRead++;
+                            offset = 1;
+                            hasCarry = false;
+                        }
+
+                        int pairs = (read - offset) / 2;
+                        for (int p = 0; p < pairs && samplesRead < totalSamples; p++, samplesRead++)
+                        {
+                            Consume(BitConverter.ToInt16(buffer, offset + p * 2));
+                        }
+
+                        if ((read - offset) % 2 == 1)
+                        {
+                            carry = buffer[read - 1];
+                            hasCarry = true;
+                        }
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
+
+                if (blockCount > 0) FlushBlock();
 
                 var wrapper = new
                 {
