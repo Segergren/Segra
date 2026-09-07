@@ -46,13 +46,15 @@ export default function UpdateCard() {
             </div>
           </div>
         </div>
-        <button
-          onClick={clearUpdateInfo}
-          className="absolute top-2.5 right-1 p-1 rounded hover:bg-base-100 transition-colors cursor-pointer"
-          aria-label="Dismiss update notification"
-        >
-          <X size={14} />
-        </button>
+        {updateInfo.status !== 'downloading' && (
+          <button
+            onClick={clearUpdateInfo}
+            className="absolute top-2.5 right-1 p-1 rounded hover:bg-base-100 transition-colors cursor-pointer"
+            aria-label="Dismiss update notification"
+          >
+            <X size={14} />
+          </button>
+        )}
 
         {/* Action Buttons */}
         <div className="flex flex-col gap-2">
