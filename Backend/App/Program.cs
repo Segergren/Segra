@@ -652,6 +652,11 @@ namespace Segra.Backend.App
                 browserArgs += " --no-proxy-server";
             }
             windowBuilder = windowBuilder.SetBrowserControlInitParameters(browserArgs);
+
+            // PhotinoX defaults the WebView2 profile to %LOCALAPPDATA%\PhotinoX; keep using the
+            // Photino.NET path so existing logins and localStorage survive the upgrade.
+            windowBuilder = windowBuilder.SetUserDataFolder(
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Photino"));
 #endif
             windowBuilder = windowBuilder
                 .SetUseOsDefaultSize(false)
