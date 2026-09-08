@@ -51,7 +51,6 @@ namespace Segra.Backend.App
         [DllImport("kernel32.dll")]
         static extern uint GetCurrentThreadId();
 
-        const int SW_HIDE = 0;
         const int SW_RESTORE = 9;
         const int SM_CXFULLSCREEN = 16;
         const int SM_CYFULLSCREEN = 17;
@@ -354,23 +353,33 @@ namespace Segra.Backend.App
                 Task.Run(() => OBSService.InitializeAsync());
 #endif
 
+                // The message loop outlives every window, so closing to tray can destroy the
+                // webview (and its ~275MB of processes) instead of just hiding it.
+                App = new PhotinoApplication
+                {
+                    NotificationsEnabled = false, // Notifications disabled due to it creating a second start menu entry with incorrect start path. See https://github.com/tryphotino/photino.NET/issues/85
+                    ShutdownMode = PhotinoShutdownMode.OnExplicitShutdown
+                };
+
                 if (!startMinimized)
                 {
-                    LoadFrontend();
+                    App.Startup += (sender, eventArgs) => CreateWindow();
                 }
 
-                // Wait for show window events
-                while (true)
+                // ShowWindowEvent is signalled from the single-instance pipe thread.
+                var showWindowThread = new Thread(() =>
                 {
-                    int signalIndex = WaitHandle.WaitAny([ShowWindowEvent]);
-                    Log.Information($"Signal received: {signalIndex}");
-                    if (signalIndex == 0)
+                    while (true)
                     {
+                        ShowWindowEvent.WaitOne();
                         Log.Information("Show window event triggered");
-                        ShowApplicationWindow().GetAwaiter().GetResult();
-                        Log.Information("Show window event completed");
+                        _ = ShowApplicationWindow();
                     }
-                }
+                })
+                { IsBackground = true, Name = "ShowWindowSignal" };
+                showWindowThread.Start();
+
+                App.Run(null);
             }
             catch (Exception ex)
             {
@@ -544,21 +553,15 @@ namespace Segra.Backend.App
             Log.Information("Showing application window. Window is " + (Window == null ? "null" : "not null"));
             if (Window == null)
             {
-                // Schedule the foreground operations with a delay before calling LoadFrontend
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(200);
-                    Log.Information("Bringing application window to foreground from scheduled task");
-                    await BringWindowToForegroundAsync();
-                });
+                if (App == null)
+                    return;
 
-                LoadFrontend();
+                // Native windows must all be created on the thread that created the first one.
+                // InvokeAsync so the WinForms tray thread never blocks on the dispatcher.
+                await App.Dispatcher.InvokeAsync(CreateWindow);
             }
-            else
-            {
-                Log.Information("Bringing application window to foreground. Window is not null");
-                await BringWindowToForegroundAsync();
-            }
+
+            await BringWindowToForegroundAsync();
         }
 
         public static void BringWindowToFront() => _ = ShowApplicationWindow();
@@ -598,19 +601,9 @@ namespace Segra.Backend.App
 #endif
         }
 
-        private static void HideApplicationWindow()
-        {
-            Window?.SetMinimized(true);
+        private static Stopwatch _windowCreateStopwatch = new();
 
-#if WINDOWS
-            IntPtr hWnd = Process.GetCurrentProcess().MainWindowHandle;
-            ShowWindow(hWnd, SW_HIDE); // Hides the window from the taskbar
-#endif
-
-            Log.Information("Application window hidden");
-        }
-
-        private static void LoadFrontend()
+        private static void CreateWindow()
         {
             Log.Information("Loading frontend, app url is " + appUrl);
 
@@ -635,8 +628,7 @@ namespace Segra.Backend.App
                 restoreMaximized = savedState.Maximized;
             }
 
-            // Initialize the PhotinoWindow
-            App ??= new PhotinoApplication { NotificationsEnabled = false }; // Disabled due to it creating a second start menu entry with incorrect start path. See https://github.com/tryphotino/photino.NET/issues/85
+            _windowCreateStopwatch = Stopwatch.StartNew();
             var windowBuilder = new PhotinoWindow();
 #if WINDOWS
             // Chromium/WebView2-only flags; WebKitGTK on Linux parses these natively and crashes on the
@@ -720,19 +712,21 @@ namespace Segra.Backend.App
 
             Window.RegisterClosingHandler((sender, e) =>
             {
-                e.Cancel = true;
                 if (Settings.Instance.CloseButtonAction == CloseButtonAction.Exit)
                 {
+                    e.Cancel = true;
                     Shutdown();
                     Environment.Exit(0);
                     return;
                 }
 
                 SaveWindowState();
-                HideApplicationWindow();
+                Window = null;
+                Log.Information("Application window closing to tray");
             });
 
-            App.Run(Window);
+            Window.Show();
+            Log.Information("Window shown in {Elapsed}ms", _windowCreateStopwatch.ElapsedMilliseconds);
         }
 
         private static Size GetDefaultWindowSize()
