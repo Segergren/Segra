@@ -603,6 +603,8 @@ namespace Segra.Backend.Recorder
                 AppState.Instance.HasLoadedObs = true;
                 Log.Information("OBS initialized successfully!");
 
+                AppState.Instance.MaxAudioTracks = ObsAudioTrackLimit.Value;
+
                 // Hotkeys register through OBS's own hotkey system, so this can only run
                 // once OBS is initialized. A failure here must not be reported as an OBS
                 // initialization failure - OBS itself is already up at this point.
@@ -1239,7 +1241,7 @@ namespace Segra.Backend.Recorder
             }
 
             bool separateTracks = Settings.Instance.EnableSeparateAudioTracks;
-            int maxTracks = 6; // OBS supports up to 6 audio tracks
+            int maxTracks = ObsAudioTrackLimit.Value;
             int perSourceTracks = separateTracks ? Math.Min(trackGroups.Count, maxTracks - 1) : 0; // tracks 2..6 for groups
             int trackCount = 1 + perSourceTracks; // Track 1 is always the full mix
 
@@ -1308,7 +1310,7 @@ namespace Segra.Backend.Recorder
             // Configure outputs depending on mode
             if (isReplayBufferMode || isHybridMode)
             {
-                uint bufferTracksMask = (1u << trackCount) - 1u;
+                uint bufferTracksMask = trackCount >= 32 ? uint.MaxValue : (1u << trackCount) - 1u;
 
                 _bufferOutput = new ReplayBuffer("replay_buffer_output", eff.ReplayBufferDuration, eff.ReplayBufferMaxSize);
                 _bufferOutput.SetDirectory(bufferDir);
@@ -1332,7 +1334,7 @@ namespace Segra.Backend.Recorder
             {
                 videoOutputPath = $"{sessionDir}/{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
 
-                uint recordTracksMask = (1u << trackCount) - 1u;
+                uint recordTracksMask = trackCount >= 32 ? uint.MaxValue : (1u << trackCount) - 1u;
 
                 // Try Hybrid MP4 (crash-resilient, chapter markers; OBS 30.2+) and fall back to
                 // the plain ffmpeg muxer if this OBS build doesn't register mp4_output. The

@@ -25,6 +25,7 @@ namespace Segra.Backend.Core.Models
         private List<OBSVersion> _availableOBSVersions = [];
         private bool _isCheckingForUpdates = false;
         private int _maxDisplayHeight = 1080;
+        private int _maxAudioTracks = 6;
         private double _currentFolderSizeGb = 0;
         private double? _recordingDriveUsedGb = null;
         private double? _recordingDriveFreeGb = null;
@@ -169,6 +170,20 @@ namespace Segra.Backend.Core.Models
                 {
                     _maxDisplayHeight = value;
                     SendToFrontend("State update: MaxDisplayHeight");
+                }
+            }
+        }
+
+        [JsonPropertyName("maxAudioTracks")]
+        public int MaxAudioTracks
+        {
+            get => _maxAudioTracks;
+            set
+            {
+                if (_maxAudioTracks != value)
+                {
+                    _maxAudioTracks = value;
+                    SendToFrontend("State update: MaxAudioTracks");
                 }
             }
         }

@@ -51,6 +51,7 @@ export interface State {
   isCheckingForUpdates: boolean;
   gameList: GameListEntry[];
   maxDisplayHeight: number;
+  maxAudioTracks: number;
   currentFolderSizeGb: number;
   recordingDriveUsedGb: number | null;
   recordingDriveFreeGb: number | null;
@@ -350,6 +351,7 @@ export const initialState: State = {
   isCheckingForUpdates: false,
   gameList: [],
   maxDisplayHeight: 1080,
+  maxAudioTracks: 6,
   currentFolderSizeGb: 0,
   recordingDriveUsedGb: null,
   recordingDriveFreeGb: null,

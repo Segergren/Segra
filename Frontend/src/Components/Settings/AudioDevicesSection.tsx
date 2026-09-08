@@ -30,7 +30,8 @@ export default function AudioDevicesSection({
     return devices.some((device) => device.id === deviceId);
   };
 
-  // Multi-track audio: first 5 selected sources get isolated tracks (Track 1 is Full Mix)
+  // Multi-track audio: Track 1 is the Full Mix, the rest are isolated per source.
+  // The ceiling comes from the loaded OBS build (6 in stock OBS, higher in patched bundles).
   // In GameOnly/GameAndDiscord modes, output devices serve as fallback audio until a game hooks,
   // at which point they are muted and replaced by Game Audio (+a single shared Voice Chat track
   // covering Discord/TeamSpeak).
@@ -44,7 +45,7 @@ export default function AudioDevicesSection({
   const selectedOutputIds = settings.outputDevices.map((d) => d.id);
   const combinedSelectedIds = [...selectedInputIds, ...selectedOutputIds];
   const totalSourceCount = combinedSelectedIds.length + implicitOutputCount;
-  const maxIsolatedTracks = 5;
+  const maxIsolatedTracks = Math.max(1, appState.maxAudioTracks - 1);
   const hasOverTrackLimit =
     settings.enableSeparateAudioTracks && totalSourceCount > maxIsolatedTracks;
   const selectionSig = combinedSelectedIds.join(',');
@@ -452,8 +453,9 @@ export default function AudioDevicesSection({
             <div className="py-2 flex items-center w-full">
               <TriangleAlert className="h-5 w-5 mr-2 shrink-0" />
               <motion.span className="min-w-0 flex-1">
-                You have selected more than 5 audio sources. Only the first 5 will be saved as
-                separate audio tracks. Any additional sources will be recorded in the Full Mix only.
+                You have selected more than {maxIsolatedTracks} audio sources. Only the first{' '}
+                {maxIsolatedTracks} will be saved as separate audio tracks. Any additional sources
+                will be recorded in the Full Mix only.
               </motion.span>
               <Button
                 variant="ghost"
