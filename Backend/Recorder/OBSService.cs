@@ -608,6 +608,7 @@ namespace Segra.Backend.Recorder
                 // initialization failure - OBS itself is already up at this point.
                 try
                 {
+                    ObsStrictModifiers.Disable();
                     KeybindCaptureService.Start();
                 }
                 catch (Exception ex)
