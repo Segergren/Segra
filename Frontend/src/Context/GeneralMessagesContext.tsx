@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useEffect } from 'react';
+import { createContext, ReactNode, useEffect, useRef } from 'react';
 import {
   isShowModalMessage,
   isStorageWarningMessage,
@@ -16,14 +16,28 @@ import { sendMessageToBackend } from '../Utils/MessageUtils';
 const GeneralMessagesContext = createContext<undefined>(undefined);
 
 export function GeneralMessagesProvider({ children }: { children: ReactNode }) {
-  const { openModal, closeModal } = useModal();
+  const { openModal, closeModal, isModalOpen } = useModal();
+  // Backend modals that arrive while another modal is open are shown one at a time.
+  const pendingModals = useRef<ModalMessage[]>([]);
+  const modalOpenRef = useRef(false);
+
+  useEffect(() => {
+    modalOpenRef.current = isModalOpen;
+    if (!isModalOpen && pendingModals.current.length > 0) {
+      openGenericModal(pendingModals.current.shift()!);
+    }
+  }, [isModalOpen]);
 
   useEffect(() => {
     const handleWebSocketMessage = (event: CustomEvent<any>) => {
       const message = event.detail;
 
       if (isShowModalMessage(message)) {
-        openGenericModal(message.content);
+        if (modalOpenRef.current) {
+          pendingModals.current.push(message.content);
+        } else {
+          openGenericModal(message.content);
+        }
       }
 
       if (isStorageWarningMessage(message)) {
@@ -43,6 +57,8 @@ export function GeneralMessagesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openGenericModal = (modalData: ModalMessage) => {
+    // Set before the re-render so a second message in the same burst queues instead of replacing this one.
+    modalOpenRef.current = true;
     openModal(
       <GenericModal
         title={modalData.title}

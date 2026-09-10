@@ -19,11 +19,40 @@ namespace Segra.Backend.App
     public static class MessageService
     {
         private static WebSocket? activeWebSocket;
+        // Serializes SendAsync only; waiting for a frontend happens outside this lock.
         private static readonly SemaphoreSlim sendLock = new SemaphoreSlim(1, 1);
+        private static readonly object connectionGate = new();
+        private static TaskCompletionSource connectedSignal = NewConnectedSignal();
         private static readonly JsonSerializerOptions jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+
+        // How long a one-shot message waits for a frontend to connect before being dropped.
+        private const int ConnectGraceMs = 10000;
+
+        // Rebuilt by the NewConnection handler, so skipping them while no frontend is connected loses nothing.
+        private static readonly HashSet<string> ResentOnConnect = new(StringComparer.Ordinal)
+        {
+            "State",
+            "Settings",
+            "GameList",
+            "AppVersion",
+            "UpdateProgress",
+            "ReleaseNotes",
+            "pong",
+            "RecordingPreviewState",
+            "RecordingPreviewFrame"
+        };
+
+        private const int MaxPendingModals = 10;
+        private static readonly List<PendingModal> pendingModals = new();
+        private sealed record PendingModal(string Title, string? Subtitle, string Description, string Type);
+
+        private static readonly object stateSendGate = new();
+        private static bool stateDirty;
+        private static bool statePumpRunning;
+        private static Task statePump = Task.CompletedTask;
 
         public static async Task HandleMessage(string message)
         {
@@ -244,6 +273,7 @@ namespace Segra.Backend.App
                             });
 
                             await UpdateService.SendCurrentUpdateProgressToFrontend();
+                            await FlushPendingModalsAsync();
                             _ = Task.Run(() => UpdateService.GetReleaseNotes());
                             break;
                         case "SetVideoLocation":
@@ -422,10 +452,11 @@ namespace Segra.Backend.App
                         }
 
                         HttpListenerWebSocketContext wsContext = await context.AcceptWebSocketAsync(null);
-                        activeWebSocket = wsContext.WebSocket;
+                        WebSocket socket = wsContext.WebSocket;
+                        SetActiveSocket(socket);
 
                         Log.Information("WebSocket connection established");
-                        await HandleWebSocketAsync(activeWebSocket);
+                        await HandleWebSocketAsync(socket);
                     }
                     else
                     {
@@ -445,38 +476,110 @@ namespace Segra.Backend.App
             }
         }
 
-        public static async Task SendFrontendMessage(string method, object content)
+        private static TaskCompletionSource NewConnectedSignal() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private static WebSocket? GetOpenSocket()
         {
-            await sendLock.WaitAsync();
+            lock (connectionGate)
+            {
+                return activeWebSocket?.State == WebSocketState.Open ? activeWebSocket : null;
+            }
+        }
+
+        private static void SetActiveSocket(WebSocket socket)
+        {
+            lock (connectionGate)
+            {
+                activeWebSocket = socket;
+                connectedSignal.TrySetResult();
+            }
+        }
+
+        private static void ClearActiveSocket(WebSocket socket)
+        {
+            lock (connectionGate)
+            {
+                if (!ReferenceEquals(activeWebSocket, socket))
+                    return;
+
+                activeWebSocket = null;
+                connectedSignal = NewConnectedSignal();
+            }
+        }
+
+        // All callers share one signal, so a burst of messages waits once rather than once each.
+        private static async Task<WebSocket?> WaitForConnectionAsync(int timeoutMs)
+        {
+            Task connected;
+            lock (connectionGate)
+            {
+                if (activeWebSocket?.State == WebSocketState.Open)
+                    return activeWebSocket;
+
+                connected = connectedSignal.Task;
+            }
+
             try
             {
-                // Wait for up to 10 seconds for the websocket to be open
-                int maxWaitTimeMs = 10000;
-                int waitIntervalMs = 100;
-                int elapsedTime = 0;
+                await connected.WaitAsync(TimeSpan.FromMilliseconds(timeoutMs));
+            }
+            catch (TimeoutException)
+            {
+                return null;
+            }
 
-                while ((activeWebSocket == null || activeWebSocket.State != WebSocketState.Open)
-                    && elapsedTime < maxWaitTimeMs)
+            return GetOpenSocket();
+        }
+
+        public static async Task SendFrontendMessage(string method, object content)
+        {
+            if (GetOpenSocket() == null)
+            {
+                if (ResentOnConnect.Contains(method))
                 {
-                    await Task.Delay(waitIntervalMs);
-                    elapsedTime += waitIntervalMs;
+                    Log.Debug($"Skipped '{method}' message: no frontend connected, it is resent on the next connection");
+                    return;
                 }
 
-                if (activeWebSocket?.State == WebSocketState.Open)
+                if (await WaitForConnectionAsync(ConnectGraceMs) == null)
                 {
-                    var message = new { method, content };
-                    byte[] buffer = JsonSerializer.SerializeToUtf8Bytes(message, jsonOptions);
-                    await activeWebSocket.SendAsync(
-                        buffer,
-                        WebSocketMessageType.Text,
-                        endOfMessage: true,
-                        cancellationToken: CancellationToken.None
-                    );
+                    Log.Warning($"Dropped '{method}' message: no frontend connected within {ConnectGraceMs / 1000}s");
+                    return;
                 }
+            }
+
+            byte[] buffer;
+            try
+            {
+                buffer = JsonSerializer.SerializeToUtf8Bytes(new { method, content }, jsonOptions);
             }
             catch (Exception ex)
             {
-                Log.Error($"Error sending message: {ex.Message}");
+                Log.Error($"Error serializing '{method}' message: {ex.Message}");
+                return;
+            }
+
+            await sendLock.WaitAsync();
+            try
+            {
+                WebSocket? socket = GetOpenSocket();
+                if (socket == null)
+                {
+                    Log.Warning($"Dropped '{method}' message: frontend disconnected before it was sent");
+                    return;
+                }
+
+                await socket.SendAsync(
+                    buffer,
+                    WebSocketMessageType.Text,
+                    endOfMessage: true,
+                    cancellationToken: CancellationToken.None
+                );
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error sending '{method}' message: {ex.Message}");
             }
             finally
             {
@@ -492,16 +595,64 @@ namespace Segra.Backend.App
                 type = "info";
             }
 
-            var modalContent = new
+            if (GetOpenSocket() == null)
             {
-                title,
-                subtitle,
-                description,
-                type
-            };
+                QueuePendingModal(new PendingModal(title, subtitle, description, type));
 
-            await SendFrontendMessage("ShowModal", modalContent);
+                // A frontend may have connected in between; don't leave the modal waiting for the next one.
+                if (GetOpenSocket() != null)
+                    await FlushPendingModalsAsync();
+                return;
+            }
+
+            await SendFrontendMessage("ShowModal", new { title, subtitle, description, type });
             Log.Information($"Sent modal to frontend: {title} ({type})");
+        }
+
+        private static void QueuePendingModal(PendingModal modal)
+        {
+            lock (pendingModals)
+            {
+                if (pendingModals.Any(m => m.Title == modal.Title && m.Description == modal.Description))
+                {
+                    Log.Information($"Modal '{modal.Title}' is already queued for the next frontend connection");
+                    return;
+                }
+
+                if (pendingModals.Count >= MaxPendingModals)
+                {
+                    Log.Warning($"Discarding oldest queued modal '{pendingModals[0].Title}' to stay within {MaxPendingModals} pending modals");
+                    pendingModals.RemoveAt(0);
+                }
+
+                pendingModals.Add(modal);
+                Log.Information($"No frontend connected; queued modal '{modal.Title}' ({modal.Type}) for the next connection");
+            }
+        }
+
+        private static async Task FlushPendingModalsAsync()
+        {
+            List<PendingModal> toSend;
+            lock (pendingModals)
+            {
+                if (pendingModals.Count == 0)
+                    return;
+
+                toSend = new List<PendingModal>(pendingModals);
+                pendingModals.Clear();
+            }
+
+            Log.Information($"Sending {toSend.Count} modal(s) queued while no frontend was connected");
+            foreach (var modal in toSend)
+            {
+                await SendFrontendMessage("ShowModal", new
+                {
+                    title = modal.Title,
+                    subtitle = modal.Subtitle,
+                    description = modal.Description,
+                    type = modal.Type
+                });
+            }
         }
 
         public static async Task SendSettingsToFrontend(string cause)
@@ -513,13 +664,48 @@ namespace Segra.Backend.App
             await SendFrontendMessage("Settings", Settings.Instance);
         }
 
-        public static async Task SendStateToFrontend(string cause)
+        // One push in flight at a time; changes made meanwhile are folded into the next push.
+        // The returned task completes once a push that includes this change has been sent.
+        public static Task SendStateToFrontend(string cause)
         {
             if (!Program.hasLoadedInitialSettings || Settings.Instance._isBulkUpdating)
-                return;
+                return Task.CompletedTask;
 
             Log.Information("Sending state to frontend ({Cause})", cause);
-            await SendFrontendMessage("State", AppState.Instance);
+
+            lock (stateSendGate)
+            {
+                stateDirty = true;
+                if (!statePumpRunning)
+                {
+                    statePumpRunning = true;
+                    statePump = Task.Run(PumpStateAsync);
+                }
+
+                return statePump;
+            }
+        }
+
+        private static async Task PumpStateAsync()
+        {
+            while (true)
+            {
+                lock (stateSendGate)
+                {
+                    stateDirty = false;
+                }
+
+                await SendFrontendMessage("State", AppState.Instance);
+
+                lock (stateSendGate)
+                {
+                    if (stateDirty)
+                        continue;
+
+                    statePumpRunning = false;
+                    return;
+                }
+            }
         }
 
         public static async Task SendGameList()
@@ -725,6 +911,7 @@ namespace Segra.Backend.App
             }
             finally
             {
+                ClearActiveSocket(webSocket);
                 if (webSocket.State != WebSocketState.Closed && webSocket.State != WebSocketState.Aborted)
                 {
                     await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "Server-side error", CancellationToken.None);
