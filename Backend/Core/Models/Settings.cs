@@ -43,7 +43,6 @@ namespace Segra.Backend.Core.Models
         private List<DeviceSetting> _outputDevices = new List<DeviceSetting>();
         private bool _forceMonoInputSources = false;
         private Display? _selectedDisplay = null;
-        private DisplayCaptureMethod _displayCaptureMethod = DisplayCaptureMethod.Auto;
         private WindowState? _lastWindowState = null;
         private bool _enableAi = true;
         private bool _autoGenerateHighlights = true;
@@ -350,19 +349,6 @@ namespace Segra.Backend.Core.Models
             set
             {
                 _selectedDisplay = value;
-            }
-        }
-
-        [JsonPropertyName("displayCaptureMethod")]
-        public DisplayCaptureMethod DisplayCaptureMethod
-        {
-            get => _displayCaptureMethod;
-            set
-            {
-                if (_displayCaptureMethod != value)
-                {
-                    _displayCaptureMethod = value;
-                }
             }
         }
 
@@ -1100,6 +1086,9 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("isUsingGameHook")]
         public bool IsUsingGameHook { get; set; }
 
+        [JsonPropertyName("isUsingWindowCapture")]
+        public bool IsUsingWindowCapture { get; set; }
+
         [JsonPropertyName("exePath")]
         public string? ExePath { get; set; }
 
@@ -1308,14 +1297,6 @@ namespace Segra.Backend.Core.Models
     {
         Minimize,
         Exit
-    }
-
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public enum DisplayCaptureMethod
-    {
-        Auto,
-        DXGI,
-        WGC
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]

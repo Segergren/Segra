@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DropdownSelect from '../DropdownSelect';
-import {
-  Settings as SettingsType,
-  VideoQualityPreset,
-  DisplayCaptureMethod,
-} from '../../Models/types';
+import { Settings as SettingsType, VideoQualityPreset } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { useAppState } from '../../Context/AppStateContext';
 
@@ -75,24 +71,9 @@ export default function VideoSettingsSection({
           })
         }
       />
-    </div>
-  );
-
-  const captureMethodField = (
-    <div className="form-control">
-      <label className="label">
-        <span className="label-text text-base-content">Capture Method</span>
-      </label>
-      <DropdownSelect
-        items={[
-          { value: 'Auto', label: 'Auto' },
-          { value: 'DXGI', label: 'DXGI (Desktop Duplication)' },
-          { value: 'WGC', label: 'WGC (Windows Graphics Capture)' },
-        ]}
-        value={settings.displayCaptureMethod}
-        onChange={(val) => updateSettings({ displayCaptureMethod: val as DisplayCaptureMethod })}
-        disabled={isRecording}
-      />
+      <div className="mt-1 px-1 text-xs text-base-content/60 leading-snug">
+        Used for manual recordings. Game recordings follow the monitor the game is on.
+      </div>
     </div>
   );
 
@@ -484,17 +465,13 @@ export default function VideoSettingsSection({
               </div>
 
               {monitorSelectionField}
-              {captureMethodField}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {settings.videoQualityPreset !== 'custom' && (
-        <div className="grid grid-cols-2 gap-4 mt-3">
-          {monitorSelectionField}
-          {captureMethodField}
-        </div>
+        <div className="grid grid-cols-2 gap-4 mt-3">{monitorSelectionField}</div>
       )}
 
       {/* 4:3 Stretch Option */}

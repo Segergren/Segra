@@ -334,7 +334,7 @@ namespace Segra.Backend.App
                 Log.Information("PreRecording: <none>");
 
             if (AppState.Instance.Recording != null)
-                Log.Information($"Recording: game={AppState.Instance.Recording.Game}, startTime={AppState.Instance.Recording.StartTime:O}, hook={AppState.Instance.Recording.IsUsingGameHook}, pid={AppState.Instance.Recording.Pid?.ToString() ?? "<none>"}");
+                Log.Information($"Recording: game={AppState.Instance.Recording.Game}, startTime={AppState.Instance.Recording.StartTime:O}, hook={AppState.Instance.Recording.IsUsingGameHook}, windowCapture={AppState.Instance.Recording.IsUsingWindowCapture}, pid={AppState.Instance.Recording.Pid?.ToString() ?? "<none>"}");
             else
                 Log.Information("Recording: <none>");
 
@@ -349,7 +349,6 @@ namespace Segra.Backend.App
             Log.Information($"Video quality preset: {s.VideoQualityPreset}");
             Log.Information($"Recording mode: {s.RecordingMode}");
             Log.Information($"Replay buffer: duration={s.ReplayBufferDuration}s, maxSize={s.ReplayBufferMaxSize}MB");
-            Log.Information($"Display capture method: {s.DisplayCaptureMethod}");
             Log.Information($"GPU vendor: {AppState.Instance.GpuVendor}");
 #if WINDOWS
             Log.Information($"NVENC capabilities: {NvencCapsService.GetCapsSummaryOrNull() ?? "<none>"}");

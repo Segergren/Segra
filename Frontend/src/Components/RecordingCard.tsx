@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PreRecording, Recording, GameResponse, GameSetting, Display } from '../Models/types';
-import { Gamepad2, Monitor, Ellipsis, Ban } from 'lucide-react';
+import { Gamepad2, Monitor, AppWindow, Ellipsis, Ban } from 'lucide-react';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAppState } from '../Context/AppStateContext';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
@@ -32,9 +32,24 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
   const gameListEntry = state.gameList.find((g) => g.name === gameName);
   const canBlockGame = !!gameListEntry && gameListEntry.executables.length > 0;
 
-  // Monitors that share the current recording display's aspect ratio. The dropdown arrow next to
-  // the Display capture indicator only appears when there are multiple candidates to pick from.
-  const isDisplayCapture = !!recording && !recording.isUsingGameHook;
+  // Monitor dropdown next to the Display capture indicator: manual recordings only, when several
+  // monitors share the display's aspect ratio (game recordings follow the game's monitor).
+  const isManualRecording = gameName === 'Manual Recording';
+  const captureMode = recording?.isUsingGameHook
+    ? 'game'
+    : recording?.isUsingWindowCapture
+      ? 'window'
+      : 'display';
+  const isDisplayCapture = !!recording && captureMode === 'display';
+  const captureTooltip =
+    captureMode === 'game'
+      ? 'Game capture (using game hook)'
+      : captureMode === 'window'
+        ? 'Window capture (game hook unavailable)'
+        : 'Display capture (not using game hook)';
+  const captureTooltipColor = captureMode === 'game' ? 'tooltip-success' : 'tooltip-warning';
+  const CaptureIcon =
+    captureMode === 'game' ? Gamepad2 : captureMode === 'window' ? AppWindow : Monitor;
   const displayAspectRatio = (d: Display) => (d.height > 0 ? d.width / d.height : 0);
   // Resolve against the live display list: a cached selectedDisplay from an older version may
   // lack the width/height fields needed for the aspect-ratio comparison.
@@ -49,7 +64,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
       (d) => Math.abs(displayAspectRatio(d) - displayAspectRatio(currentDisplay)) < 0.02,
     );
   }, [state.displays, currentDisplay]);
-  const showMonitorDropdown = isDisplayCapture && sameRatioDisplays.length > 1;
+  const showMonitorDropdown = isDisplayCapture && isManualRecording && sameRatioDisplays.length > 1;
 
   const monitorItems = sameRatioDisplays.map((d) => {
     const displayIndex = state.displays.findIndex((other) => other.deviceId === d.deviceId);
@@ -248,17 +263,25 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
             </span>
             {!preRecording && (
               <div
-                className={`tooltip tooltip-right ${recording?.isUsingGameHook ? 'tooltip-success' : 'tooltip-warning'} flex items-center ml-1.5 [&::before]:delay-200 [&::after]:delay-200`}
-                data-tip={`${recording?.isUsingGameHook ? 'Game capture (using game hook)' : 'Display capture (not using game hook)'}`}
+                className={`tooltip tooltip-right ${captureTooltipColor} flex items-center ml-1.5 [&::before]:delay-200 [&::after]:delay-200`}
+                data-tip={captureTooltip}
               >
-                <div className={`swap swap-flip cursor-default overflow-hidden justify-center`}>
-                  <input type="checkbox" checked={recording?.isUsingGameHook} />
-                  <div className={`swap-on`}>
-                    <Gamepad2 className="h-5 w-5 text-gray-300" />
-                  </div>
-                  <div className={`swap-off`}>
-                    <Monitor className="h-5 w-5 text-gray-300 scale-90" />
-                  </div>
+                <div className="relative h-5 w-5 cursor-default" style={{ perspective: '20rem' }}>
+                  <AnimatePresence initial={false}>
+                    <motion.div
+                      key={captureMode}
+                      className="absolute inset-0 flex items-center justify-center"
+                      style={{ backfaceVisibility: 'hidden' }}
+                      initial={{ rotateY: 180, opacity: 0 }}
+                      animate={{ rotateY: 0, opacity: 1 }}
+                      exit={{ rotateY: -180, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                    >
+                      <CaptureIcon
+                        className={`h-5 w-5 text-gray-300 ${captureMode === 'game' ? '' : 'scale-90'}`}
+                      />
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </div>
             )}

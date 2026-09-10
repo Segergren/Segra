@@ -86,7 +86,8 @@ namespace Segra.Backend.Games
 #if WINDOWS
             return exePath.StartsWith("C:/Windows/System32/")
                 || exePath.StartsWith("C:/Windows/SysWOW64/")
-                || exePath.StartsWith("C:/Program Files/Git/");
+                || exePath.StartsWith("C:/Program Files/Git/")
+                || exePath.Contains("inject-helper64.exe", StringComparison.OrdinalIgnoreCase);
 #else
             return exePath.StartsWith("/usr/")
                 || exePath.StartsWith("/bin/")

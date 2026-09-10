@@ -40,7 +40,15 @@ namespace Segra.Backend.Windows.Display
         [DllImport("user32.dll")]
         private static extern int GetWindowTextLength(IntPtr hWnd);
 
+        [DllImport("shell32.dll")]
+        private static extern int SHQueryUserNotificationState(out int state);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        private const int QUNS_RUNNING_D3D_FULL_SCREEN = 3;
 
         private const int GWL_STYLE = -16;
         private const int GWL_EXSTYLE = -20;
@@ -61,6 +69,38 @@ namespace Segra.Backend.Windows.Display
 
             public int Width => Right - Left;
             public int Height => Bottom - Top;
+        }
+
+        /// <summary>
+        /// True while a Direct3D app is in true exclusive fullscreen; borderless and fullscreen-optimized windows don't count.
+        /// </summary>
+        public static bool IsExclusiveFullscreenActive()
+        {
+            return SHQueryUserNotificationState(out int state) == 0 && state == QUNS_RUNNING_D3D_FULL_SCREEN;
+        }
+
+        /// <summary>
+        /// True when the executable's main window is minimized. False if no main window is found.
+        /// </summary>
+        public static bool IsExeWindowMinimized(string exeFileName)
+        {
+            try
+            {
+                foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exeFileName)))
+                {
+                    using (process)
+                    {
+                        IntPtr hwnd = process.MainWindowHandle;
+                        if (hwnd != IntPtr.Zero)
+                            return IsIconic(hwnd);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to check window state for {exeFileName}: {ex.Message}");
+            }
+            return false;
         }
 
         public static bool GetWindowDimensionsByPreRecordingExeOrPid(out uint width, out uint height)

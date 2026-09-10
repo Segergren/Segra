@@ -5,6 +5,7 @@ using ObsKit.NET.Scenes;
 using Segra.Backend.App;
 using ObsKit.NET.Outputs;
 using ObsKit.NET.Sources;
+using ObsKit.NET.Signals;
 using Segra.Backend.Core;
 using System.Diagnostics;
 using ObsKit.NET.Encoders;
@@ -47,6 +48,7 @@ namespace Segra.Backend.Recorder
 
         private static Scene? _mainScene;
         private static SceneItem? _gameCaptureItem;
+        private static SceneItem? _windowCaptureItem;
         private static SceneItem? _displayItem;
 
         private static RecordingOutput? _output;
@@ -54,6 +56,20 @@ namespace Segra.Backend.Recorder
 
         public static GameCapture? GameCaptureSource { get; set; }
         private static Source? _displaySource;
+        private static int _displayMonitorIndex = -1;
+        // Game recordings follow the game's monitor; the selected display is for manual recordings
+        private static bool _displayFollowsGame;
+
+        // Video fallback for games the graphics hook can't attach to
+        private static WindowCapture? _windowCaptureSource;
+        private static SignalConnection? _windowHookedConnection;
+        private static SignalConnection? _windowUnhookedConnection;
+        private static bool _isWindowCaptureHooked;
+        private static string? _captureWindowSpec;
+        private static readonly object _fallbackCaptureLock = new();
+
+        // Game process audio, independent of which video source is live
+        private static ApplicationAudioCapture? _gameAudioSource;
         private static readonly List<AudioInputCapture> _micSources = [];
         private static readonly List<AudioOutputCapture> _desktopSources = [];
         private static readonly List<(string Name, string Window, Source Source)> _voiceChatSources = [];
@@ -81,6 +97,16 @@ namespace Segra.Backend.Recorder
         private static bool _isStillHookedAfterUnhook = false;
         private static DateTime _lastDeviceRebuildUtc = DateTime.MinValue;
         private static int _deviceRemovedCheckPending;
+
+        // WGC can't capture exclusive fullscreen or minimized windows, so poll for both while window capture is the fallback
+        private static System.Threading.Timer? _captureFallbackTimer = null;
+        private const int CaptureFallbackCheckIntervalMs = 1000;
+        // Blocking is immediate; unblocking waits this many consecutive clean checks, because a restored
+        // exclusive-fullscreen game (or an overlay popping up) reads as windowed for a moment
+        private const int WindowCaptureUnblockChecks = 3;
+        private static bool _isWindowCaptureBlocked = false;
+        private static string? _windowCaptureBlockReason;
+        private static int _windowCaptureClearChecks;
 
         // Periodic low-disk-space monitor while recording
         private static System.Threading.Timer? _diskSpaceMonitorTimer = null;
@@ -142,6 +168,8 @@ namespace Segra.Backend.Recorder
         /// Uses the built-in IsHooked property from OBSKit.NET.
         /// </summary>
         private static bool IsGameCaptureHooked => GameCaptureSource?.IsHooked ?? false;
+        private static bool IsUsingWindowCapture =>
+            !IsGameCaptureHooked && _windowCaptureItem != null && _isWindowCaptureHooked && !_isWindowCaptureBlocked;
 
         private static readonly SemaphoreSlim _stopRecordingSemaphore = new(1, 1);
 
@@ -1030,15 +1058,16 @@ namespace Segra.Backend.Recorder
 #if WINDOWS
             else
             {
-                // Add display capture first (bottom layer - fallback)
+                // Layers, bottom to top: display capture, window capture, game capture
                 AddMonitorCapture();
+                _captureWindowSpec = $"*:*:{fileName}";
+                AddWindowCapture(_captureWindowSpec);
 
                 // Create game capture source for automatic game detection
                 try
                 {
                     GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
-                    GameCaptureSource.SetWindow($"*:*:{fileName}");
-                    GameCaptureSource.Volume = eff.VolumeMultiplier;
+                    GameCaptureSource.SetWindow(_captureWindowSpec);
 
                     // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
                     // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
@@ -1046,13 +1075,6 @@ namespace Segra.Backend.Recorder
                     {
                         GameCaptureSource.SetRgb10A2ColorSpace(GameCapture.Rgb10A2ColorSpace.Pq2100);
                         Log.Information("Game capture color space set to Rec.2100 PQ (HDR)");
-                    }
-
-                    // Enable capture_audio on game capture when using GameOnly or GameAndDiscord mode
-                    if (Settings.Instance.AudioOutputMode != AudioOutputMode.All)
-                    {
-                        GameCaptureSource.SetCaptureAudio();
-                        Log.Information($"Game capture audio enabled (mode: {Settings.Instance.AudioOutputMode})");
                     }
 
                     Log.Information($"Game capture configured for: {fileName}");
@@ -1089,7 +1111,10 @@ namespace Segra.Backend.Recorder
                     // For non-4:3: base == output, ScaleInner ensures content scales with black bars if window shrinks.
                     var boundsType = is4by3 ? ObsBoundsType.Stretch : ObsBoundsType.ScaleInner;
                     _gameCaptureItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+                    _windowCaptureItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
                     _displayItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+
+                    FollowGameMonitor();
                 }
                 else
                 {
@@ -1253,8 +1278,13 @@ namespace Segra.Backend.Recorder
 
             var audioOutputMode = Settings.Instance.AudioOutputMode;
 
-            // Always add desktop audio sources - they serve as fallback until game hooks in GameOnly/GameAndDiscord modes
-            if (Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
+            // Game audio is captured from the game process; output devices are only used in Everything
+            // mode, for manual recordings, or when process capture is unavailable
+            if (audioOutputMode != AudioOutputMode.All && !startManually && _captureWindowSpec != null)
+                TryAddGameAudioSource(_captureWindowSpec, eff.VolumeMultiplier);
+            bool useGameAudio = _gameAudioSource != null;
+
+            if (!useGameAudio && Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
             {
                 foreach (var deviceSetting in Settings.Instance.OutputDevices)
                 {
@@ -1275,10 +1305,9 @@ namespace Segra.Backend.Recorder
                 }
             }
 
-            // In GameAndDiscord mode, capture audio from running voice chat apps. Sources are muted
-            // while the game is not hooked (desktop audio covers voice chat); apps launched
+            // In GameAndDiscord mode, capture audio from running voice chat apps; apps launched
             // mid-recording are added via OnVoiceChatAppStarted.
-            if (audioOutputMode == AudioOutputMode.GameAndDiscord && GameCaptureSource != null)
+            if (useGameAudio && audioOutputMode == AudioOutputMode.GameAndDiscord)
             {
                 foreach (var app in VoiceChatApps)
                 {
@@ -1292,7 +1321,6 @@ namespace Segra.Backend.Recorder
             // If enabled: Track 1 = Full Mix, Tracks 2..6 = per-group isolated (up to 5 groups)
             // If disabled: Track 1 only (Full Mix)
             // Each group shares one isolated track; all voice chat apps form a single "Voice Chat" group.
-            // In GameOnly/GameAndDiscord modes, desktop sources are fallback-only (full mix only).
             var trackGroups = new List<List<Source>>();
             var trackGroupTypes = new List<string>();
             foreach (var micSource in _micSources)
@@ -1300,39 +1328,11 @@ namespace Segra.Backend.Recorder
                 trackGroups.Add([micSource]);
                 trackGroupTypes.Add("input");
             }
-            foreach (var desktopSource in _desktopSources)
-            {
-                trackGroups.Add([desktopSource]);
-                trackGroupTypes.Add("output");
-            }
 
             int voiceChatGroupIndex = -1;
-            if (audioOutputMode != AudioOutputMode.All && GameCaptureSource != null)
+            if (useGameAudio)
             {
-                // Desktop sources are fallback-only: assign to full mix (Track 1) only, no separate tracks.
-                // Mute them here if the game hooked before they were added (the hook event missed them).
-                bool gameAlreadyHooked = GameCaptureSource.IsHooked;
-                foreach (var desktopSource in _desktopSources)
-                {
-                    try
-                    {
-                        desktopSource.AudioMixers = 1u << 0;
-                        desktopSource.IsMuted = gameAlreadyHooked;
-                    }
-                    catch (Exception ex) { Log.Warning($"Failed to set mixer for fallback desktop source: {ex.Message}"); }
-                }
-                if (gameAlreadyHooked)
-                    Log.Information("Muted desktop audio sources (game already hooked before sources were added)");
-
-                // Remove desktop sources from the list that gets separate tracks
-                trackGroups = [];
-                trackGroupTypes = [];
-                foreach (var micSource in _micSources)
-                {
-                    trackGroups.Add([micSource]);
-                    trackGroupTypes.Add("input");
-                }
-                trackGroups.Add([GameCaptureSource]);
+                trackGroups.Add([_gameAudioSource!]);
                 trackGroupTypes.Add("output");
 
                 // The voice chat group is reserved even when currently empty so apps launched
@@ -1341,6 +1341,14 @@ namespace Segra.Backend.Recorder
                 {
                     voiceChatGroupIndex = trackGroups.Count;
                     trackGroups.Add(_voiceChatSources.Select(v => v.Source).ToList());
+                    trackGroupTypes.Add("output");
+                }
+            }
+            else
+            {
+                foreach (var desktopSource in _desktopSources)
+                {
+                    trackGroups.Add([desktopSource]);
                     trackGroupTypes.Add("output");
                 }
             }
@@ -1354,7 +1362,7 @@ namespace Segra.Backend.Recorder
                     audioDeviceNames.Add(device.Name.Replace(" (Default)", "") ?? "Microphone");
                 }
             }
-            if (audioOutputMode == AudioOutputMode.All || GameCaptureSource == null)
+            if (!useGameAudio)
             {
                 if (Settings.Instance.OutputDevices != null)
                 {
@@ -1554,6 +1562,7 @@ namespace Segra.Backend.Recorder
                 FileName = fileName,
                 Pid = pid,
                 IsUsingGameHook = IsGameCaptureHooked,
+                IsUsingWindowCapture = IsUsingWindowCapture,
                 ExePath = exePath,
                 CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath),
                 AudioTrackNames = actualAudioTrackNames,
@@ -1586,19 +1595,14 @@ namespace Segra.Backend.Recorder
             }
 
             int monitorIndex = ResolveSelectedMonitorIndex(warnIfNotFound: true);
+            _displayMonitorIndex = monitorIndex;
 
 #if WINDOWS
-            var captureMethod = Settings.Instance.DisplayCaptureMethod switch
-            {
-                DisplayCaptureMethod.DXGI => MonitorCaptureMethod.DesktopDuplication,
-                DisplayCaptureMethod.WGC => MonitorCaptureMethod.WindowsGraphicsCapture,
-                _ => MonitorCaptureMethod.Auto
-            };
-
+            // DXGI captures exclusive fullscreen; WGC can't
             _displaySource = MonitorCapture.FromMonitor(monitorIndex, "display")
-                .SetCaptureMethod(captureMethod);
+                .SetCaptureMethod(MonitorCaptureMethod.DesktopDuplication);
 
-            Log.Information($"Display capture added for monitor {monitorIndex} using {Settings.Instance.DisplayCaptureMethod} method");
+            Log.Information($"Display capture added for monitor {monitorIndex} using DXGI");
 #else
             // Linux: on X11 use OBS's xshm screen capture. The PipeWire desktop-portal source is
             // Wayland-oriented and yields black frames on X11, so only use it when actually on Wayland.
@@ -1638,10 +1642,17 @@ namespace Segra.Backend.Recorder
                 return;
             }
 
+            if (_displayFollowsGame)
+            {
+                Log.Information("Monitor selection changed but this recording follows the game's monitor; it applies to manual recordings.");
+                return;
+            }
+
             int monitorIndex = ResolveSelectedMonitorIndex(warnIfNotFound: true);
             if (_displaySource is MonitorCapture monitorCapture)
             {
                 monitorCapture.SetMonitor(monitorIndex);
+                _displayMonitorIndex = monitorIndex;
                 Log.Information($"Updated live display capture to monitor {monitorIndex}");
             }
             else
@@ -1649,6 +1660,36 @@ namespace Segra.Backend.Recorder
                 // xshm/other source types: no in-place monitor switch; applies on next recording.
                 Log.Information("Monitor selection changed; will apply on the next recording.");
             }
+        }
+
+        /// <summary>
+        /// Points the display fallback at the game window's monitor; keeps the selected display if it can't be resolved.
+        /// </summary>
+        private static void FollowGameMonitor()
+        {
+#if WINDOWS
+            if (_displaySource is not MonitorCapture monitorCapture) return;
+
+            try
+            {
+                string? deviceId = DisplayService.GetDeviceIdForWindow(WindowUtils.TryGetPreRecordingWindowHandle());
+                if (deviceId == null) return;
+
+                int index = AppState.Instance.Displays.FindIndex(d => d.DeviceId == deviceId);
+                if (index < 0) return;
+
+                _displayFollowsGame = true;
+                if (index == _displayMonitorIndex) return;
+
+                monitorCapture.SetMonitor(index);
+                _displayMonitorIndex = index;
+                Log.Information($"Display capture switched to monitor {index} (the game's monitor)");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to follow the game's monitor: {ex.Message}");
+            }
+#endif
         }
 
         /// <summary>
@@ -1830,6 +1871,7 @@ namespace Segra.Backend.Recorder
                 RecordingPreviewService.OnRecordingStopped();
 
                 StopGameCaptureHookTimeoutTimer();
+                StopCaptureFallbackMonitor();
                 StopDiskSpaceMonitor();
 
                 // Use the same effective recording mode that StartRecording used (per-game override aware),
@@ -2106,30 +2148,14 @@ namespace Segra.Backend.Recorder
 
                 Log.Information($"Game hooked: Title='{title}', Class='{windowClass}', Executable='{executable}'");
 
-                // Remove display capture to save resources while game is hooked
+                // Remove both fallbacks to save resources while game is hooked
                 DisposeDisplaySource();
-
-                // Switch output audio: mute desktop sources and unmute game/voice chat sources
-                var audioOutputMode = Settings.Instance.AudioOutputMode;
-                if (audioOutputMode != AudioOutputMode.All)
-                {
-                    foreach (var desktopSource in _desktopSources)
-                    {
-                        try { desktopSource.IsMuted = true; }
-                        catch (Exception ex) { Log.Warning($"Failed to mute desktop source: {ex.Message}"); }
-                    }
-                    Log.Information("Muted desktop audio sources (game hooked, using capture_audio)");
-
-                    foreach (var (voiceName, _, voiceSource) in _voiceChatSources)
-                    {
-                        try { voiceSource.IsMuted = false; Log.Information($"Unmuted {voiceName} audio source (game hooked)"); }
-                        catch (Exception ex) { Log.Warning($"Failed to unmute {voiceName} source: {ex.Message}"); }
-                    }
-                }
+                DisposeWindowCaptureSource();
 
                 if (AppState.Instance.Recording != null)
                 {
                     AppState.Instance.Recording.IsUsingGameHook = true;
+                    AppState.Instance.Recording.IsUsingWindowCapture = false;
                     _ = MessageService.SendStateToFrontend("Updated game hook");
                 }
             }
@@ -2147,24 +2173,6 @@ namespace Segra.Backend.Recorder
         {
             // IsHooked is now managed by GameCapture automatically
             Log.Information("Game unhooked.");
-
-            // Switch output audio back: unmute desktop sources and mute voice chat sources
-            var audioOutputMode = Settings.Instance.AudioOutputMode;
-            if (audioOutputMode != AudioOutputMode.All)
-            {
-                foreach (var desktopSource in _desktopSources)
-                {
-                    try { desktopSource.IsMuted = false; }
-                    catch (Exception ex) { Log.Warning($"Failed to unmute desktop source: {ex.Message}"); }
-                }
-                Log.Information("Unmuted desktop audio sources (game unhooked, falling back to desktop audio)");
-
-                foreach (var (voiceName, _, voiceSource) in _voiceChatSources)
-                {
-                    try { voiceSource.IsMuted = true; Log.Information($"Muted {voiceName} audio source (game unhooked)"); }
-                    catch (Exception ex) { Log.Warning($"Failed to mute {voiceName} source: {ex.Message}"); }
-                }
-            }
         }
 
         private static void OnReplaySaved(object? sender, ReplaySavedEventArgs e)
@@ -2366,13 +2374,9 @@ namespace Segra.Backend.Recorder
             {
                 var voiceSource = new ApplicationAudioCapture($"{app.Name} Audio")
                     .SetWindow(app.Window, ApplicationAudioCapture.WindowPriority.Executable);
-                voiceSource.IsMuted = true;
                 _mainScene!.AddSource(voiceSource);
                 _voiceChatSources.Add((app.Name, app.Window, voiceSource));
-
-                bool muted = GameCaptureSource?.IsHooked != true;
-                voiceSource.IsMuted = muted;
-                Log.Information($"Added {app.Name} application audio capture source{(muted ? " (muted until game hooks)" : "")}");
+                Log.Information($"Added {app.Name} application audio capture source");
                 return voiceSource;
             }
             catch (Exception ex)
@@ -2391,7 +2395,7 @@ namespace Segra.Backend.Recorder
             try
             {
                 if (Settings.Instance.AudioOutputMode != AudioOutputMode.GameAndDiscord) return;
-                if (_mainScene == null || GameCaptureSource == null || _isStoppingOrStopped) return;
+                if (_mainScene == null || _gameAudioSource == null || _isStoppingOrStopped) return;
 
                 string fileName = Path.GetFileName(exePath);
                 foreach (var app in VoiceChatApps)
@@ -2416,21 +2420,23 @@ namespace Segra.Backend.Recorder
         }
 
         /// <summary>
-        /// Repoints the game capture source at a newly launched game executable. Safe to call during
-        /// teardown: the source may be disposed/nulled on another thread, so it is guarded and captured once.
+        /// Repoints the game, window and game audio sources at a newly launched game executable.
+        /// Safe during teardown: each source is captured once and null-guarded.
         /// </summary>
         public static void UpdateGameCaptureWindow(string exePath)
         {
             try
             {
                 if (_isStoppingOrStopped) return;
-
-                var source = GameCaptureSource;
-                if (source == null) return;
+                if (GameCaptureSource == null && _windowCaptureSource == null && _gameAudioSource == null) return;
 
                 string fileName = Path.GetFileName(exePath);
-                source.SetWindow($"*:*:{fileName}");
-                Log.Information($"Updated game capture source to: {fileName}");
+                string spec = $"*:*:{fileName}";
+                _captureWindowSpec = spec;
+                GameCaptureSource?.SetWindow(spec);
+                _windowCaptureSource?.SetWindow(spec);
+                _gameAudioSource?.SetWindow(spec, ApplicationAudioCapture.WindowPriority.Executable);
+                Log.Information($"Updated capture sources to: {fileName}");
             }
             catch (Exception ex)
             {
@@ -2441,8 +2447,9 @@ namespace Segra.Backend.Recorder
         public static void DisposeSources()
         {
             // Dispose these first, while the scene is still alive, so SceneItem.Remove() can run
-            // (the helpers no-op once _displayItem/_gameCaptureItem are null).
+            // (the helpers no-op once the item fields are null).
             DisposeDisplaySource();
+            DisposeWindowCaptureSource();
             DisposeGameCaptureSource();
 
             if (_mainScene != null)
@@ -2501,6 +2508,21 @@ namespace Segra.Backend.Recorder
             }
             _desktopSources.Clear();
 
+            if (_gameAudioSource != null)
+            {
+                try
+                {
+                    _gameAudioSource.Hooked -= OnGameAudioHooked;
+                    _gameAudioSource.Unhooked -= OnGameAudioUnhooked;
+                    _gameAudioSource.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to dispose game audio source: {ex.Message}");
+                }
+                _gameAudioSource = null;
+            }
+
             // Dispose voice chat audio sources
             foreach (var (voiceName, _, voiceSource) in _voiceChatSources)
             {
@@ -2556,6 +2578,219 @@ namespace Segra.Backend.Recorder
             }
             // Dispose the timer if it exists
             StopGameCaptureHookTimeoutTimer();
+        }
+
+        /// <summary>
+        /// WGC window capture of the game window, between display and game capture, for games the hook can't attach to.
+        /// </summary>
+        private static void AddWindowCapture(string windowSpec)
+        {
+            try
+            {
+                var source = new WindowCapture("window", windowSpec);
+                // Auto picks BitBlt for game window classes (black frames); force WGC and match by exe
+                source.Update(s => s.Set("method", 2).Set("priority", 2));
+                _windowHookedConnection = source.ConnectSignal(SourceSignal.Hooked, OnWindowCaptureHooked);
+                _windowUnhookedConnection = source.ConnectSignal(SourceSignal.Unhooked, OnWindowCaptureUnhooked);
+                _windowCaptureItem = _mainScene!.AddSource(source);
+                _windowCaptureSource = source;
+                _isWindowCaptureBlocked = false;
+                _windowCaptureBlockReason = null;
+                _windowCaptureClearChecks = 0;
+                StartCaptureFallbackMonitor();
+                Log.Information($"Window capture (WGC) added for: {windowSpec}");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Window capture not available: {ex.Message}. Using display capture as fallback.");
+            }
+        }
+
+        private static void OnWindowCaptureHooked(nint calldata)
+        {
+            _isWindowCaptureHooked = true;
+            UpdateFallbackCapture();
+        }
+
+        private static void OnWindowCaptureUnhooked(nint calldata)
+        {
+            _isWindowCaptureHooked = false;
+            UpdateFallbackCapture();
+        }
+
+        /// <summary>
+        /// Window capture carries the video when it has the window and WGC can deliver frames for it
+        /// (not exclusive fullscreen, not minimized); display capture otherwise.
+        /// </summary>
+        private static void UpdateFallbackCapture()
+        {
+            // Hiding the window item fires "unhooked" synchronously and re-enters here
+            if (Monitor.IsEntered(_fallbackCaptureLock)) return;
+
+            lock (_fallbackCaptureLock)
+            {
+                var windowItem = _windowCaptureItem;
+                var displayItem = _displayItem;
+                if (windowItem == null || displayItem == null || IsGameCaptureHooked) return;
+
+                bool useWindow = _isWindowCaptureHooked && !_isWindowCaptureBlocked;
+                try
+                {
+                    windowItem.SetVisible(!_isWindowCaptureBlocked);
+                    displayItem.SetVisible(!useWindow);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to switch fallback capture: {ex.Message}");
+                }
+
+                var recording = AppState.Instance.Recording;
+                if (recording != null && recording.IsUsingWindowCapture != useWindow)
+                {
+                    recording.IsUsingWindowCapture = useWindow;
+                    Log.Information(useWindow
+                        ? "Using window capture"
+                        : $"Using display capture ({_windowCaptureBlockReason ?? "window not captured"})");
+                    _ = MessageService.SendStateToFrontend("Updated capture method");
+                }
+            }
+        }
+
+        private static void StartCaptureFallbackMonitor()
+        {
+            StopCaptureFallbackMonitor();
+            _captureFallbackTimer = new System.Threading.Timer(
+                OnCaptureFallbackCheck,
+                null,
+                CaptureFallbackCheckIntervalMs,
+                CaptureFallbackCheckIntervalMs
+            );
+        }
+
+        private static void StopCaptureFallbackMonitor()
+        {
+            _captureFallbackTimer?.Dispose();
+            _captureFallbackTimer = null;
+        }
+
+        private static void OnCaptureFallbackCheck(object? state)
+        {
+            try
+            {
+                var source = _windowCaptureSource;
+                var spec = _captureWindowSpec;
+                if (_isStoppingOrStopped || source == null || spec == null) return;
+
+                string? reason = GetWindowCaptureBlockReason(spec.Split(':')[^1]);
+                if (reason != null)
+                {
+                    _windowCaptureClearChecks = 0;
+                    if (_isWindowCaptureBlocked) return;
+                    _isWindowCaptureBlocked = true;
+                    _windowCaptureBlockReason = reason;
+                    UpdateFallbackCapture();
+                    return;
+                }
+
+                if (!_isWindowCaptureBlocked) return;
+                if (++_windowCaptureClearChecks < WindowCaptureUnblockChecks) return;
+
+                _isWindowCaptureBlocked = false;
+                _windowCaptureBlockReason = null;
+
+                // A failed WGC init is sticky per window; an update resets it so capture is retried
+                source.SetWindow(spec);
+                UpdateFallbackCapture();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Capture fallback check failed: {ex.Message}");
+            }
+        }
+
+        private static string? GetWindowCaptureBlockReason(string exeFileName)
+        {
+#if WINDOWS
+            if (WindowUtils.IsExclusiveFullscreenActive())
+                return "exclusive fullscreen";
+            if (WindowUtils.IsExeWindowMinimized(exeFileName))
+                return "window minimized";
+#endif
+            return null;
+        }
+
+        private static void DisposeWindowCaptureSource()
+        {
+            StopCaptureFallbackMonitor();
+
+            // Disconnect first so the item removal below doesn't re-enter the handlers
+            _windowHookedConnection?.Dispose();
+            _windowHookedConnection = null;
+            _windowUnhookedConnection?.Dispose();
+            _windowUnhookedConnection = null;
+
+            var item = _windowCaptureItem;
+            _windowCaptureItem = null;
+            if (item != null)
+            {
+                try
+                {
+                    item.Remove();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to remove window capture scene item: {ex.Message}");
+                }
+            }
+
+            var source = _windowCaptureSource;
+            _windowCaptureSource = null;
+            if (source != null)
+            {
+                try
+                {
+                    source.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to dispose window capture source: {ex.Message}");
+                }
+            }
+
+            _isWindowCaptureHooked = false;
+            _isWindowCaptureBlocked = false;
+            _windowCaptureBlockReason = null;
+            _windowCaptureClearChecks = 0;
+            _captureWindowSpec = null;
+        }
+
+        private static void TryAddGameAudioSource(string windowSpec, float volume)
+        {
+            try
+            {
+                var source = new ApplicationAudioCapture("Game Audio")
+                    .SetWindow(windowSpec, ApplicationAudioCapture.WindowPriority.Executable);
+                source.Volume = volume;
+                source.Hooked += OnGameAudioHooked;
+                source.Unhooked += OnGameAudioUnhooked;
+                _mainScene!.AddSource(source);
+                _gameAudioSource = source;
+                Log.Information($"Game audio capture added for: {windowSpec}");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Game audio capture not available: {ex.Message}. Recording the selected output devices instead.");
+            }
+        }
+
+        private static void OnGameAudioHooked(ApplicationAudioCapture capture)
+        {
+            Log.Information($"Game audio captured from {capture.HookedExecutable}");
+        }
+
+        private static void OnGameAudioUnhooked(ApplicationAudioCapture capture)
+        {
+            Log.Information("Game audio capture lost its process");
         }
 
         private static void StartGameCaptureHookTimeoutTimer()
@@ -2738,7 +2973,7 @@ namespace Segra.Backend.Recorder
             {
                 try
                 {
-                    Log.Information("Disposing display source (expect OBS 'source destroyed' log to confirm WGC cleanup)");
+                    Log.Information("Disposing display source");
                     _displaySource.Dispose();
                 }
                 catch (Exception ex)
@@ -2747,6 +2982,9 @@ namespace Segra.Backend.Recorder
                 }
                 _displaySource = null;
             }
+
+            _displayFollowsGame = false;
+            _displayMonitorIndex = -1;
         }
 
         /// <summary>

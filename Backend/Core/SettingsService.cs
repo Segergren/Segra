@@ -666,13 +666,6 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
-            if (settings.DisplayCaptureMethod != updatedSettings.DisplayCaptureMethod)
-            {
-                Log.Information($"DisplayCaptureMethod changed from '{settings.DisplayCaptureMethod}' to '{updatedSettings.DisplayCaptureMethod}'");
-                settings.DisplayCaptureMethod = updatedSettings.DisplayCaptureMethod;
-                hasChanges = true;
-            }
-
             if (settings.EnableAi != updatedSettings.EnableAi)
             {
                 Log.Information($"EnableAi changed from '{settings.EnableAi}' to '{updatedSettings.EnableAi}'");
