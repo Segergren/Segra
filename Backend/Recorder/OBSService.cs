@@ -423,13 +423,30 @@ namespace Segra.Backend.Recorder
         /// </summary>
         private static async Task ProcessLogQueueAsync()
         {
-            await foreach (var (level, formattedMessage) in _logChannel.Reader.ReadAllAsync())
+            await foreach (var (level, message) in _logChannel.Reader.ReadAllAsync())
             {
                 try
                 {
-                    Log.Information($"{(ObsLogLevel)level}: {formattedMessage}");
+                    if (message.Contains("there's no UI task handler") || message.Contains("segra_track_probe") || message.Contains("CoInitializeEx failed") || message.Contains("NVAudioEffects") || message.Contains("NVVideoEffects") || message.Contains("update_hook_file"))
+                        continue;
 
-                    if (formattedMessage.Contains("capture window no longer exists, terminating capture"))
+                    switch ((ObsLogLevel)level)
+                    {
+                        case ObsLogLevel.Error:
+                            Log.Error("{ObsMessage}", message);
+                            break;
+                        case ObsLogLevel.Warning:
+                            Log.Warning("{ObsMessage}", message);
+                            break;
+                        case ObsLogLevel.Debug:
+                            Log.Debug("{ObsMessage}", message);
+                            break;
+                        default:
+                            Log.Information("{ObsMessage}", message);
+                            break;
+                    }
+
+                    if (message.Contains("capture window no longer exists, terminating capture"))
                     {
                         // Some games will show the "capture window no longer exists" message when they are still running, so we wait a second to make sure it's not a false positive
                         Log.Information("Capture window no longer exists, waiting a second to make sure it's not a false positive.");
@@ -446,23 +463,23 @@ namespace Segra.Backend.Recorder
                     }
 
                     // This means the game is still running after unhooking. We need this to prevent the method above to accidentally stop the recording.
-                    if (formattedMessage.Contains("existing hook found"))
+                    if (message.Contains("existing hook found"))
                     {
                         _isStillHookedAfterUnhook = true;
                     }
 
                     // libobs rebuilds a lost D3D11 device when the probe display presents (d3d11-rebuild.cpp).
-                    if (formattedMessage.Contains("Rebuilding all assets"))
+                    if (message.Contains("Rebuilding all assets"))
                     {
                         _lastDeviceRebuildUtc = DateTime.UtcNow;
                         Log.Warning("Graphics device was reset; libobs rebuilt it in place");
                     }
 
                     // A removed device is normally rebuilt within the same frame, so only restart when no rebuild follows.
-                    if (formattedMessage.Contains("Device Removed Reason") && Interlocked.Exchange(ref _deviceRemovedCheckPending, 1) == 0)
+                    if (message.Contains("Device Removed Reason") && Interlocked.Exchange(ref _deviceRemovedCheckPending, 1) == 0)
                     {
                         DateTime removedAtUtc = DateTime.UtcNow;
-                        string removedLine = formattedMessage.Trim();
+                        string removedLine = message.Trim();
                         _ = Task.Run(async () =>
                         {
                             await Task.Delay(3000);
@@ -478,20 +495,20 @@ namespace Segra.Backend.Recorder
                     // the replay output's log prefix ("[ffmpeg muxer: 'replay_buffer_output']")
                     // so a session/HLS muxer failure can't kill a healthy replay save.
                     if ((_activeReplaySave != null || _previousSaveIndeterminate) &&
-                        formattedMessage.Contains("'replay_buffer_output'") &&
-                        (formattedMessage.Contains("Failed to create process pipe") ||
-                         formattedMessage.Contains("Could not write headers for file") ||
-                         formattedMessage.Contains("Could not write packet for file") ||
-                         formattedMessage.Contains("Failed to create muxer thread") ||
-                         formattedMessage.Contains("Could not save buffer because encoders paused")))
+                        message.Contains("'replay_buffer_output'") &&
+                        (message.Contains("Failed to create process pipe") ||
+                         message.Contains("Could not write headers for file") ||
+                         message.Contains("Could not write packet for file") ||
+                         message.Contains("Failed to create muxer thread") ||
+                         message.Contains("Could not save buffer because encoders paused")))
                     {
-                        OnReplayMuxFailureLine(formattedMessage.Trim());
+                        OnReplayMuxFailureLine(message.Trim());
                     }
 
                     // Parse window dimensions from OBS game capture logs
-                    if (formattedMessage.Contains("BufferDesc.Width:"))
+                    if (message.Contains("BufferDesc.Width:"))
                     {
-                        var match = BufferDescWidthRegex().Match(formattedMessage);
+                        var match = BufferDescWidthRegex().Match(message);
                         if (match.Success && uint.TryParse(match.Groups[1].Value, out uint width))
                         {
                             CapturedWindowWidth = width;
@@ -499,9 +516,9 @@ namespace Segra.Backend.Recorder
                         }
                     }
 
-                    if (formattedMessage.Contains("BufferDesc.Height:"))
+                    if (message.Contains("BufferDesc.Height:"))
                     {
-                        var match = BufferDescHeightRegex().Match(formattedMessage);
+                        var match = BufferDescHeightRegex().Match(message);
                         if (match.Success && uint.TryParse(match.Groups[1].Value, out uint height))
                         {
                             CapturedWindowHeight = height;
