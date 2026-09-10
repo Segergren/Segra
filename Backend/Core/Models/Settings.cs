@@ -53,6 +53,7 @@ namespace Segra.Backend.Core.Models
         private StartupWindowMode _startupWindowMode = StartupWindowMode.Minimized;
         private CloseButtonAction _closeButtonAction = CloseButtonAction.Minimize;
         private bool _receiveBetaUpdates = false;
+        private bool _autoInstallUpdates = true;
         private bool _airplaneMode = false;
         private RecordingMode _recordingMode = RecordingMode.Hybrid;
         private int _replayBufferDuration = 30;
@@ -488,6 +489,19 @@ namespace Segra.Backend.Core.Models
                 if (_receiveBetaUpdates != value)
                 {
                     _receiveBetaUpdates = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("autoInstallUpdates")]
+        public bool AutoInstallUpdates
+        {
+            get => _autoInstallUpdates;
+            set
+            {
+                if (_autoInstallUpdates != value)
+                {
+                    _autoInstallUpdates = value;
                 }
             }
         }

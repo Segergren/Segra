@@ -19,6 +19,7 @@ namespace Segra.Backend.Media
 
         public static async Task CreateClips(List<Segment> segments, bool createSeparateClips = false)
         {
+            using var work = BackgroundWork.Begin();
             int id = Guid.NewGuid().GetHashCode();
             List<string> tempClipFiles = new List<string>();
             List<Segment> extractedSegments = new List<Segment>();

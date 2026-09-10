@@ -326,11 +326,11 @@ namespace Segra.Backend.App
                 // Check for updates
                 Task.Run(() => UpdateService.UpdateAppIfNecessary(forceCheck: true));
 
-                // Check if application was launched from startup. Only minimize to tray when the
-                // user has chosen the Minimized startup window mode; otherwise open normally.
-                bool startMinimized = IsLaunchedFromStartup() &&
-                    Settings.Instance.StartupWindowMode == StartupWindowMode.Minimized;
-                Log.Information($"Starting application{(startMinimized ? " minimized from startup" : "")}");
+                // Minimize to tray when relaunched after an automatic update, or when launched from
+                // startup with the Minimized startup window mode; otherwise open normally.
+                bool startMinimized = Environment.GetCommandLineArgs().Contains(UpdateService.RestartMinimizedArg)
+                    || (IsLaunchedFromStartup() && Settings.Instance.StartupWindowMode == StartupWindowMode.Minimized);
+                Log.Information($"Starting application{(startMinimized ? " minimized" : "")}");
 
                 // Tray icon (WinForms NotifyIcon on Windows; no-op on Linux)
                 PlatformServices.Tray.Initialize(

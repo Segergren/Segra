@@ -42,6 +42,7 @@ namespace Segra.Backend.Media
 
         public static async Task HandleUploadContent(JsonElement message)
         {
+            using var work = BackgroundWork.Begin();
             string fileName = "";
             string title = "";
             CancellationTokenSource? cts = null;

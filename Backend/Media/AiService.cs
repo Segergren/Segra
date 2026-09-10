@@ -1,5 +1,6 @@
 using Serilog;
 using Segra.Backend.App;
+using Segra.Backend.Shared;
 using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Media
@@ -8,6 +9,7 @@ namespace Segra.Backend.Media
     {
         public static async Task CreateHighlight(string contentId)
         {
+            using var work = BackgroundWork.Begin();
             string highlightId = Guid.NewGuid().ToString();
             Content? content = null;
 

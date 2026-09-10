@@ -71,6 +71,7 @@ namespace Segra.Backend.Media
 
         public static async Task HandleMigrateContent()
         {
+            using var work = BackgroundWork.Begin();
             lock (_lock)
             {
                 if (_isMigrating)

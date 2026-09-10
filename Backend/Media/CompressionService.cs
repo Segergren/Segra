@@ -13,6 +13,7 @@ namespace Segra.Backend.Media
         // The original file is never touched.
         public static async Task CopyCompressedToClipboard(string filePath, int maxSizeMb)
         {
+            using var work = BackgroundWork.Begin();
             int processId = Guid.NewGuid().GetHashCode();
 
             try
@@ -117,6 +118,7 @@ namespace Segra.Backend.Media
 
         public static async Task CompressVideo(Content originalContent)
         {
+            using var work = BackgroundWork.Begin();
             int processId = Guid.NewGuid().GetHashCode();
             string filePath = originalContent.FilePath;
 

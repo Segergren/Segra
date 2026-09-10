@@ -79,6 +79,7 @@ namespace Segra.Backend.Recorder
 
         public static async Task HandleRecoveryConfirm(JsonElement parameters)
         {
+            using var work = BackgroundWork.Begin();
             try
             {
                 if (!parameters.TryGetProperty("recoveryId", out JsonElement recoveryIdElement) ||

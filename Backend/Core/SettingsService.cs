@@ -710,6 +710,13 @@ namespace Segra.Backend.Core
                 _ = Task.Run(() => UpdateService.GetReleaseNotes(forceCheck: true));
             }
 
+            if (settings.AutoInstallUpdates != updatedSettings.AutoInstallUpdates)
+            {
+                Log.Information($"AutoInstallUpdates changed from '{settings.AutoInstallUpdates}' to '{updatedSettings.AutoInstallUpdates}'");
+                settings.AutoInstallUpdates = updatedSettings.AutoInstallUpdates;
+                hasChanges = true;
+            }
+
             if (settings.RunOnStartup != updatedSettings.RunOnStartup)
             {
                 Log.Information($"RunOnStartup changed from '{settings.RunOnStartup}' to '{updatedSettings.RunOnStartup}'");
@@ -1017,6 +1024,7 @@ namespace Segra.Backend.Core
         /// </summary>
         public static async Task MigrateCacheFolder(string oldCacheFolder, string newCacheFolder)
         {
+            using var work = BackgroundWork.Begin();
             if (string.IsNullOrEmpty(oldCacheFolder) || string.IsNullOrEmpty(newCacheFolder))
             {
                 Log.Warning("Cannot migrate cache: old or new folder path is empty");

@@ -105,6 +105,23 @@ export default function AdvancedSection({
               <span className="inline-block">View Release Notes</span>
             </Button>
           </div>
+          {canSelfUpdate && (
+            <div className="flex flex-col">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="autoInstallUpdates"
+                  checked={settings.autoInstallUpdates}
+                  onChange={(e) => updateSettings({ autoInstallUpdates: e.target.checked })}
+                  className="checkbox checkbox-primary checkbox-sm"
+                />
+                <span className="cursor-pointer">Install updates automatically</span>
+              </label>
+              <p className="text-sm text-gray-400">
+                Installs when nothing is recording and the window is closed.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Hidden when the recorder is fixed for this install (bundled or already downloaded) */}

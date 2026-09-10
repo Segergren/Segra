@@ -12,6 +12,7 @@ namespace Segra.Backend.Media
     {
         public static async Task HandleImportFile(JsonElement parameters)
         {
+            using var work = BackgroundWork.Begin();
             int importId = Guid.NewGuid().GetHashCode();
 
             try
@@ -92,6 +93,7 @@ namespace Segra.Backend.Media
         /// </summary>
         public static async Task ExecuteImport(string[] selectedFiles, Content.ContentType contentType)
         {
+            using var work = BackgroundWork.Begin();
             int importId = Guid.NewGuid().GetHashCode();
 
             string contentFolder = Settings.Instance.ContentFolder;
