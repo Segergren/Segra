@@ -1,5 +1,6 @@
 using Serilog;
 using ObsKit.NET;
+using ObsKit.NET.Video;
 using ObsKit.NET.Scenes;
 using Segra.Backend.App;
 using ObsKit.NET.Outputs;
@@ -78,6 +79,8 @@ namespace Segra.Backend.Recorder
         private const int FastHookWindowMs = 5000;
         private const int HookWaitMs = 2000;
         private static bool _isStillHookedAfterUnhook = false;
+        private static DateTime _lastDeviceRebuildUtc = DateTime.MinValue;
+        private static int _deviceRemovedCheckPending;
 
         // Periodic low-disk-space monitor while recording
         private static System.Threading.Timer? _diskSpaceMonitorTimer = null;
@@ -448,6 +451,27 @@ namespace Segra.Backend.Recorder
                         _isStillHookedAfterUnhook = true;
                     }
 
+                    // libobs rebuilds a lost D3D11 device when the probe display presents (d3d11-rebuild.cpp).
+                    if (formattedMessage.Contains("Rebuilding all assets"))
+                    {
+                        _lastDeviceRebuildUtc = DateTime.UtcNow;
+                        Log.Warning("Graphics device was reset; libobs rebuilt it in place");
+                    }
+
+                    // A removed device is normally rebuilt within the same frame, so only restart when no rebuild follows.
+                    if (formattedMessage.Contains("Device Removed Reason") && Interlocked.Exchange(ref _deviceRemovedCheckPending, 1) == 0)
+                    {
+                        DateTime removedAtUtc = DateTime.UtcNow;
+                        string removedLine = formattedMessage.Trim();
+                        _ = Task.Run(async () =>
+                        {
+                            await Task.Delay(3000);
+                            Interlocked.Exchange(ref _deviceRemovedCheckPending, 0);
+                            if (_lastDeviceRebuildUtc < removedAtUtc)
+                                RecorderHealthService.MarkRecorderLost(removedLine);
+                        });
+                    }
+
                     // The replay mux thread has no failure signal; these warn lines from
                     // obs-ffmpeg-mux.c are the only evidence a replay save failed. Fail the
                     // pending save immediately instead of waiting out the timeout. Scoped to
@@ -587,7 +611,8 @@ namespace Segra.Backend.Recorder
                             {
                                 // Silently ignore marshaling errors to never block OBS
                             }
-                        });
+                        })
+                        .WithCrashHandler(RecorderHealthService.OnLibobsCrash);
                 });
 
                 // Disable auto-dispose for manual resource management
@@ -618,6 +643,10 @@ namespace Segra.Backend.Recorder
                 }
 
                 _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
+                RecorderHealthService.StartWatchdog();
+#if WINDOWS
+                _ = CreateDeviceLossProbeAsync();
+#endif
                 _ = GameDetectionService.StartAsync();
                 GameDetectionService.ForegroundHook.Start();
             }
@@ -653,12 +682,68 @@ namespace Segra.Backend.Recorder
                 DisposeSources();
                 DisposeEncoders();
 
+#if WINDOWS
+                _deviceLossProbe?.Dispose();
+                _deviceLossProbe = null;
+#endif
+
                 // Dispose the OBS context last
                 _obsContext?.Dispose();
                 _obsContext = null;
 
                 IsInitialized = false;
                 Log.Information("OBS shutdown completed successfully");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during OBS shutdown");
+            }
+        }
+
+#if WINDOWS
+        // libobs only detects a lost D3D11 device when presenting a swap chain, and rebuilds it right there
+        // (libobs-d3d11/d3d11-rebuild.cpp). Segra renders to no window, so this hidden display supplies the present.
+        private static PreviewDisplay? _deviceLossProbe;
+
+        private static async Task CreateDeviceLossProbeAsync()
+        {
+            try
+            {
+                nint windowHandle = await OBSWindow.HandleReady.Task;
+                _deviceLossProbe = new PreviewDisplay(windowHandle, 16, 16);
+                Log.Information("Device-loss probe display created");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Could not create the device-loss probe display: {ex.Message}");
+            }
+        }
+#endif
+
+        // Bounded variants for exit paths: a wedged libobs must never keep Segra from exiting.
+        public static bool TryStopRecording(TimeSpan timeout)
+        {
+            try
+            {
+                if (Task.Run(StopRecording).Wait(timeout))
+                    return true;
+
+                Log.Warning($"StopRecording did not finish within {timeout.TotalSeconds:F0}s; continuing");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error stopping recording");
+                return false;
+            }
+        }
+
+        public static void TryShutdown(TimeSpan timeout)
+        {
+            try
+            {
+                if (!Task.Run(Shutdown).Wait(timeout))
+                    Log.Warning($"OBS shutdown did not finish within {timeout.TotalSeconds:F0}s; continuing");
             }
             catch (Exception ex)
             {
@@ -747,6 +832,36 @@ namespace Segra.Backend.Recorder
             {
                 return StartRecordingCore(name, exePath, startManually, pid);
             }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to start recording");
+                AppState.Instance.PreRecording = null;
+                GameDetectionService.PreventRetryRecording = true;
+
+                try
+                {
+                    DisposeOutput();
+                    DisposeSources();
+                    DisposeEncoders();
+                }
+                catch (Exception cleanupEx)
+                {
+                    Log.Error(cleanupEx, "Cleanup after the failed start also failed");
+                }
+
+                // A failed video reset means libobs's graphics are gone for this process; every later start would fail the same way.
+                if (ex is ObsKit.NET.Exceptions.ObsVideoResetException)
+                {
+                    RecorderHealthService.MarkRecorderLost(ex.Message);
+                }
+                else
+                {
+                    Task.Run(() => ShowModal("Recording failed", "Failed to start recording. Check the log for more details.", "error"));
+                    Task.Run(() => PlaySound("error"));
+                }
+
+                return false;
+            }
             finally
             {
                 _stopRecordingSemaphore.Release();
@@ -758,12 +873,14 @@ namespace Segra.Backend.Recorder
             if (!IsOBSInstalled())
             {
                 Log.Information("OBS is not installed. Skipping recording.");
+                AppState.Instance.PreRecording = null;
                 return false;
             }
 
             if (!IsInitialized)
             {
                 Log.Information("OBS is not initialized. Skipping recording.");
+                AppState.Instance.PreRecording = null;
                 return false;
             }
 

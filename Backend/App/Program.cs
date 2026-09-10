@@ -109,6 +109,8 @@ namespace Segra.Backend.App
             }
 #endif
 
+            WaitForPreviousInstance();
+
             // Try to create a named mutex - this will fail if another instance exists
             singleInstanceMutex = new Mutex(true, "SegraApplicationMutex", out bool createdNew);
 
@@ -195,8 +197,9 @@ namespace Segra.Backend.App
                 // VS Code sets SEGRA_VSCODE=1 via launch.json; Visual Studio does not.
                 // In VS Code the Vite dev server runs separately, so PhotinoServer is not needed
                 // and its RunAsync() would otherwise open a spurious browser tab.
-                bool IsVSCodeDebug = Environment.GetEnvironmentVariable("SEGRA_VSCODE") == "1";
+                // A child process (self-restart) inherits the variable without the debugger, so require both.
                 bool IsDebugMode = Debugger.IsAttached;
+                bool IsVSCodeDebug = IsDebugMode && Environment.GetEnvironmentVariable("SEGRA_VSCODE") == "1";
 
                 string baseUrl = string.Empty;
                 if (!IsVSCodeDebug)
@@ -449,6 +452,95 @@ namespace Segra.Backend.App
             }
         }
 
+        public const string AwaitPidArg = "--await-pid";
+        private const int RestartShutdownWaitMs = 10000;
+        private static int _restarting;
+
+        // A restarted instance waits for its predecessor to exit instead of handing off to it through the pipe.
+        private static void WaitForPreviousInstance()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            int index = Array.IndexOf(args, AwaitPidArg);
+            if (index < 0 || index + 1 >= args.Length || !int.TryParse(args[index + 1], out int pid))
+                return;
+
+            try
+            {
+                using var previous = Process.GetProcessById(pid);
+                if (!previous.WaitForExit(RestartShutdownWaitMs + 5000))
+                {
+                    // It already decided to exit; finish the job so this instance can take over.
+                    previous.Kill();
+                    previous.WaitForExit(5000);
+                }
+            }
+            catch (Exception)
+            {
+                // Already gone.
+            }
+        }
+
+        // Relaunches Segra and exits. libobs may be wedged, so shutdown gets a bounded wait and the exit is unconditional.
+        public static void Restart(string reason, bool minimized)
+        {
+            if (Interlocked.Exchange(ref _restarting, 1) == 1)
+                return;
+
+            Log.Information($"Restarting Segra: {reason}");
+            if (!LaunchSuccessor(minimized))
+            {
+                Interlocked.Exchange(ref _restarting, 0);
+                return;
+            }
+
+            if (!Task.Run(Shutdown).Wait(RestartShutdownWaitMs))
+                Log.Warning($"Shutdown did not finish within {RestartShutdownWaitMs / 1000}s; exiting anyway");
+
+            Environment.Exit(0);
+        }
+
+        // For libobs's crash handler: the process is already dying on the crashing thread, so no shutdown and no libobs calls.
+        public static void ExitAfterCrash(string reason, bool minimized)
+        {
+            Log.Fatal($"Fatal recorder error, relaunching Segra: {reason}");
+            if (Interlocked.Exchange(ref _restarting, 1) == 0)
+                LaunchSuccessor(minimized);
+
+            Log.CloseAndFlush();
+            Process.GetCurrentProcess().Kill();
+        }
+
+        private static bool LaunchSuccessor(bool minimized)
+        {
+            string? exePath = Environment.ProcessPath;
+            if (exePath == null)
+            {
+                Log.Error("Cannot restart: process path is unknown");
+                return false;
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo(exePath)
+                {
+                    UseShellExecute = false,
+                    WorkingDirectory = Path.GetDirectoryName(exePath) ?? AppContext.BaseDirectory
+                };
+                startInfo.ArgumentList.Add(AwaitPidArg);
+                startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
+                if (minimized)
+                    startInfo.ArgumentList.Add(UpdateService.RestartMinimizedArg);
+
+                Process.Start(startInfo);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to launch the new Segra instance; staying up");
+                return false;
+            }
+        }
+
         private static void Shutdown()
         {
             Log.Information("Application shutting down.");
@@ -460,21 +552,16 @@ namespace Segra.Backend.App
 
             // Stop any active recording first so OBS finalizes the file cleanly. Task.Run + block keeps
             // the awaits off the tray thread, whose WinForms SynchronizationContext would otherwise deadlock.
-            if (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null)
+            // Skipped when the recorder is known to be dead: there is nothing to finalize and the stop may never return.
+            bool recorderLost = RecorderHealthService.IsRecorderLost;
+            if (!recorderLost && (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null))
             {
                 Log.Information("Active recording detected during shutdown; stopping it before exit.");
-                try
-                {
-                    Task.Run(() => OBSService.StopRecording()).GetAwaiter().GetResult();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Error stopping recording during shutdown");
-                }
+                OBSService.TryStopRecording(TimeSpan.FromSeconds(15));
             }
 
             // Shutdown OBS if it was initialized
-            OBSService.Shutdown();
+            OBSService.TryShutdown(TimeSpan.FromSeconds(recorderLost ? 5 : 10));
 
             Log.CloseAndFlush(); // Ensure all logs are written before the application exits
 
