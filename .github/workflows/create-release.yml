@@ -109,7 +109,11 @@ jobs:
           if ($restoreJob.State -ne 'Completed') { throw "dotnet restore job failed (state: $($restoreJob.State))" }
 
       - name: Publish the App
-        run: dotnet publish -c Release -f net10.0-windows10.0.19041.0 --self-contained -r win-x64 -o publish --no-restore -p:Version=${{ steps.extract_final_version.outputs.final_version_number }}
+        run: dotnet publish Segra.csproj -c Release -f net10.0-windows10.0.19041.0 --self-contained -r win-x64 -o publish --no-restore -p:Version=${{ steps.extract_final_version.outputs.final_version_number }}
+        shell: pwsh
+
+      - name: Publish hotkey broker
+        run: dotnet publish HotkeyBroker/Segra.Hotkeys/Segra.Hotkeys.csproj -c Release -f net10.0-windows10.0.19041.0 -r win-x64 -o publish
         shell: pwsh
 
       - name: Upload Segra binaries for signing (Pass 1)
@@ -120,6 +124,7 @@ jobs:
           path: |
             ./publish/Segra.exe
             ./publish/Segra.dll
+            ./publish/Segra.Hotkeys.exe
           if-no-files-found: error
           retention-days: 1
 

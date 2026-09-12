@@ -31,7 +31,7 @@
     <!-- Exclude leftover build output from the removed Inspector sub-project. Its generated
          AssemblyInfo.cs sits under this project folder and would otherwise be globbed into
          this compilation, leaking a duplicate AssemblyVersion (and masking the real version). -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);Inspector\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Inspector\**;HotkeyBroker\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!-- Windows-only build settings -->
@@ -101,11 +101,18 @@
     <Compile Remove="Backend\Games\GrandTheftAuto\GtaIntegration.cs" />
     <Compile Remove="Backend\Games\RocketLeague\RocketLeagueIntegration.cs" />
     <Compile Remove="Backend\Platform\Windows\**\*.cs" />
+    <Compile Remove="Backend\Windows\Input\HotkeyBroker\**\*.cs" />
   </ItemGroup>
 
   <!-- Linux-only platform implementations. Excluded from the Windows compile. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <Compile Remove="Backend\Platform\Linux\**\*.cs" />
+  </ItemGroup>
+
+  <!-- The broker's wire contract and signature check are single files compiled into both binaries. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <Compile Include="HotkeyBroker\Segra.Hotkeys\HotkeyProtocol.cs" Link="HotkeyBroker\HotkeyProtocol.cs" />
+    <Compile Include="HotkeyBroker\Segra.Hotkeys\Authenticode.cs" Link="HotkeyBroker\Authenticode.cs" />
   </ItemGroup>
 
   <ItemGroup>

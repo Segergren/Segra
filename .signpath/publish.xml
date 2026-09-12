@@ -14,5 +14,10 @@
     <pe-file path="Segra.dll">
       <authenticode-sign />
     </pe-file>
+    <!-- The UIAccess broker must be signed: Windows enforces a PKI signature check on any
+         uiAccess application and only grants UIAccess to a signed image in Program Files. -->
+    <pe-file path="Segra.Hotkeys.exe">
+      <authenticode-sign />
+    </pe-file>
   </zip-file>
 </artifact-configuration>
