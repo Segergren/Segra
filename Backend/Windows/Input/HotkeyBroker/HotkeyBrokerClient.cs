@@ -136,7 +136,9 @@ namespace Segra.Backend.Windows.Input.HotkeyBroker
             NamedPipeClientStream? pipe = null;
             try
             {
-                pipe = new NamedPipeClientStream(".", HotkeyBrokerPaths.PipeName, PipeDirection.InOut);
+                // Overlapped handle: a synchronous handle serializes I/O, so a write would wait
+                // behind the read loop's pending ReadFile and deadlock.
+                pipe = new NamedPipeClientStream(".", HotkeyBrokerPaths.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
                 pipe.Connect(300);
 
                 var reader = new BinaryReader(pipe, Encoding.UTF8, leaveOpen: true);
