@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The privileged input broker. It is the only Segra binary that requests UIAccess, and the
+       only one that must be installed under Program Files. It reads the system-wide key state
+       (GetAsyncKeyState) and forwards matched hotkeys to the main app over a named pipe. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Platforms>x64</Platforms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\icon.ico</ApplicationIcon>
+    <AssemblyName>Segra.Hotkeys</AssemblyName>
+    <RootNamespace>Segra.Hotkeys</RootNamespace>
+    <AssemblyTitle>Segra Hotkey Broker</AssemblyTitle>
+    <Product>Segra</Product>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <!-- Independent of Segra's version. Bump it when the broker changes; Segra offers Update when
+         the installed copy's file version differs from the bundled one. -->
+    <Version>1.0.0</Version>
+
+    <!-- Native AOT: one small standalone exe, no runtime next to it in Program Files. -->
+    <PublishAot>true</PublishAot>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

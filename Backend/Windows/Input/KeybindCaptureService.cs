@@ -7,6 +7,9 @@ using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
 using ObsKit.NET.Native.Types;
 using ObsKeys = ObsKit.NET.Core.ObsKeys;
+#if WINDOWS
+using Segra.Backend.Windows.Input.HotkeyBroker;
+#endif
 
 namespace Segra.Backend.Windows.Input
 {
@@ -27,32 +30,128 @@ namespace Segra.Backend.Windows.Input
         private const int VK_LWIN = 0x5B;
         private const int VK_RWIN = 0x5C;
 
+        // Guards _registered, _brokerClient and _brokerActive so the OBS and broker sources never overlap.
         private static readonly object _lock = new();
         private static readonly List<RegisteredHotkey> _registered = [];
+#if WINDOWS
+        private static HotkeyBrokerClient? _brokerClient;
+        private static bool _brokerActive;
+#endif
 
         /// <summary>
-        /// Registers hotkeys for all currently-enabled keybindings. Call once OBS is initialized.
+        /// Starts hotkey capture. Prefers the privileged <c>Segra.Hotkeys</c> broker (which can read
+        /// input over elevated games, where OBS's own hotkeys cannot); falls back to the OBS hotkey
+        /// system when the broker is not installed or not reachable. Call once OBS is initialized.
         /// </summary>
-        public static void Start() => RefreshKeybindingsCache();
-
-        /// <summary>
-        /// Unregisters all hotkeys. Call before/at OBS shutdown.
-        /// </summary>
-        public static void Stop()
+        public static void Start()
         {
+#if WINDOWS
+            var client = new HotkeyBrokerClient();
+            client.StateChanged += OnBrokerStateChanged;
+            client.ActionFired += HandleKeybindAction;
             lock (_lock)
-            {
-                foreach (var hotkey in _registered)
-                    hotkey.Dispose();
-                _registered.Clear();
-            }
+                _brokerClient = client;
+            client.Start();
+            PublishBrokerStatus();
+#endif
+            RefreshKeybindingsCache();
         }
 
         /// <summary>
-        /// Re-registers all hotkeys from the current settings. Call whenever
+        /// Unregisters all hotkeys and stops the broker client. Call before/at OBS shutdown.
+        /// </summary>
+        public static void Stop()
+        {
+#if WINDOWS
+            HotkeyBrokerClient? client;
+#endif
+            lock (_lock)
+            {
+#if WINDOWS
+                client = _brokerClient;
+                _brokerClient = null;
+                _brokerActive = false;
+#endif
+                ClearRegisteredHotkeys();
+            }
+
+#if WINDOWS
+            if (client is null)
+                return;
+
+            client.StateChanged -= OnBrokerStateChanged;
+            client.ActionFired -= HandleKeybindAction;
+            client.Dispose();
+#endif
+        }
+
+        /// <summary>
+        /// Re-applies the current keybindings to whichever source is active. Call whenever
         /// <c>Settings.Instance.Keybindings</c> changes.
         /// </summary>
         public static void RefreshKeybindingsCache()
+        {
+            lock (_lock)
+            {
+                var keybindings = Settings.Instance.Keybindings?.Where(k => k.Enabled).ToList() ?? [];
+
+#if WINDOWS
+                // The broker is the sole source while connected so a press is never delivered twice.
+                if (_brokerActive)
+                {
+                    ClearRegisteredHotkeys();
+                    _brokerClient?.UpdateKeybindings(keybindings);
+                    return;
+                }
+#endif
+
+                RegisterObsHotkeys(keybindings);
+            }
+        }
+
+#if WINDOWS
+        private static void OnBrokerStateChanged()
+        {
+            lock (_lock)
+            {
+                if (_brokerClient is null)
+                    return;
+
+                _brokerActive = _brokerClient.IsActive;
+                RefreshKeybindingsCache();
+            }
+
+            PublishBrokerStatus();
+        }
+
+        /// <summary>
+        /// Publishes the broker's install and connection state to the frontend and lets
+        /// <see cref="HotkeyBrokerSetup"/> start the automatic install when one is due.
+        /// </summary>
+        public static void PublishBrokerStatus()
+        {
+            bool connected;
+            bool rejected;
+            lock (_lock)
+            {
+                connected = _brokerActive;
+                rejected = _brokerClient?.HasRejectedInstall ?? false;
+            }
+
+            HotkeyBrokerSetup.Refresh(connected, rejected);
+        }
+#endif
+
+        // Callers hold _lock.
+        private static void ClearRegisteredHotkeys()
+        {
+            foreach (var hotkey in _registered)
+                hotkey.Dispose();
+            _registered.Clear();
+        }
+
+        // Callers hold _lock.
+        private static void RegisterObsHotkeys(List<Keybind> keybindings)
         {
             if (!OBSService.IsInitialized)
             {
@@ -60,36 +159,29 @@ namespace Segra.Backend.Windows.Input
                 return;
             }
 
-            var keybindings = Settings.Instance.Keybindings?.Where(k => k.Enabled).ToList() ?? [];
+            ClearRegisteredHotkeys();
 
-            lock (_lock)
+            foreach (var keybind in keybindings)
             {
-                foreach (var hotkey in _registered)
-                    hotkey.Dispose();
-                _registered.Clear();
-
-                foreach (var keybind in keybindings)
+                if (!TryBuildCombination(keybind.Keys, out var combination))
                 {
-                    if (!TryBuildCombination(keybind.Keys, out var combination))
-                    {
-                        Log.Warning($"Skipping keybind for {keybind.Action}: only one non-modifier key plus Ctrl/Alt/Shift/Win is supported.");
-                        continue;
-                    }
+                    Log.Warning($"Skipping keybind for {keybind.Action}: only one non-modifier key plus Ctrl/Alt/Shift/Win is supported.");
+                    continue;
+                }
 
-                    try
+                try
+                {
+                    var hotkey = Obs.RegisterHotkey($"segra_{keybind.Action}", keybind.Action.ToString(), pressed =>
                     {
-                        var hotkey = Obs.RegisterHotkey($"segra_{keybind.Action}", keybind.Action.ToString(), pressed =>
-                        {
-                            if (pressed)
-                                HandleKeybindAction(keybind.Action);
-                        });
-                        hotkey.Bind(combination);
-                        _registered.Add(hotkey);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning(ex, $"Failed to register hotkey for {keybind.Action}");
-                    }
+                        if (pressed)
+                            HandleKeybindAction(keybind.Action);
+                    });
+                    hotkey.Bind(combination);
+                    _registered.Add(hotkey);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, $"Failed to register hotkey for {keybind.Action}");
                 }
             }
         }

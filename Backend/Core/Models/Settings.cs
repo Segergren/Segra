@@ -37,6 +37,7 @@ namespace Segra.Backend.Core.Models
         private string _encoder = "gpu";
         private Codec? _codec = null; // Set in SelectDefaultCodec()
         private string? _selectedOBSVersion = null; // null means automatic (latest non-beta)
+        private string? _hotkeyBrokerDeclinedVersion = null; // bundled broker version whose install was declined or failed
         private bool _pendingOBSUpdate = false;
         private int _storageLimit = 100;
         private List<DeviceSetting> _inputDevices = new List<DeviceSetting>();
@@ -907,6 +908,21 @@ namespace Segra.Backend.Core.Models
                 if (_selectedOBSVersion != value)
                 {
                     _selectedOBSVersion = value;
+                }
+            }
+        }
+
+        // Backend-owned: set when the automatic hotkey broker install is declined or fails, so the
+        // prompt is not repeated for the same broker version. Not applied from frontend updates.
+        [JsonPropertyName("hotkeyBrokerDeclinedVersion")]
+        public string? HotkeyBrokerDeclinedVersion
+        {
+            get => _hotkeyBrokerDeclinedVersion;
+            set
+            {
+                if (_hotkeyBrokerDeclinedVersion != value)
+                {
+                    _hotkeyBrokerDeclinedVersion = value;
                 }
             }
         }
