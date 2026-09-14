@@ -15,6 +15,7 @@ using Segra.Backend.Windows.Storage;
 using System.Reflection;
 using System.Runtime.InteropServices;
 #if WINDOWS
+using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Power;
 using Segra.Backend.Windows.WebView2;
 #endif
@@ -572,6 +573,10 @@ namespace Segra.Backend.App
 
             // Shutdown OBS if it was initialized
             OBSService.TryShutdown(TimeSpan.FromSeconds(recorderLost ? 5 : 10));
+
+#if WINDOWS
+            KeybindCaptureService.ShutdownBroker();
+#endif
 
             Log.CloseAndFlush(); // Ensure all logs are written before the application exits
 

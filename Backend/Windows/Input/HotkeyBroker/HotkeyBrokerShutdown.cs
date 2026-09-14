@@ -7,12 +7,13 @@ using Segra.Hotkeys;
 namespace Segra.Backend.Windows.Input.HotkeyBroker
 {
     /// <summary>
-    /// Stops the elevated hotkey broker before an update swap. The updater cannot kill it, so we
-    /// ask it to exit over its pipe and fall back to its idle timeout for older brokers.
+    /// Asks the elevated hotkey broker to exit over its pipe; nothing unprivileged can kill it.
+    /// Older brokers ignore the request and fall back to their idle timeout.
     /// </summary>
     internal static class HotkeyBrokerShutdown
     {
-        public static void RequestShutdown(TimeSpan timeout)
+        /// <summary>Waits for the broker to exit only when <paramref name="exitTimeout"/> is given.</summary>
+        public static void RequestShutdown(TimeSpan? exitTimeout = null)
         {
             if (!HotkeyBrokerPaths.IsInstalled)
                 return;
@@ -29,6 +30,9 @@ namespace Segra.Backend.Windows.Input.HotkeyBroker
                     break;
                 Thread.Sleep(200);
             }
+
+            if (exitTimeout is not TimeSpan timeout)
+                return;
 
             if (WaitForExit(timeout))
                 Log.Information("Hotkey broker stopped for update");

@@ -242,7 +242,7 @@ namespace Segra.Backend.App
 
             // Stop the broker before the swap; it outlives this process and pins the install directory.
 #if WINDOWS
-            var brokerShutdown = Task.Run(() => KeybindCaptureService.ShutdownBrokerForUpdate(TimeSpan.FromSeconds(20)));
+            var brokerShutdown = Task.Run(() => KeybindCaptureService.ShutdownBroker(TimeSpan.FromSeconds(20)));
 #endif
 
             // Shutdown OBS before restarting to unload graphics-hook64.dll from game processes.
@@ -347,7 +347,7 @@ namespace Segra.Backend.App
                 LatestUpdateInfo = updateInfo;
 
 #if WINDOWS
-                KeybindCaptureService.ShutdownBrokerForUpdate(TimeSpan.FromSeconds(20));
+                KeybindCaptureService.ShutdownBroker(TimeSpan.FromSeconds(20));
 #endif
 
                 Log.Information($"Applying force reinstall of {targetVersion}");

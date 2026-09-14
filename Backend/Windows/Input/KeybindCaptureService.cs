@@ -86,8 +86,11 @@ namespace Segra.Backend.Windows.Input
         }
 
 #if WINDOWS
-        /// <summary>Stops the broker before an update, since it outlives Segra and pins the install directory.</summary>
-        public static void ShutdownBrokerForUpdate(TimeSpan timeout)
+        /// <summary>
+        /// Stops the broker instead of leaving it to idle out. Pass <paramref name="exitTimeout"/> to
+        /// wait for it, which updates need because it can pin the install directory.
+        /// </summary>
+        public static void ShutdownBroker(TimeSpan? exitTimeout = null)
         {
             HotkeyBrokerClient? client;
             lock (_lock)
@@ -104,7 +107,7 @@ namespace Segra.Backend.Windows.Input
                 client.Dispose();
             }
 
-            HotkeyBrokerShutdown.RequestShutdown(timeout);
+            HotkeyBrokerShutdown.RequestShutdown(exitTimeout);
         }
 #endif
 
