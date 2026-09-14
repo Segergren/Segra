@@ -46,8 +46,14 @@ internal sealed class BrokerServer
                     continue;
 
                 BrokerLog.Info("Client connected");
-                HandleClient(server);
+                bool shutdownRequested = HandleClient(server);
                 BrokerLog.Info("Client disconnected");
+
+                if (shutdownRequested)
+                {
+                    BrokerLog.Info("Broker exiting on client request");
+                    return;
+                }
             }
             catch (Exception ex)
             {
@@ -126,7 +132,7 @@ internal sealed class BrokerServer
         return true;
     }
 
-    private static void HandleClient(NamedPipeServerStream server)
+    private static bool HandleClient(NamedPipeServerStream server)
     {
         using var reader = new BinaryReader(server, Encoding.UTF8, leaveOpen: true);
         using var writer = new BinaryWriter(server, Encoding.UTF8, leaveOpen: true);
@@ -145,7 +151,13 @@ internal sealed class BrokerServer
                 List<KeyBinding> bindings;
                 try
                 {
-                    if (HotkeyProtocol.ReadMessage(reader) != BrokerMessage.SetBindings)
+                    var message = HotkeyProtocol.ReadMessage(reader);
+                    if (message == BrokerMessage.Shutdown)
+                    {
+                        BrokerLog.Info("Shutdown requested by client");
+                        return true;
+                    }
+                    if (message != BrokerMessage.SetBindings)
                         continue;
                     bindings = HotkeyProtocol.ReadBindings(reader);
                 }
@@ -188,6 +200,8 @@ internal sealed class BrokerServer
             pollThread?.Join(1000);
             stop.Dispose();
         }
+
+        return false;
     }
 
     private static void Write(Action write, object writeLock)

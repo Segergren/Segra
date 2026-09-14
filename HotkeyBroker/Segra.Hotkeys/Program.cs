@@ -7,6 +7,17 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        // Anchor CWD to the broker's own dir so a caller's working directory can't pin `current`.
+        try
+        {
+            string brokerDir = Path.GetDirectoryName(Environment.ProcessPath!)!;
+            Directory.SetCurrentDirectory(brokerDir);
+        }
+        catch (Exception ex)
+        {
+            BrokerLog.Error(ex, "Could not reset the working directory");
+        }
+
         int sessionId = Process.GetCurrentProcess().SessionId;
         string pipeName = HotkeyProtocol.PipeNameForSession(sessionId);
 

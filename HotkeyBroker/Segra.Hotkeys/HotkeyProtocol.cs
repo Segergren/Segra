@@ -19,6 +19,9 @@ namespace Segra.Hotkeys
 
         /// <summary>Broker -&gt; app: a binding fired (payload is its id).</summary>
         Fired = 3,
+
+        /// <summary>App -&gt; broker: exit now.</summary>
+        Shutdown = 4,
     }
 
     /// <summary>

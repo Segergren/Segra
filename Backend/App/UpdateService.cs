@@ -7,6 +7,9 @@ using Segra.Backend.Shared;
 using Segra.Backend.Recorder;
 using System.Net.Http.Headers;
 using System.Text.Json.Serialization;
+#if WINDOWS
+using Segra.Backend.Windows.Input;
+#endif
 
 namespace Segra.Backend.App
 {
@@ -213,7 +216,7 @@ namespace Segra.Backend.App
                 _autoInstallTimer = null;
 
                 Log.Information($"Installing update to version {LatestUpdateInfo.TargetFullRelease.Version} automatically while idle; Segra will restart in the tray");
-                ApplyUpdate(restartMinimized: true);
+                ApplyUpdate(isAutoUpdate: true);
             }
             catch (Exception ex)
             {
@@ -221,7 +224,7 @@ namespace Segra.Backend.App
             }
         }
 
-        public static void ApplyUpdate(bool restartMinimized = false)
+        public static void ApplyUpdate(bool isAutoUpdate = false)
         {
             Log.Information("Applying update");
             if (UpdateManager == null || LatestUpdateInfo == null)
@@ -237,12 +240,31 @@ namespace Segra.Backend.App
                 OBSService.TryStopRecording(TimeSpan.FromSeconds(15));
             }
 
+            // Stop the broker before the swap; it outlives this process and pins the install directory.
+#if WINDOWS
+            var brokerShutdown = Task.Run(() => KeybindCaptureService.ShutdownBrokerForUpdate(TimeSpan.FromSeconds(20)));
+#endif
+
             // Shutdown OBS before restarting to unload graphics-hook64.dll from game processes.
-            // ApplyUpdatesAndRestart kills the process immediately, bypassing Program.Shutdown().
+            // Environment.Exit below kills the process immediately, bypassing Program.Shutdown().
             OBSService.TryShutdown(TimeSpan.FromSeconds(10));
 
-            string[]? restartArgs = restartMinimized ? [RestartMinimizedArg] : null;
-            UpdateManager.ApplyUpdatesAndRestart(LatestUpdateInfo, restartArgs);
+#if WINDOWS
+            try
+            {
+                if (!brokerShutdown.Wait(TimeSpan.FromSeconds(25)))
+                    Log.Warning("Hotkey broker shutdown did not finish; continuing");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error stopping the hotkey broker");
+            }
+#endif
+
+            // Auto updates run unattended: no Velopack dialogs, and Segra comes back in the tray.
+            string[]? restartArgs = isAutoUpdate ? [RestartMinimizedArg] : null;
+            UpdateManager.WaitExitThenApplyUpdates(LatestUpdateInfo, silent: isAutoUpdate, restart: true, restartArgs);
+            Environment.Exit(0);
         }
 
         private static async Task SendUpdateProgressToFrontend(string version, int progress, string status, string message)
@@ -323,6 +345,10 @@ namespace Segra.Backend.App
                     ct);
 
                 LatestUpdateInfo = updateInfo;
+
+#if WINDOWS
+                KeybindCaptureService.ShutdownBrokerForUpdate(TimeSpan.FromSeconds(20));
+#endif
 
                 Log.Information($"Applying force reinstall of {targetVersion}");
                 UpdateManager.ApplyUpdatesAndRestart(updateInfo.TargetFullRelease);

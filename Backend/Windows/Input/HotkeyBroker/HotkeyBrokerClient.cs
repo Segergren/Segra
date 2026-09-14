@@ -115,9 +115,11 @@ namespace Segra.Backend.Windows.Input.HotkeyBroker
             {
                 // ShellExecute so the shell's AppInfo path can grant the broker UIAccess. If a broker
                 // is already running, the new instance exits again on its own.
+                // Working directory stays outside `current` so the broker can't pin it during updates.
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = HotkeyBrokerPaths.InstalledBrokerPath,
+                    WorkingDirectory = HotkeyBrokerPaths.InstallDirectory,
                     UseShellExecute = true,
                 })?.Dispose();
                 _launchFailureLogged = false;
