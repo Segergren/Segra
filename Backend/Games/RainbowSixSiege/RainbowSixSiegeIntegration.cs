@@ -1,8 +1,10 @@
 using Serilog;
+using Microsoft.Win32;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Games.RainbowSixSiege
@@ -13,7 +15,6 @@ namespace Segra.Backend.Games.RainbowSixSiege
         private const int PrepPhaseSeconds = 45;
         private const int ActionPhaseSeconds = 180;
         private const int DefuserSeconds = 45;
-        private const int PlantDurationSeconds = 7;
 
         private static readonly string DissectPath = Path.Combine(Settings.Instance.CacheFolder, "r6-dissect", "r6-dissect.exe");
 
@@ -71,10 +72,11 @@ namespace Segra.Backend.Games.RainbowSixSiege
 
         public override async Task Start()
         {
-            var gameFolder = Path.GetDirectoryName(ExePath);
+            var exeFolder = Path.GetDirectoryName(ExePath);
+            var gameFolder = exeFolder == null ? null : FindGameFolder(exeFolder);
             if (gameFolder == null)
             {
-                Log.Warning("Rainbow Six Siege integration needs the game path to find match replays");
+                Log.Warning($"Rainbow Six Siege install folder not found for {ExePath}");
                 return;
             }
 
@@ -84,8 +86,53 @@ namespace Segra.Backend.Games.RainbowSixSiege
             if (!await EnsureDissect())
                 return;
 
-            Log.Information("Initializing Rainbow Six Siege replay integration.");
+            Log.Information($"Initializing Rainbow Six Siege replay integration. Watching {replayFolder}");
             checkTimer.Start();
+        }
+
+        private static string? FindGameFolder(string exeFolder)
+        {
+            foreach (var folder in CandidateGameFolders(exeFolder))
+            {
+                if (Directory.Exists(Path.Combine(folder, "MatchReplay")) || File.Exists(Path.Combine(folder, "RainbowSix_BE.exe")))
+                    return folder;
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> CandidateGameFolders(string exeFolder)
+        {
+            yield return exeFolder;
+
+            if (!OperatingSystem.IsWindows())
+                yield break;
+
+            foreach (var hive in new[] { @"SOFTWARE\WOW6432Node\Ubisoft\Launcher\Installs", @"SOFTWARE\Ubisoft\Launcher\Installs" })
+            {
+                using var installs = Registry.LocalMachine.OpenSubKey(hive);
+                foreach (var id in installs?.GetSubKeyNames() ?? [])
+                {
+                    using var install = installs!.OpenSubKey(id);
+                    if (install?.GetValue("InstallDir") is string dir && dir.Contains("Rainbow Six Siege", StringComparison.OrdinalIgnoreCase))
+                        yield return dir;
+                }
+            }
+
+            using var steam = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
+            var libraries = Path.Combine(steam?.GetValue("SteamPath") as string ?? "", "steamapps", "libraryfolders.vdf");
+            if (!File.Exists(libraries))
+                yield break;
+
+            foreach (Match match in Regex.Matches(File.ReadAllText(libraries), "\"path\"\\s+\"([^\"]+)\""))
+            {
+                var common = Path.Combine(match.Groups[1].Value.Replace(@"\\", @"\"), "steamapps", "common");
+                if (!Directory.Exists(common))
+                    continue;
+
+                foreach (var dir in Directory.GetDirectories(common, "Tom Clancy's Rainbow Six Siege*"))
+                    yield return dir;
+            }
         }
 
         public override Task Shutdown()
@@ -167,28 +214,18 @@ namespace Segra.Backend.Games.RainbowSixSiege
 
             var actionStart = DateTime.ParseExact(round.Timestamp.TrimEnd('Z'), "s", CultureInfo.InvariantCulture)
                 .AddSeconds(PrepPhaseSeconds);
-            DateTime? plantStart = null;
             DateTime? planted = null;
-            var afterPlant = false;
             var added = 0;
 
             foreach (var update in round.MatchFeedback)
             {
-                if (afterPlant && planted == null)
-                    break;
-
-                var time = afterPlant
-                    ? planted!.Value.AddSeconds(DefuserSeconds - update.TimeInSeconds)
-                    : actionStart.AddSeconds(ActionPhaseSeconds - update.TimeInSeconds);
+                var time = planted?.AddSeconds(DefuserSeconds - update.TimeInSeconds)
+                    ?? actionStart.AddSeconds(ActionPhaseSeconds - update.TimeInSeconds);
 
                 switch (update.Type?.Name)
                 {
-                    case "DefuserPlantStart":
-                        plantStart = time;
-                        break;
                     case "DefuserPlantComplete":
-                        planted = plantStart?.AddSeconds(PlantDurationSeconds);
-                        afterPlant = true;
+                        planted = time;
                         break;
                     case "Kill" when update.Username == me && update.Target != me:
                         added += AddBookmark(recording, BookmarkType.Kill, update.Headshot == true ? BookmarkSubtype.Headshot : null, time);
