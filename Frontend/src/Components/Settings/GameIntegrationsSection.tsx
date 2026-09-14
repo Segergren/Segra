@@ -86,6 +86,16 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     bookmarks: ['Deaths'],
     backgroundImage: 'https://segra.tv/api/games/cover/ar3en0',
   },
+  {
+    id: 'rainbow-six-siege',
+    name: 'Rainbow Six Siege',
+    settingsKey: 'rainbowSixSiege',
+    bookmarks: ['Kills', 'Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/cocsnm',
+    isBeta: true,
+    warningText:
+      'Requires Match Replay to be enabled in the game. Bookmarks are added after each round ends.',
+  },
 ];
 
 const getBookmarkBadgeClass = (bookmark: string): string => {
