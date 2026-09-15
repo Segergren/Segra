@@ -15,6 +15,7 @@ namespace Segra.Backend.Games.RainbowSixSiege
         private const int PrepPhaseSeconds = 45;
         private const int ActionPhaseSeconds = 180;
         private const int DefuserSeconds = 45;
+        private const int ReplayWriteDelaySeconds = 10;
 
         private static readonly string DissectPath = Path.Combine(Settings.Instance.CacheFolder, "r6-dissect", "r6-dissect.exe");
 
@@ -31,6 +32,8 @@ namespace Segra.Backend.Games.RainbowSixSiege
             public int RoundNumber { get; set; }
             [JsonPropertyName("recordingPlayerID")]
             public ulong RecordingPlayerId { get; set; }
+            [JsonPropertyName("recordingProfileID")]
+            public string? RecordingProfileId { get; set; }
             [JsonPropertyName("players")]
             public List<Player> Players { get; set; } = [];
             [JsonPropertyName("matchFeedback")]
@@ -41,6 +44,8 @@ namespace Segra.Backend.Games.RainbowSixSiege
         {
             [JsonPropertyName("id")]
             public ulong Id { get; set; }
+            [JsonPropertyName("profileID")]
+            public string? ProfileId { get; set; }
             [JsonPropertyName("username")]
             public string? Username { get; set; }
         }
@@ -207,20 +212,31 @@ namespace Segra.Backend.Games.RainbowSixSiege
             if (round?.Timestamp == null)
                 return;
 
-            var me = round.Players.FirstOrDefault(p => p.Id == round.RecordingPlayerId)?.Username;
+            var me = round.Players.FirstOrDefault(p => !string.IsNullOrEmpty(p.ProfileId) && p.ProfileId == round.RecordingProfileId)?.Username
+                ?? round.Players.FirstOrDefault(p => p.Id == round.RecordingPlayerId)?.Username;
+            if (me == null)
+            {
+                Log.Warning($"Rainbow Six Siege round {round.RoundNumber + 1}: recording player not found in roster, skipping");
+                return;
+            }
+
             var recording = AppState.Instance.Recording;
-            if (me == null || recording == null)
+            if (recording == null)
                 return;
 
             var actionStart = DateTime.ParseExact(round.Timestamp.TrimEnd('Z'), "s", CultureInfo.InvariantCulture)
                 .AddSeconds(PrepPhaseSeconds);
+            var roundEnd = File.GetLastWriteTime(file).AddSeconds(-ReplayWriteDelaySeconds);
             DateTime? planted = null;
             var added = 0;
 
             foreach (var update in round.MatchFeedback)
             {
-                var time = planted?.AddSeconds(DefuserSeconds - update.TimeInSeconds)
-                    ?? actionStart.AddSeconds(ActionPhaseSeconds - update.TimeInSeconds);
+                // A round-ending kill can report 0:00 because the clock resets before the kill packet; estimate it from the file write time
+                var time = update.TimeInSeconds <= 0
+                    ? roundEnd
+                    : planted?.AddSeconds(DefuserSeconds - update.TimeInSeconds)
+                        ?? actionStart.AddSeconds(ActionPhaseSeconds - update.TimeInSeconds);
 
                 switch (update.Type?.Name)
                 {
