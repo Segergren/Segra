@@ -44,6 +44,13 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     backgroundImage: 'https://segra.tv/api/games/cover/ar5u6d',
   },
   {
+    id: 'rainbow-six-siege',
+    name: 'Rainbow Six Siege',
+    settingsKey: 'rainbowSixSiege',
+    bookmarks: ['Kills', 'Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/ar6elp',
+  },
+  {
     id: 'gta',
     name: 'Grand Theft Auto',
     settingsKey: 'gta',

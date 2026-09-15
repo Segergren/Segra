@@ -1498,5 +1498,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("gta")]
         public GameIntegrationSettings Gta { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("rainbowSixSiege")]
+        public GameIntegrationSettings RainbowSixSiege { get; set; } = new GameIntegrationSettings(true);
     }
 }

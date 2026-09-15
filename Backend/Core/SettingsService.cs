@@ -433,6 +433,12 @@ namespace Segra.Backend.Core
                     current.WarThunder.Enabled = updated.WarThunder.Enabled;
                     hasChanges = true;
                 }
+                if (current.RainbowSixSiege.Enabled != updated.RainbowSixSiege.Enabled)
+                {
+                    Log.Information($"GameIntegrations.RainbowSixSiege.Enabled changed from '{current.RainbowSixSiege.Enabled}' to '{updated.RainbowSixSiege.Enabled}'");
+                    current.RainbowSixSiege.Enabled = updated.RainbowSixSiege.Enabled;
+                    hasChanges = true;
+                }
             }
 
             if (updatedSettings.Games != null)
