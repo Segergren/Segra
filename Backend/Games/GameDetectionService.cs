@@ -184,7 +184,7 @@ namespace Segra.Backend.Games
                     {
                         Log.Information("[OnTrackedProcessExited] Steam/Proton game closed. Stopping recording.");
                         _recordingSteamInstallPath = null;
-                        _ = Task.Run(OBSService.StopRecording);
+                        _ = Task.Run(() => OBSService.StopRecording());
                     }
                 }
                 else
@@ -249,7 +249,7 @@ namespace Segra.Backend.Games
                 if (matchesRecordingPid || matchesPreRecordingPid)
                 {
                     Log.Information($"[OnTrackedProcessExited] PID {pid} is no longer running. Stopping recording.");
-                    _ = Task.Run(OBSService.StopRecording);
+                    _ = Task.Run(() => OBSService.StopRecording(pid));
                 }
             }
             catch (Exception ex)
@@ -402,7 +402,7 @@ namespace Segra.Backend.Games
                 if (matchesFileName || matchesRecordingPid || matchesPreRecordingPid)
                 {
                     Log.Information($"[OnTrackedProcessExited] Confirmed that PID {pid} is no longer running. Stopping recording.");
-                    _ = Task.Run(OBSService.StopRecording);
+                    _ = Task.Run(() => OBSService.StopRecording(pid));
                 }
             }
             catch (Exception ex)
@@ -756,7 +756,7 @@ namespace Segra.Backend.Games
                     if (recordingPid.HasValue && !IsProcessRunning(recordingPid.Value))
                     {
                         Log.Warning($"[ProcessCheck] Recording process PID {recordingPid} is no longer running. Stopping recording.");
-                        _ = Task.Run(OBSService.StopRecording);
+                        _ = Task.Run(() => OBSService.StopRecording(recordingPid));
                         return;
                     }
                     // Process is still running, no need to check for new games

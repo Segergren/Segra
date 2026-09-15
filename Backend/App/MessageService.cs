@@ -251,7 +251,7 @@ namespace Segra.Backend.App
                             _ = Task.Run(() => OBSService.StartRecording(startManually: true));
                             break;
                         case "StopRecording":
-                            _ = Task.Run(OBSService.StopRecording);
+                            _ = Task.Run(() => OBSService.StopRecording());
                             break;
                         case "RefreshStorageStats":
                             StorageService.UpdateRecordingDriveSpaceInState();

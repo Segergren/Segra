@@ -147,6 +147,14 @@ namespace Segra.Backend.Windows.Display
 
                 if (targetWindow != IntPtr.Zero)
                 {
+                    // The exe may have relaunched under a new PID (e.g. anti-cheat chain); track the real one.
+                    GetWindowThreadProcessId(targetWindow, out uint windowProcessId);
+                    if (windowProcessId != 0 && preRecording!.Pid != (int)windowProcessId)
+                    {
+                        Log.Information($"Pre-recording window belongs to PID {windowProcessId}, not the originally tracked PID {preRecording.Pid}; updating tracked PID.");
+                        preRecording.Pid = (int)windowProcessId;
+                    }
+
                     return GetWindowDimensionsByWindowHandle(targetWindow, executableFileName, attempt, out width, out height);
                 }
 

@@ -310,7 +310,7 @@ namespace Segra.Backend.Windows.Input
                     if (recording != null || preRecording != null)
                     {
                         Log.Information("Hotkey: stopping recording");
-                        Task.Run(OBSService.StopRecording);
+                        Task.Run(() => OBSService.StopRecording());
                     }
                     else
                     {

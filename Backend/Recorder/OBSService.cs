@@ -485,7 +485,7 @@ namespace Segra.Backend.Recorder
                         if ((_output != null || _bufferOutput != null) && !_isStillHookedAfterUnhook)
                         {
                             Log.Information("Capture stopped. Stopping recording.");
-                            _ = Task.Run(StopRecording);
+                            _ = Task.Run(() => StopRecording());
                         }
                         _isStillHookedAfterUnhook = false;
                     }
@@ -770,7 +770,7 @@ namespace Segra.Backend.Recorder
         {
             try
             {
-                if (Task.Run(StopRecording).Wait(timeout))
+                if (Task.Run(() => StopRecording()).Wait(timeout))
                     return true;
 
                 Log.Warning($"StopRecording did not finish within {timeout.TotalSeconds:F0}s; continuing");
@@ -1118,7 +1118,7 @@ namespace Segra.Backend.Recorder
                 }
                 else
                 {
-                    _ = Task.Run(StopRecording);
+                    _ = Task.Run(() => StopRecording());
                     return false;
                 }
             }
@@ -1520,7 +1520,7 @@ namespace Segra.Backend.Recorder
                     Task.Run(() => ShowModal("Recording failed", "Failed to start recording. Check the log for more details.", "error"));
                     Task.Run(() => PlaySound("error"));
                     AppState.Instance.PreRecording = null;
-                    _ = Task.Run(StopRecording);
+                    _ = Task.Run(() => StopRecording());
                     return false;
                 }
 
@@ -1541,7 +1541,7 @@ namespace Segra.Backend.Recorder
                     Task.Run(() => ShowModal("Replay buffer failed", "Failed to start replay buffer. Check the log for more details.", "error"));
                     Task.Run(() => PlaySound("error"));
                     AppState.Instance.PreRecording = null;
-                    _ = Task.Run(StopRecording);
+                    _ = Task.Run(() => StopRecording());
                     return false;
                 }
 
@@ -1560,7 +1560,7 @@ namespace Segra.Backend.Recorder
                 Game = name,
                 FilePath = videoOutputPath,
                 FileName = fileName,
-                Pid = pid,
+                Pid = AppState.Instance.PreRecording?.Pid ?? pid, // may have been corrected to the real game PID
                 IsUsingGameHook = IsGameCaptureHooked,
                 IsUsingWindowCapture = IsUsingWindowCapture,
                 ExePath = exePath,
@@ -1850,7 +1850,8 @@ namespace Segra.Backend.Recorder
             }
         }
 
-        public static async Task StopRecording()
+        // expectedPid: skip the stop if the tracked recording has since moved to a different PID.
+        public static async Task StopRecording(int? expectedPid = null)
         {
             // Prevent race conditions when multiple callers try to stop recording simultaneously
             await _stopRecordingSemaphore.WaitAsync();
@@ -1861,6 +1862,16 @@ namespace Segra.Backend.Recorder
                 {
                     Log.Information("StopRecording called but already stopping or stopped.");
                     return;
+                }
+
+                if (expectedPid.HasValue)
+                {
+                    int? currentPid = AppState.Instance.Recording?.Pid ?? AppState.Instance.PreRecording?.Pid;
+                    if (currentPid.HasValue && currentPid.Value != expectedPid.Value)
+                    {
+                        Log.Information($"StopRecording({expectedPid}) skipped: recording is now tracking PID {currentPid}.");
+                        return;
+                    }
                 }
 
                 // Mark as stopping to prevent concurrent stop attempts
