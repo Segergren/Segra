@@ -44,6 +44,13 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     backgroundImage: 'https://segra.tv/api/games/cover/ar5u6d',
   },
   {
+    id: 'rainbow-six-siege',
+    name: 'Rainbow Six Siege',
+    settingsKey: 'rainbowSixSiege',
+    bookmarks: ['Kills', 'Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/ar6elp',
+  },
+  {
     id: 'gta',
     name: 'Grand Theft Auto',
     settingsKey: 'gta',
@@ -85,16 +92,6 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     settingsKey: 'runescapeDragonwilds',
     bookmarks: ['Deaths'],
     backgroundImage: 'https://segra.tv/api/games/cover/ar3en0',
-  },
-  {
-    id: 'rainbow-six-siege',
-    name: 'Rainbow Six Siege',
-    settingsKey: 'rainbowSixSiege',
-    bookmarks: ['Kills', 'Deaths'],
-    backgroundImage: 'https://segra.tv/api/games/cover/cocsnm',
-    isBeta: true,
-    warningText:
-      'Requires Match Replay to be enabled in the game. Bookmarks are added after each round ends.',
   },
 ];
 
