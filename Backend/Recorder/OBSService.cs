@@ -65,8 +65,12 @@ namespace Segra.Backend.Recorder
         private static SignalConnection? _windowHookedConnection;
         private static SignalConnection? _windowUnhookedConnection;
         private static bool _isWindowCaptureHooked;
-        private static string? _captureWindowSpec;
         private static readonly object _fallbackCaptureLock = new();
+
+        // The recorded process, as an OBS window spec. It describes the game itself, not any one
+        // capture source, so it outlives the window capture source (which is disposed as soon as
+        // the graphics hook lands) and is cleared with the rest of the sources in DisposeSources.
+        private static string? _captureProcessSpec;
 
         // Game process audio, independent of which video source is live
         private static ApplicationAudioCapture? _gameAudioSource;
@@ -1060,14 +1064,14 @@ namespace Segra.Backend.Recorder
             {
                 // Layers, bottom to top: display capture, window capture, game capture
                 AddMonitorCapture();
-                _captureWindowSpec = $"*:*:{fileName}";
-                AddWindowCapture(_captureWindowSpec);
+                _captureProcessSpec = $"*:*:{fileName}";
+                AddWindowCapture(_captureProcessSpec);
 
                 // Create game capture source for automatic game detection
                 try
                 {
                     GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
-                    GameCaptureSource.SetWindow(_captureWindowSpec);
+                    GameCaptureSource.SetWindow(_captureProcessSpec);
 
                     // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
                     // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
@@ -1280,8 +1284,13 @@ namespace Segra.Backend.Recorder
 
             // Game audio is captured from the game process; output devices are only used in Everything
             // mode, for manual recordings, or when process capture is unavailable
-            if (audioOutputMode != AudioOutputMode.All && !startManually && _captureWindowSpec != null)
-                TryAddGameAudioSource(_captureWindowSpec, eff.VolumeMultiplier);
+            if (audioOutputMode != AudioOutputMode.All && !startManually)
+            {
+                if (_captureProcessSpec != null)
+                    TryAddGameAudioSource(_captureProcessSpec, eff.VolumeMultiplier);
+                else
+                    Log.Warning("No capture process is known for this recording. Recording the selected output devices instead of game audio.");
+            }
             bool useGameAudio = _gameAudioSource != null;
 
             if (!useGameAudio && Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
@@ -2432,7 +2441,7 @@ namespace Segra.Backend.Recorder
 
                 string fileName = Path.GetFileName(exePath);
                 string spec = $"*:*:{fileName}";
-                _captureWindowSpec = spec;
+                _captureProcessSpec = spec;
                 GameCaptureSource?.SetWindow(spec);
                 _windowCaptureSource?.SetWindow(spec);
                 _gameAudioSource?.SetWindow(spec, ApplicationAudioCapture.WindowPriority.Executable);
@@ -2451,6 +2460,7 @@ namespace Segra.Backend.Recorder
             DisposeDisplaySource();
             DisposeWindowCaptureSource();
             DisposeGameCaptureSource();
+            _captureProcessSpec = null;
 
             if (_mainScene != null)
             {
@@ -2678,7 +2688,7 @@ namespace Segra.Backend.Recorder
             try
             {
                 var source = _windowCaptureSource;
-                var spec = _captureWindowSpec;
+                var spec = _captureProcessSpec;
                 if (_isStoppingOrStopped || source == null || spec == null) return;
 
                 string? reason = GetWindowCaptureBlockReason(spec.Split(':')[^1]);
@@ -2761,7 +2771,6 @@ namespace Segra.Backend.Recorder
             _isWindowCaptureBlocked = false;
             _windowCaptureBlockReason = null;
             _windowCaptureClearChecks = 0;
-            _captureWindowSpec = null;
         }
 
         private static void TryAddGameAudioSource(string windowSpec, float volume)
