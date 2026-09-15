@@ -2462,6 +2462,7 @@ namespace Segra.Backend.Recorder
             DisposeDisplaySource();
             DisposeWindowCaptureSource();
             DisposeGameCaptureSource();
+            _captureWindowSpec = null;
 
             if (_mainScene != null)
             {
@@ -2772,7 +2773,6 @@ namespace Segra.Backend.Recorder
             _isWindowCaptureBlocked = false;
             _windowCaptureBlockReason = null;
             _windowCaptureClearChecks = 0;
-            _captureWindowSpec = null;
         }
 
         private static void TryAddGameAudioSource(string windowSpec, float volume)
