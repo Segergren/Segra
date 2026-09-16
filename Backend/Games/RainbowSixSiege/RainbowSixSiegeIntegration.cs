@@ -9,7 +9,8 @@ namespace Segra.Backend.Games.RainbowSixSiege
     {
         private const int PrepPhaseSeconds = 45;
         private const int ActionPhaseSeconds = 180;
-        private const int DefuserSeconds = 45;
+        // The defuse clock already reads 0:44 at the moment of the plant
+        private const int DefuserSeconds = 44;
 
         private readonly System.Timers.Timer checkTimer = new(2500);
         private readonly HashSet<string> processedFiles = [];
