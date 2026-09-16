@@ -15,6 +15,7 @@ namespace Segra.Backend.Games.Dota2
         private int _lastValidDeaths = 0;
         private int _lastValidAssists = 0;
         private bool _hadAegis = false;
+        private bool _initialStatsCaptured = false;
 
         private class GameState
         {
@@ -197,6 +198,17 @@ namespace Segra.Backend.Games.Dota2
                 var currentKills = state.Player.Kills ?? 0;
                 var currentDeaths = state.Player.Deaths ?? 0;
                 var currentAssists = state.Player.Assists ?? 0;
+
+                if (!_initialStatsCaptured)
+                {
+                    Log.Information($"Initial Dota 2 stats captured: K:{currentKills} D:{currentDeaths} A:{currentAssists}");
+                    _lastValidKills = currentKills;
+                    _lastValidDeaths = currentDeaths;
+                    _lastValidAssists = currentAssists;
+                    _hadAegis = HasAegis(state.Items);
+                    _initialStatsCaptured = true;
+                    return;
+                }
 
                 if (currentKills < _lastValidKills || currentDeaths < _lastValidDeaths || currentAssists < _lastValidAssists)
                 {

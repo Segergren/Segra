@@ -13,6 +13,7 @@ namespace Segra.Backend.Games.CounterStrike2
         private const string Prefix = "http://127.0.0.1:1340/";
         private int _lastValidKills = 0;
         private int _lastValidDeaths = 0;
+        private bool _initialStatsCaptured = false;
 
         private class GameState
         {
@@ -198,6 +199,15 @@ namespace Segra.Backend.Games.CounterStrike2
         {
             var currentKills = gameState.Player?.MatchStats?.Kills ?? 0;
             var currentDeaths = gameState.Player?.MatchStats?.Deaths ?? 0;
+
+            if (!_initialStatsCaptured)
+            {
+                Log.Information($"Initial CS2 stats captured: K:{currentKills} D:{currentDeaths}");
+                _lastValidKills = currentKills;
+                _lastValidDeaths = currentDeaths;
+                _initialStatsCaptured = true;
+                return;
+            }
 
             if (currentDeaths < _lastValidDeaths)
             {
