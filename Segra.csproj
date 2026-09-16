@@ -67,6 +67,7 @@
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageReference Include="Velopack" Version="1.2.0" />
     <PackageReference Include="ObsKit.NET" Version="1.6.1" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
 
   <!-- Windows-only packages (NAudio/WASAPI, WMI, DirectX) -->
