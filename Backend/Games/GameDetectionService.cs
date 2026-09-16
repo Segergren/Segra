@@ -426,7 +426,11 @@ namespace Segra.Backend.Games
             string? coverImageId = GameUtils.GetCoverImageIdFromExePath(exePath);
 
             AppState.Instance.PreRecording = new PreRecording { Game = gameName, Status = "Waiting to start", CoverImageId = coverImageId, Pid = pid, Exe = exePath };
+#if WINDOWS
+            _ = Task.Run(() => OBSService.StartRecording(gameName, exePath, pid: pid));
+#else
             OBSService.StartRecording(gameName, exePath, pid: pid);
+#endif
         }
 
 #if WINDOWS

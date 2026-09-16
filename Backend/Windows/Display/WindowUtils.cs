@@ -147,14 +147,7 @@ namespace Segra.Backend.Windows.Display
 
                 if (targetWindow != IntPtr.Zero)
                 {
-                    // The exe may have relaunched under a new PID (e.g. anti-cheat chain); track the real one.
-                    GetWindowThreadProcessId(targetWindow, out uint windowProcessId);
-                    if (windowProcessId != 0 && preRecording!.Pid != (int)windowProcessId)
-                    {
-                        Log.Information($"Pre-recording window belongs to PID {windowProcessId}, not the originally tracked PID {preRecording.Pid}; updating tracked PID.");
-                        preRecording.Pid = (int)windowProcessId;
-                    }
-
+                    TrackPreRecordingWindowPid(targetWindow);
                     return GetWindowDimensionsByWindowHandle(targetWindow, executableFileName, attempt, out width, out height);
                 }
 
@@ -166,6 +159,20 @@ namespace Segra.Backend.Windows.Display
 
             Log.Warning($"Could not find window for executable after {maxAttempts} seconds: {AppState.Instance.PreRecording?.Exe}");
             return false;
+        }
+
+        // The exe may relaunch under a new PID (launcher/anti-cheat chain); keep the tracked PID on the real one.
+        private static void TrackPreRecordingWindowPid(IntPtr windowHandle)
+        {
+            PreRecording? preRecording = AppState.Instance.PreRecording;
+            if (preRecording == null) return;
+
+            GetWindowThreadProcessId(windowHandle, out uint windowProcessId);
+            if (windowProcessId != 0 && preRecording.Pid != (int)windowProcessId)
+            {
+                Log.Information($"Pre-recording window belongs to PID {windowProcessId}, not the originally tracked PID {preRecording.Pid}; updating tracked PID.");
+                preRecording.Pid = (int)windowProcessId;
+            }
         }
 
         /// <summary>
@@ -582,6 +589,7 @@ namespace Segra.Backend.Windows.Display
                         Thread.Sleep(1000);
                         continue;
                     }
+                    TrackPreRecordingWindowPid(windowHandle);
                     processStartedLongAgo = ProcessStartedLongAgo(windowHandle);
                 }
 
@@ -594,6 +602,7 @@ namespace Segra.Backend.Windows.Display
                     if (targetWindow != IntPtr.Zero)
                     {
                         windowHandle = targetWindow;
+                        TrackPreRecordingWindowPid(windowHandle);
                     }
                     else if (stableWindowDimensionsAttempt >= maxStableWindowDimensionsAttempts)
                     {
