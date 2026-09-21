@@ -3577,9 +3577,19 @@ namespace Segra.Backend.Recorder
 
             Log.Information($"Total encoders found: {idx}");
 
-            if (Settings.Instance.Codec == null)
+            var codec = Settings.Instance.Codec;
+            if (codec == null || !AppState.Instance.Codecs.Any(c => c.InternalEncoderId.Equals(codec.InternalEncoderId, StringComparison.OrdinalIgnoreCase)))
             {
                 Settings.Instance.Codec = SelectDefaultCodec(Settings.Instance.Encoder, AppState.Instance.Codecs);
+                if (codec != null)
+                {
+                    Log.Information($"Codec '{codec.FriendlyName}' is no longer available, switched to '{Settings.Instance.Codec?.FriendlyName}'");
+                    _ = Task.Run(() => MessageService.ShowModal(
+                        "Codec changed",
+                        $"The codec {codec.FriendlyName} is no longer available on this system, likely because the GPU was changed. Segra will use {Settings.Instance.Codec?.FriendlyName} instead. You can change it in Settings.",
+                        "warning"));
+                    SettingsService.SaveSettings();
+                }
             }
         }
 
