@@ -685,8 +685,12 @@ namespace Segra.Backend.Media
             return await RunAndCaptureOutput(args);
         }
 
+        // Positions tried in order until a frame that is not black is found (tabbed-out game capture is black).
+        private static readonly double[] _thumbnailPositions = { 0.5, 0.25, 0.75, 0.1, 0.9, 0.4, 0.6 };
+        private const double _blackFrameLumaThreshold = 12.0;
+
         /// <summary>
-        /// Generates a thumbnail from a video at the midpoint
+        /// Generates a thumbnail from a video at the midpoint, falling back to other positions when the frame is black
         /// </summary>
         public static async Task CreateThumbnailFile(string inputFilePath, string outputFilePath, int width = 720, int quality = 9)
         {
@@ -697,22 +701,39 @@ namespace Segra.Backend.Media
                 throw new Exception("Video duration is not available.");
             }
 
-            TimeSpan midpoint = TimeSpan.FromTicks(duration.Ticks / 2);
-            string midpointTime = midpoint.ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
-
             bool isHdr = await IsHdrVideo(inputFilePath);
 
-            var arguments = new[]
+            foreach (double position in _thumbnailPositions)
             {
-                "-y",
-                "-ss", midpointTime,
-                "-i", inputFilePath,
-                "-vf", BuildThumbnailVideoFilter(width, isHdr),
-                "-qscale:v", quality.ToString(CultureInfo.InvariantCulture),
-                "-vframes", "1",
-                outputFilePath
-            };
-            await RunSimple(arguments);
+                TimeSpan seek = TimeSpan.FromTicks((long)(duration.Ticks * position));
+                string seekTime = seek.ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
+
+                // Writes the JPEG and pipes a tiny grayscale copy of the same frame to measure brightness.
+                // Keyframe-only seek: no need to decode forward to the exact timestamp for a thumbnail.
+                var arguments = new[]
+                {
+                    "-y",
+                    "-noaccurate_seek",
+                    "-skip_frame", "nokey",
+                    "-ss", seekTime,
+                    "-i", inputFilePath,
+                    "-vf", BuildThumbnailVideoFilter(width, isHdr),
+                    "-qscale:v", quality.ToString(CultureInfo.InvariantCulture),
+                    "-vframes", "1",
+                    outputFilePath,
+                    "-vf", "scale=32:18,format=gray",
+                    "-vframes", "1",
+                    "-f", "rawvideo",
+                    "pipe:1"
+                };
+                byte[] gray = await RunAndCaptureOutput(arguments);
+
+                double meanLuma = gray.Length > 0 ? gray.Average(b => (double)b) : 255;
+                if (meanLuma >= _blackFrameLumaThreshold)
+                    return;
+
+                Log.Information("Thumbnail frame at {Position:P0} is black (luma {Luma:F1}), trying next position", position, meanLuma);
+            }
         }
 
         /// <summary>
