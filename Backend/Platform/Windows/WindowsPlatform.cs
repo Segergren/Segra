@@ -165,8 +165,15 @@ namespace Segra.Backend.Platform.Windows
         {
             var thread = new Thread(() =>
             {
-                var files = new System.Collections.Specialized.StringCollection { filePath };
-                Clipboard.SetFileDropList(files);
+                try
+                {
+                    var files = new System.Collections.Specialized.StringCollection { filePath };
+                    Clipboard.SetFileDropList(files);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to copy file to clipboard");
+                }
             });
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();

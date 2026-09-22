@@ -60,7 +60,7 @@ namespace Segra.Backend.Media
                 // Input files are organized by game
                 string inputGameFolder = StorageService.SanitizeGameNameForFolder(content.Game ?? "Unknown");
                 string inputFolderName = FolderNames.GetVideoFolderName(content.Type);
-                string inputFilePath = PathUtils.Combine(videoFolder, inputFolderName, inputGameFolder, $"{content.FileName}.mp4");
+                string inputFilePath = File.Exists(content.FilePath) ? content.FilePath : PathUtils.Combine(videoFolder, inputFolderName, inputGameFolder, $"{content.FileName}.mp4");
 
                 if (!File.Exists(inputFilePath))
                 {

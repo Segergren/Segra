@@ -79,14 +79,15 @@ namespace Segra.Backend.Games.WarThunder
 
         private async Task ResolveNickname(CancellationToken token)
         {
-            for (int attempt = 0; attempt < 60 && !token.IsCancellationRequested; attempt++)
+            for (int attempt = 0; !token.IsCancellationRequested; attempt++)
             {
                 try
                 {
                     string? folder = ClogDecoder.ResolveClogDirectory(ExePath);
                     if (folder == null)
                     {
-                        Log.Debug("[WT] clog directory not found yet, retrying");
+                        if (attempt < 60)
+                            Log.Debug("[WT] clog directory not found yet, retrying");
                     }
                     else
                     {
@@ -106,15 +107,11 @@ namespace Segra.Backend.Games.WarThunder
                 }
                 catch (Exception ex)
                 {
-                    Log.Debug($"[WT] Nickname resolution attempt {attempt} failed: {ex.Message}");
+                    if (attempt < 60)
+                        Log.Debug($"[WT] Nickname resolution attempt {attempt} failed: {ex.Message}");
                 }
 
-                try { await Task.Delay(TimeSpan.FromSeconds(1), token); } catch { return; }
-            }
-
-            if (string.IsNullOrEmpty(_nickname))
-            {
-                Log.Warning("[WT] Could not resolve nickname — no bookmarks will be produced this session.");
+                try { await Task.Delay(TimeSpan.FromSeconds(attempt < 60 ? 1 : 5), token); } catch { return; }
             }
         }
 

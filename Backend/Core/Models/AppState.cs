@@ -389,7 +389,11 @@ namespace Segra.Backend.Core.Models
         {
             _audioDeviceDebounceTimer?.Dispose();
             _audioDeviceDebounceTimer = new System.Threading.Timer(
-                _ => UpdateAudioDevices(),
+                _ =>
+                {
+                    try { UpdateAudioDevices(); }
+                    catch (Exception ex) { Log.Error(ex, "Failed to update audio devices"); }
+                },
                 null,
                 DebounceDelayMs,
                 Timeout.Infinite
@@ -400,7 +404,11 @@ namespace Segra.Backend.Core.Models
         {
             _displayDebounceTimer?.Dispose();
             _displayDebounceTimer = new System.Threading.Timer(
-                _ => UpdateDisplays(),
+                _ =>
+                {
+                    try { UpdateDisplays(); }
+                    catch (Exception ex) { Log.Error(ex, "Failed to update displays"); }
+                },
                 null,
                 DebounceDelayMs,
                 Timeout.Infinite

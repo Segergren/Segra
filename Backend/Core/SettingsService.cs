@@ -15,6 +15,7 @@ namespace Segra.Backend.Core
     internal static class SettingsService
     {
         public static readonly string SettingsFilePath = PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "settings.json"));
+        private static readonly object _saveLock = new();
 
         public static void SaveSettings(bool force = false, bool suppressLog = false)
         {
@@ -37,7 +38,12 @@ namespace Segra.Backend.Core
                     WriteIndented = true
                 });
 
-                File.WriteAllText(SettingsFilePath, json);
+                lock (_saveLock)
+                {
+                    string tempPath = SettingsFilePath + ".tmp";
+                    File.WriteAllText(tempPath, json);
+                    File.Move(tempPath, SettingsFilePath, true);
+                }
 
                 if (!suppressLog)
                 {
@@ -73,7 +79,7 @@ namespace Segra.Backend.Core
 
                 Settings.Instance.BeginBulkUpdate();
 
-                using (JsonDocument document = JsonDocument.Parse(json))
+                using (JsonDocument document = JsonDocument.Parse(json, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }))
                 {
                     JsonElement root = document.RootElement;
 

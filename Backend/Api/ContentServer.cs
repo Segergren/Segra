@@ -129,7 +129,7 @@ namespace Segra.Backend.Api
             string timeParam = query["time"] ?? "";
             var response = context.Response;
 
-            response.AddHeader("Access-Control-Allow-Origin", "*");
+            AddCorsHeader(context);
 
             string? input = ValidateUserPath(rawInput);
             if (input == null || !File.Exists(input))
@@ -216,7 +216,7 @@ namespace Segra.Backend.Api
             string rawInput = query["input"] ?? "";
             var response = context.Response;
 
-            response.AddHeader("Access-Control-Allow-Origin", "*");
+            AddCorsHeader(context);
 
             string? fileName = ValidateUserPath(rawInput);
             if (fileName == null || !File.Exists(fileName))
@@ -338,9 +338,22 @@ namespace Segra.Backend.Api
             }
         }
 
+        internal static bool IsLocalOrigin(string? origin)
+        {
+            return Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
+                (uri.Host == "localhost" || uri.Host == "127.0.0.1");
+        }
+
+        private static void AddCorsHeader(HttpListenerContext context)
+        {
+            string? origin = context.Request.Headers["Origin"];
+            if (origin != null && IsLocalOrigin(origin))
+                context.Response.AddHeader("Access-Control-Allow-Origin", origin);
+        }
+
         private static string? ValidateUserPath(string userPath)
         {
-            if (string.IsNullOrWhiteSpace(userPath))
+            if (string.IsNullOrWhiteSpace(userPath) || !Path.IsPathFullyQualified(userPath))
                 return null;
 
             string? canonical = TryGetFullPath(userPath);

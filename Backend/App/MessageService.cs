@@ -449,7 +449,13 @@ namespace Segra.Backend.App
                 {
                     HttpListenerContext context = await listener.GetContextAsync();
 
-                    if (context.Request.IsWebSocketRequest)
+                    string? origin = context.Request.Headers["Origin"];
+                    if (context.Request.IsWebSocketRequest && origin != null && !Api.ContentServer.IsLocalOrigin(origin))
+                    {
+                        context.Response.StatusCode = 403;
+                        context.Response.Close();
+                    }
+                    else if (context.Request.IsWebSocketRequest)
                     {
                         Log.Information("Received WebSocket connection request");
 

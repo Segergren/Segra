@@ -16,7 +16,7 @@ namespace Segra.Backend.Media
     {
         private static readonly HttpClient _httpClient = new()
         {
-            Timeout = TimeSpan.FromMinutes(10)
+            Timeout = Timeout.InfiniteTimeSpan
         };
 
         private static readonly Dictionary<string, CancellationTokenSource> _activeUploads = new();

@@ -52,6 +52,9 @@ namespace Segra.Backend.Windows.Storage
         // finalize the file cleanly instead of slamming into a completely full disk.
         public const long MinimumRecordingFreeSpaceBytes = 250L * 1024 * 1024; // 250 MB
 
+        private static string? GetDriveRoot(string path) =>
+            OperatingSystem.IsWindows() ? Path.GetPathRoot(path) : path;
+
         // Returns the free space (in bytes) on the drive holding the content folder,
         // or null if it cannot be determined (so callers can choose not to act on errors).
         public static long? GetContentDriveFreeBytes()
@@ -61,7 +64,7 @@ namespace Segra.Backend.Windows.Storage
                 string contentFolder = Settings.Instance.ContentFolder;
                 if (string.IsNullOrEmpty(contentFolder)) return null;
 
-                string? root = Path.GetPathRoot(contentFolder);
+                string? root = GetDriveRoot(contentFolder);
                 if (string.IsNullOrEmpty(root)) return null;
 
                 var drive = new DriveInfo(root);
@@ -83,7 +86,7 @@ namespace Segra.Backend.Windows.Storage
                 string contentFolder = Settings.Instance.ContentFolder;
                 if (string.IsNullOrEmpty(contentFolder)) return null;
 
-                string? root = Path.GetPathRoot(contentFolder);
+                string? root = GetDriveRoot(contentFolder);
                 if (string.IsNullOrEmpty(root)) return null;
 
                 var drive = new DriveInfo(root);
@@ -120,7 +123,7 @@ namespace Segra.Backend.Windows.Storage
                 try
                 {
                     if (string.IsNullOrEmpty(path)) continue;
-                    string? root = Path.GetPathRoot(path);
+                    string? root = GetDriveRoot(path);
                     if (string.IsNullOrEmpty(root)) continue;
                     if (!seenRoots.Add(root)) continue; // same physical drive already checked
 
@@ -205,7 +208,7 @@ namespace Segra.Backend.Windows.Storage
         internal static long CalculateFolderSize(string folderPath)
         {
             long size = 0;
-            string[] files = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);
+            string[] files = Directory.GetFiles(folderPath, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 });
 
             foreach (string file in files)
             {

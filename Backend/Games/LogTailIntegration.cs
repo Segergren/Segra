@@ -1,4 +1,5 @@
 using Serilog;
+using System.Text;
 using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Games
@@ -135,21 +136,29 @@ namespace Segra.Backend.Games
                         {
                             using var fs = new FileStream(_currentPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                             fs.Seek(_lastLength, SeekOrigin.Begin);
-                            using var reader = new StreamReader(fs);
-                            string? line;
-                            while ((line = await reader.ReadLineAsync()) != null)
+                            const int maxChunk = 16 * 1024 * 1024;
+                            byte[] bytes = new byte[Math.Min(currentLength - _lastLength, maxChunk)];
+                            int read = await fs.ReadAtLeastAsync(bytes, bytes.Length, false, token);
+                            int end = read > 0 ? Array.LastIndexOf(bytes, (byte)'\n', read - 1) : -1;
+                            if (end < 0 && read == maxChunk)
+                                end = read - 1;
+                            if (end >= 0)
                             {
-                                if (string.IsNullOrWhiteSpace(line)) continue;
-                                try
+                                foreach (string rawLine in Encoding.UTF8.GetString(bytes, 0, end + 1).Split('\n'))
                                 {
-                                    ProcessLine(line);
+                                    string line = rawLine.TrimEnd('\r');
+                                    if (string.IsNullOrWhiteSpace(line)) continue;
+                                    try
+                                    {
+                                        ProcessLine(line);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Log.Warning($"[{LogPrefix}] Error processing line: {ex.Message}");
+                                    }
                                 }
-                                catch (Exception ex)
-                                {
-                                    Log.Warning($"[{LogPrefix}] Error processing line: {ex.Message}");
-                                }
+                                _lastLength += end + 1;
                             }
-                            _lastLength = fs.Position;
                         }
                         catch (IOException ex)
                         {

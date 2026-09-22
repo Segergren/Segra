@@ -107,7 +107,13 @@ namespace Segra.Backend.Core
                         settings.Bitrate = values.Bitrate;
                         settings.MinBitrate = values.MinBitrate;
                         settings.MaxBitrate = values.MaxBitrate;
-                        settings.Encoder = values.Encoder;
+                        if (settings.Encoder != values.Encoder)
+                        {
+                            settings.Encoder = values.Encoder;
+                            var codec = Recorder.OBSService.SelectDefaultCodec(settings.Encoder, AppState.Instance.Codecs);
+                            if (codec != null)
+                                settings.Codec = codec;
+                        }
                         break;
 
                     case "custom":
