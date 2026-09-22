@@ -37,7 +37,11 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (!raw) return null;
       const cached = JSON.parse(raw);
-      return { ...initialSettings, ...cached };
+      return {
+        ...initialSettings,
+        ...cached,
+        gameIntegrations: { ...initialSettings.gameIntegrations, ...cached.gameIntegrations },
+      };
     } catch {
       return null;
     }

@@ -4,6 +4,7 @@ type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 
 interface ModalOptions {
   size?: ModalSize;
+  onDismiss?: () => void;
 }
 
 interface ModalContextType {
@@ -31,12 +32,22 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const backdropMouseDownRef = useRef<boolean>(false);
   // Pending content-clear from closeModal, so a quickly-reopened modal isn't wiped by it
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onDismissRef = useRef<(() => void) | null>(null);
+
+  const runDismiss = () => {
+    const cb = onDismissRef.current;
+    onDismissRef.current = null;
+    cb?.();
+  };
 
   const openModal = (content: ReactNode, options?: ModalOptions) => {
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
     }
+    // Replacing an open modal counts as dismissing it
+    runDismiss();
+    onDismissRef.current = options?.onDismiss ?? null;
     setModalContent(content);
     setSizeClass(options?.size ? SIZE_CLASS[options.size] : '');
     if (modalRef.current && !modalRef.current.open) {
@@ -60,6 +71,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (modalRef.current) {
       modalRef.current.close();
     }
+    runDismiss();
     scheduleContentClear();
   };
 
@@ -71,7 +83,10 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       <dialog
         ref={modalRef}
         className="modal modal-bottom sm:modal-middle"
-        onClose={scheduleContentClear}
+        onClose={() => {
+          if (!modalRef.current?.open) runDismiss();
+          scheduleContentClear();
+        }}
         onMouseDown={(e) => {
           // Only mark as backdrop interaction if the mousedown started on the dialog backdrop
           backdropMouseDownRef.current = e.target === modalRef.current;

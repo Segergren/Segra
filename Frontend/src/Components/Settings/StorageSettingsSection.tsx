@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, KeyboardEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderInput } from 'lucide-react';
 import { Settings as SettingsType } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
+import { clampInt } from '../../Utils/NumberUtils';
 import { useModal } from '../../Context/ModalContext';
 import ConfirmationModal from '../ConfirmationModal';
 import Button from '../Button';
@@ -46,6 +47,21 @@ export default function StorageSettingsSection({
   useEffect(() => {
     setLocalStorageLimit(String(settings.storageLimit));
   }, [settings.storageLimit]);
+
+  const [localContentFolder, setLocalContentFolder] = useState(settings.contentFolder);
+  const [localCacheFolder, setLocalCacheFolder] = useState(settings.cacheFolder);
+
+  useEffect(() => {
+    setLocalContentFolder(settings.contentFolder);
+  }, [settings.contentFolder]);
+
+  useEffect(() => {
+    setLocalCacheFolder(settings.cacheFolder);
+  }, [settings.cacheFolder]);
+
+  const blurOnEnter = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') e.currentTarget.blur();
+  };
 
   useEffect(() => {
     sendMessageToBackend('RefreshStorageStats');
@@ -111,12 +127,8 @@ export default function StorageSettingsSection({
 
   const handleStorageLimitBlur = () => {
     const currentFolderSizeGb = appState.currentFolderSizeGb;
-    const numericLimit = Number(localStorageLimit) || 1; // Default to 1 if empty/invalid
-
-    // Update display if empty/invalid
-    if (!localStorageLimit || isNaN(Number(localStorageLimit))) {
-      setLocalStorageLimit('1');
-    }
+    const numericLimit = clampInt(localStorageLimit, 1, Number.MAX_SAFE_INTEGER, 1);
+    setLocalStorageLimit(String(numericLimit));
 
     // Check if the new limit is below the current folder size
     if (numericLimit < currentFolderSizeGb) {
@@ -155,8 +167,14 @@ export default function StorageSettingsSection({
               <input
                 type="text"
                 name="contentFolder"
-                value={settings.contentFolder}
-                onChange={(e) => updateSettings({ contentFolder: e.target.value })}
+                value={localContentFolder}
+                onChange={(e) => setLocalContentFolder(e.target.value)}
+                onBlur={() => {
+                  if (localContentFolder !== settings.contentFolder) {
+                    updateSettings({ contentFolder: localContentFolder });
+                  }
+                }}
+                onKeyDown={blurOnEnter}
                 placeholder="Enter or select folder path"
                 className="input input-bordered flex-1 bg-base-200 join-item"
               />
@@ -180,8 +198,14 @@ export default function StorageSettingsSection({
               <input
                 type="text"
                 name="cacheFolder"
-                value={settings.cacheFolder}
-                onChange={(e) => updateSettings({ cacheFolder: e.target.value })}
+                value={localCacheFolder}
+                onChange={(e) => setLocalCacheFolder(e.target.value)}
+                onBlur={() => {
+                  if (localCacheFolder !== settings.cacheFolder) {
+                    updateSettings({ cacheFolder: localCacheFolder });
+                  }
+                }}
+                onKeyDown={blurOnEnter}
                 placeholder="Enter or select folder for metadata"
                 className="input input-bordered flex-1 bg-base-200 join-item"
               />

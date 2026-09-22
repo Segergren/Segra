@@ -969,10 +969,15 @@ namespace Segra.Backend.App
                     await SendFrontendMessage("SelectedGameExecutable", gameObject);
                     Log.Information($"Selected game executable: {filePath}{(catalogName != null ? $" (matched catalog game '{catalogName}')" : "")}");
                 }
+                else
+                {
+                    await SendFrontendMessage("SelectedGameExecutable", new { paths = Array.Empty<string>() });
+                }
             }
             catch (Exception ex)
             {
                 Log.Error($"Error selecting game executable: {ex.Message}");
+                await SendFrontendMessage("SelectedGameExecutable", new { paths = Array.Empty<string>() });
                 await ShowModal("Error", $"Failed to select game executable: {ex.Message}", "error");
             }
         }

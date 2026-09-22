@@ -139,6 +139,7 @@ export default function ContentPage({
 
   const handleGameFilterChange = (games: string[]) => {
     setSelectedGames(games);
+    setSelectedItems(new Set());
     localStorage.setItem(`${sectionId}-filters`, JSON.stringify(games));
   };
 

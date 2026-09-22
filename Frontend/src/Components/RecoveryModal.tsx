@@ -136,7 +136,10 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
           </>
         }
         confirmText="Delete"
-        onConfirm={() => handleAction('delete')}
+        onConfirm={() => {
+          setIsConfirmingDelete(false);
+          handleAction('delete');
+        }}
         onCancel={() => setIsConfirmingDelete(false)}
       />
     );

@@ -152,8 +152,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       } catch {
         if (gen !== sessionGenRef.current) return;
-        console.error('Token refresh failed');
-        handleSignOut();
+        // Network, parse or server failure: keep the session and retry
+        console.error('Token refresh failed, retrying in 30s');
+        refreshTimerRef.current = setTimeout(() => refreshSession(currentSession), 30_000);
       }
     },
     [handleSignOut],

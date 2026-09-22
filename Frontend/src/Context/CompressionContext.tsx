@@ -33,6 +33,7 @@ export function CompressionProvider({ children }: { children: ReactNode }) {
         ) {
           setTimeout(() => {
             setCompressionProgress((prev) => {
+              if (prev[progress.filePath] !== progress) return prev;
               const { [progress.filePath]: _, ...rest } = prev;
               return rest;
             });

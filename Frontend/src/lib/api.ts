@@ -33,7 +33,16 @@ export const api = {
 
   register: (email: string, password: string) => post('/auth/register', { email, password }),
 
-  refreshToken: (refresh_token: string) => post('/auth/token/refresh', { refresh_token }),
+  // Throws on 5xx so callers can retry instead of treating a server outage as a revoked token
+  refreshToken: async (refresh_token: string) => {
+    const res = await fetch(`${API_BASE}/auth/token/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token }),
+    });
+    if (res.status >= 500) throw new Error(`Token refresh failed with status ${res.status}`);
+    return res.json();
+  },
 
   getProfile: (accessToken: string) => getWithToken('/auth/profile', accessToken),
 

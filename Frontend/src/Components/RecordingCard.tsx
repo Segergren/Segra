@@ -177,6 +177,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
     // Skip API call entirely if game background is disabled
     if (!showGameBackground) {
       setCoverUrl(null);
+      lastFetchedGameRef.current = null;
       return;
     }
 

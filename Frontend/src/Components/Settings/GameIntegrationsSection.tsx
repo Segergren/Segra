@@ -1,6 +1,5 @@
-import { useSettings } from '../../Context/SettingsContext';
+import { useSettings, useSettingsUpdater } from '../../Context/SettingsContext';
 import { useAppState } from '../../Context/AppStateContext';
-import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { GameIntegrations } from '../../Models/types';
 
 interface GameIntegration {
@@ -175,11 +174,11 @@ function GameIntegrationCard({
 
 export default function GameIntegrationsSection() {
   const settings = useSettings();
+  const updateSettings = useSettingsUpdater();
   const appState = useAppState();
 
   const handleToggle = (settingsKey: GameIntegration['settingsKey'], enabled: boolean) => {
-    sendMessageToBackend('UpdateSettings', {
-      ...settings,
+    updateSettings({
       gameIntegrations: {
         ...settings.gameIntegrations,
         [settingsKey]: {

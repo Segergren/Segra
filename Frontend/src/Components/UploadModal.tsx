@@ -42,6 +42,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
   }, [video.fileName]);
 
   const handleUpload = () => {
+    if (session === null) return;
     if (!title.trim()) {
       setTitleError(true);
       titleInputRef.current?.focus();

@@ -20,6 +20,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import { useModal } from '../../Context/ModalContext';
+import { clampInt } from '../../Utils/NumberUtils';
 import CustomGameModal from '../CustomGameModal';
 import DropdownSelect from '../DropdownSelect';
 import RangeSlider from '../RangeSlider';
@@ -587,10 +588,7 @@ function GamePanel({
                           onUpdate({
                             recordingModeOverride: {
                               ...mode,
-                              replayBufferDuration: Math.min(
-                                600,
-                                Math.max(5, Number(e.target.value) || 30),
-                              ),
+                              replayBufferDuration: clampInt(e.target.value, 5, 600, 30),
                             },
                           })
                         }
@@ -610,10 +608,7 @@ function GamePanel({
                           onUpdate({
                             recordingModeOverride: {
                               ...mode,
-                              replayBufferMaxSize: Math.min(
-                                5000,
-                                Math.max(100, Number(e.target.value) || 1000),
-                              ),
+                              replayBufferMaxSize: clampInt(e.target.value, 100, 5000, 1000),
                             },
                           })
                         }
@@ -874,7 +869,7 @@ function QualityOverrideEditor({
                     defaultValue={value.crfValue}
                     onBlur={(e) =>
                       onChange({
-                        crfValue: Math.min(51, Math.max(0, Number(e.target.value) || 23)),
+                        crfValue: clampInt(e.target.value, 0, 51, 23),
                       })
                     }
                     className="input input-bordered bg-base-300 w-full outline-none focus:border-base-400"
@@ -894,7 +889,9 @@ function QualityOverrideEditor({
                     max={30}
                     defaultValue={value.cqLevel}
                     onBlur={(e) =>
-                      onChange({ cqLevel: Math.min(30, Math.max(0, Number(e.target.value) || 20)) })
+                      onChange({
+                        cqLevel: clampInt(e.target.value, 0, 30, 20),
+                      })
                     }
                     className="input input-bordered bg-base-300 w-full outline-none focus:border-base-400"
                   />

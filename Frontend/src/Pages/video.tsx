@@ -478,6 +478,10 @@ export default function VideoComponent({ video }: { video: Content }) {
   useEffect(() => {
     segmentsRef.current = segments;
   }, [segments]);
+  const videoFileNameRef = useRef(video.fileName);
+  useEffect(() => {
+    videoFileNameRef.current = video.fileName;
+  }, [video.fileName]);
 
   // Track in-flight thumbnail requests to avoid stale overwrites
   const thumbnailReqTokenRef = useRef<Map<number, number>>(new Map());
@@ -605,13 +609,13 @@ export default function VideoComponent({ video }: { video: Content }) {
       // Volume up/down (5% steps, allow holding)
       if ((e.key === 'ArrowUp' || e.code === 'ArrowUp') && !isTyping) {
         e.preventDefault();
-        setPlayerVolume((videoRef.current?.volume ?? volume) + 0.05);
+        setPlayerVolume(volume + 0.05);
         showControlsTemporarily();
         return;
       }
       if ((e.key === 'ArrowDown' || e.code === 'ArrowDown') && !isTyping) {
         e.preventDefault();
-        setPlayerVolume((videoRef.current?.volume ?? volume) - 0.05);
+        setPlayerVolume(volume - 0.05);
         showControlsTemporarily();
         return;
       }
@@ -693,7 +697,9 @@ export default function VideoComponent({ video }: { video: Content }) {
       if (at.isMultiTrack) {
         const t = vid.currentTime;
         const segs = segmentsRef.current;
-        const activeSeg = segs.find((s) => t >= s.startTime && t <= s.endTime);
+        const activeSeg = segs.find(
+          (s) => s.fileName === videoFileNameRef.current && t >= s.startTime && t <= s.endTime,
+        );
         const activeId = activeSeg?.id ?? null;
 
         if (activeId !== activeSegmentIdRef.current || segmentsDirtyRef.current) {
@@ -944,7 +950,9 @@ export default function VideoComponent({ video }: { video: Content }) {
   const skipTime = (seconds: number) => {
     if (videoRef.current) {
       const newTime = videoRef.current.currentTime + seconds;
-      videoRef.current.currentTime = Math.max(0, Math.min(newTime, videoRef.current.duration));
+      const clamped = Math.max(0, Math.min(newTime, videoRef.current.duration));
+      videoRef.current.currentTime = clamped;
+      setCurrentTime(clamped);
     }
   };
 
@@ -1174,6 +1182,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     // Use the frame already on screen as an instant thumbnail; the server
     // thumbnail crossfades in once fetched.
     const instantThumbnail = captureCurrentFrame();
+    const previousSegment = [...segments].reverse().find((s) => s.fileName === video.fileName);
 
     const newSegment: Segment = {
       id: Date.now(),
@@ -1188,12 +1197,11 @@ export default function VideoComponent({ video }: { video: Content }) {
       game: video.game,
       title: video.title,
       igdbId: video.igdbId,
-      mutedAudioTracks:
-        segments.length > 0
-          ? segments[segments.length - 1].mutedAudioTracks
-          : audioTracks.isMultiTrack
-            ? [...audioTracks.mutedTracks]
-            : undefined,
+      mutedAudioTracks: previousSegment
+        ? previousSegment.mutedAudioTracks
+        : audioTracks.isMultiTrack
+          ? [...audioTracks.mutedTracks]
+          : undefined,
     };
     addSegment(newSegment);
     // The instant frame capture is good enough for the initial thumbnail, so

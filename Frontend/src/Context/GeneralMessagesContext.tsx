@@ -71,6 +71,18 @@ export function GeneralMessagesProvider({ children }: { children: ReactNode }) {
   };
 
   const openStorageWarningModal = (warningData: StorageWarningMessage) => {
+    let responded = false;
+    const respond = (confirmed: boolean) => {
+      if (responded) return;
+      responded = true;
+      sendMessageToBackend('StorageWarningConfirm', {
+        warningId: warningData.warningId,
+        confirmed,
+        action: warningData.action,
+        actionData: warningData.actionData,
+      });
+    };
+
     openModal(
       <ConfirmationModal
         title={warningData.title}
@@ -78,24 +90,15 @@ export function GeneralMessagesProvider({ children }: { children: ReactNode }) {
         confirmText={warningData.confirmText}
         cancelText={warningData.cancelText}
         onConfirm={() => {
-          sendMessageToBackend('StorageWarningConfirm', {
-            warningId: warningData.warningId,
-            confirmed: true,
-            action: warningData.action,
-            actionData: warningData.actionData,
-          });
+          respond(true);
           closeModal();
         }}
         onCancel={() => {
-          sendMessageToBackend('StorageWarningConfirm', {
-            warningId: warningData.warningId,
-            confirmed: false,
-            action: warningData.action,
-            actionData: warningData.actionData,
-          });
+          respond(false);
           closeModal();
         }}
       />,
+      { onDismiss: () => respond(false) },
     );
   };
 
