@@ -593,6 +593,11 @@ namespace Segra.Backend.Core
                 {
                     Log.Warning($"Codec change before OBS initialization, skipping");
                 }
+                else if (!AppState.Instance.Codecs.Any(c => c.InternalEncoderId.Equals(updatedSettings.Codec.InternalEncoderId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    Log.Warning($"Codec '{updatedSettings.Codec.FriendlyName}' is not available on this system, keeping '{settings.Codec.FriendlyName}'");
+                    hasChanges = true;
+                }
                 else
                 {
                     Log.Information($"Codec changed from '{settings.Codec.FriendlyName}' to '{updatedSettings.Codec.FriendlyName}'");

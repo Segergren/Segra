@@ -3589,6 +3589,7 @@ namespace Segra.Backend.Recorder
                         $"The codec {codec.FriendlyName} is no longer available on this system, likely because the GPU was changed. Segra will use {Settings.Instance.Codec?.FriendlyName} instead. You can change it in Settings.",
                         "warning"));
                     SettingsService.SaveSettings();
+                    _ = MessageService.SendSettingsToFrontend("Codec fallback");
                 }
             }
         }
