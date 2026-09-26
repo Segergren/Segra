@@ -123,7 +123,13 @@ namespace Segra.Backend.Recorder
         // Quality-based rate controls (CRF/CQP) have no bitrate cap, so assume a high worst case when sizing headroom
         private const int QualityModeAssumedMbps = 150;
 
+#if WINDOWS
+        private static int _obsCheckPending;
+        private const int ObsCheckDelayMs = 2000;
+#endif
+
         private static bool _isStoppingOrStopped = false;
+        private static ObsBoundsType _captureBoundsType = ObsBoundsType.ScaleInner;
         private static uint _currentBaseWidth;
         private static uint _currentBaseHeight;
         private static uint _currentOutputWidth;
@@ -1099,43 +1105,11 @@ namespace Segra.Backend.Recorder
 
                 // The game hook serves one app per game, so leave it to OBS Studio while it streams or records
                 if (ObsStudioOutput.IsStreamingOrRecording())
-                {
                     Log.Information("OBS Studio is streaming or recording, skipping game capture");
-                }
+                else if (IsGameHookTaken(fileName))
+                    Log.Information("Another app has the game hook, skipping game capture");
                 else
-                {
-                    // Create game capture source for automatic game detection
-                    try
-                    {
-                        GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
-                        GameCaptureSource.SetWindow(_captureWindowSpec);
-
-                        // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
-                        // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
-                        if (_isHdrRecording)
-                        {
-                            GameCaptureSource.SetRgb10A2ColorSpace(GameCapture.Rgb10A2ColorSpace.Pq2100);
-                            Log.Information("Game capture color space set to Rec.2100 PQ (HDR)");
-                        }
-
-                        Log.Information($"Game capture configured for: {fileName}");
-
-                        // Add game capture to scene (top layer - visible when hooked)
-                        _gameCaptureItem = _mainScene.AddSource(GameCaptureSource);
-
-                        // Start a timer to check if game capture hooks within 90 seconds
-                        StartGameCaptureHookTimeoutTimer();
-
-                        // Subscribe to GameCapture's hooked/unhooked events (IsHooked is tracked automatically)
-                        GameCaptureSource!.Hooked += OnGameCaptureHookedEvent;
-                        GameCaptureSource.Unhooked += OnGameCaptureUnhookedEvent;
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning($"Game Capture source not available: {ex.Message}. Using Display Capture only.");
-                        GameCaptureSource = null;
-                    }
-                }
+                    AddGameCapture(_captureWindowSpec, withHookTimeout: true);
 
                 // Try to get the window dimensions for the game
                 if (WindowUtils.GetWindowDimensionsByPreRecordingExeOrPid(out uint windowWidth, out uint windowHeight))
@@ -1151,12 +1125,12 @@ namespace Segra.Backend.Recorder
                     // Scene item bounds must use BASE dimensions (not output) because the scene canvas is at base resolution.
                     // For 4:3 content: base is 4:3, output is 16:9 - OBS handles the stretch at the output level.
                     // For non-4:3: base == output, ScaleInner ensures content scales with black bars if window shrinks.
-                    var boundsType = is4by3 ? ObsBoundsType.Stretch : ObsBoundsType.ScaleInner;
-                    _gameCaptureItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
-                    _windowCaptureItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
-                    _displayItem?.SetBounds(boundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+                    _captureBoundsType = is4by3 ? ObsBoundsType.Stretch : ObsBoundsType.ScaleInner;
+                    ApplyCaptureBounds(_gameCaptureItem);
+                    ApplyCaptureBounds(_windowCaptureItem);
+                    ApplyCaptureBounds(_displayItem);
 
-                    FollowGameMonitor();
+                    FollowGameMonitor(WindowUtils.TryGetPreRecordingWindowHandle());
                 }
                 else
                 {
@@ -1730,14 +1704,14 @@ namespace Segra.Backend.Recorder
         /// <summary>
         /// Points the display fallback at the game window's monitor; keeps the selected display if it can't be resolved.
         /// </summary>
-        private static void FollowGameMonitor()
+        private static void FollowGameMonitor(IntPtr gameWindow)
         {
 #if WINDOWS
             if (_displaySource is not MonitorCapture monitorCapture) return;
 
             try
             {
-                string? deviceId = DisplayService.GetDeviceIdForWindow(WindowUtils.TryGetPreRecordingWindowHandle());
+                string? deviceId = DisplayService.GetDeviceIdForWindow(gameWindow);
                 if (deviceId == null) return;
 
                 int index = AppState.Instance.Displays.FindIndex(d => d.DeviceId == deviceId);
@@ -2811,6 +2785,145 @@ namespace Segra.Backend.Recorder
             // Dispose the timer if it exists
             StopGameCaptureHookTimeoutTimer();
         }
+
+        private static void ApplyCaptureBounds(SceneItem? item) =>
+            item?.SetBounds(_captureBoundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+
+#if WINDOWS
+        private static void AddGameCapture(string windowSpec, bool withHookTimeout)
+        {
+            try
+            {
+                GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
+                GameCaptureSource.SetWindow(windowSpec);
+
+                // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
+                // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
+                if (_isHdrRecording)
+                {
+                    GameCaptureSource.SetRgb10A2ColorSpace(GameCapture.Rgb10A2ColorSpace.Pq2100);
+                    Log.Information("Game capture color space set to Rec.2100 PQ (HDR)");
+                }
+
+                Log.Information($"Game capture configured for: {windowSpec.Split(':')[^1]}");
+
+                // Add game capture to scene (top layer - visible when hooked)
+                _gameCaptureItem = _mainScene!.AddSource(GameCaptureSource);
+
+                // Start a timer to check if game capture hooks within 90 seconds
+                if (withHookTimeout)
+                    StartGameCaptureHookTimeoutTimer();
+
+                // Subscribe to GameCapture's hooked/unhooked events (IsHooked is tracked automatically)
+                GameCaptureSource.Hooked += OnGameCaptureHookedEvent;
+                GameCaptureSource.Unhooked += OnGameCaptureUnhookedEvent;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Game Capture source not available: {ex.Message}. Using Display Capture only.");
+                GameCaptureSource = null;
+            }
+        }
+
+        // Whoever holds a game's hook (OBS Studio's preview, Streamlabs, ...) owns its log pipe
+        private static bool IsGameHookTaken(string exeFileName)
+        {
+            var processes = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exeFileName));
+            try
+            {
+                return processes.Any(p => Directory.GetFiles(@"\\.\pipe\", $"CaptureHook_Pipe{p.Id}").Length > 0);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to check the game hook pipe: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                foreach (var process in processes) process.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Called when the recorded game regains focus: hands the game hook to OBS Studio while it streams or
+        /// records, and retries game capture once the hook is free.
+        /// </summary>
+        public static void OnGameFocused(IntPtr gameWindow)
+        {
+            if (Interlocked.Exchange(ref _obsCheckPending, 1) == 1) return;
+
+            _ = Task.Run(async () =>
+            {
+                // OBS only logs a stream start once connected, which can land after a quick tab back
+                await Task.Delay(ObsCheckDelayMs);
+                Interlocked.Exchange(ref _obsCheckPending, 0);
+                SyncGameCaptureWithObs(gameWindow);
+            });
+        }
+
+        private static void SyncGameCaptureWithObs(IntPtr gameWindow)
+        {
+            // Start and stop hold this for their whole run; skip rather than race them
+            if (!_stopRecordingSemaphore.Wait(0)) return;
+            try
+            {
+                if (_isStoppingOrStopped || _mainScene == null || _captureWindowSpec == null || AppState.Instance.Recording == null) return;
+
+                bool obsActive = ObsStudioOutput.IsStreamingOrRecording();
+                if (obsActive && GameCaptureSource != null)
+                    ReleaseGameCaptureToObs(gameWindow);
+                else if (!obsActive && GameCaptureSource == null && !IsGameHookTaken(_captureWindowSpec.Split(':')[^1]))
+                    RetryGameCapture();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to update game capture on focus: {ex.Message}");
+            }
+            finally
+            {
+                _stopRecordingSemaphore.Release();
+            }
+        }
+
+        private static void ReleaseGameCaptureToObs(IntPtr gameWindow)
+        {
+            Log.Information("OBS Studio is streaming or recording, releasing game capture");
+
+            // A late hook would remove the fallbacks added below
+            GameCaptureSource!.Hooked -= OnGameCaptureHookedEvent;
+
+            // The hooked handler removed the fallbacks; bring them back before the game capture goes
+            if (_displayItem == null)
+            {
+                AddMonitorCapture(warnIfNotFound: false);
+                ApplyCaptureBounds(_displayItem);
+                FollowGameMonitor(gameWindow);
+            }
+            if (_windowCaptureItem == null)
+            {
+                AddWindowCapture(_captureWindowSpec!);
+                ApplyCaptureBounds(_windowCaptureItem);
+                for (int i = 0; i < HookWaitMs / 50 && !_isWindowCaptureHooked && !_isWindowCaptureBlocked; i++)
+                    Thread.Sleep(50);
+            }
+
+            DisposeGameCaptureSource();
+
+            if (AppState.Instance.Recording is { } recording)
+                recording.IsUsingGameHook = false;
+            UpdateFallbackCapture();
+            _ = MessageService.SendStateToFrontend("Released game capture");
+        }
+
+        private static void RetryGameCapture()
+        {
+            Log.Information("Game hook is free, retrying game capture");
+
+            // If the hook times out again, the next tab-in tries again
+            AddGameCapture(_captureWindowSpec!, withHookTimeout: true);
+            ApplyCaptureBounds(_gameCaptureItem);
+        }
+#endif
 
         /// <summary>
         /// WGC window capture of the game window, between display and game capture, for games the hook can't attach to.

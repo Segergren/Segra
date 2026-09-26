@@ -1248,7 +1248,13 @@ namespace Segra.Backend.Games
                     // Reset retry recording flag to allow retrying recording if the user has changed foreground window
                     PreventRetryRecording = false;
 
-                    if (AppState.Instance.Recording != null) return;
+                    if (AppState.Instance.Recording is { } recording)
+                    {
+                        _ = GetWindowThreadProcessId(hwnd, out uint focusedPid);
+                        if (recording.Pid == (int)focusedPid)
+                            OBSService.OnGameFocused(hwnd);
+                        return;
+                    }
 
                     // The foreground hook can fire repeatedly for the same window; skip if it matches what we last logged
                     if (hwnd == _lastLoggedHwnd) return;
