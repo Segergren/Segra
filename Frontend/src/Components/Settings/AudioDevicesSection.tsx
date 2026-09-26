@@ -6,6 +6,10 @@ import Button from '../Button';
 import RangeSlider from '../RangeSlider';
 import { Settings as SettingsType, AudioDevice, AudioOutputMode } from '../../Models/types';
 import { useAppState } from '../../Context/AppStateContext';
+import {
+  usePendingRecordingSettings,
+  RECORDING_SETTING_GROUPS,
+} from '../../Hooks/usePendingRecordingSettings';
 
 interface AudioDevicesSectionProps {
   settings: SettingsType;
@@ -17,7 +21,7 @@ export default function AudioDevicesSection({
   updateSettings,
 }: AudioDevicesSectionProps) {
   const appState = useAppState();
-  const isRecording = appState.recording != null || appState.preRecording != null;
+  const hasPendingChanges = usePendingRecordingSettings(RECORDING_SETTING_GROUPS.audio);
   const [draggingVolume, setDraggingVolume] = useState<{
     deviceId: string | null;
     deviceType: 'input' | 'output' | null;
@@ -127,14 +131,13 @@ export default function AudioDevicesSection({
         {allDevices.map((device) => (
           <div key={device.id} className="form-control mb-1 last:mb-0">
             <label
-              className={`flex items-center gap-2 p-1 rounded ${isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-base-200'}`}
+              className={`flex items-center gap-2 p-1 rounded cursor-pointer hover:bg-base-200`}
             >
               <input
                 type="checkbox"
                 className="checkbox checkbox-sm checkbox-primary"
                 checked={selectedDevices.some((d) => d.id === device.id)}
                 onChange={() => toggleDevice(device.id, deviceType)}
-                disabled={isRecording}
               />
               <span className="label-text flex-1 mr-2 flex items-center">
                 {device.name}
@@ -172,7 +175,6 @@ export default function AudioDevicesSection({
                             ? (draggingVolume.volume ?? 0)
                             : (selectedDevices.find((d) => d.id === device.id)?.volume ?? 1.0)
                         }
-                        disabled={isRecording}
                         className="min-w-0 flex-1"
                         onChange={(e) => {
                           if (isDragging) {
@@ -227,14 +229,13 @@ export default function AudioDevicesSection({
           .map((deviceSetting) => (
             <div key={deviceSetting.id} className="form-control mb-1 last:mb-0">
               <label
-                className={`flex items-center gap-2 p-1 rounded ${isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-base-200'}`}
+                className={`flex items-center gap-2 p-1 rounded cursor-pointer hover:bg-base-200`}
               >
                 <input
                   type="checkbox"
                   className="checkbox checkbox-sm checkbox-primary"
                   checked={true}
                   onChange={() => toggleDevice(deviceSetting.id, deviceType)}
-                  disabled={isRecording}
                 />
                 <span className="label-text text-error flex items-center flex-1 mr-2 relative pl-6 leading-none">
                   <div
@@ -257,7 +258,6 @@ export default function AudioDevicesSection({
                         max="2"
                         step="0.02"
                         value={isDragging ? (draggingVolume.volume ?? 0) : deviceSetting.volume}
-                        disabled={isRecording}
                         className="min-w-0 flex-1"
                         onChange={(e) => {
                           if (isDragging) {
@@ -304,19 +304,18 @@ export default function AudioDevicesSection({
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <div className="flex items-center gap-2 mb-4">
         <h2 className="text-xl font-semibold">Input/Output Devices</h2>
-        {isRecording && <span className="text-xs text-warning">(locked while recording)</span>}
+        {hasPendingChanges && (
+          <span className="text-xs text-warning">(applies to next recording)</span>
+        )}
       </div>
 
       <div className="mb-4 flex flex-col gap-2">
-        <label
-          className={`flex items-center ${isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-        >
+        <label className={`flex items-center cursor-pointer`}>
           <input
             type="checkbox"
             name="enableSeparateAudioTracks"
             checked={settings.enableSeparateAudioTracks}
             onChange={(e) => updateSettings({ enableSeparateAudioTracks: e.target.checked })}
-            disabled={isRecording}
             className="checkbox checkbox-sm checkbox-accent"
           />
           <span className="ml-2">Separate Audio Tracks</span>
@@ -334,28 +333,22 @@ export default function AudioDevicesSection({
           </div>
 
           <div className="mt-3 flex flex-col gap-2">
-            <label
-              className={`flex items-center ${isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-            >
+            <label className={`flex items-center cursor-pointer`}>
               <input
                 type="checkbox"
                 name="inputNoiseSuppression"
                 checked={settings.inputNoiseSuppression}
                 onChange={(e) => updateSettings({ inputNoiseSuppression: e.target.checked })}
-                disabled={isRecording}
                 className="checkbox checkbox-sm checkbox-accent"
               />
               <span className="ml-2">Noise Suppression</span>
             </label>
-            <label
-              className={`flex items-center ${isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-            >
+            <label className={`flex items-center cursor-pointer`}>
               <input
                 type="checkbox"
                 name="forceMonoInputSources"
                 checked={settings.forceMonoInputSources}
                 onChange={(e) => updateSettings({ forceMonoInputSources: e.target.checked })}
-                disabled={isRecording}
                 className="checkbox checkbox-sm checkbox-accent"
               />
               <span className="ml-2">Force Mono</span>
@@ -422,7 +415,7 @@ export default function AudioDevicesSection({
             ].map((option) => (
               <label
                 key={option.value}
-                className={`flex items-start gap-2 p-1 rounded ${isRecording ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-base-200'}`}
+                className={`flex items-start gap-2 p-1 rounded cursor-pointer hover:bg-base-200`}
               >
                 <input
                   type="radio"
@@ -430,7 +423,6 @@ export default function AudioDevicesSection({
                   className="radio radio-sm radio-accent mt-0.5"
                   checked={settings.audioOutputMode === option.value}
                   onChange={() => updateSettings({ audioOutputMode: option.value })}
-                  disabled={isRecording}
                 />
                 <span className="flex flex-col gap-0.5 min-w-0">
                   <span className="flex items-center gap-1.5 text-sm">

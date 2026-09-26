@@ -116,6 +116,7 @@ export interface Recording {
   isUsingGameHook: boolean;
   isUsingWindowCapture: boolean;
   coverImageId?: string;
+  startSettings?: Partial<Settings>; // Recording-related settings as they were at start
 }
 
 export interface PreRecording {

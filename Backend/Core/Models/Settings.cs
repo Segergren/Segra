@@ -1,6 +1,7 @@
 using Serilog;
 using Segra.Backend.App;
 using Segra.Backend.Platform;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Core.Models
@@ -1128,6 +1129,10 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("audioTrackTypes")]
         public List<string>? AudioTrackTypes { get; set; }
+
+        // Global settings at start, so the frontend can flag changes that only apply to the next recording
+        [JsonPropertyName("startSettings")]
+        public JsonObject? StartSettings { get; set; }
 
         public void AddBookmark(Bookmark bookmark)
         {

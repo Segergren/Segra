@@ -3,6 +3,7 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Segra.Backend.Auth;
 using Segra.Backend.Core;
 using Segra.Backend.Games;
@@ -667,6 +668,28 @@ namespace Segra.Backend.App
                     type = modal.Type
                 });
             }
+        }
+
+        // Settings a recording reads when it starts; the frontend compares these to show pending changes
+        private static readonly string[] RecordingStartSettingKeys =
+        [
+            "recordingMode", "resolution", "frameRate", "rateControl", "bitrate", "minBitrate", "maxBitrate",
+            "crfValue", "cqLevel", "encoder", "codec", "stretch4By3", "enableHdr", "replayBufferDuration",
+            "replayBufferMaxSize", "inputDevices", "outputDevices", "forceMonoInputSources", "inputNoiseSuppression",
+            "enableSeparateAudioTracks", "audioOutputMode", "gameIntegrations"
+        ];
+
+        // Serialized exactly like the Settings message so the frontend can compare values directly
+        public static JsonObject GetRecordingStartSettings()
+        {
+            var settings = JsonSerializer.SerializeToNode(Settings.Instance, jsonOptions)!.AsObject();
+            var snapshot = new JsonObject();
+            foreach (var key in RecordingStartSettingKeys)
+            {
+                if (settings[key] is { } value)
+                    snapshot[key] = value.DeepClone();
+            }
+            return snapshot;
         }
 
         public static async Task SendSettingsToFrontend(string cause)

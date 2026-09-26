@@ -8,6 +8,7 @@ import StorageSettingsSection from '../Components/Settings/StorageSettingsSectio
 import ClipSettingsSection from '../Components/Settings/ClipSettingsSection';
 import AudioDevicesSection from '../Components/Settings/AudioDevicesSection';
 import HotkeysSection from '../Components/Settings/HotkeysSection';
+import PendingRecordingSettingsBanner from '../Components/Settings/PendingRecordingSettingsBanner';
 import HotkeyBrokerWarning from '../Components/Settings/HotkeyBrokerWarning';
 import GameDetectionSection from '../Components/Settings/GameDetectionSection';
 import GameIntegrationsSection from '../Components/Settings/GameIntegrationsSection';
@@ -134,6 +135,8 @@ export default function Settings() {
 
       {/* Content */}
       <div className="p-5 space-y-6">
+        <PendingRecordingSettingsBanner />
+
         {/* ACCOUNT */}
         {!settings.airplaneMode && (
           <>

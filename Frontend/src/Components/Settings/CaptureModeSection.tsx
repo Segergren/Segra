@@ -1,6 +1,9 @@
 import { Settings as SettingsType, HotkeyAction } from '../../Models/types';
-import { useAppState } from '../../Context/AppStateContext';
 import { getKeyName } from './HotkeysSection';
+import {
+  usePendingRecordingSettings,
+  RECORDING_SETTING_GROUPS,
+} from '../../Hooks/usePendingRecordingSettings';
 
 interface CaptureModeSectionProps {
   settings: SettingsType;
@@ -8,8 +11,7 @@ interface CaptureModeSectionProps {
 }
 
 export default function CaptureModeSection({ settings, updateSettings }: CaptureModeSectionProps) {
-  const appState = useAppState();
-  const isRecording = appState.recording != null || appState.preRecording != null;
+  const hasPendingChanges = usePendingRecordingSettings(RECORDING_SETTING_GROUPS.captureMode);
   const bufferLength = formatBufferLength(settings.replayBufferDuration);
   const hotkeyFor = (action: HotkeyAction, fallback: string) => {
     const hotkey = settings.keybindings.find(
@@ -28,12 +30,14 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <div className="flex items-center gap-2 mb-4">
         <h2 className="text-xl font-semibold">Capture Mode</h2>
-        {isRecording && <span className="text-xs text-warning">(locked while recording)</span>}
+        {hasPendingChanges && (
+          <span className="text-xs text-warning">(applies to next recording)</span>
+        )}
       </div>
       <div className="mb-6">
         <div
-          className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Hybrid' ? 'border-primary' : 'border-base-400'} ${isRecording ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-base-300'}`}
-          onClick={() => !isRecording && updateSettings({ recordingMode: 'Hybrid' })}
+          className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Hybrid' ? 'border-primary' : 'border-base-400'} cursor-pointer hover:bg-base-300`}
+          onClick={() => updateSettings({ recordingMode: 'Hybrid' })}
         >
           <div className="flex items-center gap-2 mb-3">
             <div className="text-lg font-semibold">Hybrid (Session + Buffer)</div>
@@ -55,8 +59,8 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
       </div>
       <div className="grid grid-cols-2 gap-6">
         <div
-          className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Session' ? 'border-primary' : 'border-base-400'} ${isRecording ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-base-300'}`}
-          onClick={() => !isRecording && updateSettings({ recordingMode: 'Session' })}
+          className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Session' ? 'border-primary' : 'border-base-400'} cursor-pointer hover:bg-base-300`}
+          onClick={() => updateSettings({ recordingMode: 'Session' })}
         >
           <div className="text-lg font-semibold mb-3">Session Recording</div>
           <div className="text-sm text-left text-base-content">
@@ -73,8 +77,8 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           </div>
         </div>
         <div
-          className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Buffer' ? 'border-primary' : 'border-base-400'} ${isRecording ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-base-300'}`}
-          onClick={() => !isRecording && updateSettings({ recordingMode: 'Buffer' })}
+          className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Buffer' ? 'border-primary' : 'border-base-400'} cursor-pointer hover:bg-base-300`}
+          onClick={() => updateSettings({ recordingMode: 'Buffer' })}
         >
           <div className="flex items-center gap-2 mb-3">
             <div className="text-lg font-semibold text-center">Replay Buffer</div>

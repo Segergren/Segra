@@ -1,6 +1,9 @@
 import { useSettings, useSettingsUpdater } from '../../Context/SettingsContext';
-import { useAppState } from '../../Context/AppStateContext';
 import { GameIntegrations } from '../../Models/types';
+import {
+  usePendingRecordingSettings,
+  RECORDING_SETTING_GROUPS,
+} from '../../Hooks/usePendingRecordingSettings';
 
 interface GameIntegration {
   id: string;
@@ -112,7 +115,6 @@ interface GameIntegrationCardProps {
   integration: GameIntegration;
   enabled: boolean;
   showBackground: boolean;
-  isRecording: boolean;
   onToggle: (enabled: boolean) => void;
 }
 
@@ -120,7 +122,6 @@ function GameIntegrationCard({
   integration,
   enabled,
   showBackground,
-  isRecording,
   onToggle,
 }: GameIntegrationCardProps) {
   return (
@@ -161,7 +162,6 @@ function GameIntegrationCard({
               type="checkbox"
               className="toggle toggle-primary"
               checked={enabled}
-              disabled={isRecording}
               onChange={(e) => onToggle(e.target.checked)}
             />
             <span className="text-sm">{enabled ? 'Enabled' : 'Disabled'}</span>
@@ -175,7 +175,7 @@ function GameIntegrationCard({
 export default function GameIntegrationsSection() {
   const settings = useSettings();
   const updateSettings = useSettingsUpdater();
-  const appState = useAppState();
+  const hasPendingChanges = usePendingRecordingSettings(RECORDING_SETTING_GROUPS.gameIntegrations);
 
   const handleToggle = (settingsKey: GameIntegration['settingsKey'], enabled: boolean) => {
     updateSettings({
@@ -191,7 +191,12 @@ export default function GameIntegrationsSection() {
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-      <h2 className="text-xl font-semibold mb-2">Game Integrations</h2>
+      <div className="flex items-center gap-2 mb-2">
+        <h2 className="text-xl font-semibold">Game Integrations</h2>
+        {hasPendingChanges && (
+          <span className="text-xs text-warning">(applies to next recording)</span>
+        )}
+      </div>
       <p className="text-sm opacity-80 mb-4">
         Enable automatic event detection for supported games. When enabled, Segra will automatically
         bookmark kills, goals, and other events during gameplay.
@@ -204,7 +209,6 @@ export default function GameIntegrationsSection() {
             integration={integration}
             enabled={settings.gameIntegrations[integration.settingsKey].enabled}
             showBackground={settings.showGameBackground}
-            isRecording={appState.recording != null || appState.preRecording != null}
             onToggle={(enabled) => handleToggle(integration.settingsKey, enabled)}
           />
         ))}

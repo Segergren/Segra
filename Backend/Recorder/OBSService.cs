@@ -84,6 +84,7 @@ namespace Segra.Backend.Recorder
 
         // Mixer mask of the shared "Voice Chat" track, so sources created mid-recording land on the same track
         private static uint _voiceChatMixerMask = 1u << 0;
+        private static AudioOutputMode _recordingAudioOutputMode;
 
         private static readonly (string Name, string Window)[] VoiceChatApps =
         [
@@ -961,6 +962,7 @@ namespace Segra.Backend.Recorder
             // Note: the static _activeEffectiveSettings is only published once the early-return guards
             // below have passed, so a blocked start attempt can never clobber an active recording's settings.
             EffectiveRecordingSettings eff = GameSettingsService.Resolve(exePath);
+            var startSettings = alwaysOn ? null : MessageService.GetRecordingStartSettings();
             if (alwaysOn)
                 eff.RecordingMode = RecordingMode.Buffer;
 
@@ -1311,6 +1313,7 @@ namespace Segra.Backend.Recorder
             }
 
             var audioOutputMode = Settings.Instance.AudioOutputMode;
+            _recordingAudioOutputMode = audioOutputMode;
 
             // Game audio is captured from the game process; output devices are only used in Everything
             // mode, for manual recordings, or when process capture is unavailable
@@ -1619,7 +1622,8 @@ namespace Segra.Backend.Recorder
                 ExePath = exePath,
                 CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath),
                 AudioTrackNames = actualAudioTrackNames,
-                AudioTrackTypes = actualAudioTrackTypes
+                AudioTrackTypes = actualAudioTrackTypes,
+                StartSettings = startSettings
             };
             AppState.Instance.PreRecording = null;
             _ = MessageService.SendStateToFrontend("OBS Start recording");
@@ -2613,7 +2617,7 @@ namespace Segra.Backend.Recorder
         {
             try
             {
-                if (Settings.Instance.AudioOutputMode != AudioOutputMode.GameAndDiscord) return;
+                if (_recordingAudioOutputMode != AudioOutputMode.GameAndDiscord) return;
                 if (_mainScene == null || _gameAudioSource == null || _isStoppingOrStopped) return;
 
                 string fileName = Path.GetFileName(exePath);
