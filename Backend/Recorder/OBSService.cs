@@ -1097,36 +1097,44 @@ namespace Segra.Backend.Recorder
                 _captureWindowSpec = $"*:*:{fileName}";
                 AddWindowCapture(_captureWindowSpec);
 
-                // Create game capture source for automatic game detection
-                try
+                // The game hook serves one app per game, so leave it to OBS Studio while it streams or records
+                if (ObsStudioOutput.IsStreamingOrRecording())
                 {
-                    GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
-                    GameCaptureSource.SetWindow(_captureWindowSpec);
-
-                    // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
-                    // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
-                    if (_isHdrRecording)
-                    {
-                        GameCaptureSource.SetRgb10A2ColorSpace(GameCapture.Rgb10A2ColorSpace.Pq2100);
-                        Log.Information("Game capture color space set to Rec.2100 PQ (HDR)");
-                    }
-
-                    Log.Information($"Game capture configured for: {fileName}");
-
-                    // Add game capture to scene (top layer - visible when hooked)
-                    _gameCaptureItem = _mainScene.AddSource(GameCaptureSource);
-
-                    // Start a timer to check if game capture hooks within 90 seconds
-                    StartGameCaptureHookTimeoutTimer();
-
-                    // Subscribe to GameCapture's hooked/unhooked events (IsHooked is tracked automatically)
-                    GameCaptureSource!.Hooked += OnGameCaptureHookedEvent;
-                    GameCaptureSource.Unhooked += OnGameCaptureUnhookedEvent;
+                    Log.Information("OBS Studio is streaming or recording, skipping game capture");
                 }
-                catch (Exception ex)
+                else
                 {
-                    Log.Warning($"Game Capture source not available: {ex.Message}. Using Display Capture only.");
-                    GameCaptureSource = null;
+                    // Create game capture source for automatic game detection
+                    try
+                    {
+                        GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
+                        GameCaptureSource.SetWindow(_captureWindowSpec);
+
+                        // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
+                        // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
+                        if (_isHdrRecording)
+                        {
+                            GameCaptureSource.SetRgb10A2ColorSpace(GameCapture.Rgb10A2ColorSpace.Pq2100);
+                            Log.Information("Game capture color space set to Rec.2100 PQ (HDR)");
+                        }
+
+                        Log.Information($"Game capture configured for: {fileName}");
+
+                        // Add game capture to scene (top layer - visible when hooked)
+                        _gameCaptureItem = _mainScene.AddSource(GameCaptureSource);
+
+                        // Start a timer to check if game capture hooks within 90 seconds
+                        StartGameCaptureHookTimeoutTimer();
+
+                        // Subscribe to GameCapture's hooked/unhooked events (IsHooked is tracked automatically)
+                        GameCaptureSource!.Hooked += OnGameCaptureHookedEvent;
+                        GameCaptureSource.Unhooked += OnGameCaptureUnhookedEvent;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Game Capture source not available: {ex.Message}. Using Display Capture only.");
+                        GameCaptureSource = null;
+                    }
                 }
 
                 // Try to get the window dimensions for the game
