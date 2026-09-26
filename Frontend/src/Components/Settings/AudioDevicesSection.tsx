@@ -380,7 +380,7 @@ export default function AudioDevicesSection({
                   transition={{ duration: 0.2, ease: 'easeOut' }}
                   className="overflow-hidden"
                 >
-                  <div className="mt-2 px-1 text-xs text-base-content/60 leading-snug">
+                  <div className="mt-2 px-1 text-xs opacity-70 leading-snug">
                     Only used for manual recordings.
                   </div>
                 </motion.div>
@@ -437,9 +437,7 @@ export default function AudioDevicesSection({
                     {option.label}
                     {option.icons}
                   </span>
-                  <span className="text-xs text-base-content/60 leading-snug">
-                    {option.description}
-                  </span>
+                  <span className="text-xs opacity-70 leading-snug">{option.description}</span>
                 </span>
               </label>
             ))}

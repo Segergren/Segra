@@ -72,7 +72,7 @@ export default function VideoSettingsSection({
           })
         }
       />
-      <div className="mt-1 px-1 text-xs text-base-content/60 leading-snug">
+      <div className="mt-1 px-1 text-xs opacity-70 leading-snug">
         Used for manual recordings and the always-on replay buffer. Game recordings follow the
         monitor the game is on.
       </div>
@@ -96,7 +96,7 @@ export default function VideoSettingsSection({
             onClick={() => !isRecording && handlePresetChange('low')}
           >
             <div className="text-sm font-semibold">Low Quality</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">720p • 30fps</div>
+            <div className="text-xs opacity-70 mt-1">720p • 30fps</div>
           </div>
           <div
             className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border ${
@@ -105,7 +105,7 @@ export default function VideoSettingsSection({
             onClick={() => !isRecording && handlePresetChange('standard')}
           >
             <div className="text-sm font-semibold">Standard</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">1080p • 60fps</div>
+            <div className="text-xs opacity-70 mt-1">1080p • 60fps</div>
           </div>
           <div
             className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border ${
@@ -114,7 +114,7 @@ export default function VideoSettingsSection({
             onClick={() => !isRecording && handlePresetChange('high')}
           >
             <div className="text-sm font-semibold">High Quality</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">
+            <div className="text-xs opacity-70 mt-1">
               {appState.maxDisplayHeight >= 1440 ? '1440p' : '1080p'} • 60fps
             </div>
           </div>
@@ -125,7 +125,7 @@ export default function VideoSettingsSection({
             onClick={() => !isRecording && handlePresetChange('custom')}
           >
             <div className="text-sm font-semibold">Custom</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">Manual config</div>
+            <div className="text-xs opacity-70 mt-1">Manual config</div>
           </div>
         </div>
       </div>

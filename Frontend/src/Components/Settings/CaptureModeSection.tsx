@@ -1,5 +1,6 @@
-import { Settings as SettingsType } from '../../Models/types';
+import { Settings as SettingsType, HotkeyAction } from '../../Models/types';
 import { useAppState } from '../../Context/AppStateContext';
+import { getKeyName } from './HotkeysSection';
 
 interface CaptureModeSectionProps {
   settings: SettingsType;
@@ -9,6 +10,19 @@ interface CaptureModeSectionProps {
 export default function CaptureModeSection({ settings, updateSettings }: CaptureModeSectionProps) {
   const appState = useAppState();
   const isRecording = appState.recording != null || appState.preRecording != null;
+  const bufferLength = formatBufferLength(settings.replayBufferDuration);
+  const hotkeyFor = (action: HotkeyAction, fallback: string) => {
+    const hotkey = settings.keybindings.find(
+      (k) => k.action === action && k.enabled && k.keys.length > 0,
+    );
+    return hotkey ? (
+      <kbd className="kbd kbd-xs">{hotkey.keys.map(getKeyName).join(' + ')}</kbd>
+    ) : (
+      fallback
+    );
+  };
+  const saveHotkey = hotkeyFor(HotkeyAction.SaveReplayBuffer, 'the Save Replay Buffer hotkey');
+  const bookmarkHotkey = hotkeyFor(HotkeyAction.CreateBookmark, 'the Create Bookmark hotkey');
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
@@ -26,14 +40,15 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           </div>
           <div className="text-sm text-left text-base-content">
             <p className="mb-2">
-              Record the full session while keeping a replay buffer. Save short highlights with a
-              hotkey without stopping the session.
+              Records your whole game session into one video. Recording starts when you launch a
+              game and stops when you close it. A replay buffer runs alongside it, so you can press{' '}
+              {saveHotkey} to save the last {bufferLength} as its own clip without stopping the
+              session.
             </p>
-            <div className="text-xs text-base-content text-opacity-70">
-              • Clip without ending the session recording
-              <br />• Full game integration features
-              <br />• Access to AI-generated highlights
-              <br />• Access to Bookmarks
+            <div className="text-xs opacity-70">
+              • Everything Session Recording has
+              <br />• Save instant replays while you play
+              <br />• Uses the most disk space
             </div>
           </div>
         </div>
@@ -46,16 +61,14 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           <div className="text-lg font-semibold mb-3">Session Recording</div>
           <div className="text-sm text-left text-base-content">
             <p className="mb-2">
-              Records your entire gaming session from start to finish. Ideal for content creators
-              who want complete gameplay recordings.
+              Records your whole game session into one video. Recording starts when you launch a
+              game and stops when you close it. Mark moments with {bookmarkHotkey} while you play,
+              and in supported games Segra bookmarks your kills and deaths automatically.
             </p>
-            <div className="text-xs text-base-content text-opacity-70">
-              • Uses more storage space
-              <br />
-              • Full game integration features
-              <br />
-              • Access to AI-generated highlights
-              <br />• Access to Bookmarks
+            <div className="text-xs opacity-70">
+              • Bookmarks and game integration
+              <br />• AI highlights
+              <br />• Large files for long sessions
             </div>
           </div>
         </div>
@@ -68,14 +81,13 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           </div>
           <div className="text-sm text-left text-base-content">
             <p className="mb-2">
-              Continuously records in the background. Save only your best moments with a hotkey
-              press.
+              Keeps the last {bufferLength} in memory. Press {saveHotkey} to save it as a clip.
+              Nothing else is written to disk.
             </p>
-            <div className="text-xs text-base-content text-opacity-70">
-              • Efficient storage usage
-              <br />
-              • No game integration
-              <br />• No bookmarks
+            <div className="text-xs opacity-70">
+              • Uses almost no disk space
+              <br />• No bookmarks or game integration
+              <br />• No AI highlights
             </div>
           </div>
         </div>
@@ -98,4 +110,12 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
       </label>
     </div>
   );
+}
+
+function formatBufferLength(seconds: number): string {
+  if (seconds < 60) return `${seconds} seconds`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  const minutesText = `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  return rest === 0 ? minutesText : `${minutesText} ${rest} seconds`;
 }

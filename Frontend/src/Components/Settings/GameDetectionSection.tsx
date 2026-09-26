@@ -737,7 +737,7 @@ function QualityOverrideEditor({
             }`}
           >
             <div className="text-sm font-semibold">{p.label}</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">{p.sub}</div>
+            <div className="text-xs opacity-70 mt-1">{p.sub}</div>
           </div>
         ))}
       </div>

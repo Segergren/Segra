@@ -4,7 +4,7 @@ namespace Segra.Hotkeys
 {
     /// <summary>
     /// A key combination to watch. <c>Id</c> is opaque to the broker: Segra decides what each id
-    /// means (its own <c>KeybindAction</c> value), so the broker has no idea what a "bookmark" is.
+    /// means (its own <c>HotkeyAction</c> value), so the broker has no idea what a "bookmark" is.
     /// </summary>
     public readonly record struct KeyBinding(int Id, int[] Keys);
 

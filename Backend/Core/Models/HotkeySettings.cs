@@ -2,11 +2,11 @@ using System.Text.Json.Serialization;
 
 namespace Segra.Backend.Core.Models
 {
-    public class Keybind
+    public class Hotkey
     {
         [JsonPropertyName("action")]
         [JsonConverter(typeof(JsonStringEnumConverter))]
-        public KeybindAction Action { get; set; }
+        public HotkeyAction Action { get; set; }
 
         [JsonPropertyName("enabled")]
         public bool Enabled { get; set; }
@@ -14,7 +14,7 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("keys")]
         public List<int> Keys { get; set; }
 
-        public Keybind(List<int> keys, KeybindAction action, bool enabled = true)
+        public Hotkey(List<int> keys, HotkeyAction action, bool enabled = true)
         {
             Keys = keys;
             Action = action;
@@ -23,7 +23,7 @@ namespace Segra.Backend.Core.Models
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public enum KeybindAction
+    public enum HotkeyAction
     {
         CreateBookmark,
         SaveReplayBuffer,

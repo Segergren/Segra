@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Settings as SettingsType, KeybindAction } from '../../Models/types';
-interface KeybindingsSectionProps {
+import { Settings as SettingsType, HotkeyAction } from '../../Models/types';
+interface HotkeysSectionProps {
   settings: SettingsType;
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
 
-const getKeyName = (keyCode: number): string => {
+export const getKeyName = (keyCode: number): string => {
   // Function keys F1-F24
   if (keyCode >= 112 && keyCode <= 135) return `F${keyCode - 111}`;
 
@@ -50,22 +50,44 @@ const getKeyName = (keyCode: number): string => {
   return keyMap[keyCode] || `Key(${keyCode})`;
 };
 
-const getActionLabel = (action: KeybindAction): string => {
+const getActionLabel = (action: HotkeyAction): string => {
   switch (action) {
-    case KeybindAction.CreateBookmark:
+    case HotkeyAction.CreateBookmark:
       return 'Create Bookmark';
-    case KeybindAction.SaveReplayBuffer:
+    case HotkeyAction.SaveReplayBuffer:
       return 'Save Replay Buffer';
-    case KeybindAction.ToggleRecording:
-      return 'Start / Stop Display Recording';
-    case KeybindAction.TogglePreview:
+    case HotkeyAction.ToggleRecording:
+      return 'Start / Stop Recording';
+    case HotkeyAction.TogglePreview:
       return 'Toggle Recording Preview';
     default:
       return action;
   }
 };
 
-export default function KeybindingsSection({ settings, updateSettings }: KeybindingsSectionProps) {
+const getActionHint = (action: HotkeyAction): string | null => {
+  switch (action) {
+    case HotkeyAction.ToggleRecording:
+      return 'Records your display, or stops any active recording';
+    default:
+      return null;
+  }
+};
+
+// Moment-saving actions first, recording controls second
+const ACTION_ORDER: HotkeyAction[] = [
+  HotkeyAction.SaveReplayBuffer,
+  HotkeyAction.CreateBookmark,
+  HotkeyAction.ToggleRecording,
+  HotkeyAction.TogglePreview,
+];
+
+const getActionRank = (action: HotkeyAction): number => {
+  const rank = ACTION_ORDER.indexOf(action);
+  return rank === -1 ? ACTION_ORDER.length : rank;
+};
+
+export default function HotkeysSection({ settings, updateSettings }: HotkeysSectionProps) {
   const [capturing, setCapturing] = useState<number | null>(null);
   const [pressedKeys, setPressedKeys] = useState<number[]>([]);
 
@@ -98,14 +120,14 @@ export default function KeybindingsSection({ settings, updateSettings }: Keybind
         return;
       }
 
-      // Save keybind if we have keys and released a non-modifier key
+      // Save hotkey if we have keys and released a non-modifier key
       if (pressedKeys.length > 0 && e.keyCode !== 16 && e.keyCode !== 17 && e.keyCode !== 18) {
-        const updatedKeybindings = [...settings.keybindings];
-        updatedKeybindings[capturing] = {
-          ...updatedKeybindings[capturing],
+        const updatedHotkeys = [...settings.keybindings];
+        updatedHotkeys[capturing] = {
+          ...updatedHotkeys[capturing],
           keys: pressedKeys,
         };
-        updateSettings({ keybindings: updatedKeybindings });
+        updateSettings({ keybindings: updatedHotkeys });
         setCapturing(null);
         setPressedKeys([]);
       }
@@ -120,30 +142,40 @@ export default function KeybindingsSection({ settings, updateSettings }: Keybind
     };
   }, [capturing, pressedKeys, settings.keybindings, updateSettings]);
 
+  // Indices stay those of settings.keybindings so updates hit the right entry
+  const orderedHotkeys = settings.keybindings
+    .map((hotkey, index) => ({ hotkey, index }))
+    .sort((a, b) => getActionRank(a.hotkey.action) - getActionRank(b.hotkey.action));
+
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-      <h2 className="text-xl font-semibold mb-4">Keybindings</h2>
+      <h2 className="text-xl font-semibold mb-4">Hotkeys</h2>
       <div className="grid grid-cols-2 gap-2">
-        {settings.keybindings.map((keybind, index) => (
+        {orderedHotkeys.map(({ hotkey, index }) => (
           <div
-            key={index}
+            key={hotkey.action}
             className="flex items-center justify-between bg-base-200 rounded-lg py-2 px-3 border border-base-400"
           >
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={keybind.enabled}
+                checked={hotkey.enabled}
                 onChange={(e) => {
-                  const updatedKeybindings = [...settings.keybindings];
-                  updatedKeybindings[index] = {
-                    ...updatedKeybindings[index],
+                  const updatedHotkeys = [...settings.keybindings];
+                  updatedHotkeys[index] = {
+                    ...updatedHotkeys[index],
                     enabled: e.target.checked,
                   };
-                  updateSettings({ keybindings: updatedKeybindings });
+                  updateSettings({ keybindings: updatedHotkeys });
                 }}
                 className="checkbox checkbox-primary"
               />
-              <span className="font-medium">{getActionLabel(keybind.action)}</span>
+              <div>
+                <div className="font-medium">{getActionLabel(hotkey.action)}</div>
+                {getActionHint(hotkey.action) && (
+                  <div className="text-xs opacity-70">{getActionHint(hotkey.action)}</div>
+                )}
+              </div>
             </label>
 
             <button
@@ -155,7 +187,7 @@ export default function KeybindingsSection({ settings, updateSettings }: Keybind
             >
               {capturing === index
                 ? 'Press Keys...'
-                : keybind.keys.map((key) => getKeyName(key)).join(' + ')}
+                : hotkey.keys.map((key) => getKeyName(key)).join(' + ')}
             </button>
           </div>
         ))}

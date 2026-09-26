@@ -9,6 +9,7 @@ using Segra.Backend.Platform;
 using Segra.Backend.Windows.Input;
 using Segra.Backend.Windows.Storage;
 using System.Text.Json.Serialization;
+using System.Reflection;
 
 namespace Segra.Backend.Core
 {
@@ -59,6 +60,14 @@ namespace Segra.Backend.Core
             OBSService.SyncAlwaysOnBuffer();
         }
 
+        // Matches the JSON key by [JsonPropertyName] so renaming a C# property can't orphan a saved setting
+        private static PropertyInfo? FindSettingsProperty(string jsonName)
+        {
+            var properties = typeof(Settings).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            return properties.FirstOrDefault(p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name == jsonName)
+                ?? properties.FirstOrDefault(p => p.Name == char.ToUpperInvariant(jsonName[0]) + jsonName.Substring(1));
+        }
+
         public static bool LoadSettings()
         {
             try
@@ -92,10 +101,7 @@ namespace Segra.Backend.Core
                         {
                             if (property.Value.ValueKind == JsonValueKind.Array)
                             {
-                                var propertyName = char.ToUpperInvariant(property.Name[0]) + property.Name.Substring(1);
-                                var targetProperty = typeof(Settings).GetProperty(
-                                    propertyName,
-                                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                                var targetProperty = FindSettingsProperty(property.Name);
 
                                 if (targetProperty != null && targetProperty.CanWrite)
                                 {
@@ -137,10 +143,7 @@ namespace Segra.Backend.Core
                             }
                             else
                             {
-                                var propertyName = char.ToUpperInvariant(property.Name[0]) + property.Name.Substring(1);
-                                var targetProperty = typeof(Settings).GetProperty(
-                                    propertyName,
-                                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                                var targetProperty = FindSettingsProperty(property.Name);
 
                                 if (targetProperty != null && targetProperty.CanWrite)
                                 {
@@ -798,10 +801,10 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
-            if (updatedSettings.Keybindings != null)
+            if (updatedSettings.Hotkeys != null)
             {
-                settings.Keybindings = updatedSettings.Keybindings;
-                KeybindCaptureService.RefreshKeybindingsCache();
+                settings.Hotkeys = updatedSettings.Hotkeys;
+                HotkeyCaptureService.RefreshHotkeysCache();
                 hasChanges = true;
             }
 

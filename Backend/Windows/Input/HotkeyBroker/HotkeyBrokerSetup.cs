@@ -68,7 +68,7 @@ namespace Segra.Backend.Windows.Input.HotkeyBroker
             finally
             {
                 Interlocked.Exchange(ref _busy, 0);
-                KeybindCaptureService.PublishBrokerStatus();
+                HotkeyCaptureService.PublishBrokerStatus();
             }
         }
 

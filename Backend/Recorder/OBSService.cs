@@ -691,11 +691,11 @@ namespace Segra.Backend.Recorder
                 // initialization failure - OBS itself is already up at this point.
                 try
                 {
-                    KeybindCaptureService.Start();
+                    HotkeyCaptureService.Start();
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "Failed to register keybind hotkeys");
+                    Log.Error(ex, "Failed to register hotkeys");
                 }
 
                 _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
@@ -736,7 +736,7 @@ namespace Segra.Backend.Recorder
             {
                 Log.Information("Shutting down OBS...");
 
-                KeybindCaptureService.Stop();
+                HotkeyCaptureService.Stop();
 
                 // Manually clean up all resources since AutoDispose is false
                 DisposeOutput();
@@ -886,7 +886,7 @@ namespace Segra.Backend.Recorder
         }
 
         // Effective recording settings (global overlaid with per-game overrides) resolved at the start of
-        // the active recording. Consumed by StartRecording, OnRecordingStopped and the keybind handler so
+        // the active recording. Consumed by StartRecording, OnRecordingStopped and the hotkey handler so
         // they all agree on the same values for the duration of the recording.
         private static EffectiveRecordingSettings? _activeEffectiveSettings;
         public static EffectiveRecordingSettings? ActiveEffectiveSettings => _activeEffectiveSettings;

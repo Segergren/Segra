@@ -42,7 +42,7 @@ namespace Segra.Backend.Windows.Input.HotkeyBroker
         public event Action? StateChanged;
 
         /// <summary>Raised on the broker's read thread for each hotkey the broker reports.</summary>
-        public event Action<KeybindAction>? ActionFired;
+        public event Action<HotkeyAction>? ActionFired;
 
         public void Start()
         {
@@ -57,8 +57,8 @@ namespace Segra.Backend.Windows.Input.HotkeyBroker
             _connectThread.Start();
         }
 
-        /// <summary>Pushes the enabled keybindings to a connected broker. No-op when disconnected.</summary>
-        public void UpdateKeybindings(IReadOnlyList<Keybind> keybindings)
+        /// <summary>Pushes the enabled hotkeys to a connected broker. No-op when disconnected.</summary>
+        public void UpdateHotkeys(IReadOnlyList<Hotkey> hotkeys)
         {
             lock (_sync)
             {
@@ -67,12 +67,12 @@ namespace Segra.Backend.Windows.Input.HotkeyBroker
 
                 try
                 {
-                    HotkeyProtocol.WriteBindings(_writer, ToBindings(keybindings));
+                    HotkeyProtocol.WriteBindings(_writer, ToBindings(hotkeys));
                 }
                 catch (Exception ex)
                 {
                     // The read loop will observe the broken pipe and drop the session.
-                    Log.Debug(ex, "Failed to send keybindings to hotkey broker");
+                    Log.Debug(ex, "Failed to send hotkeys to hotkey broker");
                 }
             }
         }
@@ -86,7 +86,7 @@ namespace Segra.Backend.Windows.Input.HotkeyBroker
                     TryLaunchBroker();
                     if (TryConnect())
                     {
-                        // StateChanged subscribers push the enabled keybindings for the new session.
+                        // StateChanged subscribers push the enabled hotkeys for the new session.
                         SetActive(true);
                         _readThread = new Thread(ReadLoop)
                         {
@@ -204,9 +204,9 @@ namespace Segra.Backend.Windows.Input.HotkeyBroker
                         break;
                     }
 
-                    // The broker echoes back the id we gave it (our KeybindAction value).
-                    if (Enum.IsDefined(typeof(KeybindAction), id))
-                        ActionFired?.Invoke((KeybindAction)id);
+                    // The broker echoes back the id we gave it (our HotkeyAction value).
+                    if (Enum.IsDefined(typeof(HotkeyAction), id))
+                        ActionFired?.Invoke((HotkeyAction)id);
                 }
             }
             finally
@@ -248,16 +248,16 @@ namespace Segra.Backend.Windows.Input.HotkeyBroker
             try { _readThread?.Join(500); } catch { /* ignore */ }
         }
 
-        private static List<KeyBinding> ToBindings(IReadOnlyList<Keybind> keybindings)
+        private static List<KeyBinding> ToBindings(IReadOnlyList<Hotkey> hotkeys)
         {
-            var bindings = new List<KeyBinding>(keybindings.Count);
-            foreach (var keybind in keybindings)
+            var bindings = new List<KeyBinding>(hotkeys.Count);
+            foreach (var hotkey in hotkeys)
             {
-                if (keybind.Keys is null || keybind.Keys.Count == 0)
+                if (hotkey.Keys is null || hotkey.Keys.Count == 0)
                     continue;
 
                 // The id is simply Segra's own action value; the broker stores and echoes it back.
-                bindings.Add(new KeyBinding((int)keybind.Action, keybind.Keys.ToArray()));
+                bindings.Add(new KeyBinding((int)hotkey.Action, hotkey.Keys.ToArray()));
             }
             return bindings;
         }

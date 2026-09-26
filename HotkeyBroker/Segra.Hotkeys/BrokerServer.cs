@@ -6,7 +6,7 @@ using System.Text;
 namespace Segra.Hotkeys;
 
 /// <summary>
-/// Single-client named pipe server. Segra connects, pushes the current keybindings, and receives
+/// Single-client named pipe server. Segra connects, pushes the current hotkeys, and receives
 /// an action message whenever a bound hotkey fires. Polling only runs while a client is connected,
 /// and the process exits once no client has shown up for a while, so nothing lingers after Segra
 /// closes.

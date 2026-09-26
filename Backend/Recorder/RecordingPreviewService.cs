@@ -52,7 +52,7 @@ namespace Segra.Backend.Recorder
 
         /// <summary>
         /// Called when a recording starts. Caches the recording fps for logging.
-        /// Preview always starts disabled; the user toggles it via the keybind.
+        /// Preview always starts disabled; the user toggles it via the hotkey.
         /// </summary>
         public static void OnRecordingStarted(uint recordingFps)
         {

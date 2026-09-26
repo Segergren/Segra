@@ -358,7 +358,7 @@ namespace Segra.Backend.App
                 Task.Run(PowerModeMonitor.StartMonitoring);
 
                 // Run the OBS Initializer in a separate thread and application to make sure someting on the main thread doesn't block
-                // (KeybindCaptureService.Start() is called from OBSService.InitializeAsync once OBS is
+                // (HotkeyCaptureService.Start() is called from OBSService.InitializeAsync once OBS is
                 // ready, since hotkeys register through OBS's own hotkey system.)
                 // OBSWindow hosts the Win32 message pump the graphics-hook game_capture needs.
                 Task.Run(() => Application.Run(new OBSWindow()));
@@ -575,7 +575,7 @@ namespace Segra.Backend.App
             OBSService.TryShutdown(TimeSpan.FromSeconds(recorderLost ? 5 : 10));
 
 #if WINDOWS
-            KeybindCaptureService.ShutdownBroker();
+            HotkeyCaptureService.ShutdownBroker();
 #endif
 
             Log.CloseAndFlush(); // Ensure all logs are written before the application exits

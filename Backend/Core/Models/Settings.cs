@@ -59,7 +59,7 @@ namespace Segra.Backend.Core.Models
         private int _replayBufferDuration = 30;
         private int _replayBufferMaxSize = 1000;
         private bool _alwaysOnReplayBuffer = false;
-        private List<Keybind> _keybindings;
+        private List<Hotkey> _hotkeys;
         private List<GameSetting> _games = new List<GameSetting>();
         private bool _autoRecordGames = true;
         private Auth _auth = new Auth();
@@ -93,21 +93,21 @@ namespace Segra.Backend.Core.Models
             .ToList();
         private string _defaultMenuItem = "Full Sessions";
 
-        private static List<Keybind> GetDefaultKeybindings()
+        private static List<Hotkey> GetDefaultHotkeys()
         {
-            return new List<Keybind>
+            return new List<Hotkey>
             {
-                new Keybind(new List<int> { 119 }, KeybindAction.CreateBookmark, true), // 119 is F8
-                new Keybind(new List<int> { 120 }, KeybindAction.ToggleRecording, true), // 120 is F9
-                new Keybind(new List<int> { 121 }, KeybindAction.SaveReplayBuffer, true), // 121 is F10
-                new Keybind(new List<int> { 122 }, KeybindAction.TogglePreview, true) // 122 is F11
+                new Hotkey(new List<int> { 119 }, HotkeyAction.CreateBookmark, true), // 119 is F8
+                new Hotkey(new List<int> { 120 }, HotkeyAction.ToggleRecording, true), // 120 is F9
+                new Hotkey(new List<int> { 121 }, HotkeyAction.SaveReplayBuffer, true), // 121 is F10
+                new Hotkey(new List<int> { 122 }, HotkeyAction.TogglePreview, true) // 122 is F11
             };
         }
 
         public Settings()
         {
             SetDefaultResolution();
-            _keybindings = GetDefaultKeybindings();
+            _hotkeys = GetDefaultHotkeys();
         }
 
         public void BeginBulkUpdate()
@@ -1005,19 +1005,19 @@ namespace Segra.Backend.Core.Models
         }
 
         [JsonPropertyName("keybindings")]
-        public List<Keybind> Keybindings
+        public List<Hotkey> Hotkeys
         {
-            get => _keybindings;
+            get => _hotkeys;
             set
             {
-                _keybindings = value ?? GetDefaultKeybindings();
+                _hotkeys = value ?? GetDefaultHotkeys();
 
                 // Ensure all default actions exist
-                foreach (var defaultKeybind in GetDefaultKeybindings())
+                foreach (var defaultHotkey in GetDefaultHotkeys())
                 {
-                    if (!_keybindings.Any(k => k.Action == defaultKeybind.Action))
+                    if (!_hotkeys.Any(k => k.Action == defaultHotkey.Action))
                     {
-                        _keybindings.Add(defaultKeybind);
+                        _hotkeys.Add(defaultHotkey);
                     }
                 }
             }

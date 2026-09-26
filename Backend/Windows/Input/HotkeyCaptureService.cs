@@ -14,14 +14,14 @@ using Segra.Backend.Windows.Input.HotkeyBroker;
 namespace Segra.Backend.Windows.Input
 {
     /// <summary>
-    /// Registers Segra's user-configurable keybindings as OBS hotkeys via ObsKit.NET.
+    /// Registers Segra's user-configurable hotkeys as OBS hotkeys via ObsKit.NET.
     /// libobs polls global key state on its own background thread, so bound combinations
     /// fire system-wide with no OS hook of our own. Hotkeys can only be registered once
     /// OBS is initialized, so <see cref="Start"/> must be called from
     /// <see cref="OBSService.InitializeAsync"/> (after Obs.Initialize succeeds), not at
     /// app launch, and <see cref="Stop"/> from <see cref="OBSService.Shutdown"/>.
     /// </summary>
-    internal class KeybindCaptureService
+    internal class HotkeyCaptureService
     {
         // VK codes for the modifier keys the frontend lets users combine with a main key.
         private const int VK_SHIFT = 0x10;
@@ -48,13 +48,13 @@ namespace Segra.Backend.Windows.Input
 #if WINDOWS && !DEBUG
             var client = new HotkeyBrokerClient();
             client.StateChanged += OnBrokerStateChanged;
-            client.ActionFired += HandleKeybindAction;
+            client.ActionFired += HandleHotkeyAction;
             lock (_lock)
                 _brokerClient = client;
             client.Start();
             PublishBrokerStatus();
 #endif
-            RefreshKeybindingsCache();
+            RefreshHotkeysCache();
         }
 
         /// <summary>
@@ -80,7 +80,7 @@ namespace Segra.Backend.Windows.Input
                 return;
 
             client.StateChanged -= OnBrokerStateChanged;
-            client.ActionFired -= HandleKeybindAction;
+            client.ActionFired -= HandleHotkeyAction;
             client.Dispose();
 #endif
         }
@@ -103,7 +103,7 @@ namespace Segra.Backend.Windows.Input
             if (client is not null)
             {
                 client.StateChanged -= OnBrokerStateChanged;
-                client.ActionFired -= HandleKeybindAction;
+                client.ActionFired -= HandleHotkeyAction;
                 client.Dispose();
             }
 
@@ -112,26 +112,26 @@ namespace Segra.Backend.Windows.Input
 #endif
 
         /// <summary>
-        /// Re-applies the current keybindings to whichever source is active. Call whenever
-        /// <c>Settings.Instance.Keybindings</c> changes.
+        /// Re-applies the current hotkeys to whichever source is active. Call whenever
+        /// <c>Settings.Instance.Hotkeys</c> changes.
         /// </summary>
-        public static void RefreshKeybindingsCache()
+        public static void RefreshHotkeysCache()
         {
             lock (_lock)
             {
-                var keybindings = Settings.Instance.Keybindings?.Where(k => k.Enabled).ToList() ?? [];
+                var hotkeys = Settings.Instance.Hotkeys?.Where(k => k.Enabled).ToList() ?? [];
 
 #if WINDOWS
                 // The broker is the sole source while connected so a press is never delivered twice.
                 if (_brokerActive)
                 {
                     ClearRegisteredHotkeys();
-                    _brokerClient?.UpdateKeybindings(keybindings);
+                    _brokerClient?.UpdateHotkeys(hotkeys);
                     return;
                 }
 #endif
 
-                RegisterObsHotkeys(keybindings);
+                RegisterObsHotkeys(hotkeys);
             }
         }
 
@@ -144,7 +144,7 @@ namespace Segra.Backend.Windows.Input
                     return;
 
                 _brokerActive = _brokerClient.IsActive;
-                RefreshKeybindingsCache();
+                RefreshHotkeysCache();
             }
 
             PublishBrokerStatus();
@@ -177,44 +177,44 @@ namespace Segra.Backend.Windows.Input
         }
 
         // Callers hold _lock.
-        private static void RegisterObsHotkeys(List<Keybind> keybindings)
+        private static void RegisterObsHotkeys(List<Hotkey> hotkeys)
         {
             if (!OBSService.IsInitialized)
             {
-                Log.Information("Keybindings changed before OBS initialization; will apply once OBS starts.");
+                Log.Information("Hotkeys changed before OBS initialization; will apply once OBS starts.");
                 return;
             }
 
             ClearRegisteredHotkeys();
 
-            foreach (var keybind in keybindings)
+            foreach (var hotkey in hotkeys)
             {
-                if (!TryBuildCombination(keybind.Keys, out var combination))
+                if (!TryBuildCombination(hotkey.Keys, out var combination))
                 {
-                    Log.Warning($"Skipping keybind for {keybind.Action}: only one non-modifier key plus Ctrl/Alt/Shift/Win is supported.");
+                    Log.Warning($"Skipping hotkey for {hotkey.Action}: only one non-modifier key plus Ctrl/Alt/Shift/Win is supported.");
                     continue;
                 }
 
                 try
                 {
-                    var hotkey = Obs.RegisterHotkey($"segra_{keybind.Action}", keybind.Action.ToString(), pressed =>
+                    var obsHotkey = Obs.RegisterHotkey($"segra_{hotkey.Action}", hotkey.Action.ToString(), pressed =>
                     {
                         if (pressed)
-                            HandleKeybindAction(keybind.Action);
+                            HandleHotkeyAction(hotkey.Action);
                     });
-                    hotkey.Bind(combination);
-                    _registered.Add(hotkey);
+                    obsHotkey.Bind(combination);
+                    _registered.Add(obsHotkey);
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning(ex, $"Failed to register hotkey for {keybind.Action}");
+                    Log.Warning(ex, $"Failed to register hotkey for {hotkey.Action}");
                 }
             }
         }
 
         /// <summary>
-        /// Converts a keybind's raw Win32 virtual-key codes into an OBS key combination.
-        /// Segra's keybind model allows any set of VK codes; ObsKeyCombination supports at
+        /// Converts a hotkey's raw Win32 virtual-key codes into an OBS key combination.
+        /// Segra's hotkey model allows any set of VK codes; ObsKeyCombination supports at
         /// most one non-modifier key plus Ctrl/Alt/Shift/Win, so combinations with more than
         /// one non-modifier key are rejected (unsupported by design, not silently dropped).
         /// </summary>
@@ -268,7 +268,7 @@ namespace Segra.Backend.Windows.Input
             return true;
         }
 
-        private static void HandleKeybindAction(KeybindAction action)
+        private static void HandleHotkeyAction(HotkeyAction action)
         {
             var recording = AppState.Instance.Recording;
             var preRecording = AppState.Instance.PreRecording;
@@ -278,7 +278,7 @@ namespace Segra.Backend.Windows.Input
 
             switch (action)
             {
-                case KeybindAction.CreateBookmark:
+                case HotkeyAction.CreateBookmark:
                     if (recording != null && (recordingMode == RecordingMode.Session || recordingMode == RecordingMode.Hybrid))
                     {
                         Log.Information("Saving bookmark...");
@@ -293,7 +293,7 @@ namespace Segra.Backend.Windows.Input
                     }
                     break;
 
-                case KeybindAction.SaveReplayBuffer:
+                case HotkeyAction.SaveReplayBuffer:
                     if (OBSService.IsAlwaysOnBufferActive || (recording != null && (recordingMode == RecordingMode.Buffer || recordingMode == RecordingMode.Hybrid)))
                     {
                         Log.Information("Saving replay buffer...");
@@ -306,7 +306,7 @@ namespace Segra.Backend.Windows.Input
                     }
                     break;
 
-                case KeybindAction.ToggleRecording:
+                case HotkeyAction.ToggleRecording:
                     if (recording != null || preRecording != null)
                     {
                         Log.Information("Hotkey: stopping recording");
@@ -319,7 +319,7 @@ namespace Segra.Backend.Windows.Input
                     }
                     break;
 
-                case KeybindAction.TogglePreview:
+                case HotkeyAction.TogglePreview:
                     if (recording != null)
                     {
                         Log.Information("Hotkey: toggling recording preview");

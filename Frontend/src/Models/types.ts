@@ -89,16 +89,16 @@ export enum BookmarkSubtype {
   Headshot = 'Headshot',
 }
 
-export enum KeybindAction {
+export enum HotkeyAction {
   CreateBookmark = 'CreateBookmark',
   SaveReplayBuffer = 'SaveReplayBuffer',
   ToggleRecording = 'ToggleRecording',
   TogglePreview = 'TogglePreview',
 }
 
-export interface Keybind {
+export interface Hotkey {
   keys: number[];
-  action: KeybindAction;
+  action: HotkeyAction;
   enabled: boolean;
 }
 
@@ -332,7 +332,7 @@ export interface Settings {
   clipPreset: ClipPreset;
   clipKeepSeparateAudioTracks: boolean;
   copyCompressSizesMb: number[]; // Hidden setting (no UI), sizes for "Copy as X MB"
-  keybindings: Keybind[];
+  keybindings: Hotkey[];
   games: GameSetting[];
   autoRecordGames: boolean; // When false, don't auto-start recording when a game launches
   gameIntegrations: GameIntegrations;
@@ -434,10 +434,10 @@ export const initialSettings: Settings = {
   menuItems: DEFAULT_MENU_ITEMS,
   defaultMenuItem: 'Full Sessions',
   keybindings: [
-    { keys: [119], action: KeybindAction.CreateBookmark, enabled: true }, // 119 is F8
-    { keys: [120], action: KeybindAction.ToggleRecording, enabled: true }, // 120 is F9
-    { keys: [121], action: KeybindAction.SaveReplayBuffer, enabled: true }, // 121 is F10
-    { keys: [122], action: KeybindAction.TogglePreview, enabled: true }, // 122 is F11
+    { keys: [119], action: HotkeyAction.CreateBookmark, enabled: true }, // 119 is F8
+    { keys: [120], action: HotkeyAction.ToggleRecording, enabled: true }, // 120 is F9
+    { keys: [121], action: HotkeyAction.SaveReplayBuffer, enabled: true }, // 121 is F10
+    { keys: [122], action: HotkeyAction.TogglePreview, enabled: true }, // 122 is F11
   ],
   games: [],
   autoRecordGames: true,
