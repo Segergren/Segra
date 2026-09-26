@@ -2831,6 +2831,9 @@ namespace Segra.Backend.Recorder
                 _windowCaptureClearChecks = 0;
                 StartCaptureFallbackMonitor();
                 Log.Information($"Window capture (WGC) added for: {windowSpec}");
+
+                // Check now so the recording doesn't start out reporting window capture for a blocked window
+                OnCaptureFallbackCheck(null);
             }
             catch (Exception ex)
             {
