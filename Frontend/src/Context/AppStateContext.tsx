@@ -32,6 +32,7 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
       // Do not restore live recording info from cache
       revived.recording = undefined;
       revived.preRecording = undefined;
+      revived.alwaysOnBufferActive = false;
       revived.hasLoadedObs = false;
       return revived;
     } catch {

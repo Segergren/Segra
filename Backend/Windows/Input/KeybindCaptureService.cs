@@ -294,7 +294,7 @@ namespace Segra.Backend.Windows.Input
                     break;
 
                 case KeybindAction.SaveReplayBuffer:
-                    if (recording != null && (recordingMode == RecordingMode.Buffer || recordingMode == RecordingMode.Hybrid))
+                    if (OBSService.IsAlwaysOnBufferActive || (recording != null && (recordingMode == RecordingMode.Buffer || recordingMode == RecordingMode.Hybrid)))
                     {
                         Log.Information("Saving replay buffer...");
                         // Immediate keypress acknowledgment (sound + shockwave); the separate

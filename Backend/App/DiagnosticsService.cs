@@ -348,7 +348,7 @@ namespace Segra.Backend.App
             Log.Information($"Rate control: {s.RateControl} (CRF={s.CrfValue}, CQ={s.CqLevel})");
             Log.Information($"Video quality preset: {s.VideoQualityPreset}");
             Log.Information($"Recording mode: {s.RecordingMode}");
-            Log.Information($"Replay buffer: duration={s.ReplayBufferDuration}s, maxSize={s.ReplayBufferMaxSize}MB");
+            Log.Information($"Replay buffer: duration={s.ReplayBufferDuration}s, maxSize={s.ReplayBufferMaxSize}MB, alwaysOn={s.AlwaysOnReplayBuffer} (active={AppState.Instance.AlwaysOnBufferActive})");
             Log.Information($"GPU vendor: {AppState.Instance.GpuVendor}");
 #if WINDOWS
             Log.Information($"NVENC capabilities: {NvencCapsService.GetCapsSummaryOrNull() ?? "<none>"}");

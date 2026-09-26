@@ -73,7 +73,8 @@ export default function VideoSettingsSection({
         }
       />
       <div className="mt-1 px-1 text-xs text-base-content/60 leading-snug">
-        Used for manual recordings. Game recordings follow the monitor the game is on.
+        Used for manual recordings and the always-on replay buffer. Game recordings follow the
+        monitor the game is on.
       </div>
     </div>
   );
@@ -129,9 +130,11 @@ export default function VideoSettingsSection({
         </div>
       </div>
 
-      {/* Replay Buffer Settings - Only show when Replay Buffer mode is selected */}
+      {/* Replay Buffer Settings - Only show when a replay buffer is in use */}
       <AnimatePresence>
-        {(settings.recordingMode === 'Buffer' || settings.recordingMode === 'Hybrid') && (
+        {(settings.recordingMode === 'Buffer' ||
+          settings.recordingMode === 'Hybrid' ||
+          settings.alwaysOnReplayBuffer) && (
           <motion.div
             className="bg-base-300"
             initial={{ opacity: 0, height: 0 }}

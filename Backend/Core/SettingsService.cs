@@ -54,6 +54,9 @@ namespace Segra.Backend.Core
             {
                 Log.Error($"Failed to save settings: {ex.Message}");
             }
+
+            // Every settings change is saved through here, so the always-on buffer picks up new values
+            OBSService.SyncAlwaysOnBuffer();
         }
 
         public static bool LoadSettings()
@@ -506,6 +509,13 @@ namespace Segra.Backend.Core
             {
                 Log.Information($"ReplayBufferMaxSize changed from '{settings.ReplayBufferMaxSize}' to '{updatedSettings.ReplayBufferMaxSize}'");
                 settings.ReplayBufferMaxSize = updatedSettings.ReplayBufferMaxSize;
+                hasChanges = true;
+            }
+
+            if (settings.AlwaysOnReplayBuffer != updatedSettings.AlwaysOnReplayBuffer)
+            {
+                Log.Information($"AlwaysOnReplayBuffer changed from '{settings.AlwaysOnReplayBuffer}' to '{updatedSettings.AlwaysOnReplayBuffer}'");
+                settings.AlwaysOnReplayBuffer = updatedSettings.AlwaysOnReplayBuffer;
                 hasChanges = true;
             }
 

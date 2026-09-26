@@ -80,6 +80,22 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           </div>
         </div>
       </div>
+      <label className="flex items-center gap-3 cursor-pointer p-4 bg-base-200 rounded-lg border border-base-400 mt-6">
+        <input
+          type="checkbox"
+          className="checkbox checkbox-primary checkbox-sm"
+          checked={settings.alwaysOnReplayBuffer}
+          onChange={(e) => updateSettings({ alwaysOnReplayBuffer: e.target.checked })}
+        />
+        <div>
+          <div className="font-semibold">Always-on Replay Buffer</div>
+          <div className="text-xs opacity-70 mt-0.5">
+            Keeps a replay buffer of your display running when nothing else is recording, so you can
+            save a replay at any time. It pauses while a game is recorded and starts again
+            afterwards.
+          </div>
+        </div>
+      </label>
     </div>
   );
 }

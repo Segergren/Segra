@@ -48,11 +48,14 @@ const MENU_ICONS: Record<MenuItemId, LucideIcon> = {
 export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const settings = useSettings();
   const appState = useAppState();
-  const { hasLoadedObs, recording, preRecording } = appState;
+  const { hasLoadedObs, recording, preRecording, alwaysOnBufferActive } = appState;
   const { updateInfo } = useUpdate();
   const { aiProgress } = useAiHighlights();
   const { obsDownloadProgress } = useObsDownload();
   const { migrations: contentMigrations, isMigrating } = useContentMigration();
+  const { uploads } = useUploads();
+  const { imports } = useImports();
+  const { clippingProgress } = useClipping();
   const [buttonCooldown, setButtonCooldown] = useState(false);
 
   const buttonRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -115,6 +118,17 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
     );
     return unavailableInput || unavailableOutput;
   };
+
+  // Floats above the button without taking space, so it hides while a card sits flush on the button
+  const showAlwaysOnBuffer =
+    alwaysOnBufferActive &&
+    !recording &&
+    !preRecording &&
+    !updateInfo &&
+    Object.keys(uploads).length === 0 &&
+    Object.keys(imports).length === 0 &&
+    Object.keys(contentMigrations).length === 0 &&
+    Object.keys(clippingProgress).length === 0;
 
   return (
     <div className="bg-base-300 w-56 h-screen flex flex-col border-r border-base-400">
@@ -217,7 +231,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         </AnimatePresence>
 
         <AnimatePresence>
-          {Object.values(useUploads().uploads).map((file) => (
+          {Object.values(uploads).map((file) => (
             <AnimatedCard key={file.fileName}>
               <UploadCard upload={file} />
             </AnimatedCard>
@@ -225,7 +239,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         </AnimatePresence>
 
         <AnimatePresence>
-          {Object.values(useImports().imports).map((importItem) => (
+          {Object.values(imports).map((importItem) => (
             <AnimatedCard key={importItem.id}>
               <ImportCard importItem={importItem} />
             </AnimatedCard>
@@ -258,7 +272,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         </AnimatePresence>
 
         <AnimatePresence>
-          {Object.values(useClipping().clippingProgress).map((clipping) => (
+          {Object.values(clippingProgress).map((clipping) => (
             <AnimatedCard key={clipping.id}>
               <ClippingCard clipping={clipping} />
             </AnimatedCard>
@@ -281,7 +295,22 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
       )}
 
       {/* Start and Stop Buttons */}
-      <div className="mb-4 px-4">
+      <div className="relative mb-4 px-4">
+        <AnimatePresence>
+          {showAlwaysOnBuffer && (
+            <motion.div
+              key="always-on-buffer"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex items-center justify-center gap-1.5 text-xs leading-none text-gray-400"
+            >
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
+              Replay Buffer
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="flex flex-col items-center z-50">
           <Button
             variant="primary"

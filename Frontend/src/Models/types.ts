@@ -47,6 +47,7 @@ export interface State {
   gpuVendor: GpuVendor;
   preRecording?: PreRecording;
   recording?: Recording;
+  alwaysOnBufferActive: boolean;
   hasLoadedObs: boolean;
   content: Content[];
   inputDevices: AudioDevice[];
@@ -317,6 +318,7 @@ export interface Settings {
   recordingMode: RecordingMode;
   replayBufferDuration: number; // in seconds
   replayBufferMaxSize: number; // in MB
+  alwaysOnReplayBuffer: boolean; // Keep a display replay buffer running while nothing records
   highlightPaddingBefore: number; // Seconds before a highlight moment
   highlightPaddingAfter: number; // Seconds after a highlight moment
   clipClearSegmentsAfterCreatingClip: boolean;
@@ -352,6 +354,7 @@ export interface Settings {
 export const initialState: State = {
   gpuVendor: GpuVendor.Unknown,
   recording: undefined,
+  alwaysOnBufferActive: false,
   hasLoadedObs: false,
   content: [],
   inputDevices: [],
@@ -403,6 +406,7 @@ export const initialSettings: Settings = {
   recordingMode: 'Hybrid',
   replayBufferDuration: 30,
   replayBufferMaxSize: 1000,
+  alwaysOnReplayBuffer: false,
   highlightPaddingBefore: 4,
   highlightPaddingAfter: 4,
   clipClearSegmentsAfterCreatingClip: false,
