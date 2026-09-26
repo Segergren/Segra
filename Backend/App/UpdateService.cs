@@ -109,15 +109,17 @@ namespace Segra.Backend.App
 
                 Core.Models.AppState.Instance.IsCheckingForUpdates = true;
 
+                // Downgrades are allowed so users on a deleted release move back to the latest published one
+                var updateOptions = new UpdateOptions { AllowVersionDowngrade = true };
                 bool useBetaChannel = Core.Models.Settings.Instance.ReceiveBetaUpdates;
                 if (useBetaChannel)
                 {
-                    UpdateManager = new UpdateManager(BetaSource);
+                    UpdateManager = new UpdateManager(BetaSource, updateOptions);
                     Log.Information("Using beta update channel");
                 }
                 else
                 {
-                    UpdateManager = new UpdateManager(Source);
+                    UpdateManager = new UpdateManager(Source, updateOptions);
                     Log.Information("Using stable update channel");
                 }
 
@@ -133,6 +135,13 @@ namespace Segra.Backend.App
                 _lastUpdateCheckUtc = DateTime.UtcNow;
 
                 Core.Models.AppState.Instance.IsCheckingForUpdates = false;
+
+                // A stable-channel user on a beta is ahead of stable by choice, not on a deleted release
+                if (newVersion?.IsDowngrade == true && !useBetaChannel && UpdateManager.CurrentVersion?.IsPrerelease == true)
+                    newVersion = null;
+
+                if (newVersion?.IsDowngrade == true)
+                    Log.Information($"Version {UpdateManager.CurrentVersion} is no longer published, moving to {newVersion.TargetFullRelease.Version}");
 
                 if (newVersion == null)
                 {
