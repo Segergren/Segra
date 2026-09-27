@@ -451,6 +451,12 @@ namespace Segra.Backend.Core
                     current.RainbowSixSiege.Enabled = updated.RainbowSixSiege.Enabled;
                     hasChanges = true;
                 }
+                if (current.Wardogs.Enabled != updated.Wardogs.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Wardogs.Enabled changed from '{current.Wardogs.Enabled}' to '{updated.Wardogs.Enabled}'");
+                    current.Wardogs.Enabled = updated.Wardogs.Enabled;
+                    hasChanges = true;
+                }
             }
 
             if (updatedSettings.Games != null)

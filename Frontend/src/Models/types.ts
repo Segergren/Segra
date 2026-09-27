@@ -219,6 +219,7 @@ export interface GameIntegrations {
   warThunder: GameIntegrationSettings;
   gta: GameIntegrationSettings;
   rainbowSixSiege: GameIntegrationSettings;
+  wardogs: GameIntegrationSettings;
 }
 
 export type ClipEncoder = 'gpu' | 'cpu';
@@ -454,6 +455,7 @@ export const initialSettings: Settings = {
     warThunder: { enabled: true },
     gta: { enabled: true },
     rainbowSixSiege: { enabled: true },
+    wardogs: { enabled: true },
   },
 };
 

@@ -12,6 +12,7 @@ using Segra.Backend.Games.RunescapeDragonwilds;
 using Segra.Backend.Games.RocketLeague;
 using Segra.Backend.Games.GrandTheftAuto;
 using Segra.Backend.Games.RainbowSixSiege;
+using Segra.Backend.Games.Wardogs;
 #endif
 
 namespace Segra.Backend.Games
@@ -32,6 +33,7 @@ namespace Segra.Backend.Games
         private const int FIVEM_IGDB_ID = 146553;
         private const int RAGE_MP_IGDB_ID = 212734;
         private const int RAINBOW_SIX_SIEGE_IGDB_ID = 7360;
+        private const int WARDOGS_IGDB_ID = 388285;
 
         private static Integration? _gameIntegration;
         private static readonly SemaphoreSlim _lock = new(1, 1);
@@ -78,6 +80,8 @@ namespace Segra.Backend.Games
                     _gameIntegration = new GtaIntegration();
                 else if ((igdbId == RAINBOW_SIX_SIEGE_IGDB_ID || gameName?.Contains("Rainbow Six Siege", StringComparison.OrdinalIgnoreCase) == true) && integrations.RainbowSixSiege.Enabled)
                     _gameIntegration = new RainbowSixSiegeIntegration();
+                else if ((igdbId == WARDOGS_IGDB_ID || gameName?.Equals("WARDOGS", StringComparison.OrdinalIgnoreCase) == true) && integrations.Wardogs.Enabled)
+                    _gameIntegration = new WardogsIntegration();
 #endif
 
                 if (_gameIntegration == null)

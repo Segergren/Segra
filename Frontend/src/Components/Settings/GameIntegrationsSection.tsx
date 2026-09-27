@@ -53,6 +53,13 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     backgroundImage: 'https://segra.tv/api/games/cover/ar6elp',
   },
   {
+    id: 'wardogs',
+    name: 'WARDOGS',
+    settingsKey: 'wardogs',
+    bookmarks: ['Kills', 'Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/cocs6d',
+  },
+  {
     id: 'gta',
     name: 'Grand Theft Auto',
     settingsKey: 'gta',

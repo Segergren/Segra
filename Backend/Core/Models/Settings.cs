@@ -1515,5 +1515,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("rainbowSixSiege")]
         public GameIntegrationSettings RainbowSixSiege { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("wardogs")]
+        public GameIntegrationSettings Wardogs { get; set; } = new GameIntegrationSettings(true);
     }
 }

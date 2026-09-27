@@ -31,6 +31,7 @@ namespace Segra.Backend.Games
             public required string LogPrefix { get; init; }
             public required CropRegion CropRegion { get; init; }
             public required IReadOnlyList<OcrKeyword> Keywords { get; init; }
+            // 0 = grayscale only, no binarization
             public int Threshold { get; init; } = 150;
             public int PollIntervalMs { get; init; } = 250;
             public TimeSpan EventCooldown { get; init; } = TimeSpan.FromSeconds(5);
@@ -45,6 +46,9 @@ namespace Segra.Backend.Games
             public required string Text { get; init; }
             public required BookmarkType BookmarkType { get; init; }
             public IReadOnlyList<string> ExcludeFragments { get; init; } = [];
+            public TimeSpan? Cooldown { get; init; }
+            // Cooldown restarts on every frame the text is seen, so a long-lived prompt fires once
+            public bool ExtendCooldownWhileVisible { get; init; }
         }
 
         protected abstract OcrConfig GetConfig();
@@ -175,7 +179,7 @@ namespace Segra.Backend.Games
                         byte r = pixels[si + 2];
 
                         byte gray = (byte)((r * 77 + g * 150 + b * 29) >> 8);
-                        byte val = gray >= threshold ? (byte)255 : (byte)0;
+                        byte val = threshold <= 0 ? gray : gray >= threshold ? (byte)255 : (byte)0;
 
                         Marshal.WriteByte(dstPtr, x * 4, val);       // B
                         Marshal.WriteByte(dstPtr, x * 4 + 1, val);   // G
@@ -213,8 +217,12 @@ namespace Segra.Backend.Games
                         continue;
 
                     var now = DateTime.UtcNow;
-                    if (now - _lastEventTime[keyword.BookmarkType] < _config.EventCooldown)
-                        break;
+                    if (now - _lastEventTime[keyword.BookmarkType] < (keyword.Cooldown ?? _config.EventCooldown))
+                    {
+                        if (keyword.ExtendCooldownWhileVisible)
+                            _lastEventTime[keyword.BookmarkType] = now;
+                        continue;
+                    }
 
                     if (keyword.ExcludeFragments.Count > 0)
                     {
