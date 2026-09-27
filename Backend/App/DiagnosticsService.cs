@@ -366,14 +366,12 @@ namespace Segra.Backend.App
             var s = Settings.Instance;
             Log.Information($"Configured input devices ({s.InputDevices.Count}):");
             foreach (var d in s.InputDevices)
-                Log.Information($"  - {d.Name} (id={d.Id}, volume={d.Volume:F2})");
+                Log.Information($"  - {d.Name} (id={d.Id}, volume={d.Volume:F2}, noiseSuppression={d.NoiseSuppression}, forceMono={d.ForceMono})");
             Log.Information($"Configured output devices ({s.OutputDevices.Count}):");
             foreach (var d in s.OutputDevices)
                 Log.Information($"  - {d.Name} (id={d.Id}, volume={d.Volume:F2})");
             Log.Information($"Detected input devices: {AppState.Instance.InputDevices.Count}");
             Log.Information($"Detected output devices: {AppState.Instance.OutputDevices.Count}");
-            Log.Information($"Force mono input: {s.ForceMonoInputSources}");
-            Log.Information($"Input noise suppression: {s.InputNoiseSuppression}");
             Log.Information($"Separate audio tracks: {s.EnableSeparateAudioTracks}");
             Log.Information($"Audio output mode: {s.AudioOutputMode}");
         }

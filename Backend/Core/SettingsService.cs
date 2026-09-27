@@ -640,7 +640,8 @@ namespace Segra.Backend.Core
 
             if (!settings.InputDevices.SequenceEqual(updatedSettings.InputDevices, new DeviceSettingEqualityComparer()))
             {
-                Log.Information($"InputDevice changed from '[{string.Join(", ", settings.InputDevices.Select(d => $"{d.Name}"))}]' to '[{string.Join(", ", updatedSettings.InputDevices.Select(d => $"{d.Name}"))}]'");
+                static string Describe(DeviceSetting d) => $"{d.Name} (noiseSuppression={d.NoiseSuppression}, forceMono={d.ForceMono})";
+                Log.Information($"InputDevice changed from '[{string.Join(", ", settings.InputDevices.Select(Describe))}]' to '[{string.Join(", ", updatedSettings.InputDevices.Select(Describe))}]'");
                 settings.InputDevices = updatedSettings.InputDevices;
                 hasChanges = true;
             }
@@ -649,20 +650,6 @@ namespace Segra.Backend.Core
             {
                 Log.Information($"OutputDevice changed from '[{string.Join(", ", settings.OutputDevices.Select(d => $"{d.Name}"))}]' to '[{string.Join(", ", updatedSettings.OutputDevices.Select(d => $"{d.Name}"))}]'");
                 settings.OutputDevices = updatedSettings.OutputDevices;
-                hasChanges = true;
-            }
-
-            if (settings.ForceMonoInputSources != updatedSettings.ForceMonoInputSources)
-            {
-                Log.Information($"ForceMonoInputSources changed from '{settings.ForceMonoInputSources}' to '{updatedSettings.ForceMonoInputSources}'");
-                settings.ForceMonoInputSources = updatedSettings.ForceMonoInputSources;
-                hasChanges = true;
-            }
-
-            if (settings.InputNoiseSuppression != updatedSettings.InputNoiseSuppression)
-            {
-                Log.Information($"InputNoiseSuppression changed from '{settings.InputNoiseSuppression}' to '{updatedSettings.InputNoiseSuppression}'");
-                settings.InputNoiseSuppression = updatedSettings.InputNoiseSuppression;
                 hasChanges = true;
             }
 
@@ -1036,7 +1023,8 @@ namespace Segra.Backend.Core
             {
                 Id = "default",
                 Name = "Default Device",
-                Volume = 1.0f
+                Volume = 1.0f,
+                NoiseSuppression = true
             });
             Settings.Instance.OutputDevices.Add(new DeviceSetting
             {

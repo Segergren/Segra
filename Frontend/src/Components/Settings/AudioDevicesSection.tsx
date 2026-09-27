@@ -1,10 +1,23 @@
 ﻿import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TriangleAlert, X, CircleAlert, Volume2, Gamepad2 } from 'lucide-react';
+import {
+  TriangleAlert,
+  X,
+  CircleAlert,
+  Volume2,
+  Gamepad2,
+  AudioWaveform,
+  Merge,
+} from 'lucide-react';
 import { DiscordIcon, TeamSpeakIcon } from '../icons/BrandIcons';
 import Button from '../Button';
 import RangeSlider from '../RangeSlider';
-import { Settings as SettingsType, AudioDevice, AudioOutputMode } from '../../Models/types';
+import {
+  Settings as SettingsType,
+  AudioDevice,
+  AudioOutputMode,
+  DeviceSetting,
+} from '../../Models/types';
 import { useAppState } from '../../Context/AppStateContext';
 import {
   usePendingRecordingSettings,
@@ -74,20 +87,23 @@ export default function AudioDevicesSection({
     const isSelected = selectedDevices.some((d) => d.id === deviceId);
     let updatedDevices;
 
+    // New input devices start with noise suppression on
+    const inputDefaults = isInput ? { noiseSuppression: true } : {};
+
     if (isSelected) {
       updatedDevices = selectedDevices.filter((d) => d.id !== deviceId);
     } else {
       if (deviceId === 'default') {
         updatedDevices = [
           ...selectedDevices,
-          { id: 'default', name: 'Default Device', volume: 1.0 },
+          { id: 'default', name: 'Default Device', volume: 1.0, ...inputDefaults },
         ];
       } else {
         const deviceToAdd = availableDevices.find((d) => d.id === deviceId);
         if (deviceToAdd) {
           updatedDevices = [
             ...selectedDevices,
-            { id: deviceId, name: deviceToAdd.name, volume: 1.0 },
+            { id: deviceId, name: deviceToAdd.name, volume: 1.0, ...inputDefaults },
           ];
         }
       }
@@ -115,6 +131,52 @@ export default function AudioDevicesSection({
       updateSettings({ outputDevices: updatedDevices });
     }
   };
+
+  const toggleInputOption = (deviceId: string, option: 'noiseSuppression' | 'forceMono') => {
+    updateSettings({
+      inputDevices: settings.inputDevices.map((device) =>
+        // Off is left unset, matching the backend which omits false values
+        device.id === deviceId
+          ? { ...device, [option]: device[option] ? undefined : true }
+          : device,
+      ),
+    });
+  };
+
+  const renderInputOptions = (device: DeviceSetting) =>
+    [
+      {
+        option: 'noiseSuppression' as const,
+        label: 'Noise Suppression',
+        Icon: AudioWaveform,
+      },
+      // Rotated so two channels merge into one, left to right
+      { option: 'forceMono' as const, label: 'Mono', Icon: Merge, iconClassName: 'rotate-90' },
+    ].map(({ option, label, Icon, iconClassName }) => {
+      const active = !!device[option];
+      return (
+        <div
+          key={option}
+          className="tooltip tooltip-left tooltip-primary inline-flex [&::before]:delay-200 [&::after]:delay-200"
+          data-tip={label}
+        >
+          <button
+            type="button"
+            aria-label={label}
+            aria-pressed={active}
+            className={`group p-0.5 rounded border border-base-400 cursor-pointer transition-colors hover:bg-base-300 ${active ? 'text-primary' : 'text-base-content'}`}
+            onClick={(e) => {
+              e.preventDefault();
+              toggleInputOption(device.id, option);
+            }}
+          >
+            <Icon
+              className={`h-3.5 w-3.5 transition-opacity ${active ? '' : 'opacity-40 group-hover:opacity-80'} ${iconClassName ?? ''}`}
+            />
+          </button>
+        </div>
+      );
+    });
 
   // Render device list component
   const renderDeviceList = (deviceType: 'input' | 'output') => {
@@ -158,6 +220,11 @@ export default function AudioDevicesSection({
                   ) : null;
                 })()}
               </span>
+              {isInput &&
+                (() => {
+                  const selected = selectedDevices.find((d) => d.id === device.id);
+                  return selected ? renderInputOptions(selected) : null;
+                })()}
               {/* Volume slider for selected devices */}
               {selectedDevices.some((d) => d.id === device.id) &&
                 (() => {
@@ -246,6 +313,7 @@ export default function AudioDevicesSection({
                   </div>
                   {deviceSetting.name.replace(' (Default)', '')}
                 </span>
+                {isInput && renderInputOptions(deviceSetting)}
                 {/* Volume slider for selected devices */}
                 {(() => {
                   const isDragging =
@@ -330,29 +398,6 @@ export default function AudioDevicesSection({
           </label>
           <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
             {renderDeviceList('input')}
-          </div>
-
-          <div className="mt-3 flex flex-col gap-2">
-            <label className={`flex items-center cursor-pointer`}>
-              <input
-                type="checkbox"
-                name="inputNoiseSuppression"
-                checked={settings.inputNoiseSuppression}
-                onChange={(e) => updateSettings({ inputNoiseSuppression: e.target.checked })}
-                className="checkbox checkbox-sm checkbox-accent"
-              />
-              <span className="ml-2">Noise Suppression</span>
-            </label>
-            <label className={`flex items-center cursor-pointer`}>
-              <input
-                type="checkbox"
-                name="forceMonoInputSources"
-                checked={settings.forceMonoInputSources}
-                onChange={(e) => updateSettings({ forceMonoInputSources: e.target.checked })}
-                className="checkbox checkbox-sm checkbox-accent"
-              />
-              <span className="ml-2">Force Mono</span>
-            </label>
           </div>
         </div>
 

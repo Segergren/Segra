@@ -135,6 +135,9 @@ export interface DeviceSetting {
   id: string;
   name: string;
   volume: number; // Volume from 0.0 to 1.0
+  // Input devices only
+  noiseSuppression?: boolean;
+  forceMono?: boolean;
 }
 
 export interface Display {
@@ -304,8 +307,6 @@ export interface Settings {
   cacheFolder: string;
   inputDevices: DeviceSetting[];
   outputDevices: DeviceSetting[];
-  forceMonoInputSources: boolean;
-  inputNoiseSuppression: boolean;
   selectedDisplay: Display | null;
   selectedOBSVersion: string | null; // null means automatic (latest non-beta)
   hotkeyBrokerDeclinedVersion: string | null; // backend-owned, mirrored only
@@ -392,8 +393,6 @@ export const initialSettings: Settings = {
   cacheFolder: '',
   inputDevices: [],
   outputDevices: [],
-  forceMonoInputSources: false,
-  inputNoiseSuppression: true,
   selectedDisplay: null, // Default to null (auto-select)
   selectedOBSVersion: null, // null means automatic (latest non-beta)
   hotkeyBrokerDeclinedVersion: null,

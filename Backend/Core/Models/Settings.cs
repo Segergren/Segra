@@ -43,7 +43,6 @@ namespace Segra.Backend.Core.Models
         private int _storageLimit = 100;
         private List<DeviceSetting> _inputDevices = new List<DeviceSetting>();
         private List<DeviceSetting> _outputDevices = new List<DeviceSetting>();
-        private bool _forceMonoInputSources = false;
         private Display? _selectedDisplay = null;
         private WindowState? _lastWindowState = null;
         private bool _enableAi = true;
@@ -81,7 +80,6 @@ namespace Segra.Backend.Core.Models
         private bool _showAudioWaveformInTimeline = true;
         private bool _enableSeparateAudioTracks = false;
         private AudioOutputMode _audioOutputMode = AudioOutputMode.All;
-        private bool _inputNoiseSuppression = true;
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "standard";
         private bool _confirmBeforeDeleting = false;
@@ -589,31 +587,15 @@ namespace Segra.Backend.Core.Models
             set => _alwaysOnReplayBuffer = value;
         }
 
+        // Legacy global flags, read only by the "per_device_input_options" migration, which copies them
+        // onto each input device and nulls them out. Do not use these for anything else.
         [JsonPropertyName("forceMonoInputSources")]
-        public bool ForceMonoInputSources
-        {
-            get => _forceMonoInputSources;
-            set
-            {
-                if (_forceMonoInputSources != value)
-                {
-                    _forceMonoInputSources = value;
-                }
-            }
-        }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? ForceMonoInputSources { get; set; }
 
         [JsonPropertyName("inputNoiseSuppression")]
-        public bool InputNoiseSuppression
-        {
-            get => _inputNoiseSuppression;
-            set
-            {
-                if (_inputNoiseSuppression != value)
-                {
-                    _inputNoiseSuppression = value;
-                }
-            }
-        }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? InputNoiseSuppression { get; set; }
 
         [JsonPropertyName("auth")]
         public Auth Auth
@@ -1042,6 +1024,15 @@ namespace Segra.Backend.Core.Models
         public required string Name { get; set; }
         [JsonPropertyName("volume")]
         public float Volume { get; set; } = 1.0f; // Default volume for all devices initially
+
+        // Input devices only
+        [JsonPropertyName("noiseSuppression")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public bool NoiseSuppression { get; set; }
+
+        [JsonPropertyName("forceMono")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public bool ForceMono { get; set; }
     }
 
     // Equality comparer for DeviceSetting based on Id and Name
@@ -1052,7 +1043,8 @@ namespace Segra.Backend.Core.Models
             if (ReferenceEquals(x, y)) return true;
             if (ReferenceEquals(x, null) || ReferenceEquals(y, null))
                 return false;
-            return x.Id == y.Id && x.Name == y.Name && x.Volume == y.Volume;
+            return x.Id == y.Id && x.Name == y.Name && x.Volume == y.Volume
+                && x.NoiseSuppression == y.NoiseSuppression && x.ForceMono == y.ForceMono;
         }
 
         public int GetHashCode(DeviceSetting obj)

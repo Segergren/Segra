@@ -1262,15 +1262,14 @@ namespace Segra.Backend.Recorder
                             ? AudioInputCapture.FromDefault(sourceName)
                             : AudioInputCapture.FromDevice(deviceSetting.Id, sourceName);
 
-                        // Apply Force Mono if enabled
-                        SetForceMono(micSource, Settings.Instance.ForceMonoInputSources);
+                        SetForceMono(micSource, deviceSetting.ForceMono);
 
                         micSource.Volume = deviceSetting.Volume;
 
                         _mainScene!.AddSource(micSource);
                         _micSources.Add(micSource);
 
-                        if (Settings.Instance.InputNoiseSuppression)
+                        if (deviceSetting.NoiseSuppression)
                         {
                             try
                             {
@@ -2323,7 +2322,7 @@ namespace Segra.Backend.Recorder
             {
                 s.Resolution, s.FrameRate, s.RateControl, s.Bitrate, s.MinBitrate, s.MaxBitrate, s.CrfValue, s.CqLevel,
                 s.Codec?.InternalEncoderId, s.EnableHdr, s.Stretch4By3, s.ReplayBufferDuration, s.ReplayBufferMaxSize,
-                s.InputDevices, s.OutputDevices, s.ForceMonoInputSources, s.InputNoiseSuppression, s.EnableSeparateAudioTracks,
+                s.InputDevices, s.OutputDevices, s.EnableSeparateAudioTracks,
                 s.SelectedDisplay?.DeviceId, s.ContentFolder, AppState.Instance.Displays
             });
         }

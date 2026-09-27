@@ -151,8 +151,42 @@ internal static class MigrationService
             new("0013_backfill_compressed_flag", Apply_0013_BackfillCompressedFlag),
             new("0014_id_keyed_sidecars", Apply_0014_IdKeyedSidecars),
             new("0015_delete_empty_game_folders", Apply_0015_DeleteEmptyGameFolders),
-            new("0016_copy_compress_10mb_to_20mb", Apply_0016_CopyCompress10MbTo20Mb)
+            new("0016_copy_compress_10mb_to_20mb", Apply_0016_CopyCompress10MbTo20Mb),
+            new("0017_per_device_input_options", Apply_0017_PerDeviceInputOptions)
         ];
+    }
+
+    // Migration 0017: Noise suppression and force mono moved from global settings to each input device.
+    // Copy the old global values onto every selected input device. A missing key used the old defaults.
+    private static void Apply_0017_PerDeviceInputOptions()
+    {
+        try
+        {
+            var settings = Settings.Instance;
+            bool noiseSuppression = settings.InputNoiseSuppression ?? true;
+            bool forceMono = settings.ForceMonoInputSources ?? false;
+
+            settings.InputDevices = settings.InputDevices
+                .Select(d => new DeviceSetting
+                {
+                    Id = d.Id,
+                    Name = d.Name,
+                    Volume = d.Volume,
+                    NoiseSuppression = noiseSuppression,
+                    ForceMono = forceMono
+                })
+                .ToList();
+            settings.InputNoiseSuppression = null;
+            settings.ForceMonoInputSources = null;
+
+            SettingsService.SaveSettings();
+            _ = MessageService.SendSettingsToFrontend("Migrated input device options");
+            Log.Information($"Applied noiseSuppression={noiseSuppression}, forceMono={forceMono} to {settings.InputDevices.Count} input devices");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to migrate input device options");
+        }
     }
 
     // Migration 0016: The default "Copy as X MB" sizes changed from 10/50/100/500 to 20/50/100/500.
