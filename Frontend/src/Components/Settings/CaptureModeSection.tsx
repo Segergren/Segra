@@ -18,7 +18,7 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
       (k) => k.action === action && k.enabled && k.keys.length > 0,
     );
     return hotkey ? (
-      <kbd className="kbd kbd-xs">{hotkey.keys.map(getKeyName).join(' + ')}</kbd>
+      <kbd className="kbd kbd-xs px-1.5">{hotkey.keys.map(getKeyName).join(' + ')}</kbd>
     ) : (
       fallback
     );
@@ -34,46 +34,17 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           <span className="text-xs text-warning">(applies to next recording)</span>
         )}
       </div>
-      <div className="mb-6">
-        <div
-          className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Hybrid' ? 'border-primary' : 'border-base-400'} cursor-pointer hover:bg-base-300`}
-          onClick={() => updateSettings({ recordingMode: 'Hybrid' })}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="text-lg font-semibold">Hybrid (Session + Buffer)</div>
-          </div>
-          <div className="text-sm text-left text-base-content">
-            <p className="mb-2">
-              Records your whole game session into one video. Recording starts when you launch a
-              game and stops when you close it. A replay buffer runs alongside it, so you can press{' '}
-              {saveHotkey} to save the last {bufferLength} as its own clip without stopping the
-              session.
-            </p>
-            <div className="text-xs opacity-70">
-              • Everything Session Recording has
-              <br />• Save instant replays while you play
-              <br />• Uses the most disk space
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-3 gap-4">
         <div
           className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Session' ? 'border-primary' : 'border-base-400'} cursor-pointer hover:bg-base-300`}
           onClick={() => updateSettings({ recordingMode: 'Session' })}
         >
           <div className="text-lg font-semibold mb-3">Session Recording</div>
-          <div className="text-sm text-left text-base-content">
-            <p className="mb-2">
-              Records your whole game session into one video. Recording starts when you launch a
-              game and stops when you close it. Mark moments with {bookmarkHotkey} while you play,
-              and in supported games Segra bookmarks your kills and deaths automatically.
+          <div className="text-sm text-left text-base-content opacity-70">
+            <p>
+              Records each game from launch to close as one video. Press {bookmarkHotkey} to
+              bookmark a moment. Supported games bookmark kills and deaths automatically.
             </p>
-            <div className="text-xs opacity-70">
-              • Bookmarks and game integration
-              <br />• AI highlights
-              <br />• Large files for long sessions
-            </div>
           </div>
         </div>
         <div
@@ -83,20 +54,29 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           <div className="flex items-center gap-2 mb-3">
             <div className="text-lg font-semibold text-center">Replay Buffer</div>
           </div>
-          <div className="text-sm text-left text-base-content">
-            <p className="mb-2">
-              Keeps the last {bufferLength} in memory. Press {saveHotkey} to save it as a clip.
-              Nothing else is written to disk.
+          <div className="text-sm text-left text-base-content opacity-70">
+            <p>
+              Keeps the last {bufferLength} of gameplay in memory. Press {saveHotkey} to save it as
+              a clip. Uses almost no disk space.
             </p>
-            <div className="text-xs opacity-70">
-              • Uses almost no disk space
-              <br />• No bookmarks or game integration
-              <br />• No AI highlights
-            </div>
+          </div>
+        </div>
+        <div
+          className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Hybrid' ? 'border-primary' : 'border-base-400'} cursor-pointer hover:bg-base-300`}
+          onClick={() => updateSettings({ recordingMode: 'Hybrid' })}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="text-lg font-semibold">Hybrid (Session + Buffer)</div>
+          </div>
+          <div className="text-sm text-left text-base-content opacity-70">
+            <p>
+              Records each game as one video with a replay buffer alongside. Press {saveHotkey} to
+              save the last {bufferLength} as a clip. Uses the most disk space.
+            </p>
           </div>
         </div>
       </div>
-      <label className="flex items-center gap-3 cursor-pointer p-4 bg-base-200 rounded-lg border border-base-400 mt-6">
+      <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 mt-4">
         <input
           type="checkbox"
           className="checkbox checkbox-primary checkbox-sm"
@@ -105,10 +85,9 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
         />
         <div>
           <div className="font-semibold">Always-on Replay Buffer</div>
-          <div className="text-xs opacity-70 mt-0.5">
-            Keeps a replay buffer of your display running when nothing else is recording, so you can
-            save a replay at any time. It pauses while a game is recorded and starts again
-            afterwards.
+          <div className="text-sm opacity-70 mt-0.5">
+            Keeps a replay buffer of your display running when no game is recording. Press{' '}
+            {saveHotkey} to save the last {bufferLength} as a clip.
           </div>
         </div>
       </label>

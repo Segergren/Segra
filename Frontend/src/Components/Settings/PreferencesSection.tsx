@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { VolumeX, Volume2 } from 'lucide-react';
 import CloudBadge from '../CloudBadge';
 import DropdownSelect from '../DropdownSelect';
@@ -14,177 +13,95 @@ interface PreferencesSectionProps {
 export default function PreferencesSection({ settings, updateSettings }: PreferencesSectionProps) {
   const [draggingSoundVolume, setDraggingSoundVolume] = useState<number | null>(null);
   const soundVolume = draggingSoundVolume ?? settings.soundEffectsVolume;
-  // The dropdown's collapse animation needs overflow hidden, but once expanded the dropdown
-  // menu must be able to overflow the row, so only reveal overflow after the animation settles.
-  // Initialize from the current value: when the page loads with Run on Startup already enabled,
-  // the entrance animation is skipped, so onAnimationComplete never fires to reveal overflow.
-  const [startupModeOverflowVisible, setStartupModeOverflowVisible] = useState(
-    settings.runOnStartup,
-  );
+
+  const interfaceToggles: {
+    key:
+      | 'showGameBackground'
+      | 'showAudioWaveformInTimeline'
+      | 'showNewBadgeOnVideos'
+      | 'confirmBeforeDeleting';
+    label: React.ReactNode;
+    description: string;
+  }[] = [
+    {
+      key: 'showGameBackground',
+      label: (
+        <>
+          Show Game Covers <CloudBadge />
+        </>
+      ),
+      description: 'Shows cover art on the recording card and the game integration cards.',
+    },
+    {
+      key: 'showAudioWaveformInTimeline',
+      label: 'Show Audio Waveform',
+      description: 'Draws the audio waveform along the video editor timeline.',
+    },
+    {
+      key: 'showNewBadgeOnVideos',
+      label: (
+        <>
+          Show<span className="badge badge-primary badge-sm text-base-300 mx-1">NEW</span>Badge
+        </>
+      ),
+      description: "Marks sessions and replays from the last hour that you haven't opened yet.",
+    },
+    {
+      key: 'confirmBeforeDeleting',
+      label: 'Confirm Before Deleting',
+      description: 'Asks before videos, recovered recordings or game paths are deleted.',
+    },
+  ];
 
   return (
-    <div className="bg-base-300 px-4 py-3 rounded-lg space-y-3 border border-custom">
-      <div className="flex flex-col bg-base-200 rounded-lg border border-base-400 p-4">
-        <span>Close Button</span>
-        <div className="flex flex-col gap-1 w-fit mt-2">
-          {[
-            { value: 'Minimize' as CloseButtonAction, label: 'Minimize to Tray' },
-            { value: 'Exit' as CloseButtonAction, label: 'Close App' },
-          ].map((option) => (
-            <label
-              key={option.value}
-              className="flex items-center gap-2 p-1 rounded cursor-pointer"
-            >
-              <input
-                type="radio"
-                name="closeButtonAction"
-                className="radio radio-sm radio-primary"
-                checked={settings.closeButtonAction === option.value}
-                onChange={() => updateSettings({ closeButtonAction: option.value })}
-              />
-              <span className="text-sm">{option.label}</span>
+    <>
+      <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+        <h2 className="text-xl font-semibold mb-4">App</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text text-base-content">Run on Startup</span>
             </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-base-200 rounded-lg border border-base-400 p-4 space-y-3">
-        <div className="flex flex-col">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="runOnStartup"
-              checked={settings.runOnStartup}
-              onChange={(e) => updateSettings({ runOnStartup: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <span className="cursor-pointer">Run on Startup</span>
-          </label>
-          <AnimatePresence initial={false}>
-            {settings.runOnStartup && (
-              <motion.div
-                key="startupWindowMode"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                onAnimationStart={() => setStartupModeOverflowVisible(false)}
-                onAnimationComplete={() => setStartupModeOverflowVisible(true)}
-                style={{ overflow: startupModeOverflowVisible ? 'visible' : 'hidden' }}
-              >
-                <div className="w-40 pt-2">
-                  <DropdownSelect
-                    size="sm"
-                    items={[
-                      { value: 'Minimized', label: 'Minimized' },
-                      { value: 'Normal', label: 'Normal Window' },
-                    ]}
-                    value={settings.startupWindowMode}
-                    onChange={(val) =>
-                      updateSettings({ startupWindowMode: val as StartupWindowMode })
-                    }
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-        <div className="flex items-center">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="showGameBackground"
-              checked={settings.showGameBackground}
-              onChange={(e) => updateSettings({ showGameBackground: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <span className="flex items-center gap-1 cursor-pointer">
-              Show Game Covers <CloudBadge />
-            </span>
-          </label>
-        </div>
-
-        <div className="flex items-center">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="showAudioWaveformInTimeline"
-              checked={settings.showAudioWaveformInTimeline}
-              onChange={(e) => updateSettings({ showAudioWaveformInTimeline: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <span className="cursor-pointer">Show Audio Waveform in Video Timeline</span>
-          </label>
-        </div>
-
-        {/* Deletion and cleanup toggles */}
-        <div className="flex items-center">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="confirmBeforeDeleting"
-              checked={settings.confirmBeforeDeleting}
-              onChange={(e) => updateSettings({ confirmBeforeDeleting: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <span className="cursor-pointer">Confirm Before Deleting</span>
-          </label>
-        </div>
-
-        <div className="flex items-center">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="removeOriginalAfterCompression"
-              checked={settings.removeOriginalAfterCompression}
-              onChange={(e) => updateSettings({ removeOriginalAfterCompression: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <span className="cursor-pointer">Delete Original File After Compression</span>
-          </label>
-        </div>
-
-        <div className="flex items-center">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="discardSessionsWithoutBookmarks"
-              checked={settings.discardSessionsWithoutBookmarks}
-              onChange={(e) =>
-                updateSettings({ discardSessionsWithoutBookmarks: e.target.checked })
+            <DropdownSelect
+              items={[
+                { value: 'Off', label: "Don't Start" },
+                { value: 'Minimized', label: 'Start Minimized' },
+                { value: 'Normal', label: 'Start as Normal Window' },
+              ]}
+              value={settings.runOnStartup ? settings.startupWindowMode : 'Off'}
+              onChange={(val) =>
+                val === 'Off'
+                  ? updateSettings({ runOnStartup: false })
+                  : updateSettings({
+                      runOnStartup: true,
+                      startupWindowMode: val as StartupWindowMode,
+                    })
               }
-              className="checkbox checkbox-primary checkbox-sm"
             />
-            <span className="cursor-pointer">
-              Discard Session Recordings Without Manual Bookmarks
-            </span>
-          </label>
+          </div>
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text text-base-content">Close Button</span>
+            </label>
+            <DropdownSelect
+              items={[
+                { value: 'Minimize', label: 'Minimize to Tray' },
+                { value: 'Exit', label: 'Close App' },
+              ]}
+              value={settings.closeButtonAction}
+              onChange={(val) => updateSettings({ closeButtonAction: val as CloseButtonAction })}
+            />
+          </div>
         </div>
 
-        <div className="flex items-center">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="showNewBadgeOnVideos"
-              checked={settings.showNewBadgeOnVideos}
-              onChange={(e) => updateSettings({ showNewBadgeOnVideos: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <span className="flex items-center gap-1 cursor-pointer">
-              Show<span className="badge badge-primary badge-sm text-base-300 mx-1">NEW</span>
-              Badge on New Sessions and Replay Buffers
-            </span>
-          </label>
-        </div>
-      </div>
-
-      <div className="bg-base-200 rounded-lg border border-base-400 p-4">
-        <span className="mb-2 block">
-          Sound Effects Volume
-          {draggingSoundVolume !== null && ` (${Math.round(draggingSoundVolume * 100)}%)`}
-        </span>
+        <label className="label mt-4">
+          <span className="label-text text-base-content">
+            Sound Effects Volume
+            {draggingSoundVolume !== null && ` (${Math.round(draggingSoundVolume * 100)}%)`}
+          </span>
+        </label>
         <div className="flex items-center gap-3">
-          <VolumeX className="w-4 h-4 text-gray-400 shrink-0" />
+          <VolumeX className="w-4 h-4 opacity-70 shrink-0" />
           <RangeSlider
             name="soundEffectsVolume"
             min="0"
@@ -207,9 +124,33 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
             }}
             className="w-48"
           />
-          <Volume2 className="w-4 h-4 text-gray-400 shrink-0" />
+          <Volume2 className="w-4 h-4 opacity-70 shrink-0" />
         </div>
       </div>
-    </div>
+
+      <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+        <h2 className="text-xl font-semibold mb-4">Interface</h2>
+        <div className="flex flex-col gap-3">
+          {interfaceToggles.map(({ key, label, description }) => (
+            <label
+              key={key}
+              className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400"
+            >
+              <input
+                type="checkbox"
+                name={key}
+                checked={settings[key]}
+                onChange={(e) => updateSettings({ [key]: e.target.checked })}
+                className="checkbox checkbox-primary checkbox-sm"
+              />
+              <div>
+                <div className="flex items-center gap-1 font-semibold">{label}</div>
+                <div className="text-sm opacity-70 mt-0.5">{description}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }

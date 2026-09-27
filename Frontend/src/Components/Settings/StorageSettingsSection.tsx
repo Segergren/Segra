@@ -156,10 +156,11 @@ export default function StorageSettingsSection({
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+      <h2 className="text-xl font-semibold mb-4">Storage Settings</h2>
       <div className="grid grid-cols-2 gap-4">
         {/* Recording Path */}
         <div className="form-control">
-          <label className="label pb-1">
+          <label className="label">
             <span className="label-text text-base-content">Recording Path</span>
           </label>
           <div className="flex space-x-2">
@@ -190,7 +191,7 @@ export default function StorageSettingsSection({
 
         {/* Cache Folder Path */}
         <div className="form-control">
-          <label className="label pb-1">
+          <label className="label">
             <span className="label-text text-base-content">Cache Path</span>
           </label>
           <div className="flex space-x-2">
@@ -221,20 +222,25 @@ export default function StorageSettingsSection({
 
         {/* Storage Limit */}
         <div className="form-control">
-          <label className="label block px-0 pb-1">
-            <span className="label-text text-base-content">Storage Limit (GB)</span>
+          <label className="label block px-0">
+            <span className="label-text text-base-content">Storage Limit</span>
           </label>
 
-          <input
-            type="number"
-            name="storageLimit"
-            value={localStorageLimit}
-            onChange={(e) => setLocalStorageLimit(e.target.value)}
-            onBlur={handleStorageLimitBlur}
-            placeholder="Set maximum storage in GB"
-            min="1"
-            className="input input-bordered bg-base-200 w-full block outline-none focus:border-base-400"
-          />
+          <div className="relative w-full">
+            <input
+              type="number"
+              name="storageLimit"
+              value={localStorageLimit}
+              onChange={(e) => setLocalStorageLimit(e.target.value)}
+              onBlur={handleStorageLimitBlur}
+              placeholder="Set maximum storage in GB"
+              min="1"
+              className="input input-bordered bg-base-200 w-full block pr-12 outline-none focus:border-base-400"
+            />
+            <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
+              GB
+            </span>
+          </div>
         </div>
       </div>
 
@@ -247,6 +253,40 @@ export default function StorageSettingsSection({
           driveUsedGb={driveUsedGb}
           driveFreeGb={driveFreeGb}
         />
+      </div>
+
+      <div className="mt-4 flex flex-col gap-3">
+        <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
+          <input
+            type="checkbox"
+            name="removeOriginalAfterCompression"
+            checked={settings.removeOriginalAfterCompression}
+            onChange={(e) => updateSettings({ removeOriginalAfterCompression: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <div>
+            <div className="font-semibold">Delete Original After Compression</div>
+            <div className="text-sm opacity-70 mt-0.5">
+              Removes the full-size video once its compressed copy is saved.
+            </div>
+          </div>
+        </label>
+        <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
+          <input
+            type="checkbox"
+            name="discardSessionsWithoutBookmarks"
+            checked={settings.discardSessionsWithoutBookmarks}
+            onChange={(e) => updateSettings({ discardSessionsWithoutBookmarks: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <div>
+            <div className="font-semibold">Discard Sessions Without Bookmarks</div>
+            <div className="text-sm opacity-70 mt-0.5">
+              Deletes a session recording when it ends unless you added a bookmark with the hotkey.
+              Kills and other automatic bookmarks don&apos;t count.
+            </div>
+          </div>
+        </label>
       </div>
 
       {/* Migrate content stored outside the recording path */}
@@ -271,13 +311,13 @@ export default function StorageSettingsSection({
             }}
             style={{ overflow: 'hidden' }}
           >
-            <div className="mt-4 flex flex-col gap-3 rounded-lg border border-base-400 bg-base-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-4 flex flex-col gap-3 rounded-lg border border-base-400 bg-base-200 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="text-base-content font-medium">
                   {outsideCount} video{outsideCount === 1 ? '' : 's'} ({outsideSizeGb.toFixed(2)}{' '}
                   GB) stored outside your recording path
                 </p>
-                <p className="text-sm text-base-content text-opacity-60">
+                <p className="text-sm opacity-70">
                   Move them into your recording path to keep all your content in one place.
                 </p>
               </div>

@@ -60,6 +60,36 @@
       background-color: var(--btn-bg) !important;
     }
   }
+  /* daisyUI 5 labels have no spacing, so field labels sit on their controls */
+  .settings-content label.label:not(:is(.input, .select) > *) {
+    margin-bottom: 0.25rem;
+  }
+}
+
+/* Hide number input spinners */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Match the dropdown (.btn) hover darkening on text inputs */
+@layer utilities {
+  .input {
+    transition: background-color 0.2s;
+  }
+  @media (hover: hover) {
+    .input.bg-base-200:not(:disabled):hover {
+      background-color: color-mix(in oklab, var(--color-base-200), #000 7%);
+    }
+    .input.bg-base-300:not(:disabled):hover {
+      background-color: color-mix(in oklab, var(--color-base-300), #000 7%);
+    }
+  }
 }
 
 @theme {

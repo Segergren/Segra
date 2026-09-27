@@ -20,6 +20,7 @@ export default function VideoSettingsSection({
   updateSettings,
 }: VideoSettingsSectionProps) {
   const appState = useAppState();
+  const hasHdrDisplay = appState.displays.some((d) => d.isHdr);
   const [localReplayBufferDuration, setLocalReplayBufferDuration] = useState<string>(
     String(settings.replayBufferDuration),
   );
@@ -77,8 +78,7 @@ export default function VideoSettingsSection({
         }
       />
       <div className="mt-1 px-1 text-xs opacity-70 leading-snug">
-        Used for manual recordings and the always-on replay buffer. Game recordings follow the
-        monitor the game is on.
+        Used for manual recordings and the always-on replay buffer.
       </div>
     </div>
   );
@@ -170,50 +170,60 @@ export default function VideoSettingsSection({
               <div className="form-control w-full">
                 <label
                   htmlFor="replayBufferDuration"
-                  className="label text-base-content px-0 !block mb-1"
+                  className="label text-base-content px-0 !block"
                 >
-                  <span className="label-text">Buffer Duration (seconds)</span>
+                  <span className="label-text">Buffer Duration</span>
                 </label>
-                <input
-                  id="replayBufferDuration"
-                  type="number"
-                  name="replayBufferDuration"
-                  value={localReplayBufferDuration}
-                  onChange={(e) => setLocalReplayBufferDuration(e.target.value)}
-                  onBlur={() => {
-                    const val = clampInt(localReplayBufferDuration, 5, 600, 30);
-                    setLocalReplayBufferDuration(String(val));
-                    updateSettings({ replayBufferDuration: val });
-                  }}
-                  min="5"
-                  max="600"
-                  className={`input input-bordered bg-base-200 disabled:bg-base-200 disabled:input-bordered disabled:opacity-80 w-full outline-none focus:border-base-400`}
-                />
+                <div className="relative w-full">
+                  <input
+                    id="replayBufferDuration"
+                    type="number"
+                    name="replayBufferDuration"
+                    value={localReplayBufferDuration}
+                    onChange={(e) => setLocalReplayBufferDuration(e.target.value)}
+                    onBlur={() => {
+                      const val = clampInt(localReplayBufferDuration, 5, 600, 30);
+                      setLocalReplayBufferDuration(String(val));
+                      updateSettings({ replayBufferDuration: val });
+                    }}
+                    min="5"
+                    max="600"
+                    className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:input-bordered disabled:opacity-80 w-full pr-12 outline-none focus:border-base-400"
+                  />
+                  <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
+                    sec
+                  </span>
+                </div>
               </div>
 
               {/* Buffer Max Size */}
               <div className="form-control w-full">
                 <label
                   htmlFor="replayBufferMaxSize"
-                  className="label text-base-content px-0 !block mb-1"
+                  className="label text-base-content px-0 !block"
                 >
-                  <span className="label-text">Buffer Maximum Size (MB)</span>
+                  <span className="label-text">Buffer Maximum Size</span>
                 </label>
-                <input
-                  id="replayBufferMaxSize"
-                  type="number"
-                  name="replayBufferMaxSize"
-                  value={localReplayBufferMaxSize}
-                  onChange={(e) => setLocalReplayBufferMaxSize(e.target.value)}
-                  onBlur={() => {
-                    const val = clampInt(localReplayBufferMaxSize, 100, 5000, 1000);
-                    setLocalReplayBufferMaxSize(String(val));
-                    updateSettings({ replayBufferMaxSize: val });
-                  }}
-                  min="100"
-                  max="5000"
-                  className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:input-bordered disabled:opacity-80 w-full outline-none focus:border-base-400"
-                />
+                <div className="relative w-full">
+                  <input
+                    id="replayBufferMaxSize"
+                    type="number"
+                    name="replayBufferMaxSize"
+                    value={localReplayBufferMaxSize}
+                    onChange={(e) => setLocalReplayBufferMaxSize(e.target.value)}
+                    onBlur={() => {
+                      const val = clampInt(localReplayBufferMaxSize, 100, 5000, 1000);
+                      setLocalReplayBufferMaxSize(String(val));
+                      updateSettings({ replayBufferMaxSize: val });
+                    }}
+                    min="100"
+                    max="5000"
+                    className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:input-bordered disabled:opacity-80 w-full pr-12 outline-none focus:border-base-400"
+                  />
+                  <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
+                    MB
+                  </span>
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -267,12 +277,12 @@ export default function VideoSettingsSection({
               {/* Frame Rate */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Frame Rate (FPS)</span>
+                  <span className="label-text text-base-content">Frame Rate</span>
                 </label>
                 <DropdownSelect
                   items={[24, 30, 60, 120, 144].map((v) => ({
                     value: String(v),
-                    label: String(v),
+                    label: `${v} FPS`,
                   }))}
                   value={String(settings.frameRate)}
                   onChange={(val) => updateSettings({ frameRate: Number(val) })}
@@ -367,22 +377,27 @@ export default function VideoSettingsSection({
               {settings.rateControl === 'CRF' && (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">CRF Value (0-51)</span>
+                    <span className="label-text text-base-content">CRF Value</span>
                   </label>
-                  <input
-                    type="number"
-                    name="crfValue"
-                    value={localCrfValue}
-                    onChange={(e) => setLocalCrfValue(e.target.value)}
-                    onBlur={() => {
-                      const val = clampInt(localCrfValue, 0, 51, 23);
-                      setLocalCrfValue(String(val));
-                      updateSettings({ crfValue: val });
-                    }}
-                    min="0"
-                    max="51"
-                    className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:opacity-80 w-full outline-none focus:border-base-400"
-                  />
+                  <div className="relative w-full">
+                    <input
+                      type="number"
+                      name="crfValue"
+                      value={localCrfValue}
+                      onChange={(e) => setLocalCrfValue(e.target.value)}
+                      onBlur={() => {
+                        const val = clampInt(localCrfValue, 0, 51, 23);
+                        setLocalCrfValue(String(val));
+                        updateSettings({ crfValue: val });
+                      }}
+                      min="0"
+                      max="51"
+                      className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:opacity-80 w-full pr-14 outline-none focus:border-base-400"
+                    />
+                    <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
+                      0-51
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -390,22 +405,27 @@ export default function VideoSettingsSection({
               {settings.rateControl === 'CQP' && (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">CQ Level (0-30)</span>
+                    <span className="label-text text-base-content">CQ Level</span>
                   </label>
-                  <input
-                    type="number"
-                    name="cqLevel"
-                    value={localCqLevel}
-                    onChange={(e) => setLocalCqLevel(e.target.value)}
-                    onBlur={() => {
-                      const val = clampInt(localCqLevel, 0, 30, 20);
-                      setLocalCqLevel(String(val));
-                      updateSettings({ cqLevel: val });
-                    }}
-                    min="0"
-                    max="30"
-                    className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:opacity-80 w-full outline-none focus:border-base-400"
-                  />
+                  <div className="relative w-full">
+                    <input
+                      type="number"
+                      name="cqLevel"
+                      value={localCqLevel}
+                      onChange={(e) => setLocalCqLevel(e.target.value)}
+                      onBlur={() => {
+                        const val = clampInt(localCqLevel, 0, 30, 20);
+                        setLocalCqLevel(String(val));
+                        updateSettings({ cqLevel: val });
+                      }}
+                      min="0"
+                      max="30"
+                      className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:opacity-80 w-full pr-14 outline-none focus:border-base-400"
+                    />
+                    <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
+                      0-30
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -473,33 +493,40 @@ export default function VideoSettingsSection({
         <div className="grid grid-cols-2 gap-4 mt-3">{monitorSelectionField}</div>
       )}
 
-      {/* 4:3 Stretch Option */}
-      <div className="mt-3">
-        <label className={`flex items-center gap-2 cursor-pointer`}>
+      <div className="flex flex-col gap-3 mt-3">
+        <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
           <input
             type="checkbox"
             checked={settings.stretch4By3}
             onChange={(e) => updateSettings({ stretch4By3: e.target.checked })}
             className="checkbox checkbox-primary checkbox-sm"
           />
-          <span>Stretch 4:3 content to 16:9</span>
+          <div>
+            <div className="font-semibold">Stretch 4:3 to 16:9</div>
+            <div className="text-sm opacity-70 mt-0.5">
+              Games running at a 4:3 resolution fill the whole video instead of getting black bars.
+            </div>
+          </div>
         </label>
-      </div>
 
-      {/* HDR Option - only shown when at least one display is in HDR mode */}
-      {appState.displays.some((d) => d.isHdr) && (
-        <div className="mt-3">
-          <label className={`flex items-center gap-2 cursor-pointer`}>
+        {/* Only shown when at least one display is in HDR mode */}
+        {hasHdrDisplay && (
+          <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
             <input
               type="checkbox"
               checked={settings.enableHdr}
               onChange={(e) => updateSettings({ enableHdr: e.target.checked })}
               className="checkbox checkbox-primary checkbox-sm"
             />
-            <span>Record in HDR</span>
+            <div>
+              <div className="font-semibold">Record in HDR</div>
+              <div className="text-sm opacity-70 mt-0.5">
+                Keeps HDR brightness and color. Videos can look washed out on screens without HDR.
+              </div>
+            </div>
           </label>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

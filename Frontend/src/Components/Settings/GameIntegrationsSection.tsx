@@ -132,7 +132,9 @@ function GameIntegrationCard({
   onToggle,
 }: GameIntegrationCardProps) {
   return (
-    <div className="relative bg-base-200 p-4 rounded-lg border border-custom overflow-hidden">
+    <label
+      className={`relative block bg-base-200 px-4 py-4 rounded-lg border overflow-hidden cursor-pointer transition-colors ${enabled ? 'border-primary/80' : 'border-base-400'}`}
+    >
       {/* Background image */}
       {showBackground && (
         <div
@@ -143,14 +145,21 @@ function GameIntegrationCard({
           }}
         />
       )}
-      <div className="relative z-10 flex flex-col h-full">
-        <div className="flex items-center gap-2 mb-2">
-          <h3 className="text-lg font-semibold">{integration.name}</h3>
+      <div className="relative z-10">
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-semibold truncate">{integration.name}</h3>
           {integration.isBeta && (
             <span className="badge badge-primary badge-sm drop-shadow-md">Beta</span>
           )}
+          <input
+            type="checkbox"
+            className="sr-only"
+            aria-label={integration.name}
+            checked={enabled}
+            onChange={(e) => onToggle(e.target.checked)}
+          />
         </div>
-        <div className="flex flex-wrap gap-1 mb-4">
+        <div className="flex flex-wrap gap-1 mt-1.5">
           {integration.bookmarks.map((bookmark) => (
             <span
               key={bookmark}
@@ -161,21 +170,10 @@ function GameIntegrationCard({
           ))}
         </div>
         {integration.warningText && (
-          <p className="text-xs text-warning mb-3">{integration.warningText}</p>
+          <p className="text-xs text-warning mt-1">{integration.warningText}</p>
         )}
-        <div className="mt-auto">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              className="toggle toggle-primary"
-              checked={enabled}
-              onChange={(e) => onToggle(e.target.checked)}
-            />
-            <span className="text-sm">{enabled ? 'Enabled' : 'Disabled'}</span>
-          </label>
-        </div>
       </div>
-    </div>
+    </label>
   );
 }
 
@@ -204,12 +202,13 @@ export default function GameIntegrationsSection() {
           <span className="text-xs text-warning">(applies to next recording)</span>
         )}
       </div>
-      <p className="text-sm opacity-80 mb-4">
+      <p className="text-sm opacity-70 mb-4">
         Enable automatic event detection for supported games. When enabled, Segra will automatically
         bookmark kills, goals, and other events during gameplay.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Up to 4 per row, based on the section's own width rather than the window */}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(max(13rem,calc((100%_-_2.25rem)/4)),1fr))] gap-3">
         {GAME_INTEGRATIONS.map((integration) => (
           <GameIntegrationCard
             key={integration.id}

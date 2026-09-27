@@ -131,53 +131,77 @@ const MenuRow: React.FC<RowProps> = ({
           ref={handleRef}
           type="button"
           aria-label="Drag to reorder"
-          className="text-gray-400 hover:text-gray-200 cursor-grab active:cursor-grabbing"
+          className="text-base-content/60 hover:text-base-content cursor-grab active:cursor-grabbing"
         >
           <GripVertical className="w-4 h-4" />
         </button>
-        <Icon className="w-5 h-5 text-gray-300 shrink-0" />
+        <Icon className="w-5 h-5 text-base-content/80 shrink-0" />
         <span className="font-medium truncate">{item.id}</span>
       </div>
 
       <div className="flex items-center gap-2">
         {forceShownReason === 'content' && (
-          <span className="flex items-center gap-1 text-warning text-xs mr-1">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Has content</span>
-          </span>
+          <div
+            className="tooltip tooltip-warning inline-flex p-1.5 text-warning [&::before]:delay-200 [&::after]:delay-200"
+            data-tip="Still shown in the sidebar because it has videos"
+            aria-label="Still shown in the sidebar because it has videos"
+          >
+            <AlertTriangle className="w-4 h-4" />
+          </div>
         )}
-        <button
-          type="button"
-          onClick={() => onSetDefault(item.id)}
-          disabled={(!item.visible && !isSettings) || isDefault}
-          className={`p-1.5 rounded transition-colors ${
+        <div
+          className="tooltip tooltip-primary inline-flex [&::before]:delay-200 [&::after]:delay-200"
+          data-tip={
             isDefault
-              ? 'text-primary cursor-default'
-              : 'text-gray-300 hover:text-primary hover:bg-base-300 cursor-pointer disabled:cursor-default disabled:opacity-40 disabled:hover:text-gray-300 disabled:hover:bg-transparent'
-          }`}
+              ? 'Opens on Launch'
+              : !item.visible && !isSettings
+                ? "Hidden Pages Can't Open on Launch"
+                : 'Open on Launch'
+          }
         >
-          <Home
-            className="w-4 h-4"
-            fill={isDefault ? 'currentColor' : 'none'}
-            strokeWidth={isDefault ? 2 : 1.75}
-          />
-        </button>
-        <button
-          type="button"
-          onClick={handleToggleVisible}
-          disabled={isSettings}
-          className={`p-1.5 rounded transition-colors ${
-            isSettings
-              ? 'cursor-default text-gray-500'
-              : 'cursor-pointer text-gray-300 hover:text-primary hover:bg-base-300'
-          }`}
+          <button
+            type="button"
+            aria-label="Open on launch"
+            aria-pressed={isDefault}
+            onClick={() => onSetDefault(item.id)}
+            disabled={(!item.visible && !isSettings) || isDefault}
+            className={`p-1.5 rounded transition-colors ${
+              isDefault
+                ? 'text-primary cursor-default'
+                : 'text-base-content/80 hover:text-primary hover:bg-base-300 cursor-pointer disabled:cursor-default disabled:opacity-40 disabled:hover:text-base-content/80 disabled:hover:bg-transparent'
+            }`}
+          >
+            <Home
+              className="w-4 h-4"
+              fill={isDefault ? 'currentColor' : 'none'}
+              strokeWidth={isDefault ? 2 : 1.75}
+            />
+          </button>
+        </div>
+        <div
+          className="tooltip tooltip-primary inline-flex [&::before]:delay-200 [&::after]:delay-200"
+          data-tip={
+            isSettings ? 'Always Shown' : item.visible ? 'Hide from Sidebar' : 'Show in Sidebar'
+          }
         >
-          {item.visible || isSettings ? (
-            <Eye className="w-4 h-4" />
-          ) : (
-            <EyeOff className="w-4 h-4" />
-          )}
-        </button>
+          <button
+            type="button"
+            aria-label={item.visible || isSettings ? 'Hide from sidebar' : 'Show in sidebar'}
+            onClick={handleToggleVisible}
+            disabled={isSettings}
+            className={`p-1.5 rounded transition-colors ${
+              isSettings
+                ? 'cursor-default text-base-content/50'
+                : 'cursor-pointer text-base-content/80 hover:text-primary hover:bg-base-300'
+            }`}
+          >
+            {item.visible || isSettings ? (
+              <Eye className="w-4 h-4" />
+            ) : (
+              <EyeOff className="w-4 h-4" />
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -264,8 +288,8 @@ export default function MenuCustomizationSection({
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <h2 className="text-xl font-semibold mb-1">Sidebar Menu</h2>
-      <p className="text-sm text-gray-400 mb-4">
-        Drag to reorder. Hide items you don&apos;t use. Pick which page opens on launch.
+      <p className="text-sm opacity-70 mb-4">
+        Drag to reorder. Pick which page opens on launch. Hide items you don&apos;t use.
       </p>
       <div className="space-y-2 max-w-md">
         {localItems.map((item, index) => {

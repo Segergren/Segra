@@ -47,93 +47,39 @@ export default function AdvancedSection({
 
   return (
     <>
-      <div className="bg-base-300 p-4 rounded-lg space-y-4 border border-custom">
-        <div className="flex flex-col gap-3">
-          {canSelfUpdate ? (
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <div className="mb-1">
-                  <span className="text-base-content">Update Channel</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-40">
-                    <DropdownSelect
-                      size="sm"
-                      items={[
-                        { value: 'stable', label: 'Stable' },
-                        { value: 'beta', label: 'Beta' },
-                      ]}
-                      value={settings.receiveBetaUpdates ? 'beta' : 'stable'}
-                      onChange={(val) => updateSettings({ receiveBetaUpdates: val === 'beta' })}
-                    />
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="gap-2 bg-base-200 hover:bg-base-300"
-                    onClick={() => checkForUpdates()}
-                    loading={appState.isCheckingForUpdates}
-                  >
-                    {!appState.isCheckingForUpdates && <RefreshCw size={16} className="shrink-0" />}
-                    <span className="inline-block">Check for Updates</span>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col">
-              <div className="mb-1">
-                <span className="text-base-content">Updates</span>
-              </div>
-              <p className="text-sm text-gray-400 max-w-md">
-                Segra updates automatically through Flatpak. To update now, run{' '}
-                <code className="px-1 py-0.5 rounded bg-base-200 text-gray-300">
-                  flatpak update tv.segra.Segra
-                </code>{' '}
-                or use your software center.
-              </p>
-            </div>
-          )}
-          <div className="flex items-center">
-            <Button
-              variant="primary"
-              size="sm"
-              className="w-40 bg-base-200 hover:bg-base-300"
-              onClick={() => openReleaseNotesModal(null)}
-            >
-              <GithubIcon size={16} aria-hidden="true" />
-              <span className="inline-block">View Release Notes</span>
-            </Button>
-          </div>
-          {canSelfUpdate && (
-            <div className="flex flex-col">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="autoInstallUpdates"
-                  checked={settings.autoInstallUpdates}
-                  onChange={(e) => updateSettings({ autoInstallUpdates: e.target.checked })}
-                  className="checkbox checkbox-primary checkbox-sm"
-                />
-                <span className="cursor-pointer">Install updates automatically</span>
-              </label>
-              <p className="text-sm text-gray-400">
-                Installs when nothing is recording and the window is closed.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Hidden when the recorder is fixed for this install (bundled or already downloaded) */}
-        {appState.availableOBSVersions.length > 0 && (
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col">
-              <div className="mb-1">
-                <span className="text-base-content">OBS Version</span>
-              </div>
-              <div className="w-40">
+      <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+        <h2 className="text-xl font-semibold mb-4">Updates</h2>
+        {!canSelfUpdate && (
+          <p className="text-sm opacity-70 mb-4">
+            Segra updates automatically through Flatpak. To update now, run{' '}
+            <code className="px-1 py-0.5 rounded bg-base-200">flatpak update tv.segra.Segra</code>{' '}
+            or use your software center.
+          </p>
+        )}
+        {/* OBS Version is hidden when the recorder is fixed for this install (bundled or already downloaded) */}
+        {(canSelfUpdate || appState.availableOBSVersions.length > 0) && (
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            {canSelfUpdate && (
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text text-base-content">Update Channel</span>
+                </label>
                 <DropdownSelect
-                  size="sm"
+                  items={[
+                    { value: 'stable', label: 'Stable' },
+                    { value: 'beta', label: 'Beta' },
+                  ]}
+                  value={settings.receiveBetaUpdates ? 'beta' : 'stable'}
+                  onChange={(val) => updateSettings({ receiveBetaUpdates: val === 'beta' })}
+                />
+              </div>
+            )}
+            {appState.availableOBSVersions.length > 0 && (
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text text-base-content">OBS Version</span>
+                </label>
+                <DropdownSelect
                   items={[
                     { value: '', label: 'Automatic' },
                     ...[...appState.availableOBSVersions]
@@ -149,50 +95,97 @@ export default function AdvancedSection({
                   onChange={(val) => updateSettings({ selectedOBSVersion: val || null })}
                 />
               </div>
-            </div>
+            )}
           </div>
         )}
+        <div className="flex flex-wrap items-center gap-3">
+          {canSelfUpdate && (
+            <Button
+              variant="primary"
+              size="sm"
+              className="gap-2 bg-base-200 hover:bg-base-300"
+              onClick={() => checkForUpdates()}
+              loading={appState.isCheckingForUpdates}
+            >
+              {!appState.isCheckingForUpdates && <RefreshCw size={16} className="shrink-0" />}
+              <span className="inline-block">Check for Updates</span>
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            size="sm"
+            className="gap-2 bg-base-200 hover:bg-base-300"
+            onClick={() => openReleaseNotesModal(null)}
+          >
+            <GithubIcon size={16} aria-hidden="true" />
+            <span className="inline-block">View Release Notes</span>
+          </Button>
+        </div>
+        {canSelfUpdate && (
+          <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 mt-4">
+            <input
+              type="checkbox"
+              name="autoInstallUpdates"
+              checked={settings.autoInstallUpdates}
+              onChange={(e) => updateSettings({ autoInstallUpdates: e.target.checked })}
+              className="checkbox checkbox-primary checkbox-sm"
+            />
+            <div>
+              <div className="font-semibold">Install Updates Automatically</div>
+              <div className="text-sm opacity-70 mt-0.5">
+                Installs when nothing is recording and the window is closed.
+              </div>
+            </div>
+          </label>
+        )}
+      </div>
 
-        {/* Airplane Mode */}
-        <div ref={rowRef} className="pt-4 border-t border-custom">
-          <label className="flex items-center gap-2">
+      <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+        <h2 className="text-xl font-semibold mb-4">Online Features</h2>
+        <div ref={rowRef}>
+          <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 overflow-hidden">
             <input
               type="checkbox"
               name="airplaneMode"
               checked={settings.airplaneMode}
               onChange={(e) => updateSettings({ airplaneMode: e.target.checked })}
-              className="toggle toggle-primary toggle-sm"
+              className="checkbox checkbox-primary checkbox-sm"
             />
-            <span ref={contentRef} className="inline-flex items-center gap-1.5 cursor-pointer">
-              Airplane Mode
-              <AnimatePresence initial={false}>
-                {settings.airplaneMode && (
-                  <motion.span
-                    className="inline-flex"
-                    initial={{ opacity: 0, x: -8, rotate: 45 }}
-                    animate={{ opacity: 1, x: 0, rotate: 45 }}
-                    exit={{
-                      opacity: 0,
-                      x: flyDistance,
-                      rotate: 45,
-                      transition: {
-                        x: { duration: 1.9, ease: [0.2, 0, 0.8, 0] },
-                        opacity: { duration: 0.9, ease: 'easeIn', delay: 1.0 },
-                      },
-                    }}
-                    transition={{ duration: 0.35, ease: 'easeOut' }}
-                  >
-                    <Plane size={16} />
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </span>
+            <div>
+              <span ref={contentRef} className="inline-flex items-center gap-1.5 font-semibold">
+                Airplane Mode
+                <AnimatePresence initial={false}>
+                  {settings.airplaneMode && (
+                    <motion.span
+                      className="inline-flex"
+                      initial={{ opacity: 0, x: -8, rotate: 45 }}
+                      animate={{ opacity: 1, x: 0, rotate: 45 }}
+                      exit={{
+                        opacity: 0,
+                        x: flyDistance,
+                        rotate: 45,
+                        transition: {
+                          x: { duration: 1.9, ease: [0.2, 0, 0.8, 0] },
+                          opacity: { duration: 0.9, ease: 'easeIn', delay: 1.0 },
+                        },
+                      }}
+                      transition={{ duration: 0.35, ease: 'easeOut' }}
+                    >
+                      <Plane size={16} />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </span>
+              <div className="text-sm opacity-70 mt-0.5">
+                Signs you out and hides uploading and sharing.
+              </div>
+            </div>
           </label>
         </div>
       </div>
 
       {/* Version */}
-      <div className="text-center mt-4 text-sm text-gray-500">
+      <div className="text-center mt-4 text-sm text-base-content/60">
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center gap-2">
             <Button

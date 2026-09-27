@@ -227,7 +227,8 @@ export default function ClipSettingsSection({
               {settings.clipEncoder === 'cpu' ? (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">Quality (CRF)</span>
+                    <span className="label-text text-base-content">Quality</span>
+                    <span className="text-xs opacity-60">CRF</span>
                   </label>
                   <DropdownSelect
                     items={[
@@ -251,16 +252,13 @@ export default function ClipSettingsSection({
               ) : (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">
-                      Quality (
-                      {appState.gpuVendor === GpuVendor.Nvidia
-                        ? 'CQ'
-                        : appState.gpuVendor === GpuVendor.AMD
-                          ? 'QP'
-                          : appState.gpuVendor === GpuVendor.Intel
-                            ? 'ICQ'
-                            : 'CQ'}
-                      )
+                    <span className="label-text text-base-content">Quality</span>
+                    <span className="text-xs opacity-60">
+                      {appState.gpuVendor === GpuVendor.AMD
+                        ? 'QP'
+                        : appState.gpuVendor === GpuVendor.Intel
+                          ? 'ICQ'
+                          : 'CQ'}
                     </span>
                   </label>
                   <DropdownSelect
@@ -323,7 +321,7 @@ export default function ClipSettingsSection({
               {/* FPS */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">FPS</span>
+                  <span className="label-text text-base-content">Frame Rate</span>
                 </label>
                 <DropdownSelect
                   items={[
@@ -383,18 +381,21 @@ export default function ClipSettingsSection({
 
       {/* Keep Separate Audio Tracks */}
       {settings.enableSeparateAudioTracks && (
-        <div className="flex items-center mt-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="clipKeepSeparateAudioTracks"
-              checked={settings.clipKeepSeparateAudioTracks}
-              onChange={(e) => updateSettings({ clipKeepSeparateAudioTracks: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <span className="cursor-pointer">Keep Audio Tracks Separated</span>
-          </label>
-        </div>
+        <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 mt-4">
+          <input
+            type="checkbox"
+            name="clipKeepSeparateAudioTracks"
+            checked={settings.clipKeepSeparateAudioTracks}
+            onChange={(e) => updateSettings({ clipKeepSeparateAudioTracks: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <div>
+            <div className="font-semibold">Keep Audio Tracks Separated</div>
+            <div className="text-sm opacity-70 mt-0.5">
+              Clips keep each audio source on its own track instead of only the full mix.
+            </div>
+          </div>
+        </label>
       )}
     </div>
   );

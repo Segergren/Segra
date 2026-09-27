@@ -68,7 +68,7 @@ const getActionLabel = (action: HotkeyAction): string => {
 const getActionHint = (action: HotkeyAction): string | null => {
   switch (action) {
     case HotkeyAction.ToggleRecording:
-      return 'Records your display, or stops any active recording';
+      return 'Records your display, or stops any active recording.';
     default:
       return null;
   }
@@ -150,11 +150,11 @@ export default function HotkeysSection({ settings, updateSettings }: HotkeysSect
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <h2 className="text-xl font-semibold mb-4">Hotkeys</h2>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex flex-col gap-3">
         {orderedHotkeys.map(({ hotkey, index }) => (
           <div
             key={hotkey.action}
-            className="flex items-center justify-between bg-base-200 rounded-lg py-2 px-3 border border-base-400"
+            className="flex items-center justify-between gap-3 bg-base-200 rounded-lg p-3 border border-base-400"
           >
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -168,12 +168,12 @@ export default function HotkeysSection({ settings, updateSettings }: HotkeysSect
                   };
                   updateSettings({ keybindings: updatedHotkeys });
                 }}
-                className="checkbox checkbox-primary"
+                className="checkbox checkbox-primary checkbox-sm"
               />
               <div>
-                <div className="font-medium">{getActionLabel(hotkey.action)}</div>
+                <div className="font-semibold">{getActionLabel(hotkey.action)}</div>
                 {getActionHint(hotkey.action) && (
-                  <div className="text-xs opacity-70">{getActionHint(hotkey.action)}</div>
+                  <div className="text-sm opacity-70 mt-0.5">{getActionHint(hotkey.action)}</div>
                 )}
               </div>
             </label>

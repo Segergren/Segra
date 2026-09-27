@@ -272,14 +272,14 @@ export default function GameDetectionSection() {
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <h2 className="text-xl font-semibold mb-2">Game Recording &amp; Overrides</h2>
-      <p className="text-sm opacity-80 mb-4">
+      <p className="text-sm opacity-70 mb-4">
         Add a game here to force Segra to record it (or stop it from recording), and optionally
         override your recording settings for that game. Most games are detected automatically, so
         add one only if it isn&apos;t being recorded, or when you want different settings for it.
       </p>
 
       {/* Global auto-record toggle */}
-      <label className="flex items-center gap-3 cursor-pointer p-4 bg-base-200 rounded-lg border border-base-400 mb-5">
+      <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 mb-5">
         <input
           type="checkbox"
           className="checkbox checkbox-primary checkbox-sm"
@@ -287,8 +287,8 @@ export default function GameDetectionSection() {
           onChange={(e) => updateSettings({ autoRecordGames: e.target.checked })}
         />
         <div>
-          <div className="font-semibold">Auto-record Games</div>
-          <div className="text-xs opacity-70 mt-0.5">
+          <div className="font-semibold">Auto-Record Games</div>
+          <div className="text-sm opacity-70 mt-0.5">
             Automatically start recording when a game launches. Games you&apos;ve added with
             recording enabled and manual recordings are unaffected.
           </div>
@@ -297,8 +297,8 @@ export default function GameDetectionSection() {
 
       {/* Add game search */}
       <div className="mb-5 relative" ref={searchRef}>
-        <label className="label pb-1">
-          <span className="label-text text-base-content font-semibold">Add a game</span>
+        <label className="label">
+          <span className="label-text text-base-content font-semibold">Add a Game</span>
         </label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -328,13 +328,13 @@ export default function GameDetectionSection() {
                 <GameIcon iconId={game.icon} name={game.name} size={32} />
                 <div className="min-w-0">
                   <div className="font-medium truncate">{game.name}</div>
-                  <div className="text-xs text-gray-400 truncate">{game.executables[0]}</div>
+                  <div className="text-xs opacity-70 truncate">{game.executables[0]}</div>
                 </div>
               </div>
             ))}
 
             {filteredGames.length === 0 && (
-              <div className="px-3 pt-3 pb-1 text-xs text-gray-400">
+              <div className="px-3 pt-3 pb-1 text-xs opacity-70">
                 No matching game in the catalog.
               </div>
             )}
@@ -357,7 +357,7 @@ export default function GameDetectionSection() {
       </div>
 
       {games.length === 0 ? (
-        <div className="bg-base-200 rounded-lg border border-base-400 text-center text-gray-500 py-10">
+        <div className="bg-base-200 rounded-lg border border-base-400 text-center text-base-content/60 py-10">
           No custom games yet. Search for a game above to customize how Segra records it.
         </div>
       ) : (
@@ -397,7 +397,7 @@ export default function GameDetectionSection() {
                     className={`flex items-center gap-2 pl-3 pr-2 py-2 -mb-px border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
                       isActive
                         ? 'border-primary text-primary'
-                        : 'border-transparent text-gray-400 hover:text-base-content'
+                        : 'border-transparent text-base-content/70 hover:text-base-content'
                     }`}
                   >
                     <GameIcon
@@ -500,13 +500,13 @@ function GamePanel({
         <GameIcon iconId={iconId} customIcon={game.customIcon} name={game.name} size={48} />
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-lg truncate">{game.name}</div>
-          <div className="text-xs text-gray-400 truncate">
+          <div className="text-xs opacity-70 truncate">
             {game.paths.length === 1 ? game.paths[0] : `${game.paths.length} executables`}
           </div>
         </div>
         <label className="flex items-center gap-2 cursor-pointer flex-shrink-0">
           <span
-            className={`text-sm font-semibold ${game.record ? 'text-primary' : 'text-gray-400'}`}
+            className={`text-sm font-semibold ${game.record ? 'text-primary' : 'text-base-content/70'}`}
           >
             {game.record ? 'Recording on' : 'Recording off'}
           </span>
@@ -576,44 +576,54 @@ function GamePanel({
                 >
                   <div className="grid grid-cols-2 gap-4">
                     <div className="form-control">
-                      <label className="label text-base-content px-0 !block mb-1">
-                        <span className="label-text">Buffer Duration (seconds)</span>
+                      <label className="label text-base-content px-0 !block">
+                        <span className="label-text">Buffer Duration</span>
                       </label>
-                      <input
-                        type="number"
-                        min={5}
-                        max={600}
-                        defaultValue={mode.replayBufferDuration}
-                        onBlur={(e) =>
-                          onUpdate({
-                            recordingModeOverride: {
-                              ...mode,
-                              replayBufferDuration: clampInt(e.target.value, 5, 600, 30),
-                            },
-                          })
-                        }
-                        className="input input-bordered bg-base-300 w-full outline-none focus:border-base-400"
-                      />
+                      <div className="relative w-full">
+                        <input
+                          type="number"
+                          min={5}
+                          max={600}
+                          defaultValue={mode.replayBufferDuration}
+                          onBlur={(e) =>
+                            onUpdate({
+                              recordingModeOverride: {
+                                ...mode,
+                                replayBufferDuration: clampInt(e.target.value, 5, 600, 30),
+                              },
+                            })
+                          }
+                          className="input input-bordered bg-base-300 w-full pr-12 outline-none focus:border-base-400"
+                        />
+                        <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
+                          sec
+                        </span>
+                      </div>
                     </div>
                     <div className="form-control">
-                      <label className="label text-base-content px-0 !block mb-1">
-                        <span className="label-text">Buffer Maximum Size (MB)</span>
+                      <label className="label text-base-content px-0 !block">
+                        <span className="label-text">Buffer Maximum Size</span>
                       </label>
-                      <input
-                        type="number"
-                        min={100}
-                        max={5000}
-                        defaultValue={mode.replayBufferMaxSize}
-                        onBlur={(e) =>
-                          onUpdate({
-                            recordingModeOverride: {
-                              ...mode,
-                              replayBufferMaxSize: clampInt(e.target.value, 100, 5000, 1000),
-                            },
-                          })
-                        }
-                        className="input input-bordered bg-base-300 w-full outline-none focus:border-base-400"
-                      />
+                      <div className="relative w-full">
+                        <input
+                          type="number"
+                          min={100}
+                          max={5000}
+                          defaultValue={mode.replayBufferMaxSize}
+                          onBlur={(e) =>
+                            onUpdate({
+                              recordingModeOverride: {
+                                ...mode,
+                                replayBufferMaxSize: clampInt(e.target.value, 100, 5000, 1000),
+                              },
+                            })
+                          }
+                          className="input input-bordered bg-base-300 w-full pr-12 outline-none focus:border-base-400"
+                        />
+                        <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
+                          MB
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -675,7 +685,7 @@ function GamePanel({
         onToggle={(enabled) => onUpdate({ volumeOverride: enabled ? 1.0 : null })}
       >
         <div className="flex items-center gap-3">
-          <VolumeX className="w-4 h-4 text-gray-400 shrink-0" />
+          <VolumeX className="w-4 h-4 opacity-70 shrink-0" />
           <RangeSlider
             min="0"
             max="2"
@@ -693,7 +703,7 @@ function GamePanel({
             }}
             className="w-48"
           />
-          <Volume2 className="w-4 h-4 text-gray-400 shrink-0" />
+          <Volume2 className="w-4 h-4 opacity-70 shrink-0" />
           <span className="text-xs w-10 text-right">
             {Math.round((draggingVolume ?? game.volumeOverride ?? 1.0) * 100)}%
           </span>
@@ -780,12 +790,12 @@ function QualityOverrideEditor({
               {/* Frame rate */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Frame Rate (FPS)</span>
+                  <span className="label-text text-base-content">Frame Rate</span>
                 </label>
                 <DropdownSelect
                   items={[24, 30, 60, 120, 144].map((v) => ({
                     value: String(v),
-                    label: String(v),
+                    label: `${v} FPS`,
                   }))}
                   value={String(value.frameRate)}
                   onChange={(val) => onChange({ frameRate: Number(val) })}
@@ -860,20 +870,25 @@ function QualityOverrideEditor({
               {value.rateControl === 'CRF' && (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">CRF Value (0-51)</span>
+                    <span className="label-text text-base-content">CRF Value</span>
                   </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={51}
-                    defaultValue={value.crfValue}
-                    onBlur={(e) =>
-                      onChange({
-                        crfValue: clampInt(e.target.value, 0, 51, 23),
-                      })
-                    }
-                    className="input input-bordered bg-base-300 w-full outline-none focus:border-base-400"
-                  />
+                  <div className="relative w-full">
+                    <input
+                      type="number"
+                      min={0}
+                      max={51}
+                      defaultValue={value.crfValue}
+                      onBlur={(e) =>
+                        onChange({
+                          crfValue: clampInt(e.target.value, 0, 51, 23),
+                        })
+                      }
+                      className="input input-bordered bg-base-300 w-full pr-14 outline-none focus:border-base-400"
+                    />
+                    <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
+                      0-51
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -881,20 +896,25 @@ function QualityOverrideEditor({
               {value.rateControl === 'CQP' && (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">CQ Level (0-30)</span>
+                    <span className="label-text text-base-content">CQ Level</span>
                   </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={30}
-                    defaultValue={value.cqLevel}
-                    onBlur={(e) =>
-                      onChange({
-                        cqLevel: clampInt(e.target.value, 0, 30, 20),
-                      })
-                    }
-                    className="input input-bordered bg-base-300 w-full outline-none focus:border-base-400"
-                  />
+                  <div className="relative w-full">
+                    <input
+                      type="number"
+                      min={0}
+                      max={30}
+                      defaultValue={value.cqLevel}
+                      onBlur={(e) =>
+                        onChange({
+                          cqLevel: clampInt(e.target.value, 0, 30, 20),
+                        })
+                      }
+                      className="input input-bordered bg-base-300 w-full pr-14 outline-none focus:border-base-400"
+                    />
+                    <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
+                      0-30
+                    </span>
+                  </div>
                 </div>
               )}
 

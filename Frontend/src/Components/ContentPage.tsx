@@ -493,7 +493,7 @@ export default function ContentPage({
     >
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold">{title}</h1>
+          <h1 className="text-[1.75rem] font-bold">{title}</h1>
         </div>
         <div className="flex items-center gap-2">
           {(sectionId === 'sessions' || sectionId === 'replayBuffer') && (

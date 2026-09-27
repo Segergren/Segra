@@ -10,7 +10,7 @@ export default function HotkeyBrokerWarning() {
 
   return (
     <div
-      className="bg-amber-900 bg-opacity-30 border border-amber-500 rounded-lg px-4 py-3 text-amber-400 text-sm flex items-center gap-3"
+      className="bg-warning/10 border border-warning rounded-lg px-4 py-3 text-warning text-sm flex items-center gap-3"
       role="alert"
     >
       <TriangleAlert className="h-5 w-5 shrink-0" />

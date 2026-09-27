@@ -371,23 +371,10 @@ export default function AudioDevicesSection({
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <div className="flex items-center gap-2 mb-4">
-        <h2 className="text-xl font-semibold">Input/Output Devices</h2>
+        <h2 className="text-xl font-semibold">Audio</h2>
         {hasPendingChanges && (
           <span className="text-xs text-warning">(applies to next recording)</span>
         )}
-      </div>
-
-      <div className="mb-4 flex flex-col gap-2">
-        <label className={`flex items-center cursor-pointer`}>
-          <input
-            type="checkbox"
-            name="enableSeparateAudioTracks"
-            checked={settings.enableSeparateAudioTracks}
-            onChange={(e) => updateSettings({ enableSeparateAudioTracks: e.target.checked })}
-            className="checkbox checkbox-sm checkbox-accent"
-          />
-          <span className="ml-2">Separate Audio Tracks</span>
-        </label>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -408,79 +395,76 @@ export default function AudioDevicesSection({
           </label>
           <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
             {renderDeviceList('output')}
-            <AnimatePresence initial={false}>
-              {settings.audioOutputMode !== 'All' && settings.outputDevices.length > 0 && (
-                <motion.div
-                  key="outputFallbackNote"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
-                  className="overflow-hidden"
-                >
-                  <div className="mt-2 px-1 text-xs opacity-70 leading-snug">
-                    Only used for manual recordings.
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <label className="label mt-3">
-            <span className="label-text text-base-content">What to record</span>
-          </label>
-          <div className="flex flex-col gap-1">
-            {[
-              {
-                value: 'All' as AudioOutputMode,
-                label: 'Everything',
-                description:
-                  'All sound from the selected output devices, including music and voice chat.',
-                icons: <Volume2 className="h-4 w-4" />,
-              },
-              {
-                value: 'GameOnly' as AudioOutputMode,
-                label: 'Game only',
-                description: "Only the game's own sound. Music and voice chat are left out.",
-                icons: <Gamepad2 className="h-4 w-4" />,
-              },
-              {
-                value: 'GameAndDiscord' as AudioOutputMode,
-                label: 'Game and voice chat',
-                description:
-                  'The game plus Discord and TeamSpeak. Music and other apps are left out.',
-                icons: (
-                  <span className="flex items-center gap-1.5">
-                    <Gamepad2 className="h-4 w-4" />
-                    <DiscordIcon className="h-4 w-4" />
-                    <TeamSpeakIcon className="h-4 w-4" />
-                  </span>
-                ),
-              },
-            ].map((option) => (
-              <label
-                key={option.value}
-                className={`flex items-start gap-2 p-1 rounded cursor-pointer hover:bg-base-200`}
-              >
-                <input
-                  type="radio"
-                  name="audioOutputMode"
-                  className="radio radio-sm radio-accent mt-0.5"
-                  checked={settings.audioOutputMode === option.value}
-                  onChange={() => updateSettings({ audioOutputMode: option.value })}
-                />
-                <span className="flex flex-col gap-0.5 min-w-0">
-                  <span className="flex items-center gap-1.5 text-sm">
-                    {option.label}
-                    {option.icons}
-                  </span>
-                  <span className="text-xs opacity-70 leading-snug">{option.description}</span>
-                </span>
-              </label>
-            ))}
           </div>
         </div>
       </div>
+
+      <label className="label mt-4">
+        <span className="label-text text-base-content">What to Record</span>
+      </label>
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          {
+            value: 'All' as AudioOutputMode,
+            label: 'Everything',
+            description:
+              'All sound from the selected output devices, including music and voice chat.',
+            icons: <Volume2 className="h-4 w-4" />,
+          },
+          {
+            value: 'GameOnly' as AudioOutputMode,
+            label: 'Game Only',
+            description: "Only the game's own sound. Music and voice chat are left out.",
+            icons: <Gamepad2 className="h-4 w-4" />,
+          },
+          {
+            value: 'GameAndDiscord' as AudioOutputMode,
+            label: 'Game and Voice Chat',
+            description: 'The game plus Discord and TeamSpeak. Music and other apps are left out.',
+            icons: (
+              <span className="flex items-center gap-1.5">
+                <Gamepad2 className="h-4 w-4" />
+                <DiscordIcon className="h-4 w-4" />
+                <TeamSpeakIcon className="h-4 w-4" />
+              </span>
+            ),
+          },
+        ].map((option) => (
+          <label
+            key={option.value}
+            className={`relative bg-base-200 p-3 rounded-lg flex flex-col gap-1 transition-all border ${settings.audioOutputMode === option.value ? 'border-primary' : 'border-base-400'} cursor-pointer hover:bg-base-300`}
+          >
+            <input
+              type="radio"
+              name="audioOutputMode"
+              className="sr-only"
+              checked={settings.audioOutputMode === option.value}
+              onChange={() => updateSettings({ audioOutputMode: option.value })}
+            />
+            <span className="flex items-center gap-1.5 font-semibold">
+              {option.label}
+              {option.icons}
+            </span>
+            <span className="text-sm opacity-70">{option.description}</span>
+          </label>
+        ))}
+      </div>
+
+      <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 mt-4">
+        <input
+          type="checkbox"
+          name="enableSeparateAudioTracks"
+          checked={settings.enableSeparateAudioTracks}
+          onChange={(e) => updateSettings({ enableSeparateAudioTracks: e.target.checked })}
+          className="checkbox checkbox-primary checkbox-sm"
+        />
+        <div>
+          <div className="font-semibold">Separate Audio Tracks</div>
+          <div className="text-sm opacity-70 mt-0.5">
+            Saves each audio source as its own track, next to the full mix.
+          </div>
+        </div>
+      </label>
 
       <AnimatePresence>
         {hasOverTrackLimit && !trackLimitWarnDismissed && (
@@ -495,7 +479,7 @@ export default function AudioDevicesSection({
               },
             }}
             exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
-            className="mt-3 bg-amber-900 bg-opacity-30 border border-amber-500 rounded px-3 text-amber-400 text-sm flex items-center"
+            className="mt-3 bg-warning/10 border border-warning rounded-lg px-3 text-warning text-sm flex items-center"
           >
             <div className="py-2 flex items-center w-full">
               <TriangleAlert className="h-5 w-5 mr-2 shrink-0" />
@@ -508,7 +492,7 @@ export default function AudioDevicesSection({
                 variant="ghost"
                 size="xs"
                 aria-label="Dismiss track limit warning"
-                className="text-amber-300 hover:text-amber-100"
+                className="text-warning hover:bg-warning/20"
                 onClick={() => {
                   setTrackLimitWarnDismissed(true);
                   localStorage.setItem('segra.trackLimitWarnDismissedSig', selectionSig);
