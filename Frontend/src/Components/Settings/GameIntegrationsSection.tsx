@@ -60,6 +60,13 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     backgroundImage: 'https://segra.tv/api/games/cover/cocs6d',
   },
   {
+    id: 'deadlock',
+    name: 'Deadlock',
+    settingsKey: 'deadlock',
+    bookmarks: ['Kills', 'Assists', 'Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/cobc7s',
+  },
+  {
     id: 'gta',
     name: 'Grand Theft Auto',
     settingsKey: 'gta',

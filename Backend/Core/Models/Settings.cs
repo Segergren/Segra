@@ -1510,5 +1510,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("wardogs")]
         public GameIntegrationSettings Wardogs { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("deadlock")]
+        public GameIntegrationSettings Deadlock { get; set; } = new GameIntegrationSettings(true);
     }
 }

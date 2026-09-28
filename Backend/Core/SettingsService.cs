@@ -457,6 +457,12 @@ namespace Segra.Backend.Core
                     current.Wardogs.Enabled = updated.Wardogs.Enabled;
                     hasChanges = true;
                 }
+                if (current.Deadlock.Enabled != updated.Deadlock.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Deadlock.Enabled changed from '{current.Deadlock.Enabled}' to '{updated.Deadlock.Enabled}'");
+                    current.Deadlock.Enabled = updated.Deadlock.Enabled;
+                    hasChanges = true;
+                }
             }
 
             if (updatedSettings.Games != null)
