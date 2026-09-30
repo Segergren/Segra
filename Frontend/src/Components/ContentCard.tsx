@@ -417,6 +417,8 @@ export default function ContentCard({
     });
   };
 
+  const uploadUrl = content?.uploadUrl;
+
   const hasHighlightBookmarks = content?.bookmarks?.some((bookmark) =>
     includeInHighlight(bookmark.type),
   );
@@ -692,14 +694,13 @@ export default function ContentCard({
           <span>
             {content!.fileSize} &bull; {new Date(content!.createdAt).toLocaleDateString()}
           </span>
-          {!airplaneMode && content!.uploadId && (
+          {!airplaneMode && uploadUrl && (
             <div className="flex absolute right-3 gap-0 pr-[0.3875rem]">
               <span
                 className="btn btn-ghost btn-sm btn-circle size-8.5 relative group hover:bg-white/10 active:bg-white/10"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const url = `https://segra.tv/video/${content!.uploadId}`;
-                  navigator.clipboard.writeText(url);
+                  navigator.clipboard.writeText(uploadUrl);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 1500);
                 }}
@@ -711,7 +712,7 @@ export default function ContentCard({
                 onClick={(e) => {
                   e.stopPropagation();
                   sendMessageToBackend('OpenInBrowser', {
-                    Url: `https://segra.tv/video/${content!.uploadId}`,
+                    Url: uploadUrl,
                   });
                 }}
               >

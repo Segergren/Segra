@@ -20,7 +20,7 @@ export interface Content {
   fileSizeKb: number;
   duration: string;
   createdAt: string;
-  uploadId?: string;
+  uploadUrl?: string;
   igdbId?: number;
   gameExePath?: string;
   isImported: boolean;

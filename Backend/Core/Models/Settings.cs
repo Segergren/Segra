@@ -1204,7 +1204,7 @@ namespace Segra.Backend.Core.Models
 
         public DateTime CreatedAt { get; set; }
 
-        public string? UploadId { get; set; }
+        public string? UploadUrl { get; set; }
 
         public int? IgdbId { get; set; }
 
