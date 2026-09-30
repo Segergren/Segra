@@ -3234,7 +3234,7 @@ namespace Segra.Backend.Recorder
                 AppState.Instance.SetRecordingDriveSpaceGb(
                     driveSpace?.UsedGb,
                     driveSpace?.FreeGb,
-                    sendToFrontend: true
+                    sendToFrontend: false
                 );
 
                 long? freeBytes = StorageService.GetContentDriveFreeBytes();
