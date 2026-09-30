@@ -342,7 +342,7 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
                 </div>
 
                 {/* Content */}
-                <div className="release-content">
+                <div className="release-content cursor-text">
                   <Markdown options={{ overrides: markdownOverrides }}>
                     {linkifyIssueReferences(decodeBase64(note.base64Markdown))}
                   </Markdown>

@@ -270,7 +270,7 @@ export default function GameDetectionSection() {
   };
 
   return (
-    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <h2 className="text-xl font-semibold mb-2">Game Recording &amp; Overrides</h2>
       <p className="text-sm opacity-70 mb-4">
         Add a game here to force Segra to record it (or stop it from recording), and optionally

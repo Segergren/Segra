@@ -33,7 +33,7 @@ const ALL_NAV_ITEMS: { id: SectionId; label: string }[] = [
 
 function SectionHeader({ id, children }: { id: string; children: React.ReactNode }) {
   return (
-    <div id={id} className="scroll-mt-24 mb-0">
+    <div id={id} className="scroll-mt-5 mb-0">
       <h2 className="text-sm font-semibold text-primary uppercase tracking-wider mb-2 mt-8 first:mt-0">
         {children}
       </h2>
@@ -55,6 +55,7 @@ export default function Settings() {
   const { scrollPositions, setScrollPosition } = useScroll();
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollTopRef = useRef(scrollPositions.settings);
+  const [isScrolled, setIsScrolled] = useState(scrollPositions.settings > 0);
 
   useLayoutEffect(() => {
     if (containerRef.current) containerRef.current.scrollTop = scrollTopRef.current;
@@ -119,13 +120,11 @@ export default function Settings() {
   }, [navItems]);
 
   return (
-    <div
-      ref={containerRef}
-      onScroll={(e) => (scrollTopRef.current = e.currentTarget.scrollTop)}
-      className="h-full overflow-y-scroll bg-base-200"
-    >
-      {/* Sticky Jump Nav */}
-      <div className="sticky top-0 z-50 bg-base-200 px-5 pt-5 pb-3">
+    <div className="flex h-full flex-col bg-base-200">
+      {/* Jump Nav, outside the scroller so its bottom line spans the scrollbar too */}
+      <div
+        className={`shrink-0 px-5 pt-5 pb-3 border-b transition-colors duration-300 ${isScrolled ? 'border-base-400/50' : 'border-transparent'}`}
+      >
         <div className="flex items-center gap-6">
           <h1 className="text-[1.75rem] font-bold">Settings</h1>
           <nav className="flex gap-1">
@@ -147,7 +146,14 @@ export default function Settings() {
       </div>
 
       {/* Content */}
-      <div className="settings-content p-5 space-y-6">
+      <div
+        ref={containerRef}
+        onScroll={(e) => {
+          scrollTopRef.current = e.currentTarget.scrollTop;
+          setIsScrolled(e.currentTarget.scrollTop > 0);
+        }}
+        className="settings-content min-h-0 flex-1 overflow-y-scroll p-5 space-y-6"
+      >
         <PendingRecordingSettingsBanner />
 
         {/* ACCOUNT */}

@@ -16,6 +16,7 @@ import { Icon } from 'lucide-react';
 import { crosshair2Dot, soccerBall } from '@lucide/lab';
 import {
   Trash2,
+  Settings,
   SquarePlus,
   Bookmark as BookmarkIcon,
   BookmarkPlus,
@@ -1579,6 +1580,31 @@ export default function VideoComponent({ video }: { video: Content }) {
     };
   }, [copyMenuOpen]);
 
+  const [segmentOptionsOpen, setSegmentOptionsOpen] = useState(false);
+  const segmentOptionsRef = useRef<HTMLDivElement>(null);
+
+  // The dropdown also stays visible via :focus-within, so closing drops focus too
+  const closeSegmentOptions = () => {
+    setSegmentOptionsOpen(false);
+    (document.activeElement as HTMLElement | null)?.blur();
+  };
+
+  useEffect(() => {
+    if (!segmentOptionsOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (!segmentOptionsRef.current?.contains(e.target as Node)) setSegmentOptionsOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeSegmentOptions();
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [segmentOptionsOpen]);
+
   // Last backend progress update plus its estimated speed (% per ms), used to
   // extrapolate between the sparse ffmpeg updates
   const compressRateRef = useRef<{ progress: number; time: number; rate: number } | null>(null);
@@ -2602,55 +2628,70 @@ export default function VideoComponent({ video }: { video: Content }) {
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-between my-3 mr-3">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  name="clipClearSegmentsAfterCreatingClip"
-                  checked={settings.clipClearSegmentsAfterCreatingClip}
-                  onChange={(e) =>
-                    updateSettings({ clipClearSegmentsAfterCreatingClip: e.target.checked })
-                  }
-                  className="checkbox checkbox-sm checkbox-accent"
-                />
-                <span className="ml-2 text-sm">Auto-Clear Segments</span>
-              </label>
-            </div>
-            <div className="join flex mb-3 mr-3">
-              <button
-                type="button"
-                className={`btn btn-secondary join-item flex-1 h-9 min-h-9 text-xs font-semibold border-base-400 hover:border-base-400 hover:text-primary ${
-                  clipOutputMode === 'combined'
-                    ? 'bg-base-300 hover:bg-base-300 text-primary'
-                    : 'bg-base-200 hover:bg-base-200 text-gray-300'
-                }`}
-                onClick={() => setClipOutputMode('combined')}
-              >
-                Combined
-              </button>
-              <button
-                type="button"
-                className={`btn btn-secondary join-item flex-1 h-9 min-h-9 text-xs font-semibold border-base-400 hover:border-base-400 hover:text-primary ${
-                  clipOutputMode === 'separate'
-                    ? 'bg-base-300 hover:bg-base-300 text-primary'
-                    : 'bg-base-200 hover:bg-base-200 text-gray-300'
-                }`}
-                onClick={() => setClipOutputMode('separate')}
-              >
-                Separate
-              </button>
-            </div>
-            <div className="flex items-center h-10 gap-0 px-0 mb-3 mr-3 rounded-lg bg-base-300 tooltip">
+            <div className="relative flex items-center gap-2 my-3 mr-3">
               <Button
                 variant="primary"
                 size="sm"
-                className="w-full h-10 py-0 hover:text-accent"
+                className="flex-1 h-10 py-0 hover:text-accent transition-[color,background-color,border-color,opacity] duration-300"
                 onClick={handleClearSegments}
                 disabled={segments.length === 0}
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Clear</span>
               </Button>
+              <div
+                ref={segmentOptionsRef}
+                className={`dropdown dropdown-top dropdown-end static! ${segmentOptionsOpen ? 'dropdown-open' : ''}`}
+              >
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="h-10 px-2.5 hover:text-accent"
+                  aria-label="Segment options"
+                  aria-expanded={segmentOptionsOpen}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    if (segmentOptionsOpen) closeSegmentOptions();
+                    else setSegmentOptionsOpen(true);
+                  }}
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+                <ul
+                  tabIndex={0}
+                  className="dropdown-content menu bg-base-300 border border-base-400 rounded-lg z-[100] left-0! p-1.5 mb-2 shadow"
+                >
+                  <li>
+                    <label className="flex items-center gap-2 px-2! text-sm text-gray-300 hover:bg-transparent! active:bg-transparent!">
+                      <input
+                        type="checkbox"
+                        name="clipClearSegmentsAfterCreatingClip"
+                        checked={settings.clipClearSegmentsAfterCreatingClip}
+                        onChange={(e) =>
+                          updateSettings({ clipClearSegmentsAfterCreatingClip: e.target.checked })
+                        }
+                        className="checkbox checkbox-sm checkbox-accent"
+                      />
+                      Clear segments after clipping
+                    </label>
+                  </li>
+                  <li className="menu-title px-2 pt-2 pb-1 text-xs">Clip output</li>
+                  {(['combined', 'separate'] as const).map((mode) => (
+                    <li key={mode}>
+                      <label className="flex items-center gap-2 px-2! text-sm text-gray-300 hover:bg-transparent! active:bg-transparent!">
+                        <input
+                          type="radio"
+                          name="clipOutputMode"
+                          checked={clipOutputMode === mode}
+                          onChange={() => setClipOutputMode(mode)}
+                          className="radio radio-sm radio-accent"
+                        />
+                        {mode === 'combined' ? 'Combined' : 'Separate'}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
         )}

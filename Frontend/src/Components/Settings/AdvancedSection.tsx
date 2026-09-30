@@ -47,7 +47,7 @@ export default function AdvancedSection({
 
   return (
     <>
-      <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+      <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
         <h2 className="text-xl font-semibold mb-4">Updates</h2>
         {!canSelfUpdate && (
           <p className="text-sm opacity-70 mb-4">
@@ -140,7 +140,7 @@ export default function AdvancedSection({
         )}
       </div>
 
-      <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+      <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
         <h2 className="text-xl font-semibold mb-4">Online Features</h2>
         <div ref={rowRef}>
           <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 overflow-hidden">

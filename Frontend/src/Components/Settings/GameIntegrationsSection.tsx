@@ -209,7 +209,7 @@ export default function GameIntegrationsSection() {
   };
 
   return (
-    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <div className="flex items-center gap-2 mb-2">
         <h2 className="text-xl font-semibold">Game Integrations</h2>
         {hasPendingChanges && (

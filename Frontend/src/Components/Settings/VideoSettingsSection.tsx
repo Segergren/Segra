@@ -84,7 +84,7 @@ export default function VideoSettingsSection({
   );
 
   return (
-    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <div className="flex items-center gap-2 mb-4">
         <h2 className="text-xl font-semibold">Video Settings</h2>
         {hasPendingChanges && (

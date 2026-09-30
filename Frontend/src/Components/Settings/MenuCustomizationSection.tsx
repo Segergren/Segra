@@ -286,7 +286,7 @@ export default function MenuCustomizationSection({
   };
 
   return (
-    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <h2 className="text-xl font-semibold mb-1">Sidebar Menu</h2>
       <p className="text-sm opacity-70 mb-4">
         Drag to reorder. Pick which page opens on launch. Hide items you don&apos;t use.

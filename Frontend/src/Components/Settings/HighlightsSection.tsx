@@ -26,7 +26,7 @@ export default function HighlightsSection({ settings, updateSettings }: Highligh
   };
 
   return (
-    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <h2 className="text-xl font-semibold mb-4">Highlights</h2>
       <div className="space-y-3">
         <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">

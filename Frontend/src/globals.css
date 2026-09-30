@@ -89,6 +89,11 @@
   }
 }
 
+/* Desktop-app cursor: arrow over plain text, inputs keep their own text cursor */
+body {
+  cursor: default;
+}
+
 /* Hide number input spinners */
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button {

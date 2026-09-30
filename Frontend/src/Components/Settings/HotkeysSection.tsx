@@ -148,7 +148,7 @@ export default function HotkeysSection({ settings, updateSettings }: HotkeysSect
     .sort((a, b) => getActionRank(a.hotkey.action) - getActionRank(b.hotkey.action));
 
   return (
-    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <h2 className="text-xl font-semibold mb-4">Hotkeys</h2>
       <div className="flex flex-col gap-3">
         {orderedHotkeys.map(({ hotkey, index }) => (

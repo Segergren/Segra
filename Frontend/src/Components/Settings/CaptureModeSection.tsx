@@ -27,7 +27,7 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
   const bookmarkHotkey = hotkeyFor(HotkeyAction.CreateBookmark, 'the Create Bookmark hotkey');
 
   return (
-    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <div className="flex items-center gap-2 mb-4">
         <h2 className="text-xl font-semibold">Capture Mode</h2>
         {hasPendingChanges && (

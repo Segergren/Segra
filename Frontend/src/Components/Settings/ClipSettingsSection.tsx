@@ -112,7 +112,7 @@ export default function ClipSettingsSection({
   };
 
   return (
-    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+    <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <h2 className="text-xl font-semibold mb-4">Clip Settings</h2>
 
       {/* Quality Preset Selector */}
