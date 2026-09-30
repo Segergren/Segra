@@ -110,7 +110,7 @@ export default function ContentPage({
       });
     }
 
-    filtered.sort((a, b) => {
+    const byOption = (a: (typeof filtered)[number], b: (typeof filtered)[number]) => {
       switch (sortOption) {
         case 'newest':
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -132,7 +132,10 @@ export default function ContentPage({
         default:
           return 0;
       }
-    });
+    };
+
+    // A compressed copy shares its original's date, so ties put the compressed copy first
+    filtered.sort((a, b) => byOption(a, b) || Number(b.compressed) - Number(a.compressed));
 
     return filtered;
   }, [contentItems, selectedGames, sortOption]);
