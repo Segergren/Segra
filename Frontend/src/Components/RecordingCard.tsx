@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PreRecording, Recording, GameResponse, GameSetting, Display } from '../Models/types';
-import { Gamepad2, Monitor, AppWindow, Ellipsis, Ban } from 'lucide-react';
+import { Ellipsis, Ban } from 'lucide-react';
+import { Gamepad2, Monitor, AppWindow } from 'lucide';
+import { MorphIcon } from 'morphicons/react';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAppState } from '../Context/AppStateContext';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
@@ -267,43 +269,42 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
                 className={`tooltip tooltip-right ${captureTooltipColor} flex items-center ml-1.5 [&::before]:delay-200 [&::after]:delay-200`}
                 data-tip={captureTooltip}
               >
-                <div className="relative h-5 w-5 cursor-default" style={{ perspective: '20rem' }}>
-                  <AnimatePresence initial={false}>
-                    <motion.div
-                      key={captureMode}
-                      className="absolute inset-0 flex items-center justify-center"
-                      style={{ backfaceVisibility: 'hidden' }}
-                      initial={{ rotateY: 180, opacity: 0 }}
-                      animate={{ rotateY: 0, opacity: 1 }}
-                      exit={{ rotateY: -180, opacity: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeOut' }}
-                    >
-                      <CaptureIcon
-                        className={`h-5 w-5 text-gray-300 ${captureMode === 'game' ? '' : 'scale-90'}`}
-                      />
-                    </motion.div>
-                  </AnimatePresence>
+                <div className="flex h-5 w-5 cursor-default items-center justify-center">
+                  <MorphIcon
+                    icon={CaptureIcon}
+                    size={20}
+                    spring="snappy"
+                    className={`text-gray-300 transition-transform ${captureMode === 'game' ? '' : 'scale-90'}`}
+                  />
                 </div>
               </div>
             )}
-            {showMonitorDropdown && (
-              <div className="ml-1 w-8">
-                <DropdownSelect
-                  items={monitorItems}
-                  value={currentDisplay?.deviceId}
-                  onChange={(val) => {
-                    const display = state.displays.find((d) => d.deviceId === val);
-                    if (display) updateSettings({ selectedDisplay: display });
-                  }}
-                  align="start"
-                  buttonClassName="btn btn-ghost btn-xs border-none h-6 min-h-6 px-0 shadow-none"
-                  menuClassName="dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[20000] w-56 p-2 shadow flex-nowrap"
-                  // Chevron-only trigger: the swap icon already shows the capture indicator.
-                  buttonContent={null}
-                  forceDirection={sameRatioDisplays.length === 2 ? 'down' : 'up'}
-                />
-              </div>
-            )}
+            <AnimatePresence initial={false}>
+              {showMonitorDropdown && (
+                <motion.div
+                  className="ml-1 flex w-5"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                >
+                  <DropdownSelect
+                    items={monitorItems}
+                    value={currentDisplay?.deviceId}
+                    onChange={(val) => {
+                      const display = state.displays.find((d) => d.deviceId === val);
+                      if (display) updateSettings({ selectedDisplay: display });
+                    }}
+                    align="start"
+                    buttonClassName="btn btn-ghost btn-xs flex border-none h-5 min-h-5 px-0 shadow-none"
+                    menuClassName="dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[20000] w-56 p-2 shadow flex-nowrap"
+                    // Chevron-only trigger: the swap icon already shows the capture indicator.
+                    buttonContent={null}
+                    forceDirection={sameRatioDisplays.length === 2 ? 'down' : 'up'}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
           {canBlockGame && (
             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity delay-200">

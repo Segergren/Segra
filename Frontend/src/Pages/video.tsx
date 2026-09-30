@@ -27,11 +27,6 @@ import {
   RotateCcw,
   RotateCw,
   Upload,
-  Volume2,
-  VolumeX,
-  Volume1,
-  Maximize,
-  Minimize,
   ArrowLeft,
   Skull,
   Plus,
@@ -39,10 +34,10 @@ import {
   ZoomIn,
   ZoomOut,
   Headphones,
-  Copy,
-  Check,
   ChevronDown,
 } from 'lucide-react';
+import { Volume1, Volume2, VolumeX, Maximize, Minimize, Copy, Check } from 'lucide';
+import { MorphIcon } from 'morphicons/react';
 import SegmentCard from '../Components/SegmentCard';
 import { useAudioTracks } from '../Hooks/useAudioTracks';
 import { useNativeElementAudio } from '../Hooks/useNativeElementAudio';
@@ -1669,14 +1664,7 @@ export default function VideoComponent({ video }: { video: Content }) {
         className="h-10 hover:text-accent join-item"
         onClick={handleCopyFile}
       >
-        <label className={`swap overflow-hidden justify-center ${fileCopied ? 'swap-active' : ''}`}>
-          <div className="swap-off">
-            <Copy className="w-5 h-5" />
-          </div>
-          <div className="swap-on">
-            <Check className="w-5 h-5" />
-          </div>
-        </label>
+        <MorphIcon icon={fileCopied ? Check : Copy} size={20} spring="snappy" />
         <span>Copy</span>
       </Button>
       {copySizeOptions.length > 0 && (
@@ -1977,13 +1965,11 @@ export default function VideoComponent({ video }: { video: Content }) {
                       className="text-white transition-colors cursor-pointer hover:text-accent"
                       aria-label={isMuted ? 'Unmute' : 'Mute'}
                     >
-                      {isMuted || volume < 0.2 ? (
-                        <VolumeX className="w-5 h-5" />
-                      ) : volume < 0.7 ? (
-                        <Volume1 className="w-5 h-5" />
-                      ) : (
-                        <Volume2 className="w-5 h-5" />
-                      )}
+                      <MorphIcon
+                        icon={isMuted || volume < 0.2 ? VolumeX : volume < 0.7 ? Volume1 : Volume2}
+                        size={20}
+                        spring="snappy"
+                      />
                     </button>
                     <input
                       type="range"
@@ -2150,11 +2136,11 @@ export default function VideoComponent({ video }: { video: Content }) {
                     className="text-white cursor-pointer transition-colors hover:text-accent"
                     aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
                   >
-                    {isFullscreen ? (
-                      <Minimize className="w-5 h-5" />
-                    ) : (
-                      <Maximize className="w-5 h-5" />
-                    )}
+                    <MorphIcon
+                      icon={isFullscreen ? Minimize : Maximize}
+                      size={20}
+                      spring="snappy"
+                    />
                   </button>
                 </div>
               </div>
@@ -2452,20 +2438,20 @@ export default function VideoComponent({ video }: { video: Content }) {
               <div className="flex items-center border rounded-lg join bg-base-300 border-base-400">
                 <button
                   onClick={() => skipTime(-5)}
-                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
                 >
                   <RotateCcw className="w-5 h-5" />
                 </button>
                 <button
                   onClick={handlePlayPause}
-                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
                   data-tip={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                 </button>
                 <button
                   onClick={() => skipTime(5)}
-                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
                   data-tip="Forward 5s"
                 >
                   <RotateCw className="w-5 h-5" />
