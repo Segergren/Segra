@@ -224,6 +224,7 @@ export interface GameIntegrations {
   rainbowSixSiege: GameIntegrationSettings;
   wardogs: GameIntegrationSettings;
   deadlock: GameIntegrationSettings;
+  battlefield6: GameIntegrationSettings;
 }
 
 export type ClipEncoder = 'gpu' | 'cpu';
@@ -457,6 +458,7 @@ export const initialSettings: Settings = {
     rainbowSixSiege: { enabled: true },
     wardogs: { enabled: true },
     deadlock: { enabled: true },
+    battlefield6: { enabled: true },
   },
 };
 

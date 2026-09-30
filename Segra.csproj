@@ -46,6 +46,11 @@
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
+  <!-- Builds made outside GitHub Actions never auto update -->
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' != 'true'">
+    <DefineConstants>$(DefineConstants);LOCAL_BUILD</DefineConstants>
+  </PropertyGroup>
+
   <!-- Linux-only build settings -->
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <OutputType>Exe</OutputType>
@@ -103,6 +108,7 @@
     <Compile Remove="Backend\Games\RocketLeague\RocketLeagueIntegration.cs" />
     <Compile Remove="Backend\Games\Wardogs\WardogsIntegration.cs" />
     <Compile Remove="Backend\Games\Deadlock\DeadlockIntegration.cs" />
+    <Compile Remove="Backend\Games\Battlefield6\Battlefield6Integration.cs" />
     <Compile Remove="Backend\Platform\Windows\**\*.cs" />
     <Compile Remove="Backend\Windows\Input\HotkeyBroker\**\*.cs" />
   </ItemGroup>

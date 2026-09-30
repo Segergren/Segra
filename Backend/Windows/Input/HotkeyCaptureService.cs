@@ -45,7 +45,7 @@ namespace Segra.Backend.Windows.Input
         /// </summary>
         public static void Start()
         {
-#if WINDOWS && !DEBUG
+#if WINDOWS && !DEBUG && !LOCAL_BUILD
             var client = new HotkeyBrokerClient();
             client.StateChanged += OnBrokerStateChanged;
             client.ActionFired += HandleHotkeyAction;

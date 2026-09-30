@@ -53,6 +53,8 @@ namespace Segra.Backend.Games
             public TimeSpan? Cooldown { get; init; }
             // Cooldown restarts on every frame the text is seen, so a long-lived prompt fires once
             public bool ExtendCooldownWhileVisible { get; init; }
+            // Exact and case-sensitive, for short words that fuzzy matching finds inside other words
+            public bool MatchCase { get; init; }
         }
 
         protected abstract OcrConfig GetConfig();
@@ -146,9 +148,11 @@ namespace Segra.Backend.Games
 
         /// <summary>
         /// Captures a region of the game and runs OCR on it, rotated clockwise by the given degrees.
+        /// Local contrast keeps only what is brighter than its surroundings, for light text over bright scenery,
+        /// and drops long horizontal lines like the outlines of boxed labels.
         /// Returns null when no frame is available.
         /// </summary>
-        protected async Task<OcrResult?> Recognize(GameCapture source, CropRegion crop, int threshold, float rotation = 0)
+        protected async Task<OcrResult?> Recognize(GameCapture source, CropRegion crop, int threshold, float rotation = 0, bool localContrast = false)
         {
             var srcW = source.Width;
             var srcH = source.Height;
@@ -168,6 +172,17 @@ namespace Segra.Backend.Games
             int w = (int)screenshot.Width;
             int h = (int)screenshot.Height;
 
+            var grays = new byte[w * h];
+            for (int i = 0; i < grays.Length; i++)
+                grays[i] = (byte)((pixels[i * 4 + 2] * 77 + pixels[i * 4 + 1] * 150 + pixels[i * 4] * 29) >> 8);
+
+            // At 1080p: 6 px radius (about half a letter) and lines from 25 px
+            if (localContrast)
+            {
+                SubtractLocalMean(grays, w, h, Math.Max((int)srcH / 180, 1));
+                EraseHorizontalLines(grays, w, h, Math.Max((int)srcH * 25 / 1080, 2));
+            }
+
             // Preprocess: grayscale + threshold to isolate bright notification text
             using var bitmap = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             var bmpData = bitmap.LockBits(
@@ -183,12 +198,7 @@ namespace Segra.Backend.Games
 
                     for (int x = 0; x < w; x++)
                     {
-                        int si = (y * w + x) * 4;
-                        byte b = pixels[si];
-                        byte g = pixels[si + 1];
-                        byte r = pixels[si + 2];
-
-                        byte gray = (byte)((r * 77 + g * 150 + b * 29) >> 8);
+                        byte gray = grays[y * w + x];
                         byte val = threshold <= 0 ? gray : gray >= threshold ? (byte)255 : (byte)0;
 
                         Marshal.WriteByte(dstPtr, x * 4, val);       // B
@@ -230,7 +240,7 @@ namespace Segra.Backend.Games
 
             foreach (var keyword in _config.Keywords)
             {
-                if (!FuzzyContains(text, keyword.Text))
+                if (keyword.MatchCase ? !text.Contains(keyword.Text, StringComparison.Ordinal) : !FuzzyContains(text, keyword.Text))
                     continue;
 
                 var now = DateTime.UtcNow;
@@ -263,6 +273,50 @@ namespace Segra.Backend.Games
                     Log.Information($"[{_config.LogPrefix}] Detected '{keyword.Text}' in OCR text -> {keyword.BookmarkType}");
                 }
                 break;
+            }
+        }
+
+        // Subtracts the mean of the surrounding box and amplifies what is left
+        private static void SubtractLocalMean(byte[] grays, int w, int h, int radius)
+        {
+            var sums = new long[(w + 1) * (h + 1)];
+            for (int y = 0; y < h; y++)
+            {
+                long rowSum = 0;
+                for (int x = 0; x < w; x++)
+                {
+                    rowSum += grays[y * w + x];
+                    sums[(y + 1) * (w + 1) + x + 1] = sums[y * (w + 1) + x + 1] + rowSum;
+                }
+            }
+
+            for (int y = 0; y < h; y++)
+            {
+                int y0 = Math.Max(y - radius, 0), y1 = Math.Min(y + radius + 1, h);
+                for (int x = 0; x < w; x++)
+                {
+                    int x0 = Math.Max(x - radius, 0), x1 = Math.Min(x + radius + 1, w);
+                    long sum = sums[y1 * (w + 1) + x1] - sums[y0 * (w + 1) + x1] - sums[y1 * (w + 1) + x0] + sums[y0 * (w + 1) + x0];
+                    int mean = (int)(sum / ((x1 - x0) * (y1 - y0)));
+                    grays[y * w + x] = (byte)Math.Clamp((grays[y * w + x] - mean) * 6, 0, 255);
+                }
+            }
+        }
+
+        // Letters only have short horizontal strokes, longer lines are box outlines that stop OCR from finding the text
+        private static void EraseHorizontalLines(byte[] grays, int w, int h, int minLength)
+        {
+            for (int y = 0; y < h; y++)
+            {
+                int start = 0;
+                for (int x = 0; x <= w; x++)
+                {
+                    if (x < w && grays[y * w + x] >= 40)
+                        continue;
+                    if (x - start >= minLength)
+                        Array.Clear(grays, y * w + start, x - start);
+                    start = x + 1;
+                }
             }
         }
 

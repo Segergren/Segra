@@ -67,6 +67,13 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     backgroundImage: 'https://segra.tv/api/games/cover/cobc7s',
   },
   {
+    id: 'battlefield-6',
+    name: 'Battlefield 6',
+    settingsKey: 'battlefield6',
+    bookmarks: ['Kills', 'Deaths'],
+    backgroundImage: 'https://segra.tv/api/games/cover/coa5zt',
+  },
+  {
     id: 'gta',
     name: 'Grand Theft Auto',
     settingsKey: 'gta',

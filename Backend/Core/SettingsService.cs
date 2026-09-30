@@ -463,6 +463,12 @@ namespace Segra.Backend.Core
                     current.Deadlock.Enabled = updated.Deadlock.Enabled;
                     hasChanges = true;
                 }
+                if (current.Battlefield6.Enabled != updated.Battlefield6.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Battlefield6.Enabled changed from '{current.Battlefield6.Enabled}' to '{updated.Battlefield6.Enabled}'");
+                    current.Battlefield6.Enabled = updated.Battlefield6.Enabled;
+                    hasChanges = true;
+                }
             }
 
             if (updatedSettings.Games != null)

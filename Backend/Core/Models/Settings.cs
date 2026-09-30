@@ -1513,5 +1513,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("deadlock")]
         public GameIntegrationSettings Deadlock { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("battlefield6")]
+        public GameIntegrationSettings Battlefield6 { get; set; } = new GameIntegrationSettings(true);
     }
 }

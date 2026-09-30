@@ -20,6 +20,12 @@ namespace Segra.Backend.App
         public static GithubSource BetaSource = new("https://github.com/Segergren/Segra", null, true);
         public static UpdateManager UpdateManager { get; private set; } = new(Source);
 
+#if LOCAL_BUILD
+        private static readonly bool IsLocalBuild = true;
+#else
+        private static readonly bool IsLocalBuild = false;
+#endif
+
         // Falls back to the assembly version when Velopack has no metadata (dev builds, Flatpak).
         public static NuGet.Versioning.SemanticVersion GetCurrentVersion()
         {
@@ -90,6 +96,12 @@ namespace Segra.Backend.App
 
         public static async Task<bool> UpdateAppIfNecessary(bool forceCheck = false)
         {
+            if (IsLocalBuild)
+            {
+                Log.Information("Skipping update check: local build");
+                return false;
+            }
+
             if (!forceCheck && DateTime.UtcNow - _lastUpdateCheckUtc < UpdateCheckCacheTtl)
             {
                 Log.Information($"Skipping update check: cached result from {_lastUpdateCheckUtc:O} is still valid (TTL {UpdateCheckCacheTtl.TotalHours}h)");
