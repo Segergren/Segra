@@ -11,7 +11,7 @@ import { useSegments } from '../Context/SegmentsContext';
 import { useUploads } from '../Context/UploadContext';
 import { useModal } from '../Context/ModalContext';
 import UploadModal from '../Components/UploadModal';
-import type { LucideIcon } from 'lucide-react';
+import type { LucideIcon, LucideProps } from 'lucide-react';
 import { Icon } from 'lucide-react';
 import { crosshair2Dot, soccerBall } from '@lucide/lab';
 import {
@@ -51,13 +51,13 @@ import Button from '../Components/Button';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 import AudioTrackIcon from '../Components/AudioTrackIcon';
 
-const Crosshair2Dot = React.forwardRef<SVGSVGElement, React.ComponentProps<typeof Icon>>(
-  (props, ref) => <Icon {...props} ref={ref} iconNode={crosshair2Dot} />,
-) as LucideIcon;
+const Crosshair2Dot = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
+  <Icon {...props} ref={ref} iconNode={crosshair2Dot} />
+)) as LucideIcon;
 
-const SoccerBall = React.forwardRef<SVGSVGElement, React.ComponentProps<typeof Icon>>(
-  (props, ref) => <Icon {...props} ref={ref} iconNode={soccerBall} />,
-) as LucideIcon;
+const SoccerBall = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
+  <Icon {...props} ref={ref} iconNode={soccerBall} />
+)) as LucideIcon;
 
 // Converts time string in format "HH:MM:SS.mmm" to seconds
 const timeStringToSeconds = (timeStr: string): number => {

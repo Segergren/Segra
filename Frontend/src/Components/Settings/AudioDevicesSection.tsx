@@ -466,7 +466,7 @@ export default function AudioDevicesSection({
         </div>
       </label>
 
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {hasOverTrackLimit && !trackLimitWarnDismissed && (
           <motion.div
             initial={{ opacity: 0, height: 0, overflow: 'hidden' }}

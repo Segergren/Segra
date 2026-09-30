@@ -158,7 +158,7 @@ export default function ClipSettingsSection({
       </div>
 
       {/* Advanced Settings - Only show when Custom preset is selected */}
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {settings.clipQualityPreset === 'custom' && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}

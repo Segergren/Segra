@@ -137,7 +137,7 @@ export default function VideoSettingsSection({
       </div>
 
       {/* Replay Buffer Settings - Only show when a replay buffer is in use */}
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {(settings.recordingMode === 'Buffer' ||
           settings.recordingMode === 'Hybrid' ||
           settings.alwaysOnReplayBuffer) && (
@@ -231,7 +231,7 @@ export default function VideoSettingsSection({
       </AnimatePresence>
 
       {/* Advanced Settings - Only show when Custom preset is selected */}
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {settings.videoQualityPreset === 'custom' && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}

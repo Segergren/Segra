@@ -1,6 +1,7 @@
 ﻿@import 'tailwindcss';
 @plugin "daisyui" {
   themes: false;
+  exclude: scrollbar;
 }
 
 @plugin "daisyui/theme" {
@@ -33,6 +34,28 @@
   --border: 1px; /* v4 hade 1px på knappar/flikar */
   --depth: 0; /* v4 hade inget djup */
   --noise: 0; /* v4 hade ingen noise */
+}
+
+/* Custom scrollbars so the arrow buttons can be hidden (daisyUI's scrollbar-color is excluded above, it overrides these) */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+::-webkit-scrollbar-button {
+  display: none;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-base-400);
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-base-400), #fff 15%);
 }
 
 /* Hide the scrollbar while keeping the element scrollable (used by the game tabs strip). */

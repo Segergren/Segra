@@ -290,7 +290,7 @@ export default function StorageSettingsSection({
       </div>
 
       {/* Migrate content stored outside the recording path */}
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {outsideCount > 0 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}

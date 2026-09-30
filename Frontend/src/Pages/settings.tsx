@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
+import { useScroll } from '../Context/ScrollContext';
 import { useUpdate } from '../Context/UpdateContext';
 import AccountSection from '../Components/Settings/AccountSection';
 import CaptureModeSection from '../Components/Settings/CaptureModeSection';
@@ -51,6 +52,14 @@ export default function Settings() {
     [settings.airplaneMode],
   );
   const [activeSection, setActiveSection] = useState<SectionId>(navItems[0].id);
+  const { scrollPositions, setScrollPosition } = useScroll();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollTopRef = useRef(scrollPositions.settings);
+
+  useLayoutEffect(() => {
+    if (containerRef.current) containerRef.current.scrollTop = scrollTopRef.current;
+    return () => setScrollPosition('settings', scrollTopRef.current);
+  }, [setScrollPosition]);
 
   const scrollToSection = (id: SectionId) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -110,7 +119,11 @@ export default function Settings() {
   }, [navItems]);
 
   return (
-    <div className="min-h-full bg-base-200">
+    <div
+      ref={containerRef}
+      onScroll={(e) => (scrollTopRef.current = e.currentTarget.scrollTop)}
+      className="h-full overflow-y-scroll bg-base-200"
+    >
       {/* Sticky Jump Nav */}
       <div className="sticky top-0 z-50 bg-base-200 px-5 pt-5 pb-3">
         <div className="flex items-center gap-6">
