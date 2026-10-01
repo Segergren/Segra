@@ -111,7 +111,11 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement loginParameterElement);
                             string accessToken = loginParameterElement.GetProperty("accessToken").GetString()!;
                             string refreshToken = loginParameterElement.GetProperty("refreshToken").GetString()!;
-                            _ = Task.Run(() => AuthService.Login(accessToken, refreshToken));
+                            _ = Task.Run(() =>
+                            {
+                                AuthService.Login(accessToken, refreshToken);
+                                UploadService.CheckStaleUploads();
+                            });
                             break;
                         case "Logout":
                             _ = Task.Run(AuthService.Logout);

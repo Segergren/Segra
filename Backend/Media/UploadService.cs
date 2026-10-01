@@ -40,6 +40,72 @@ namespace Segra.Backend.Media
             }
         }
 
+        private static int _staleUploadCheckStarted;
+
+        // Runs once per session, the first time the user is logged in
+        public static void CheckStaleUploads()
+        {
+            if (Settings.Instance.AirplaneMode) return;
+            if (Interlocked.Exchange(ref _staleUploadCheckStarted, 1) == 1) return;
+            _ = Task.Run(ClearStaleUploadUrls);
+        }
+
+        // Clears upload links to videos that no longer exist on the user's segra.tv account
+        private static async Task ClearStaleUploadUrls()
+        {
+            try
+            {
+                // Content can still be loading at startup, give it up to 5 seconds
+                for (int i = 0; i < 20 && AppState.Instance.Content.Count == 0; i++)
+                    await Task.Delay(250);
+
+                var uploads = AppState.Instance.Content.Where(content => !string.IsNullOrEmpty(content.UploadUrl)).ToList();
+
+                if (uploads.Count == 0) return;
+
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                using var request = new HttpRequestMessage(HttpMethod.Get, "https://segra.tv/api/user/videos");
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await AuthService.GetJwtAsync());
+                using var response = await _httpClient.SendAsync(request, timeout.Token);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Log.Warning($"[Upload] Skipping stale upload check, video list request failed with {(int)response.StatusCode}");
+                    return;
+                }
+
+                using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
+                var existingIds = new List<string>();
+                foreach (var video in doc.RootElement.GetProperty("videos").EnumerateArray())
+                {
+                    foreach (string field in new[] { "id", "nano_id" })
+                    {
+                        if (video.TryGetProperty(field, out var value) && value.ValueKind == JsonValueKind.String)
+                            existingIds.Add(value.GetString()!);
+                    }
+                }
+
+                int cleared = 0;
+                foreach (var content in uploads)
+                {
+                    // The upload URL always contains the video's nano id or uuid
+                    if (existingIds.Any(id => content.UploadUrl!.Contains(id))) continue;
+                    string metadataPath = FolderNames.GetMetadataFilePath(content.Type, content.Id);
+                    if (await ContentService.UpdateMetadataFile(metadataPath, c => c.UploadUrl = null) != null)
+                        cleared++;
+                }
+
+                if (cleared > 0)
+                {
+                    Log.Information($"[Upload] Cleared {cleared} upload links to videos that are no longer on segra.tv");
+                    await SettingsService.LoadContentFromFolderIntoState(true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[Upload] Stale upload check failed: {ex.Message}");
+            }
+        }
+
         public static async Task HandleUploadContent(JsonElement message)
         {
             using var work = BackgroundWork.Begin();
