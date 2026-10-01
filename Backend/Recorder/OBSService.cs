@@ -3369,12 +3369,8 @@ namespace Segra.Backend.Recorder
             _bufferOutput = null;
         }
 
-        // ?isLinux=true selects the Linux recorder bundles; the default serves the Windows OBS zips.
 #if WINDOWS
         private const string ObsVersionsUrl = "https://segra.tv/api/obs/versions";
-#else
-        private const string ObsVersionsUrl = "https://segra.tv/api/obs/versions?isLinux=true";
-#endif
 
         public static async Task AvailableOBSVersionsAsync()
         {
@@ -3382,11 +3378,18 @@ namespace Segra.Backend.Recorder
             {
                 // SEGRA_OBS_VERSIONS_URL overrides the endpoint (useful for staging / local testing).
                 string url = Environment.GetEnvironmentVariable("SEGRA_OBS_VERSIONS_URL") ?? ObsVersionsUrl;
-                List<Core.Models.OBSVersion>? response = null;
+                List<OBSVersion>? response = null;
                 using (HttpClient client = new())
                 {
                     // Fail fast instead of the default 100s timeout when unreachable.
                     client.Timeout = TimeSpan.FromSeconds(15);
+                    if (!Settings.Instance.AirplaneMode)
+                    {
+                        client.DefaultRequestHeaders.UserAgent.TryParseAdd($"Segra/{UpdateService.GetCurrentVersion()}");
+                        client.DefaultRequestHeaders.UserAgent.TryParseAdd($"(Windows {Environment.OSVersion.Version.ToString(3)})");
+                        client.DefaultRequestHeaders.Add("X-Segra-First-Run", Program.IsFirstRun ? "1" : "0");
+                    }
+
                     try
                     {
                         response = await client.GetFromJsonAsync<List<Core.Models.OBSVersion>>(url);
@@ -3446,6 +3449,7 @@ namespace Segra.Backend.Recorder
                 Log.Error($"Failed to get available OBS versions: {ex.Message}");
             }
         }
+#endif
 
         public static bool IsOBSInstalled()
         {
@@ -3468,130 +3472,6 @@ namespace Segra.Backend.Recorder
         }
 
 #if !WINDOWS
-        // Downloads the Linux recorder bundle from the API, extracts it, and re-execs to apply it.
-        // Expects OBSVersion.Url to be a direct .tar.gz or .zip URL.
-        private static async Task DownloadLinuxObsRuntimeAsync()
-        {
-            if (AppState.Instance.AvailableOBSVersions == null || AppState.Instance.AvailableOBSVersions.Count == 0)
-                await AvailableOBSVersionsAsync();
-
-            var versions = AppState.Instance.AvailableOBSVersions;
-            if (versions == null || versions.Count == 0)
-            {
-                Log.Error("No Linux OBS runtime bundles available from the API.");
-                throw new Exception("linux-obs-unavailable");
-            }
-
-            string? selectedVersion = Settings.Instance.SelectedOBSVersion;
-            var versionToDownload = (!string.IsNullOrEmpty(selectedVersion)
-                    ? versions.FirstOrDefault(v => v.Version == selectedVersion) : null)
-                ?? versions.Where(v => !v.IsBeta).OrderByDescending(v => v.Version).FirstOrDefault()
-                ?? versions.First();
-
-            string url = versionToDownload.Url;
-
-            // The versions API serves a GitHub contents-API URL (JSON metadata, not the file); resolve the
-            // real download_url from it via the same helper the Windows flow uses. A direct .tar.gz/.zip URL
-            // (e.g. the mock/staging server) is used as-is.
-            if (url.Contains("api.github.com", StringComparison.OrdinalIgnoreCase)
-                && url.Contains("/contents/", StringComparison.OrdinalIgnoreCase))
-            {
-                using var metaClient = new HttpClient();
-                url = (await FetchGitHubFileMetadataAsync(metaClient, url, versionToDownload.Version)).DownloadUrl;
-            }
-
-            Log.Information($"Downloading Linux OBS runtime {versionToDownload.Version} from {url}");
-
-            string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
-            Directory.CreateDirectory(appDataDir);
-            bool isZip = url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
-            string archivePath = Path.Combine(appDataDir, isZip ? "obs-linux-download.zip" : "obs-linux-download.tar.gz");
-
-            using (var httpClient = new HttpClient())
-            {
-                httpClient.Timeout = Timeout.InfiniteTimeSpan;
-                using var resp = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-                resp.EnsureSuccessStatusCode();
-                long totalBytes = resp.Content.Headers.ContentLength ?? -1L;
-                using var contentStream = await resp.Content.ReadAsStreamAsync();
-                using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
-                var buffer = new byte[8192];
-                long totalRead = 0; int bytesRead, lastProgress = -1;
-                while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
-                {
-                    await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
-                    totalRead += bytesRead;
-                    if (totalBytes > 0)
-                    {
-                        int progress = (int)((totalRead * 100) / totalBytes);
-                        if (progress != lastProgress)
-                        {
-                            lastProgress = progress;
-                            await SendFrontendMessage("ObsDownloadProgress", new { progress, status = "downloading" });
-                        }
-                    }
-                }
-            }
-
-            Log.Information("Download complete; extracting Linux OBS runtime...");
-            string dest = Platform.Linux.LinuxObsRuntime.DownloadedBundleDir();
-            if (Directory.Exists(dest)) Directory.Delete(dest, true);
-            Directory.CreateDirectory(dest);
-
-            if (isZip)
-                ZipFile.ExtractToDirectory(archivePath, dest, overwriteFiles: true);
-            else
-            {
-                using var fs = File.OpenRead(archivePath);
-                using var gz = new System.IO.Compression.GZipStream(fs, System.IO.Compression.CompressionMode.Decompress);
-                System.Formats.Tar.TarFile.ExtractToDirectory(gz, dest, overwriteFiles: true);
-            }
-
-            FlattenSingleTopDir(dest);
-            EnsureExecutable(Path.Combine(dest, "bin", "ffmpeg"));
-            EnsureExecutable(Path.Combine(dest, "ffmpeg"));
-            try { File.Delete(archivePath); } catch { /* ignore */ }
-
-            if (!File.Exists(Path.Combine(dest, "lib", "libobs.so.0")))
-            {
-                Log.Error("Downloaded Linux OBS bundle has no lib/libobs.so.0 (unexpected layout).");
-                throw new Exception("linux-obs-bad-bundle");
-            }
-
-            Log.Information($"Linux OBS runtime ready at {dest}; restarting to apply.");
-            await ShowModal("Recorder ready", "The recorder finished downloading. Segra will restart to apply it.", "info");
-            await Task.Delay(500);
-
-            // Re-exec so LD_LIBRARY_PATH / PATH / GStreamer plugin path pick up the new runtime.
-            Platform.Linux.LinuxObsRuntime.ConfigureAndReexecIfNeeded();
-        }
-
-        private static void EnsureExecutable(string path)
-        {
-            try
-            {
-                if (File.Exists(path))
-                    File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
-                        | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
-            }
-            catch { /* best effort */ }
-        }
-
-        // If the archive extracted everything under a single top-level folder, move it up so lib/ is at root.
-        private static void FlattenSingleTopDir(string dest)
-        {
-            if (File.Exists(Path.Combine(dest, "lib", "libobs.so.0"))) return;
-            var subdirs = Directory.GetDirectories(dest);
-            var files = Directory.GetFiles(dest);
-            if (subdirs.Length == 1 && files.Length == 0)
-            {
-                string inner = subdirs[0];
-                foreach (var e in Directory.GetFileSystemEntries(inner))
-                    Directory.Move(e, Path.Combine(dest, Path.GetFileName(e)));
-                Directory.Delete(inner, true);
-            }
-        }
-
         // Locate a system-installed libobs (obs-studio package) across common library directories.
         private static string? LinuxSystemLibObsPath()
         {
@@ -3617,7 +3497,7 @@ namespace Segra.Backend.Recorder
             Log.Information("Checking if OBS is installed");
 
 #if !WINDOWS
-            // Linux: use an already-resolved runtime (downloaded/bundled/system), else download the bundle.
+            // Linux: use an already-resolved runtime (downloaded/bundled/system), the caller shows install steps otherwise
             if (IsOBSInstalled())
             {
                 Log.Information("OBS runtime found (downloaded, bundled, or system)");
@@ -3625,7 +3505,7 @@ namespace Segra.Backend.Recorder
                 return;
             }
 
-            await DownloadLinuxObsRuntimeAsync();
+            throw new Exception("No OBS runtime found");
 #else
             if (isUpdate)
             {
