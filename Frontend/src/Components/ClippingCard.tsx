@@ -73,7 +73,13 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
           {isError ? (
             <div className="w-4 h-4 rounded-full bg-error"></div>
           ) : clipping.progress < 100 ? (
-            <CircularProgress progress={displayProgress} size={24} strokeWidth={2} duration={100} />
+            <CircularProgress
+              progress={displayProgress}
+              size={24}
+              strokeWidth={2}
+              duration={100}
+              trackClassName="text-base-400"
+            />
           ) : (
             <div className="w-4 h-4 rounded-full bg-success"></div>
           )}

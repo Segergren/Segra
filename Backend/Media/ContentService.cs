@@ -540,7 +540,7 @@ namespace Segra.Backend.Media
             }
         }
 
-        public static async Task DeleteContent(string filePath, Content.ContentType type, string? id, bool sendToFrontend = true)
+        public static async Task DeleteContent(string filePath, Content.ContentType type, string? id, bool sendToFrontend = true, bool reloadState = true)
         {
             try
             {
@@ -654,7 +654,10 @@ namespace Segra.Backend.Media
             }
             finally
             {
-                await SettingsService.LoadContentFromFolderIntoState(sendToFrontend);
+                if (reloadState)
+                {
+                    await SettingsService.LoadContentFromFolderIntoState(sendToFrontend);
+                }
             }
         }
 

@@ -709,12 +709,9 @@ namespace Segra.Backend.Media
                 string seekTime = seek.ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
 
                 // Writes the JPEG and pipes a tiny grayscale copy of the same frame to measure brightness.
-                // Keyframe-only seek: no need to decode forward to the exact timestamp for a thumbnail.
                 var arguments = new[]
                 {
                     "-y",
-                    "-noaccurate_seek",
-                    "-skip_frame", "nokey",
                     "-ss", seekTime,
                     "-i", inputFilePath,
                     "-vf", BuildThumbnailVideoFilter(width, isHdr),

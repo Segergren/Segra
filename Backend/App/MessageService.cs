@@ -420,7 +420,7 @@ namespace Segra.Backend.App
 
                     if (content != null && !string.IsNullOrEmpty(content.FilePath))
                     {
-                        await ContentService.DeleteContent(content.FilePath, content.Type, content.Id, sendToFrontend: false);
+                        await ContentService.DeleteContent(content.FilePath, content.Type, content.Id, reloadState: false);
                         Log.Information($"Deleted content: {content.FileName}");
                     }
                     else

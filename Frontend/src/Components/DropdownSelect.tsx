@@ -152,7 +152,6 @@ export default function DropdownSelect({
               <button
                 type="button"
                 className={`${itemClassName} ${isActive ? 'active !text-primary' : 'text-base-content'} w-full whitespace-nowrap`}
-                aria-current={isActive ? 'true' : undefined}
                 onClick={() => {
                   if (disabled) return;
                   onChange(item.value);

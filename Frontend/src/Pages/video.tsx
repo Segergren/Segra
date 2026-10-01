@@ -1683,7 +1683,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     .filter((mb) => mb > 0 && mb * 1024 < video.fileSizeKb);
 
   const copyButtons = (
-    <div className="join">
+    <div className="join relative z-30">
       <Button
         variant="primary"
         size="sm"
@@ -1701,7 +1701,7 @@ export default function VideoComponent({ video }: { video: Content }) {
           <Button
             variant="primary"
             size="sm"
-            className={`h-10 hover:text-accent join-item border-l-0 px-2 ${compressCopyProgress !== null ? 'pointer-events-none' : ''}`}
+            className={`h-10 hover:text-accent join-item px-2 ${compressCopyProgress !== null ? 'pointer-events-none' : ''}`}
             aria-label="Copy as compressed file"
             aria-expanded={copyMenuOpen}
             onMouseDown={(e) => {

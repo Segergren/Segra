@@ -6,6 +6,7 @@ interface CircularProgressProps {
   strokeWidth?: number;
   duration?: number;
   className?: string;
+  trackClassName?: string;
   showText?: boolean;
 }
 
@@ -15,6 +16,7 @@ export default function CircularProgress({
   strokeWidth = 2,
   duration = 700,
   className = '',
+  trackClassName = 'text-base-100',
   showText = false,
 }: CircularProgressProps) {
   const radius = (size - strokeWidth) / 2;
@@ -57,7 +59,7 @@ export default function CircularProgress({
           fill="none"
           stroke="currentColor"
           strokeWidth={strokeWidth}
-          className="text-base-100"
+          className={trackClassName}
         />
         <circle
           cx={size / 2}
