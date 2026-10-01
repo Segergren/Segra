@@ -167,9 +167,9 @@ namespace Segra.Backend.App
                             break;
                         case "CancelUpload":
                             if (root.TryGetProperty("Parameters", out var cancelUploadParams) &&
-                                cancelUploadParams.TryGetProperty("fileName", out var uploadFileName))
+                                cancelUploadParams.TryGetProperty("uploadId", out var uploadIdElement))
                             {
-                                UploadService.CancelUpload(uploadFileName.GetString()!);
+                                UploadService.CancelUpload(uploadIdElement.GetString()!);
                             }
                             break;
                         case "OpenFileLocation":

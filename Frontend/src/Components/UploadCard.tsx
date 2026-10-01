@@ -19,7 +19,7 @@ export default function UploadCard({ upload }: UploadCardProps) {
 
   const handleCancel = () => {
     setIsCancelling(true);
-    cancelUpload(upload.fileName);
+    cancelUpload(upload.uploadId);
   };
 
   const getStatusText = () => {

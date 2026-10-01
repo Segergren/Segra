@@ -2491,10 +2491,11 @@ export default function VideoComponent({ video }: { video: Content }) {
                       size="sm"
                       className="h-10 px-5 hover:text-accent"
                       onClick={handleUpload}
-                      disabled={
-                        uploads[video.fileName + '.mp4']?.status === 'uploading' ||
-                        uploads[video.fileName + '.mp4']?.status === 'processing'
-                      }
+                      disabled={Object.values(uploads).some(
+                        (upload) =>
+                          upload.fileName === video.fileName + '.mp4' &&
+                          (upload.status === 'uploading' || upload.status === 'processing'),
+                      )}
                     >
                       <Upload className="w-5 h-5" />
                       <span>Upload</span>

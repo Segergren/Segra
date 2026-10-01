@@ -3,6 +3,7 @@ import { sendMessageToBackend } from '../Utils/MessageUtils';
 
 export interface UploadProgress {
   title: string;
+  uploadId: string;
   fileName: string;
   thumbnailPath?: string;
   progress: number;
@@ -12,7 +13,7 @@ export interface UploadProgress {
 
 interface UploadContextType {
   uploads: Record<string, UploadProgress>;
-  cancelUpload: (fileName: string) => void;
+  cancelUpload: (uploadId: string) => void;
 }
 
 const UploadContext = createContext<UploadContextType | undefined>(undefined);
@@ -25,16 +26,17 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       const data = event.detail;
 
       if (data.method === 'UploadProgress') {
-        const { title, fileName, thumbnailPath, progress, status, message } = data.content;
+        const { title, uploadId, fileName, thumbnailPath, progress, status, message } =
+          data.content;
         setUploads((prev) => ({
           ...prev,
-          [fileName]: { title, fileName, thumbnailPath, progress, status, message },
+          [uploadId]: { title, uploadId, fileName, thumbnailPath, progress, status, message },
         }));
 
         if (status === 'done' || status === 'error') {
           setUploads((prev) => {
             const newUploads = { ...prev };
-            delete newUploads[fileName];
+            delete newUploads[uploadId];
             return newUploads;
           });
         }
@@ -48,11 +50,11 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const cancelUpload = (fileName: string) => {
-    sendMessageToBackend('CancelUpload', { fileName });
+  const cancelUpload = (uploadId: string) => {
+    sendMessageToBackend('CancelUpload', { uploadId });
     setUploads((prev) => {
       const newUploads = { ...prev };
-      delete newUploads[fileName];
+      delete newUploads[uploadId];
       return newUploads;
     });
   };
