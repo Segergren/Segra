@@ -141,6 +141,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           {
             key: 'recording',
             node: <RecordingCard recording={recording} preRecording={preRecording} />,
+            pinned: true,
           },
         ]
       : []),

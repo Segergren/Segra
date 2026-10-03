@@ -5,17 +5,34 @@ import AnimatedCard from './AnimatedCard';
 export interface StatusCard {
   key: string;
   node: ReactNode;
+  // Stays at the bottom regardless of age
+  pinned?: boolean;
 }
 
 const CARD_GAP = 8;
 const BADGE_HEIGHT = 24;
 
-// Shows the oldest cards that fit and collapses the rest into a +N badge
+// Stacks cards oldest at the bottom, shows the oldest that fit and collapses the newer ones into a +N badge
 export default function StatusCardStack({ cards }: { cards: StatusCard[] }) {
   const areaRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
   const [visibleCount, setVisibleCount] = useState(cards.length);
-  const keysJson = JSON.stringify(cards.map((card) => card.key));
+
+  // Keys in the order they first appeared
+  const [seenOrder, setSeenOrder] = useState<string[]>([]);
+  const keys = cards.map((card) => card.key);
+  const order = [
+    ...seenOrder.filter((key) => keys.includes(key)),
+    ...keys.filter((key) => !seenOrder.includes(key)),
+  ];
+  if (order.join('\n') !== seenOrder.join('\n')) setSeenOrder(order);
+
+  const byAge = [...cards].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  const bottomUp = [
+    ...byAge.filter((card) => card.pinned),
+    ...byAge.filter((card) => !card.pinned),
+  ];
+  const keysJson = JSON.stringify(bottomUp.map((card) => card.key));
 
   useLayoutEffect(() => {
     const area = areaRef.current;
@@ -47,6 +64,7 @@ export default function StatusCardStack({ cards }: { cards: StatusCard[] }) {
 
   const shownCount = Math.min(visibleCount, cards.length);
   const hiddenCount = cards.length - shownCount;
+  const topDown = [...bottomUp].reverse();
 
   return (
     // Clip only vertically, and not while a dropdown is open, so card popovers can escape the stack
@@ -56,25 +74,25 @@ export default function StatusCardStack({ cards }: { cards: StatusCard[] }) {
     >
       {/* Each card carries its own top gap so it collapses together with the card on exit */}
       <div className="relative mt-auto">
+        {hiddenCount > 0 && (
+          <div className="mx-2 mt-2 flex h-6 items-center justify-center text-xs font-medium text-gray-400">
+            +{hiddenCount}
+          </div>
+        )}
         <AnimatePresence>
-          {cards.map((card, index) => (
+          {topDown.map((card, index) => (
             <AnimatedCard
               key={card.key}
               ref={(el) => {
                 if (el) cardRefs.current.set(card.key, el);
                 else cardRefs.current.delete(card.key);
               }}
-              className={`mt-2 ${index < shownCount ? '' : 'absolute inset-x-0 top-0 invisible'}`}
+              className={`mt-2 ${index < hiddenCount ? 'absolute inset-x-0 top-0 invisible' : ''}`}
             >
               {card.node}
             </AnimatedCard>
           ))}
         </AnimatePresence>
-        {hiddenCount > 0 && (
-          <div className="mx-2 mt-2 flex h-6 items-center justify-center text-xs font-medium text-gray-400">
-            +{hiddenCount}
-          </div>
-        )}
       </div>
     </div>
   );
