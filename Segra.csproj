@@ -109,6 +109,7 @@
     <Compile Remove="Backend\Games\Wardogs\WardogsIntegration.cs" />
     <Compile Remove="Backend\Games\Deadlock\DeadlockIntegration.cs" />
     <Compile Remove="Backend\Games\Battlefield6\Battlefield6Integration.cs" />
+    <Compile Remove="Backend\Games\Valorant\ValorantIntegration.cs" />
     <Compile Remove="Backend\Platform\Windows\**\*.cs" />
     <Compile Remove="Backend\Windows\Input\HotkeyBroker\**\*.cs" />
   </ItemGroup>

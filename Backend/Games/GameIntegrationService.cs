@@ -15,6 +15,7 @@ using Segra.Backend.Games.RainbowSixSiege;
 using Segra.Backend.Games.Wardogs;
 using Segra.Backend.Games.Deadlock;
 using Segra.Backend.Games.Battlefield6;
+using Segra.Backend.Games.Valorant;
 #endif
 
 namespace Segra.Backend.Games
@@ -38,6 +39,7 @@ namespace Segra.Backend.Games
         private const int WARDOGS_IGDB_ID = 388285;
         private const int DEADLOCK_IGDB_ID = 301298;
         private const int BATTLEFIELD_6_IGDB_ID = 317407;
+        private const int VALORANT_IGDB_ID = 126459;
 
         private static Integration? _gameIntegration;
         private static readonly SemaphoreSlim _lock = new(1, 1);
@@ -90,6 +92,8 @@ namespace Segra.Backend.Games
                     _gameIntegration = new DeadlockIntegration();
                 else if ((igdbId == BATTLEFIELD_6_IGDB_ID || gameName?.Equals("Battlefield 6", StringComparison.OrdinalIgnoreCase) == true) && integrations.Battlefield6.Enabled)
                     _gameIntegration = new Battlefield6Integration();
+                else if ((igdbId == VALORANT_IGDB_ID || gameName?.Equals("VALORANT", StringComparison.OrdinalIgnoreCase) == true) && integrations.Valorant.Enabled)
+                    _gameIntegration = new ValorantIntegration();
 #endif
 
                 if (_gameIntegration == null)

@@ -1516,5 +1516,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("battlefield6")]
         public GameIntegrationSettings Battlefield6 { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("valorant")]
+        public GameIntegrationSettings Valorant { get; set; } = new GameIntegrationSettings(true);
     }
 }

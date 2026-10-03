@@ -469,6 +469,12 @@ namespace Segra.Backend.Core
                     current.Battlefield6.Enabled = updated.Battlefield6.Enabled;
                     hasChanges = true;
                 }
+                if (current.Valorant.Enabled != updated.Valorant.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Valorant.Enabled changed from '{current.Valorant.Enabled}' to '{updated.Valorant.Enabled}'");
+                    current.Valorant.Enabled = updated.Valorant.Enabled;
+                    hasChanges = true;
+                }
             }
 
             if (updatedSettings.Games != null)

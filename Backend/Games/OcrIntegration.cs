@@ -122,11 +122,14 @@ namespace Segra.Backend.Games
                         continue;
                     }
 
-                    var result = await Recognize(source, _config.CropRegion, _config.Threshold).ConfigureAwait(false);
-                    if (result != null)
-                        ProcessText(result.Text);
+                    if (ShouldPoll())
+                    {
+                        var result = await Recognize(source, _config.CropRegion, _config.Threshold).ConfigureAwait(false);
+                        if (result != null)
+                            ProcessText(result.Text);
 
-                    await OnPoll(source).ConfigureAwait(false);
+                        await OnPoll(source).ConfigureAwait(false);
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -145,6 +148,11 @@ namespace Segra.Backend.Games
         /// Runs after the main region on every poll, for integrations that read more of the screen.
         /// </summary>
         protected virtual Task OnPoll(GameCapture source) => Task.CompletedTask;
+
+        /// <summary>
+        /// Whether to read the screen on this poll, for integrations that know when the game is in a menu.
+        /// </summary>
+        protected virtual bool ShouldPoll() => true;
 
         /// <summary>
         /// Captures a region of the game and runs OCR on it, rotated clockwise by the given degrees.

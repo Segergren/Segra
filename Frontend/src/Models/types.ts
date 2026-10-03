@@ -225,6 +225,7 @@ export interface GameIntegrations {
   wardogs: GameIntegrationSettings;
   deadlock: GameIntegrationSettings;
   battlefield6: GameIntegrationSettings;
+  valorant: GameIntegrationSettings;
 }
 
 export type ClipEncoder = 'gpu' | 'cpu';
@@ -459,6 +460,7 @@ export const initialSettings: Settings = {
     wardogs: { enabled: true },
     deadlock: { enabled: true },
     battlefield6: { enabled: true },
+    valorant: { enabled: true },
   },
 };
 
