@@ -49,7 +49,11 @@ export default function StatusCardStack({ cards }: { cards: StatusCard[] }) {
   const hiddenCount = cards.length - shownCount;
 
   return (
-    <div ref={areaRef} className="flex-1 min-h-0 flex flex-col overflow-hidden px-2 pb-2">
+    // Clip only vertically, and not while a dropdown is open, so card popovers can escape the stack
+    <div
+      ref={areaRef}
+      className="flex-1 min-h-0 flex flex-col overflow-y-clip has-[.dropdown-open,.dropdown:focus-within]:overflow-visible px-2 pb-2"
+    >
       {/* Each card carries its own top gap so it collapses together with the card on exit */}
       <div className="relative mt-auto">
         <AnimatePresence>
