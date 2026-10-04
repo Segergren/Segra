@@ -31,7 +31,8 @@ namespace Segra.Backend.Games
         protected record OcrConfig
         {
             public required string LogPrefix { get; init; }
-            public required CropRegion CropRegion { get; init; }
+            // Read on every poll, null for integrations that only read the screen in OnPoll
+            public required CropRegion? CropRegion { get; init; }
             public required IReadOnlyList<OcrKeyword> Keywords { get; init; }
             // 0 = grayscale only, no binarization
             public int Threshold { get; init; } = 150;
@@ -124,7 +125,7 @@ namespace Segra.Backend.Games
 
                     if (ShouldPoll())
                     {
-                        var result = await Recognize(source, _config.CropRegion, _config.Threshold).ConfigureAwait(false);
+                        var result = _config.CropRegion == null ? null : await Recognize(source, _config.CropRegion, _config.Threshold).ConfigureAwait(false);
                         if (result != null)
                             ProcessText(result.Text);
 

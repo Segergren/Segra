@@ -475,6 +475,12 @@ namespace Segra.Backend.Core
                     current.Valorant.Enabled = updated.Valorant.Enabled;
                     hasChanges = true;
                 }
+                if (current.Overwatch.Enabled != updated.Overwatch.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Overwatch.Enabled changed from '{current.Overwatch.Enabled}' to '{updated.Overwatch.Enabled}'");
+                    current.Overwatch.Enabled = updated.Overwatch.Enabled;
+                    hasChanges = true;
+                }
             }
 
             if (updatedSettings.Games != null)

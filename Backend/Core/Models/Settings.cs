@@ -1519,5 +1519,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("valorant")]
         public GameIntegrationSettings Valorant { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("overwatch")]
+        public GameIntegrationSettings Overwatch { get; set; } = new GameIntegrationSettings(true);
     }
 }
