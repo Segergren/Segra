@@ -481,6 +481,12 @@ namespace Segra.Backend.Core
                     current.Overwatch.Enabled = updated.Overwatch.Enabled;
                     hasChanges = true;
                 }
+                if (current.Fortnite.Enabled != updated.Fortnite.Enabled)
+                {
+                    Log.Information($"GameIntegrations.Fortnite.Enabled changed from '{current.Fortnite.Enabled}' to '{updated.Fortnite.Enabled}'");
+                    current.Fortnite.Enabled = updated.Fortnite.Enabled;
+                    hasChanges = true;
+                }
             }
 
             if (updatedSettings.Games != null)

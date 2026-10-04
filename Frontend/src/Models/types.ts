@@ -227,6 +227,7 @@ export interface GameIntegrations {
   battlefield6: GameIntegrationSettings;
   valorant: GameIntegrationSettings;
   overwatch: GameIntegrationSettings;
+  fortnite: GameIntegrationSettings;
 }
 
 export type ClipEncoder = 'gpu' | 'cpu';
@@ -463,6 +464,7 @@ export const initialSettings: Settings = {
     battlefield6: { enabled: true },
     valorant: { enabled: true },
     overwatch: { enabled: true },
+    fortnite: { enabled: true },
   },
 };
 

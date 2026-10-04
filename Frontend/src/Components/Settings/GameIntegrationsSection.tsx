@@ -47,6 +47,12 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     backgroundImage: 'https://segra.tv/api/games/cover/coaczd',
   },
   {
+    id: 'fortnite',
+    name: 'Fortnite',
+    settingsKey: 'fortnite',
+    backgroundImage: 'https://segra.tv/api/games/cover/cocxbi',
+  },
+  {
     id: 'valorant',
     name: 'Valorant',
     settingsKey: 'valorant',

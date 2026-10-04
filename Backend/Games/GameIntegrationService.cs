@@ -17,6 +17,7 @@ using Segra.Backend.Games.Deadlock;
 using Segra.Backend.Games.Battlefield6;
 using Segra.Backend.Games.Valorant;
 using Segra.Backend.Games.Overwatch;
+using Segra.Backend.Games.Fortnite;
 #endif
 
 namespace Segra.Backend.Games
@@ -42,6 +43,7 @@ namespace Segra.Backend.Games
         private const int BATTLEFIELD_6_IGDB_ID = 317407;
         private const int VALORANT_IGDB_ID = 126459;
         private const int OVERWATCH_IGDB_ID = 125174;
+        private const int FORTNITE_IGDB_ID = 1905;
 
         private static Integration? _gameIntegration;
         private static readonly SemaphoreSlim _lock = new(1, 1);
@@ -98,6 +100,8 @@ namespace Segra.Backend.Games
                     _gameIntegration = new ValorantIntegration();
                 else if ((igdbId == OVERWATCH_IGDB_ID || gameName?.Equals("Overwatch", StringComparison.OrdinalIgnoreCase) == true) && integrations.Overwatch.Enabled)
                     _gameIntegration = new OverwatchIntegration();
+                else if ((igdbId == FORTNITE_IGDB_ID || gameName?.Equals("Fortnite", StringComparison.OrdinalIgnoreCase) == true) && integrations.Fortnite.Enabled)
+                    _gameIntegration = new FortniteIntegration();
 #endif
 
                 if (_gameIntegration == null)
