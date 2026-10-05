@@ -52,7 +52,7 @@ namespace Segra.Backend.Windows.Storage
         // finalize the file cleanly instead of slamming into a completely full disk.
         public const long MinimumRecordingFreeSpaceBytes = 250L * 1024 * 1024; // 250 MB
 
-        private static string? GetDriveRoot(string path) =>
+        internal static string? GetDriveRoot(string path) =>
             OperatingSystem.IsWindows() ? Path.GetPathRoot(path) : path;
 
         // Returns the free space (in bytes) on the drive holding the content folder,

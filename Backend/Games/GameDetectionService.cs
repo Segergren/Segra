@@ -34,6 +34,8 @@ namespace Segra.Backend.Games
         // Wine, so its Linux PIDs are volatile; every process in the session shares this path, so we track
         // it to detect when the game closes (instead of a single PID that may exit mid-session).
         private static string? _recordingSteamInstallPath;
+        // First sighting of pids that still showed the Wine loader; Wine renames a process to its exe shortly after exec
+        private static readonly Dictionary<int, DateTime> _wineStarting = new();
 #endif
 
         public static async Task StartAsync()
@@ -160,11 +162,19 @@ namespace Segra.Backend.Games
             try
             {
                 var current = EnumerateProcPids();
+                var wineStarting = new HashSet<int>();
 
                 foreach (int pid in current)
                 {
                     if (_knownPids.Contains(pid)) continue;
                     string exePath = ResolveProcessPath(pid);
+                    // Not renamed to its exe yet: resolve it again on the next poll, for up to 10 s
+                    if (IsWineLoader(exePath) && DateTime.UtcNow - _wineStarting.GetValueOrDefault(pid, DateTime.UtcNow) < TimeSpan.FromSeconds(10))
+                    {
+                        _wineStarting.TryAdd(pid, DateTime.UtcNow);
+                        wineStarting.Add(pid);
+                        continue;
+                    }
                     bool wasRecording = AppState.Instance.Recording != null;
                     HandleProcessStarted(pid, exePath);
                     // If this process just started a Steam/Proton recording, remember the game's install
@@ -176,6 +186,11 @@ namespace Segra.Backend.Games
                             _recordingSteamInstallPath = installDir;
                     }
                 }
+
+                // Left out of the known set so the next poll sees them as new again
+                current.ExceptWith(wineStarting);
+                foreach (int pid in _wineStarting.Keys.Except(wineStarting).ToList())
+                    _wineStarting.Remove(pid);
 
                 if (AppState.Instance.Recording == null && AppState.Instance.PreRecording == null)
                 {
@@ -272,22 +287,54 @@ namespace Segra.Backend.Games
              || exePath.Contains("/SteamLinuxRuntime", StringComparison.OrdinalIgnoreCase)
              || exePath.Contains("/steamapps/common/Proton", StringComparison.OrdinalIgnoreCase)
              || exePath.Contains("/ubuntu12_32/", StringComparison.OrdinalIgnoreCase)
-             || exePath.Contains("/ubuntu12_64/", StringComparison.OrdinalIgnoreCase));
+             || exePath.Contains("/ubuntu12_64/", StringComparison.OrdinalIgnoreCase)
+             || IsWineLoader(exePath));
+
+        // The binary every Wine process starts as (nixpkgs prefixes it with a dot)
+        private static bool IsWineLoader(string exePath) =>
+            Path.GetFileName(exePath).TrimStart('.') is "wine" or "wine64" or "wine-preloader" or "wine64-preloader";
+
+        // Reads /proc/<pid>/<name> (the host's under Flatpak), or empty if unreadable.
+        private static string ReadProcFile(int pid, string name)
+        {
+            try
+            {
+                return Platform.Linux.FlatpakHost.IsFlatpak
+                    ? Platform.Linux.FlatpakHost.ReadFile($"/proc/{pid}/{name}")
+                    : File.ReadAllText($"/proc/{pid}/{name}");
+            }
+            catch { return string.Empty; /* process may have exited */ }
+        }
 
         // Reads a single variable from /proc/<pid>/environ (NUL-separated KEY=VALUE entries).
         private static string? ReadProcEnvVar(int pid, string key)
         {
-            try
-            {
-                string environ = Platform.Linux.FlatpakHost.IsFlatpak
-                    ? Platform.Linux.FlatpakHost.ReadFile($"/proc/{pid}/environ")
-                    : File.ReadAllText($"/proc/{pid}/environ");
+            foreach (var entry in ReadProcFile(pid, "environ").Split('\0'))
+                if (entry.StartsWith(key + "=", StringComparison.Ordinal))
+                    return entry[(key.Length + 1)..];
+            return null;
+        }
 
-                foreach (var entry in environ.Split('\0'))
-                    if (entry.StartsWith(key + "=", StringComparison.Ordinal))
-                        return entry[(key.Length + 1)..];
+        // Wine names the exe it runs in argv[0] (a Windows path, a unix path or a bare name, depending on how it
+        // was started) and maps that exe, so /proc/<pid>/maps has its full path.
+        // Returns "" for Wine's own processes and null when argv[0] isn't an exe (yet).
+        private static string? ResolveWineExe(int pid)
+        {
+            string exe = ReadProcFile(pid, "cmdline").Split('\0')[0];
+            if (exe.StartsWith(@"C:\windows\", StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+            if (!exe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            string fileName = "/" + exe[(exe.LastIndexOfAny(['/', '\\']) + 1)..];
+            foreach (var line in ReadProcFile(pid, "maps").Split('\n'))
+            {
+                int path = line.IndexOf('/');
+                // Skip Wine's own builtins, e.g. .../wine/x86_64-windows/start.exe
+                if (path >= 0 && line.EndsWith(fileName, StringComparison.OrdinalIgnoreCase)
+                    && !(line.Contains("/wine/") && line.Contains("-windows/")))
+                    return line[path..];
             }
-            catch { /* process may have exited or environ is unreadable */ }
             return null;
         }
 
@@ -641,11 +688,11 @@ namespace Segra.Backend.Games
             }
 
             // Steam Proton/Wine games only expose a Wine preloader here (which matches no game); resolve
-            // the real Windows .exe under STEAM_COMPAT_INSTALL_PATH so detection works.
+            // the real Windows .exe under STEAM_COMPAT_INSTALL_PATH, or from the process itself for plain Wine.
             if (LooksLikeSteamRuntimeProcess(procExe))
             {
-                string? gameExe = ResolveSteamGameExe(pid);
-                if (!string.IsNullOrEmpty(gameExe)) return gameExe;
+                string? gameExe = ResolveSteamGameExe(pid) ?? ResolveWineExe(pid);
+                if (gameExe != null) return gameExe;
             }
             return procExe;
 #else

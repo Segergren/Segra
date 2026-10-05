@@ -59,6 +59,11 @@ namespace Segra.Backend.Recorder
         private static volatile Recording? _alwaysOnBuffer;
         private static volatile string? _alwaysOnBufferKey;
         private static volatile bool _isExiting;
+#if !WINDOWS
+        // End the wait for the screen-share dialog (see FitCanvasToPortalScreen)
+        private static volatile bool _startCancelled;
+        private static volatile bool _portalFailed;
+#endif
 
         public static bool IsAlwaysOnBufferActive => _alwaysOnBuffer != null;
 
@@ -514,6 +519,12 @@ namespace Segra.Backend.Recorder
                         _isStillHookedAfterUnhook = true;
                     }
 
+#if !WINDOWS
+                    // The screen-share dialog was cancelled or the portal failed (screencast-portal.c)
+                    if (message.Contains("[pipewire] Failed to") || message.Contains("[pipewire] Error") || message.Contains("[portals] Error"))
+                        _portalFailed = true;
+#endif
+
                     // libobs rebuilds a lost D3D11 device when the probe display presents (d3d11-rebuild.cpp).
                     if (message.Contains("Rebuilding all assets"))
                     {
@@ -950,6 +961,10 @@ namespace Segra.Backend.Recorder
 
         private static bool StartRecordingCore(string name, string exePath, bool startManually, int? pid, bool alwaysOn = false)
         {
+#if !WINDOWS
+            _startCancelled = false;
+            _portalFailed = false;
+#endif
             if (!IsOBSInstalled())
             {
                 Log.Information("OBS is not installed. Skipping recording.");
@@ -1146,6 +1161,14 @@ namespace Segra.Backend.Recorder
                 AddMonitorCapture();
                 _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
             }
+
+            if (!FitCanvasToPortalScreen(eff))
+            {
+                DisposeSources();
+                AppState.Instance.PreRecording = null;
+                _isStoppingOrStopped = true;
+                return false;
+            }
 #endif
 
             // Fastest retries the hook every 0.2s instead of 2s. If it hasn't hooked by then it
@@ -1250,6 +1273,15 @@ namespace Segra.Backend.Recorder
                 _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
             }
 
+            // Without a microphone, Linux's default input is a speaker monitor, which would record the desktop audio twice
+            bool skipDefaultInput = false;
+#if !WINDOWS
+            skipDefaultInput = Settings.Instance.InputDevices?.Any(d => d.Id == "default") == true
+                && Platform.Linux.LinuxAudioDeviceService.DefaultSourceIsMonitor();
+            if (skipDefaultInput)
+                Log.Information("No microphone found; skipping the default input device");
+#endif
+
             // Create audio sources and add to scene
             if (Settings.Instance.InputDevices != null && Settings.Instance.InputDevices.Count > 0)
             {
@@ -1257,6 +1289,9 @@ namespace Segra.Backend.Recorder
                 {
                     if (!string.IsNullOrEmpty(deviceSetting.Id))
                     {
+                        if (skipDefaultInput && deviceSetting.Id == "default")
+                            continue;
+
                         string sourceName = $"Microphone_{_micSources.Count + 1}";
                         var micSource = deviceSetting.Id == "default"
                             ? AudioInputCapture.FromDefault(sourceName)
@@ -1375,7 +1410,7 @@ namespace Segra.Backend.Recorder
             var audioDeviceNames = new List<string>();
             if (Settings.Instance.InputDevices != null)
             {
-                foreach (var device in Settings.Instance.InputDevices.Where(d => !string.IsNullOrEmpty(d.Id)))
+                foreach (var device in Settings.Instance.InputDevices.Where(d => !string.IsNullOrEmpty(d.Id) && !(skipDefaultInput && d.Id == "default")))
                 {
                     audioDeviceNames.Add(device.Name.Replace(" (Default)", "") ?? "Microphone");
                 }
@@ -1647,7 +1682,12 @@ namespace Segra.Backend.Recorder
             bool isWayland = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
             if (isWayland)
             {
-                _displaySource = MonitorCapture.FromMonitor(monitorIndex, "display");
+                // The portal picks the screen; the last restore token lets it skip its picker (see SavePortalRestoreToken)
+                using var portalSettings = new ObsKit.NET.Core.Settings();
+                portalSettings.Set("ShowCursor", true);
+                if (!string.IsNullOrEmpty(Settings.Instance.PipeWireRestoreToken))
+                    portalSettings.Set("RestoreToken", Settings.Instance.PipeWireRestoreToken);
+                _displaySource = new Source(MonitorCapture.LinuxTypeId, "display", portalSettings);
                 Log.Information($"Display capture added for monitor {monitorIndex} using PipeWire (portal)");
             }
             else
@@ -1666,6 +1706,65 @@ namespace Segra.Backend.Recorder
             // Add to scene (display is behind game capture in layer order)
             _displayItem = _mainScene.AddSource(_displaySource);
         }
+
+#if !WINDOWS
+        // The portal, not xrandr, decides which screen is shared, so size the canvas from the stream.
+        // It has a size once a screen is picked (right away with a restore token), before any output starts.
+        // Returns false when a stop or exit cancelled the start during the wait.
+        private static bool FitCanvasToPortalScreen(EffectiveRecordingSettings eff)
+        {
+            var source = _displaySource;
+            // Without a ScreenCast portal the source type isn't registered and never gets a size
+            if (source?.TypeId != MonitorCapture.LinuxTypeId || source.DisplayName == null) return true;
+
+            var waited = Stopwatch.StartNew();
+            while (source.Width == 0 && waited.Elapsed < TimeSpan.FromSeconds(30) && !_portalFailed && !_startCancelled && !_isExiting)
+                Thread.Sleep(100);
+
+            if (_startCancelled || _isExiting)
+            {
+                Log.Information("Recording cancelled while waiting for the share dialog");
+                return false;
+            }
+
+            uint width = source.Width, height = source.Height;
+            if (width == 0 || height == 0)
+            {
+                Log.Information(_portalFailed
+                    ? "Screen sharing was declined or failed; recording without video"
+                    : $"No screen picked in the share dialog yet; recording at {_currentBaseWidth}x{_currentBaseHeight}");
+                return true;
+            }
+
+            // Saved now so a crash during the recording can't lose the pick
+            SavePortalRestoreToken(source);
+            if (width == _currentBaseWidth && height == _currentBaseHeight) return true;
+
+            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customOutputWidth: width, customOutputHeight: height, customResolution: eff.Resolution);
+            _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+            Log.Information($"Canvas set to the shared screen's {width}x{height}");
+            return true;
+        }
+
+        // The portal gives the source a restore token once a screen is picked; passing it back next time skips the picker
+        private static void SavePortalRestoreToken(Source source)
+        {
+            try
+            {
+                using var sourceSettings = source.GetSettings();
+                string? token = sourceSettings.GetString("RestoreToken");
+                if (!string.IsNullOrEmpty(token) && token != Settings.Instance.PipeWireRestoreToken)
+                {
+                    Settings.Instance.PipeWireRestoreToken = token;
+                    SettingsService.SaveSettings(suppressLog: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to save the screen-share restore token: {ex.Message}");
+            }
+        }
+#endif
 
         /// <summary>
         /// Switches the live display capture to the selected monitor in place (keeping the source and its
@@ -1891,6 +1990,11 @@ namespace Segra.Backend.Recorder
         // expectedPid: skip the stop if the tracked recording has since moved to a different PID.
         public static async Task StopRecording(int? expectedPid = null)
         {
+#if !WINDOWS
+            // Ends a start that is waiting for the share dialog. Process-exit stops stay queued, since launcher chains hand off pids.
+            if (expectedPid == null && AppState.Instance.PreRecording != null)
+                _startCancelled = true;
+#endif
             // Prevent race conditions when multiple callers try to stop recording simultaneously
             await _stopRecordingSemaphore.WaitAsync();
             try
@@ -3317,6 +3421,10 @@ namespace Segra.Backend.Recorder
 
             if (_displaySource != null)
             {
+#if !WINDOWS
+                // Covers a screen picked after the start stopped waiting for it
+                SavePortalRestoreToken(_displaySource);
+#endif
                 try
                 {
                     Log.Information("Disposing display source");

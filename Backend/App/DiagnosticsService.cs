@@ -413,7 +413,7 @@ namespace Segra.Backend.App
             try
             {
                 if (string.IsNullOrEmpty(path)) return;
-                var root = Path.GetPathRoot(path);
+                var root = StorageService.GetDriveRoot(path);
                 if (string.IsNullOrEmpty(root)) return;
                 var drive = new DriveInfo(root);
                 if (!drive.IsReady)

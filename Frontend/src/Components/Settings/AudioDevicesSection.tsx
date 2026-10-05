@@ -51,13 +51,12 @@ export default function AudioDevicesSection({
   // The ceiling comes from the loaded OBS build (6 in stock OBS, higher in patched bundles).
   // In GameOnly/GameAndDiscord modes, game recordings use Game Audio (+ one shared Voice Chat
   // track) instead of the output devices, which then only apply to manual recordings.
+  // Linux has no per-process game audio capture, so it always records everything
+  const audioOutputMode: AudioOutputMode =
+    appState.platform === 'linux' ? 'All' : settings.audioOutputMode;
   const selectedInputIds = settings.inputDevices.map((d) => d.id);
   const implicitOutputCount =
-    settings.audioOutputMode === 'GameAndDiscord'
-      ? 2
-      : settings.audioOutputMode === 'GameOnly'
-        ? 1
-        : 0;
+    audioOutputMode === 'GameAndDiscord' ? 2 : audioOutputMode === 'GameOnly' ? 1 : 0;
   const selectedOutputIds = settings.outputDevices.map((d) => d.id);
   const combinedSelectedIds = [...selectedInputIds, ...selectedOutputIds];
   const totalSourceCount = combinedSelectedIds.length + implicitOutputCount;
@@ -399,10 +398,10 @@ export default function AudioDevicesSection({
         </div>
       </div>
 
-      <label className="label mt-4">
+      <label className={`label mt-4 ${appState.platform === 'linux' ? 'hidden' : ''}`}>
         <span className="label-text text-base-content">What to Record</span>
       </label>
-      <div className="grid grid-cols-3 gap-4">
+      <div className={`grid grid-cols-3 gap-4 ${appState.platform === 'linux' ? 'hidden' : ''}`}>
         {[
           {
             value: 'All' as AudioOutputMode,
@@ -432,13 +431,13 @@ export default function AudioDevicesSection({
         ].map((option) => (
           <label
             key={option.value}
-            className={`relative bg-base-200 p-3 rounded-lg flex flex-col gap-1 transition-all border ${settings.audioOutputMode === option.value ? 'border-primary' : 'border-base-400'} cursor-pointer hover:bg-base-300`}
+            className={`relative bg-base-200 p-3 rounded-lg flex flex-col gap-1 transition-all border ${audioOutputMode === option.value ? 'border-primary' : 'border-base-400'} cursor-pointer hover:bg-base-300`}
           >
             <input
               type="radio"
               name="audioOutputMode"
               className="sr-only"
-              checked={settings.audioOutputMode === option.value}
+              checked={audioOutputMode === option.value}
               onChange={() => updateSettings({ audioOutputMode: option.value })}
             />
             <span className="flex items-center gap-1.5 font-semibold">

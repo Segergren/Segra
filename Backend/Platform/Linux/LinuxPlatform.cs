@@ -37,7 +37,9 @@ namespace Segra.Backend.Platform.Linux
                 // `list short` exposes only the node name (e.g. alsa_output.pci-...), not a
                 // human-readable one. The long form gives both: Name (a stable node id we keep as
                 // the device Id) and Description (the friendly name shown in the UI).
-                string output = LinuxProcess.RunCapture("pactl", $"list {kind}", onHost: true);
+                string output = RunPactl($"list {kind}");
+                if (output.Length == 0)
+                    Log.Warning($"pactl listed no audio {kind}");
 
                 string? nodeName = null;
                 string? description = null;
@@ -76,6 +78,18 @@ namespace Segra.Backend.Platform.Linux
             }
 
             return devices;
+        }
+
+        // Without a microphone, the default source falls back to a speaker monitor
+        public static bool DefaultSourceIsMonitor() =>
+            RunPactl("get-default-source").Trim().EndsWith(".monitor", StringComparison.Ordinal);
+
+        // pactl ships in the Flatpak runtime, so the host's (often missing on NixOS) is only a fallback.
+        // LC_ALL=C keeps the output in English, which the parsing relies on.
+        private static string RunPactl(string args)
+        {
+            string output = LinuxProcess.RunCapture("env", $"LC_ALL=C pactl {args}");
+            return output.Length > 0 || !FlatpakHost.IsFlatpak ? output : LinuxProcess.RunCapture("env", $"LC_ALL=C pactl {args}", onHost: true);
         }
     }
 
@@ -334,7 +348,7 @@ namespace Segra.Backend.Platform.Linux
     /// <summary>Small helpers for launching Linux CLI tools.</summary>
     internal static class LinuxProcess
     {
-        // Desktop-integration tools (zenity, pactl, xrandr, xclip) aren't in the runtime; run them on the host.
+        // Desktop-integration tools (zenity, xrandr, xclip) aren't in the runtime; run them on the host.
         private static ProcessStartInfo StartInfo(string file, string args, bool onHost) =>
             onHost && FlatpakHost.IsFlatpak
                 ? new ProcessStartInfo("flatpak-spawn", $"--host {FlatpakHost.DirectoryArg} {file} {args}")
@@ -365,12 +379,18 @@ namespace Segra.Backend.Platform.Linux
 
                 using var proc = Process.Start(psi);
                 if (proc == null) return "";
-                // Drain stderr concurrently, or a tool that fills the stderr pipe buffer would deadlock.
+                // Drain both pipes concurrently, or a tool that fills one pipe buffer would deadlock.
+                var outTask = proc.StandardOutput.ReadToEndAsync();
                 var errTask = proc.StandardError.ReadToEndAsync();
-                string output = proc.StandardOutput.ReadToEnd();
+                // Some callers are on the recording start path, so a hung tool must not block forever
+                if (!proc.WaitForExit(10000))
+                {
+                    proc.Kill(entireProcessTree: true);
+                    Log.Warning($"'{file} {args}' did not finish within 10 s");
+                    return "";
+                }
                 errTask.GetAwaiter().GetResult();
-                proc.WaitForExit(10000);
-                return output;
+                return outTask.GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {

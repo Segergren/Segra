@@ -10,7 +10,8 @@ command: segra
 finish-args:
   # Windowing + input (Photino / WebKitGTK)
   - --socket=wayland
-  - --socket=fallback-x11
+  # x11, not fallback-x11: on Wayland, hotkeys are read from XWayland, which receives the keys of Wine/Proton games
+  - --socket=x11
   - --share=ipc
   # Audio in/out
   - --socket=pulseaudio

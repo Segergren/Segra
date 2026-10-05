@@ -302,7 +302,8 @@ namespace Segra.Backend.Shared
             "accesstoken",
             "refreshtoken",
             "jwt",
-            "state"
+            "state",
+            "pipewirerestoretoken"
         ];
 
         public static string RedactSensitiveInfo(string message)
@@ -374,6 +375,9 @@ namespace Segra.Backend.Shared
 
         public static void SetProcessPriority(ProcessPriorityClass priority)
         {
+            // Raising priority on Linux needs CAP_SYS_NICE, which a normal user (and any Flatpak) lacks
+            if (!OperatingSystem.IsWindows()) return;
+
             try
             {
                 Process.GetCurrentProcess().PriorityClass = priority;

@@ -30,12 +30,15 @@ namespace Segra.Backend.Windows.Input
         private const int VK_LWIN = 0x5B;
         private const int VK_RWIN = 0x5C;
 
-        // Guards _registered, _brokerClient and _brokerActive so the OBS and broker sources never overlap.
+        // Guards _registered, _brokerClient, _brokerActive and _xwaylandPoller so the hotkey sources never overlap.
         private static readonly object _lock = new();
         private static readonly List<RegisteredHotkey> _registered = [];
 #if WINDOWS
         private static HotkeyBrokerClient? _brokerClient;
         private static bool _brokerActive;
+#else
+        // libobs never sees keys pressed in other apps on Wayland, so those come from XWayland instead
+        private static Platform.Linux.XWaylandHotkeyPoller? _xwaylandPoller;
 #endif
 
         /// <summary>
@@ -54,6 +57,20 @@ namespace Segra.Backend.Windows.Input
             client.Start();
             PublishBrokerStatus();
 #endif
+#if !WINDOWS
+            // On X11 sessions libobs's own hotkeys already see every key
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
+            {
+                var poller = Platform.Linux.XWaylandHotkeyPoller.TryStart(HandleHotkeyAction);
+                lock (_lock)
+                    _xwaylandPoller = poller;
+
+                if (poller != null)
+                    Log.Information("Reading hotkeys from XWayland");
+                else
+                    Log.Warning("No X server reachable, so hotkeys can't work on this Wayland session");
+            }
+#endif
             RefreshHotkeysCache();
         }
 
@@ -64,6 +81,8 @@ namespace Segra.Backend.Windows.Input
         {
 #if WINDOWS
             HotkeyBrokerClient? client;
+#else
+            Platform.Linux.XWaylandHotkeyPoller? poller;
 #endif
             lock (_lock)
             {
@@ -71,10 +90,16 @@ namespace Segra.Backend.Windows.Input
                 client = _brokerClient;
                 _brokerClient = null;
                 _brokerActive = false;
+#else
+                poller = _xwaylandPoller;
+                _xwaylandPoller = null;
 #endif
                 ClearRegisteredHotkeys();
             }
 
+#if !WINDOWS
+            poller?.Dispose();
+#endif
 #if WINDOWS
             if (client is null)
                 return;
@@ -127,6 +152,14 @@ namespace Segra.Backend.Windows.Input
                 {
                     ClearRegisteredHotkeys();
                     _brokerClient?.UpdateHotkeys(hotkeys);
+                    return;
+                }
+#else
+                // The poller is the sole source while it runs; libobs falls back to X11 hotkeys when Wayland is unreachable, which would fire twice
+                if (_xwaylandPoller != null)
+                {
+                    ClearRegisteredHotkeys();
+                    _xwaylandPoller.SetBindings(hotkeys);
                     return;
                 }
 #endif

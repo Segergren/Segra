@@ -63,6 +63,7 @@ export interface State {
   recordingDriveUsedGb: number | null;
   recordingDriveFreeGb: number | null;
   cacheFolder: string;
+  platform: 'windows' | 'linux';
   // Windows only; the backend leaves it unset elsewhere.
   hotkeyBroker?: HotkeyBrokerStatus | null;
 }
@@ -315,6 +316,7 @@ export interface Settings {
   selectedDisplay: Display | null;
   selectedOBSVersion: string | null; // null means automatic (latest non-beta)
   hotkeyBrokerDeclinedVersion: string | null; // backend-owned, mirrored only
+  pipeWireRestoreToken: string | null; // backend-owned, mirrored only
   enableAi: boolean;
   autoGenerateHighlights: boolean;
   runOnStartup: boolean;
@@ -378,6 +380,7 @@ export const initialState: State = {
   recordingDriveUsedGb: null,
   recordingDriveFreeGb: null,
   cacheFolder: '',
+  platform: 'windows',
 };
 
 export const initialSettings: Settings = {
@@ -401,6 +404,7 @@ export const initialSettings: Settings = {
   selectedDisplay: null, // Default to null (auto-select)
   selectedOBSVersion: null, // null means automatic (latest non-beta)
   hotkeyBrokerDeclinedVersion: null,
+  pipeWireRestoreToken: null,
   enableAi: true,
   autoGenerateHighlights: true,
   runOnStartup: false,

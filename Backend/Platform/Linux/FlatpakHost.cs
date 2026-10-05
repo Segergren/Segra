@@ -19,8 +19,9 @@ namespace Segra.Backend.Platform.Linux
             (Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is { Length: > 0 } home ? home : "/");
 
         // One `find` call emits every host pid + exe as "/proc/<pid> <path>" lines, instead of a readlink-per-pid shell loop.
+        // The shell first prints its pid and then becomes `find`, so the listing can leave out the helper itself.
         private static readonly string[] ListProcesses =
-            ["find", "/proc", "-maxdepth", "2", "-name", "exe", "-type", "l", "-printf", "%h %l\n"];
+            ["sh", "-c", "echo $$; exec find /proc -maxdepth 2 -name exe -type l -printf '%h %l\\n'"];
 
         private static readonly object _lock = new();
         private static Dictionary<int, string> _processes = [];
@@ -31,7 +32,9 @@ namespace Segra.Backend.Platform.Linux
         public static Dictionary<int, string> RefreshProcesses()
         {
             var map = new Dictionary<int, string>();
-            foreach (var line in (RunOnHost(ListProcesses) ?? string.Empty).Split('\n'))
+            var lines = (RunOnHost(ListProcesses) ?? string.Empty).Split('\n');
+            int.TryParse(lines[0], out int helperPid);
+            foreach (var line in lines)
             {
                 // Exe paths can contain spaces, so split "/proc/1234 /usr/bin/foo" on the first separator only.
                 const int prefix = 6; // "/proc/"
@@ -40,6 +43,7 @@ namespace Segra.Backend.Platform.Linux
                 if (!int.TryParse(line.AsSpan(prefix, sp - prefix), out int pid)) continue;
                 map[pid] = line[(sp + 1)..].Trim();
             }
+            map.Remove(helperPid);
 
             lock (_lock)
             {

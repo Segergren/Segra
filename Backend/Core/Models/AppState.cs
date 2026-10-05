@@ -309,6 +309,10 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("cacheFolder")]
         public string CacheFolder => FolderNames.CacheFolder.Replace("\\", "/");
 
+        // Lets the frontend hide what Linux lacks (a tray, per-process game audio capture)
+        [JsonPropertyName("platform")]
+        public string PlatformName => OperatingSystem.IsWindows() ? "windows" : "linux";
+
         public void UpdateAudioDevices()
         {
             List<AudioDevice> inputDevices = PlatformServices.Audio.GetInputDevices();
