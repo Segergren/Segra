@@ -247,6 +247,10 @@ namespace Segra.Backend.Platform.Windows
                     DiscardOnBufferOverflow = true
                 };
 
+                // Silence cushion so jittery PCM delivery doesn't underrun (crackle) right after a restart.
+                var cushion = new byte[sampleRate / 20 * provider.WaveFormat.BlockAlign];
+                provider.AddSamples(cushion, 0, cushion.Length);
+
                 waveOut = new WasapiOut(AudioClientShareMode.Shared, 40);
                 try
                 {

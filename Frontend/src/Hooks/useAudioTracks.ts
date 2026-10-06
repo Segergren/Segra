@@ -39,6 +39,8 @@ interface AudioTrackData {
   cts: Float64Array;
   sampleCount: number;
   cursor: number;
+  // Outputs before this timestamp are pre-roll after a seek and are discarded.
+  discardBeforeMicros: number;
   decoder: AudioDecoder;
   decoderConfig: AudioDecoderConfig;
   gainNode: GainNode;
@@ -48,6 +50,12 @@ interface AudioTrackData {
 const LOOKAHEAD_SECONDS = 2;
 const CHUNK_SIZE = 2 * 1024 * 1024;
 const SAMPLES_PER_BATCH = 100;
+// AAC frames overlap their predecessor, so the first frame after a jump decodes wrong
+// unless the decoder is fed a couple of earlier frames first.
+const PREROLL_FRAMES = 2;
+// The native sink plays ~90 ms behind the graph (worklet batching + backend cushion and
+// device buffer), so audio is scheduled that much earlier to stay in sync with the video.
+const NATIVE_SINK_LATENCY_SECONDS = 0.09;
 
 function makeMp4BoxBuffer(data: ArrayBuffer, fileStart: number): MP4BoxBuffer {
   return MP4BoxBuffer.fromArrayBuffer(data, fileStart);
@@ -166,6 +174,42 @@ function tablesFromSamples(
   return { offsets, sizes, cts };
 }
 
+// Feeds samples [start, end) to the decoder; `ab` holds their contiguous bytes.
+function decodeRun(td: AudioTrackData, start: number, end: number, ab: ArrayBuffer): void {
+  const view = new Uint8Array(ab);
+  const rangeStart = td.offsets[start];
+  for (let i = start; i < end; i++) {
+    const localOffset = td.offsets[i] - rangeStart;
+    const sliceBytes = view.subarray(localOffset, localOffset + td.sizes[i]);
+    const tsMicros = Math.round((td.cts[i] / td.timescale) * 1_000_000);
+    const nextRawCts =
+      i + 1 < td.sampleCount
+        ? td.cts[i + 1]
+        : td.cts[i] + (i > 0 ? td.cts[i] - td.cts[i - 1] : td.timescale * 0.02);
+    const durMicros = Math.max(
+      1,
+      Math.round(((nextRawCts - td.cts[i]) / td.timescale) * 1_000_000),
+    );
+    let chunk: EncodedAudioChunk;
+    try {
+      chunk = new EncodedAudioChunk({
+        type: 'key',
+        timestamp: tsMicros,
+        duration: durMicros,
+        data: sliceBytes,
+      });
+    } catch (err) {
+      console.warn('[useAudioTracks] build chunk failed', err);
+      continue;
+    }
+    try {
+      td.decoder.decode(chunk);
+    } catch (err) {
+      console.warn('[useAudioTracks] decode failed', err);
+    }
+  }
+}
+
 function seekCursor(td: AudioTrackData, timeSec: number): number {
   const targetRaw = (timeSec + td.primingMicros / 1_000_000) * td.timescale;
   let lo = 0;
@@ -176,6 +220,12 @@ function seekCursor(td: AudioTrackData, timeSec: number): number {
     else hi = mid;
   }
   return Math.max(0, lo - 1);
+}
+
+function seekTrack(td: AudioTrackData, timeSec: number): void {
+  const target = seekCursor(td, timeSec);
+  td.cursor = Math.max(0, target - PREROLL_FRAMES);
+  td.discardBeforeMicros = Math.round((td.cts[target] / td.timescale) * 1_000_000);
 }
 
 export function useAudioTracks(
@@ -214,28 +264,26 @@ export function useAudioTracks(
     latestRef.current = { mutedTracks, soloTrack, volumes };
   });
 
+  const trackGain = useCallback((segraIndex: number) => {
+    const { mutedTracks: defaultMuted, soloTrack: solo, volumes: vols } = latestRef.current;
+    const effectiveMuted = muteOverrideRef.current ?? defaultMuted;
+    const effectiveVolumes = volumeOverrideRef.current ?? vols;
+    const muted = solo !== null ? segraIndex !== solo : effectiveMuted.has(segraIndex);
+    return muted ? 0 : (effectiveVolumes[segraIndex] ?? 1);
+  }, []);
+
   const applyMuting = useCallback(() => {
     const ctx = audioCtxRef.current;
     const master = masterGainRef.current;
     if (!ctx || !master) return;
     const now = ctx.currentTime;
-    const { mutedTracks: defaultMuted, soloTrack: solo, volumes: vols } = latestRef.current;
-    const effectiveMuted = muteOverrideRef.current ?? defaultMuted;
-    const effectiveVolumes = volumeOverrideRef.current ?? vols;
 
     master.gain.setTargetAtTime(masterMutedRef.current ? 0 : masterVolumeRef.current, now, 0.005);
 
     for (const td of trackDataRef.current.values()) {
-      let muted: boolean;
-      if (solo !== null) {
-        muted = td.segraIndex !== solo;
-      } else {
-        muted = effectiveMuted.has(td.segraIndex);
-      }
-      const vol = effectiveVolumes[td.segraIndex] ?? 1;
-      td.gainNode.gain.setTargetAtTime(muted ? 0 : vol, now, 0.005);
+      td.gainNode.gain.setTargetAtTime(trackGain(td.segraIndex), now, 0.005);
     }
-  }, []);
+  }, [trackGain]);
 
   const stopAllSources = useCallback(() => {
     for (const td of trackDataRef.current.values()) {
@@ -278,7 +326,7 @@ export function useAudioTracks(
         data.close();
         return;
       }
-      if (vid?.paused) {
+      if (vid?.paused || data.timestamp < td.discardBeforeMicros) {
         data.close();
         return;
       }
@@ -359,76 +407,70 @@ export function useAudioTracks(
         const playhead = vid.currentTime;
         const rate = playbackRateRef.current || 1;
 
-        let target: AudioTrackData | null = null;
-        let minAhead = LOOKAHEAD_SECONDS;
+        const needy: { td: AudioTrackData; ahead: number; audible: boolean }[] = [];
         for (const td of trackDataRef.current.values()) {
           if (td.cursor >= td.sampleCount) continue;
           const nextCtsSec = td.cts[td.cursor] / td.timescale - td.primingMicros / 1_000_000;
           const ahead = (nextCtsSec - playhead) / rate;
           if (ahead >= LOOKAHEAD_SECONDS) continue;
-          if (ahead < minAhead) {
-            minAhead = ahead;
-            target = td;
+          needy.push({ td, ahead, audible: trackGain(td.segraIndex) > 0 });
+        }
+        if (needy.length === 0) break;
+        // Audible tracks are requested before muted ones so playback starts sooner.
+        needy.sort((a, b) => Number(b.audible) - Number(a.audible) || a.ahead - b.ahead);
+
+        // Split each batch into contiguous byte runs so ranges skip the interleaved
+        // video and other tracks (hybrid MP4 stores ~1 s per track per fragment).
+        const plans = needy.map(({ td }) => {
+          const runs: { start: number; end: number; fetch?: Promise<ArrayBuffer> }[] = [];
+          const maxEnd = Math.min(td.cursor + SAMPLES_PER_BATCH, td.sampleCount);
+          let start = td.cursor;
+          for (let i = start + 1; i <= maxEnd; i++) {
+            if (i === maxEnd || td.offsets[i] !== td.offsets[i - 1] + td.sizes[i - 1]) {
+              runs.push({ start, end: i });
+              start = i;
+            }
+          }
+          return { td, runs };
+        });
+
+        // Request every track's first run before anyone's second, all in parallel.
+        const maxRuns = Math.max(...plans.map((p) => p.runs.length));
+        for (let r = 0; r < maxRuns; r++) {
+          for (const { td, runs } of plans) {
+            const run = runs[r];
+            if (!run) continue;
+            run.fetch = rangeFetch(
+              td.offsets[run.start],
+              td.offsets[run.end - 1] + td.sizes[run.end - 1] - 1,
+              signal,
+            );
+            run.fetch.catch(() => {});
           }
         }
 
-        if (!target) break;
-
-        const batchStart = target.cursor;
-        const batchEnd = Math.min(batchStart + SAMPLES_PER_BATCH, target.sampleCount);
-        const rangeStart = target.offsets[batchStart];
-        const rangeEnd = target.offsets[batchEnd - 1] + target.sizes[batchEnd - 1] - 1;
-
-        let ab: ArrayBuffer;
         try {
-          ab = await rangeFetch(rangeStart, rangeEnd, signal);
+          await Promise.all(
+            plans.map(async ({ td, runs }) => {
+              for (const run of runs) {
+                const ab = await run.fetch!;
+                if (signal.aborted || generationRef.current !== startGen) return;
+                decodeRun(td, run.start, run.end, ab);
+                td.cursor = run.end;
+              }
+            }),
+          );
         } catch (err) {
           if ((err as { name?: string }).name === 'AbortError') return;
           console.warn('[useAudioTracks] pump fetch failed', err);
           return;
         }
         if (signal.aborted) return;
-        if (generationRef.current !== startGen) continue;
-
-        const view = new Uint8Array(ab);
-        for (let i = batchStart; i < batchEnd; i++) {
-          const localOffset = target.offsets[i] - rangeStart;
-          const size = target.sizes[i];
-          const sliceBytes = view.subarray(localOffset, localOffset + size);
-          const tsMicros = Math.round((target.cts[i] / target.timescale) * 1_000_000);
-          const nextRawCts =
-            i + 1 < target.sampleCount
-              ? target.cts[i + 1]
-              : target.cts[i] +
-                (i > 0 ? target.cts[i] - target.cts[i - 1] : target.timescale * 0.02);
-          const durMicros = Math.max(
-            1,
-            Math.round(((nextRawCts - target.cts[i]) / target.timescale) * 1_000_000),
-          );
-          let chunk: EncodedAudioChunk;
-          try {
-            chunk = new EncodedAudioChunk({
-              type: 'key',
-              timestamp: tsMicros,
-              duration: durMicros,
-              data: sliceBytes,
-            });
-          } catch (err) {
-            console.warn('[useAudioTracks] build chunk failed', err);
-            continue;
-          }
-          try {
-            target.decoder.decode(chunk);
-          } catch (err) {
-            console.warn('[useAudioTracks] decode failed', err);
-          }
-        }
-        target.cursor = batchEnd;
       }
     } finally {
       pumpingRef.current = false;
     }
-  }, [rangeFetch, videoRef]);
+  }, [rangeFetch, trackGain, videoRef]);
 
   const resyncTo = useCallback(
     (time: number, rate: number) => {
@@ -445,10 +487,11 @@ export function useAudioTracks(
         } catch (err) {
           console.warn('[useAudioTracks] decoder reconfigure failed', err);
         }
-        td.cursor = seekCursor(td, time);
+        seekTrack(td, time);
       }
 
-      audioStartCtxTimeRef.current = ctx.currentTime - time / rate;
+      audioStartCtxTimeRef.current =
+        ctx.currentTime - time / rate - (sinkRef.current ? NATIVE_SINK_LATENCY_SECONDS : 0);
       playbackRateRef.current = rate;
 
       pumpDecoders();
@@ -690,6 +733,7 @@ export function useAudioTracks(
           cts: tables.cts,
           sampleCount,
           cursor: 0,
+          discardBeforeMicros: 0,
           decoder: null as unknown as AudioDecoder,
           decoderConfig,
           gainNode: gain,
@@ -730,9 +774,12 @@ export function useAudioTracks(
       const startTime = vid?.currentTime ?? 0;
       const startRate = vid?.playbackRate ?? 1;
       for (const td of trackDataRef.current.values()) {
-        td.cursor = seekCursor(td, startTime);
+        seekTrack(td, startTime);
       }
-      audioStartCtxTimeRef.current = ctx.currentTime - startTime / startRate;
+      audioStartCtxTimeRef.current =
+        ctx.currentTime -
+        startTime / startRate -
+        (sinkRef.current ? NATIVE_SINK_LATENCY_SECONDS : 0);
       playbackRateRef.current = startRate;
       pumpDecoders();
     })();
