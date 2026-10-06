@@ -65,6 +65,7 @@ export interface State {
   cacheFolder: string;
   platform: 'windows' | 'linux';
   usesScreenSharePicker: boolean;
+  hotkeysNeedInputGroup: boolean;
   // Windows only; the backend leaves it unset elsewhere.
   hotkeyBroker?: HotkeyBrokerStatus | null;
 }
@@ -383,6 +384,7 @@ export const initialState: State = {
   cacheFolder: '',
   platform: 'windows',
   usesScreenSharePicker: false,
+  hotkeysNeedInputGroup: false,
 };
 
 export const initialSettings: Settings = {

@@ -32,6 +32,7 @@ namespace Segra.Backend.Core.Models
         private double? _recordingDriveUsedGb = null;
         private double? _recordingDriveFreeGb = null;
         private HotkeyBrokerStatus? _hotkeyBroker;
+        private bool _hotkeysNeedInputGroup;
 
         private IPlatformWatcher? _deviceWatcher;
         private IPlatformWatcher? _displayWatcher;
@@ -258,6 +259,21 @@ namespace Segra.Backend.Core.Models
                 {
                     _hotkeyBroker = value;
                     SendToFrontend("State update: HotkeyBroker");
+                }
+            }
+        }
+
+        // Linux Wayland: keyboards exist in /dev/input but aren't readable, so hotkeys only work in X11 windows
+        [JsonPropertyName("hotkeysNeedInputGroup")]
+        public bool HotkeysNeedInputGroup
+        {
+            get => _hotkeysNeedInputGroup;
+            set
+            {
+                if (_hotkeysNeedInputGroup != value)
+                {
+                    _hotkeysNeedInputGroup = value;
+                    SendToFrontend("State update: HotkeysNeedInputGroup");
                 }
             }
         }

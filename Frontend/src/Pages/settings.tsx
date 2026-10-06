@@ -11,6 +11,7 @@ import AudioDevicesSection from '../Components/Settings/AudioDevicesSection';
 import HotkeysSection from '../Components/Settings/HotkeysSection';
 import PendingRecordingSettingsBanner from '../Components/Settings/PendingRecordingSettingsBanner';
 import HotkeyBrokerWarning from '../Components/Settings/HotkeyBrokerWarning';
+import InputGroupWarning from '../Components/Settings/InputGroupWarning';
 import GameDetectionSection from '../Components/Settings/GameDetectionSection';
 import GameIntegrationsSection from '../Components/Settings/GameIntegrationsSection';
 import HighlightsSection from '../Components/Settings/HighlightsSection';
@@ -169,6 +170,7 @@ export default function Settings() {
         <CaptureModeSection settings={settings} updateSettings={updateSettings} />
         <HotkeysSection settings={settings} updateSettings={updateSettings} />
         <HotkeyBrokerWarning />
+        <InputGroupWarning />
         <VideoSettingsSection settings={settings} updateSettings={updateSettings} />
         <AudioDevicesSection settings={settings} updateSettings={updateSettings} />
 

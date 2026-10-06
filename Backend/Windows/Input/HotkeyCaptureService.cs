@@ -63,6 +63,7 @@ namespace Segra.Backend.Windows.Input
             {
                 // XWayland only sees keys while an X11 window has focus, so it is the fallback
                 Platform.Linux.ILinuxHotkeySource? source = Platform.Linux.EvdevHotkeyPoller.TryStart(HandleHotkeyAction, out bool permissionDenied);
+                AppState.Instance.HotkeysNeedInputGroup = permissionDenied;
                 if (source == null)
                 {
                     if (permissionDenied)
