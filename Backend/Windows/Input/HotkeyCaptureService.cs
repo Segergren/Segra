@@ -30,15 +30,15 @@ namespace Segra.Backend.Windows.Input
         private const int VK_LWIN = 0x5B;
         private const int VK_RWIN = 0x5C;
 
-        // Guards _registered, _brokerClient, _brokerActive and _xwaylandPoller so the hotkey sources never overlap.
+        // Guards _registered, _brokerClient, _brokerActive and _waylandSource so the hotkey sources never overlap.
         private static readonly object _lock = new();
         private static readonly List<RegisteredHotkey> _registered = [];
 #if WINDOWS
         private static HotkeyBrokerClient? _brokerClient;
         private static bool _brokerActive;
 #else
-        // libobs never sees keys pressed in other apps on Wayland, so those come from XWayland instead
-        private static Platform.Linux.XWaylandHotkeyPoller? _xwaylandPoller;
+        // libobs never sees keys pressed in other apps on Wayland, so those come from input devices or XWayland instead
+        private static Platform.Linux.ILinuxHotkeySource? _waylandSource;
 #endif
 
         /// <summary>
@@ -61,14 +61,23 @@ namespace Segra.Backend.Windows.Input
             // On X11 sessions libobs's own hotkeys already see every key
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
             {
-                var poller = Platform.Linux.XWaylandHotkeyPoller.TryStart(HandleHotkeyAction);
-                lock (_lock)
-                    _xwaylandPoller = poller;
+                // XWayland only sees keys while an X11 window has focus, so it is the fallback
+                Platform.Linux.ILinuxHotkeySource? source = Platform.Linux.EvdevHotkeyPoller.TryStart(HandleHotkeyAction, out bool permissionDenied);
+                if (source == null)
+                {
+                    if (permissionDenied)
+                        Log.Warning("No permission to read keyboards in /dev/input, so hotkeys only work while an X11 window (e.g. a Wine/Proton game) is focused. " +
+                            "Add your user to the 'input' group to make them work everywhere: sudo usermod -aG input $USER, then log out and back in");
 
-                if (poller != null)
-                    Log.Information("Reading hotkeys from XWayland");
-                else
-                    Log.Warning("No X server reachable, so hotkeys can't work on this Wayland session");
+                    source = Platform.Linux.XWaylandHotkeyPoller.TryStart(HandleHotkeyAction);
+                    if (source != null)
+                        Log.Information("Reading hotkeys from XWayland");
+                    else
+                        Log.Warning("No readable keyboards and no X server reachable, so hotkeys can't work on this Wayland session");
+                }
+
+                lock (_lock)
+                    _waylandSource = source;
             }
 #endif
             RefreshHotkeysCache();
@@ -82,7 +91,7 @@ namespace Segra.Backend.Windows.Input
 #if WINDOWS
             HotkeyBrokerClient? client;
 #else
-            Platform.Linux.XWaylandHotkeyPoller? poller;
+            Platform.Linux.ILinuxHotkeySource? source;
 #endif
             lock (_lock)
             {
@@ -91,14 +100,14 @@ namespace Segra.Backend.Windows.Input
                 _brokerClient = null;
                 _brokerActive = false;
 #else
-                poller = _xwaylandPoller;
-                _xwaylandPoller = null;
+                source = _waylandSource;
+                _waylandSource = null;
 #endif
                 ClearRegisteredHotkeys();
             }
 
 #if !WINDOWS
-            poller?.Dispose();
+            source?.Dispose();
 #endif
 #if WINDOWS
             if (client is null)
@@ -155,11 +164,11 @@ namespace Segra.Backend.Windows.Input
                     return;
                 }
 #else
-                // The poller is the sole source while it runs; libobs falls back to X11 hotkeys when Wayland is unreachable, which would fire twice
-                if (_xwaylandPoller != null)
+                // The Wayland source is the sole source while it runs; libobs falls back to X11 hotkeys when Wayland is unreachable, which would fire twice
+                if (_waylandSource != null)
                 {
                     ClearRegisteredHotkeys();
-                    _xwaylandPoller.SetBindings(hotkeys);
+                    _waylandSource.SetBindings(hotkeys);
                     return;
                 }
 #endif
@@ -301,8 +310,24 @@ namespace Segra.Backend.Windows.Input
             return true;
         }
 
+        // Paused while the settings screen records a binding; expires in case the frontend never resumes
+        private static long _pausedUntilTicks;
+        private static readonly TimeSpan MaxPause = TimeSpan.FromMinutes(1);
+
+        public static void SetPaused(bool paused)
+        {
+            Volatile.Write(ref _pausedUntilTicks, paused ? DateTime.UtcNow.Add(MaxPause).Ticks : 0);
+            Log.Information(paused ? "Hotkeys paused while a hotkey is being rebound" : "Hotkeys resumed");
+        }
+
         private static void HandleHotkeyAction(HotkeyAction action)
         {
+            if (DateTime.UtcNow.Ticks < Volatile.Read(ref _pausedUntilTicks))
+            {
+                Log.Information($"Ignoring hotkey {action} while a hotkey is being rebound");
+                return;
+            }
+
             var recording = AppState.Instance.Recording;
             var preRecording = AppState.Instance.PreRecording;
             // Use the active recording's effective mode (per-game override aware) so bookmark/replay

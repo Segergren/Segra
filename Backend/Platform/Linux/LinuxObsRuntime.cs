@@ -61,6 +61,13 @@ namespace Segra.Backend.Platform.Linux
                     Environment.SetEnvironmentVariable("GST_PLUGIN_PATH_1_0", r.GstPluginDir);
                 }
 
+                // The loader reads LD_LIBRARY_PATH when libobs loads, so no re-exec is needed (it would detach a debugger)
+                if (existingLd.Split(':').Contains(r.LibDir))
+                {
+                    Log.Information($"OBS runtime lib dir already on LD_LIBRARY_PATH; skipping re-exec (lib='{r.LibDir}').");
+                    return;
+                }
+
                 string? exePath = Environment.ProcessPath;
                 if (string.IsNullOrEmpty(exePath))
                 {

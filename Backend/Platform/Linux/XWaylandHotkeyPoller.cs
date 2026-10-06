@@ -10,7 +10,7 @@ namespace Segra.Backend.Platform.Linux
     /// the Windows hotkey broker: a binding fires once when all its keys are down, unrelated held keys
     /// don't block it, and when bindings overlap the one with the most keys wins.
     /// </summary>
-    internal sealed class XWaylandHotkeyPoller : IDisposable
+    internal sealed class XWaylandHotkeyPoller : ILinuxHotkeySource
     {
         private const string LibX11 = "libX11.so.6";
 
@@ -166,7 +166,7 @@ namespace Segra.Backend.Platform.Linux
             ToKeysyms(vk).Select(keysym => XKeysymToKeycode(_display, keysym)).Where(code => code != 0).ToArray();
 
         // The frontend records Win32 VK codes; these are the X keysyms for the keys OBSKit's FromWindowsVirtualKey supports
-        private static nuint[] ToKeysyms(int vk) => vk switch
+        internal static nuint[] ToKeysyms(int vk) => vk switch
         {
             (>= 0x30 and <= 0x39) or (>= 0x41 and <= 0x5A) or 0x20 => [(nuint)vk], // 0-9, A-Z and space share their ASCII code
             >= 0x70 and <= 0x87 => [(nuint)(0xFFBE + vk - 0x70)], // F1-F24

@@ -23,7 +23,24 @@ namespace Segra.Backend.Core.Models
         public static Settings Instance => _instance;
         public bool _isBulkUpdating = false;
 
-        private string _contentFolder = Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Segra"));
+        // On Linux, MyVideos is "" when ~/Videos doesn't exist. Runs during Settings init, so it must not throw.
+        public static string DefaultContentFolder()
+        {
+            string videos;
+            try
+            {
+                videos = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos, Environment.SpecialFolderOption.Create);
+            }
+            catch (Exception)
+            {
+                videos = "";
+            }
+            if (string.IsNullOrEmpty(videos))
+                videos = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return Shared.PathUtils.Normalize(Path.Combine(videos, "Segra"));
+        }
+
+        private string _contentFolder = DefaultContentFolder();
         private string _cacheFolder = Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra"));
         private string _resolution = "1440p";
         private int _frameRate = 60;

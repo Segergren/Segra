@@ -297,6 +297,13 @@ namespace Segra.Backend.App
                             await SetCacheLocationAsync();
                             Log.Information("SetCacheLocation command received.");
                             break;
+                        case "SetHotkeysPaused":
+                            root.TryGetProperty("Parameters", out JsonElement hotkeysPausedElement);
+                            Segra.Backend.Windows.Input.HotkeyCaptureService.SetPaused(
+                                hotkeysPausedElement.ValueKind == JsonValueKind.Object
+                                && hotkeysPausedElement.TryGetProperty("paused", out JsonElement pausedElement)
+                                && pausedElement.ValueKind == JsonValueKind.True);
+                            break;
                         case "UpdateSettings":
                             root.TryGetProperty("Parameters", out JsonElement settingsParameterElement);
                             Log.Information("UpdateSettings command received.");

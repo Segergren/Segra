@@ -294,7 +294,7 @@ namespace Segra.Backend.App
                         // fall back to the default so the app can still start.
                         Log.Error(ex, $"Content folder '{Settings.Instance.ContentFolder}' is not accessible, falling back to default");
                         var unreachableFolder = Settings.Instance.ContentFolder;
-                        Settings.Instance.ContentFolder = Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Segra"));
+                        Settings.Instance.ContentFolder = Settings.DefaultContentFolder();
                         Directory.CreateDirectory(Settings.Instance.ContentFolder);
                         SettingsService.SaveSettings();
                         _ = Task.Run(() => MessageService.ShowModal(

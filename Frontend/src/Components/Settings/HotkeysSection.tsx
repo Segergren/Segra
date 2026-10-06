@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Settings as SettingsType, HotkeyAction } from '../../Models/types';
+import { sendMessageToBackend } from '../../Utils/MessageUtils';
 interface HotkeysSectionProps {
   settings: SettingsType;
   updateSettings: (updates: Partial<SettingsType>) => void;
@@ -90,6 +91,14 @@ const getActionRank = (action: HotkeyAction): number => {
 export default function HotkeysSection({ settings, updateSettings }: HotkeysSectionProps) {
   const [capturing, setCapturing] = useState<number | null>(null);
   const [pressedKeys, setPressedKeys] = useState<number[]>([]);
+  const isCapturing = capturing !== null;
+
+  // Global hotkeys also see keys pressed here
+  useEffect(() => {
+    if (!isCapturing) return;
+    sendMessageToBackend('SetHotkeysPaused', { paused: true });
+    return () => sendMessageToBackend('SetHotkeysPaused', { paused: false });
+  }, [isCapturing]);
 
   useEffect(() => {
     if (capturing === null) return;
