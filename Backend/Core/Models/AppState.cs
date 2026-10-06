@@ -313,6 +313,11 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("platform")]
         public string PlatformName => OperatingSystem.IsWindows() ? "windows" : "linux";
 
+        // On Wayland the desktop's screen-share dialog picks the captured screen, not the monitor setting
+        [JsonPropertyName("usesScreenSharePicker")]
+        public bool UsesScreenSharePicker =>
+            !OperatingSystem.IsWindows() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
+
         public void UpdateAudioDevices()
         {
             List<AudioDevice> inputDevices = PlatformServices.Audio.GetInputDevices();

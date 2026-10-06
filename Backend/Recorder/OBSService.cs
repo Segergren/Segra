@@ -1757,6 +1757,7 @@ namespace Segra.Backend.Recorder
                 {
                     Settings.Instance.PipeWireRestoreToken = token;
                     SettingsService.SaveSettings(suppressLog: true);
+                    _ = MessageService.SendSettingsToFrontend("Screen picked");
                 }
             }
             catch (Exception ex)

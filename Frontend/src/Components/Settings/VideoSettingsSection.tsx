@@ -51,7 +51,30 @@ export default function VideoSettingsSection({
     sendMessageToBackend('ApplyVideoPreset', { preset });
   };
 
-  const monitorSelectionField = (
+  const monitorSelectionField = appState.usesScreenSharePicker ? (
+    <div className="form-control w-full">
+      <label className="label text-base-content px-0 !block">
+        <span className="label-text">Screen</span>
+      </label>
+      <div className="input input-bordered bg-base-200 w-full flex items-center justify-between gap-2 pr-1.5">
+        <span className="truncate font-medium">
+          {settings.pipeWireRestoreToken
+            ? 'Picked in screen-share dialog'
+            : 'Asks on next recording'}
+        </span>
+        <button
+          className="btn btn-sm border-base-400 bg-base-300 hover:bg-base-100 font-semibold shrink-0"
+          disabled={!settings.pipeWireRestoreToken}
+          onClick={() => sendMessageToBackend('ResetScreenSelection')}
+        >
+          Change screen
+        </button>
+      </div>
+      <div className="mt-1 px-1 text-xs opacity-70 leading-snug">
+        Used for manual recordings and the always-on replay buffer.
+      </div>
+    </div>
+  ) : (
     <div className="form-control">
       <label className="label">
         <span className="label-text text-base-content">Monitor Selection</span>

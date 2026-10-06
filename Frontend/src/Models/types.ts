@@ -64,6 +64,7 @@ export interface State {
   recordingDriveFreeGb: number | null;
   cacheFolder: string;
   platform: 'windows' | 'linux';
+  usesScreenSharePicker: boolean;
   // Windows only; the backend leaves it unset elsewhere.
   hotkeyBroker?: HotkeyBrokerStatus | null;
 }
@@ -381,6 +382,7 @@ export const initialState: State = {
   recordingDriveFreeGb: null,
   cacheFolder: '',
   platform: 'windows',
+  usesScreenSharePicker: false,
 };
 
 export const initialSettings: Settings = {

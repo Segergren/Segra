@@ -304,6 +304,12 @@ namespace Segra.Backend.App
                                 && hotkeysPausedElement.TryGetProperty("paused", out JsonElement pausedElement)
                                 && pausedElement.ValueKind == JsonValueKind.True);
                             break;
+                        case "ResetScreenSelection":
+                            Settings.Instance.PipeWireRestoreToken = null;
+                            SettingsService.SaveSettings();
+                            _ = SendSettingsToFrontend("Screen selection reset");
+                            Log.Information("Cleared the saved screen-share choice; the next display capture asks again");
+                            break;
                         case "UpdateSettings":
                             root.TryGetProperty("Parameters", out JsonElement settingsParameterElement);
                             Log.Information("UpdateSettings command received.");
