@@ -46,7 +46,8 @@ namespace Segra.Backend.App
             "ReleaseNotes",
             "pong",
             "RecordingPreviewState",
-            "RecordingPreviewFrame"
+            "RecordingPreviewFrame",
+            "MigrationStatus"
         };
 
         private const int MaxPendingModals = 10;
@@ -286,6 +287,11 @@ namespace Segra.Backend.App
                             });
 
                             await UpdateService.SendCurrentUpdateProgressToFrontend();
+                            await SendFrontendMessage("MigrationStatus", new
+                            {
+                                isRunning = MigrationService.IsRunning && !Program.IsFirstRun,
+                                currentMigration = MigrationService.CurrentMigration,
+                            });
                             await FlushPendingModalsAsync();
                             _ = Task.Run(() => UpdateService.GetReleaseNotes());
                             break;
