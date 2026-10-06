@@ -183,6 +183,9 @@
     <Copy SourceFiles="@(FrontendDistFiles)" DestinationFiles="@(FrontendDistFiles->'Resources\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
+  <!-- Build the frontend once before the per-TFM builds run in parallel and race on Frontend/dist. -->
+  <Target Name="BuildFrontendAssetsBeforeInnerBuilds" BeforeTargets="DispatchToInnerBuilds" DependsOnTargets="BuildFrontendAssets" />
+
   <Target Name="IncludeFrontendAssets" BeforeTargets="_CalculateEmbeddedFilesManifestInputs" DependsOnTargets="BuildFrontendAssets">
     <ItemGroup>
       <EmbeddedResource Include="Resources\wwwroot\**\*" />
