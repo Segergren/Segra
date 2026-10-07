@@ -42,7 +42,7 @@ jobs:
           echo "Extracted final version number: $final_version_number"
 
       - name: Checkout Code at Beta Tag
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           token: ${{ secrets.PAT_TOKEN }}
           ref: ${{ github.event.inputs.beta_tag }} # Checkout the specific beta tag
@@ -67,13 +67,13 @@ jobs:
           $packageJson | ConvertTo-Json -Depth 100 | Set-Content package.json -NoNewline
           Write-Host "Updated Frontend version in package.json: $(Select-String -Path package.json -Pattern 'version')"
 
-      - name: Build frontend; restore backend and install vpk in parallel
+      - name: Build frontend; restore backend, publish hotkey broker and install vpk in parallel
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
-          # vpk install and the NuGet restore don't depend on the frontend, so run them
-          # in the background while the frontend builds; both are awaited before publish.
+          # vpk install, the NuGet restore and the hotkey broker don't depend on the frontend, so run
+          # them in the background while the frontend builds; both jobs are awaited before publish.
           $vpkJob = Start-Job {
             dotnet tool install -g vpk --version 1.2.0
             if ($LASTEXITCODE -ne 0) { throw "vpk install exited $LASTEXITCODE" }
@@ -83,6 +83,8 @@ jobs:
             Set-Location $root
             dotnet restore -r win-x64
             if ($LASTEXITCODE -ne 0) { throw "dotnet restore exited $LASTEXITCODE" }
+            dotnet publish HotkeyBroker/Segra.Hotkeys/Segra.Hotkeys.csproj -c Release -f net10.0-windows10.0.19041.0 -r win-x64 -o publish --no-restore
+            if ($LASTEXITCODE -ne 0) { throw "hotkey broker publish exited $LASTEXITCODE" }
           }
 
           Push-Location Frontend
@@ -103,17 +105,13 @@ jobs:
           $ErrorActionPreference = 'Continue'
           Write-Host "=== vpk tool install ==="
           Receive-Job $vpkJob -Wait 2>&1 | ForEach-Object { Write-Host $_ }
-          Write-Host "=== dotnet restore -r win-x64 ==="
+          Write-Host "=== dotnet restore -r win-x64 + hotkey broker publish ==="
           Receive-Job $restoreJob -Wait 2>&1 | ForEach-Object { Write-Host $_ }
           if ($vpkJob.State -ne 'Completed') { throw "vpk install job failed (state: $($vpkJob.State))" }
           if ($restoreJob.State -ne 'Completed') { throw "dotnet restore job failed (state: $($restoreJob.State))" }
 
       - name: Publish the App
         run: dotnet publish Segra.csproj -c Release -f net10.0-windows10.0.19041.0 --self-contained -r win-x64 -o publish --no-restore -p:Version=${{ steps.extract_final_version.outputs.final_version_number }}
-        shell: pwsh
-
-      - name: Publish hotkey broker
-        run: dotnet publish HotkeyBroker/Segra.Hotkeys/Segra.Hotkeys.csproj -c Release -f net10.0-windows10.0.19041.0 -r win-x64 -o publish
         shell: pwsh
 
       - name: Upload Segra binaries for signing (Pass 1)
@@ -147,6 +145,7 @@ jobs:
           }
 
       - name: Sign Segra.exe (Pass 1)
+        id: sign_pass1
         uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -155,8 +154,13 @@ jobs:
           signing-policy-slug: release-signing
           artifact-configuration-slug: publish
           github-artifact-id: ${{ steps.upload_unsigned_exe.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: ./publish
+          wait-for-completion: false
+
+      - name: Wait for signing and download (Pass 1)
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: ./.github/scripts/wait-signpath.ps1 -SignedArtifactUrl '${{ steps.sign_pass1.outputs.signed-artifact-download-url }}' -OutputDirectory ./publish
 
       - name: Package with vpk for Final Release
         run: vpk pack -u Segra -v ${{ steps.extract_final_version.outputs.final_version_number }} -p ./publish -e Segra.exe -o ./output --packTitle "Segra" --noPortable -i ./Resources/icon.ico -s ./Resources/splash.png --splashProgressColor "#fecb00" --framework webview2,vcredist143-x64
@@ -190,6 +194,7 @@ jobs:
           }
 
       - name: Sign installer + nupkg (Pass 2)
+        id: sign_pass2
         uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -198,8 +203,13 @@ jobs:
           signing-policy-slug: release-signing
           artifact-configuration-slug: output
           github-artifact-id: ${{ steps.upload_unsigned_output.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: ./output
+          wait-for-completion: false
+
+      - name: Wait for signing and download (Pass 2)
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: ./.github/scripts/wait-signpath.ps1 -SignedArtifactUrl '${{ steps.sign_pass2.outputs.signed-artifact-download-url }}' -OutputDirectory ./output
 
       - name: Regenerate Velopack manifests
         shell: pwsh
@@ -255,6 +265,7 @@ jobs:
         with:
           name: Segra-Final-Build
           path: ./output
+          compression-level: 0
           retention-days: 1
 
   create_github_release:
@@ -262,7 +273,7 @@ jobs:
     # continue-on-error, so a Linux failure can't block the Windows release).
     needs: [build_and_release, build_linux]
     if: ${{ !cancelled() && needs.build_and_release.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write # Required to create a release
     steps:
@@ -292,12 +303,10 @@ jobs:
             ./assets.win.json
             ./Segra-${{ needs.build_and_release.outputs.final_version_number }}-full.nupkg
             ./linux/Segra.flatpak
-            ./linux/segra-*-x86_64.tar.gz
-            ./linux/segra-*-x86_64.tar.gz.sha256
 
   # Linux Flatpak, built in parallel with Windows; continue-on-error so it never blocks the release.
   build_linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
       - name: Compute final version from the beta tag
@@ -308,20 +317,20 @@ jobs:
           echo "num=$num" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Code at Beta Tag
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.beta_tag }}
           submodules: recursive
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - name: Setup Node 24
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install Flatpak toolchain + OBS media deps
         # OBS's media libs (FFmpeg 6, x264, jansson, rist, srt, mbedtls) so build-flatpak.sh can bundle its ldd closure.
@@ -338,21 +347,18 @@ jobs:
         run: SEGRA_VERSION=${{ steps.ver.outputs.num }} ./build-flatpak.sh
 
       - name: Upload Linux build artifact
-        # The tarball + sha256 feed the Flathub manifest; the .flatpak bundle is for direct installs.
         uses: actions/upload-artifact@v7
         with:
           name: Segra-Linux
-          path: |
-            ./output/Segra.flatpak
-            ./output/segra-*-x86_64.tar.gz
-            ./output/segra-*-x86_64.tar.gz.sha256
+          path: ./output/Segra.flatpak
+          compression-level: 0
           if-no-files-found: error
           retention-days: 1
 
-  # Separate, non-blocking job so the release job goes green without waiting on VirusTotal.
+  # Separate, non-blocking job; only needs the installer, so it runs alongside the Linux build and release.
   virustotal:
-    needs: create_github_release
-    runs-on: ubuntu-latest
+    needs: build_and_release
+    runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
       - name: Download Final Build Artifact
@@ -360,34 +366,33 @@ jobs:
         with:
           name: Segra-Final-Build
 
-      - name: Upload installer to VirusTotal
+      - name: Upload installer and binaries to VirusTotal
         shell: bash
         env:
           VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
         run: |
           set -euo pipefail
-          FILE="./Segra-win-Setup.exe"
           if [ -z "${VT_API_KEY:-}" ]; then
             echo "::warning::VIRUSTOTAL_API_KEY secret not set; skipping VirusTotal upload"
             exit 0
           fi
-          if [ ! -f "$FILE" ]; then
-            echo "::warning::$FILE not found; skipping VirusTotal upload"
-            exit 0
-          fi
-          # /files caps at 32MB, so request a one-time large-file upload URL instead.
-          echo "Requesting VirusTotal upload URL..."
-          UPLOAD_URL=$(curl -sS --fail -H "x-apikey: $VT_API_KEY" \
-            https://www.virustotal.com/api/v3/files/upload_url | jq -r '.data')
-          echo "Uploading $FILE to VirusTotal..."
-          ANALYSIS_ID=$(curl -sS --fail -H "x-apikey: $VT_API_KEY" \
-            -F "file=@${FILE}" "$UPLOAD_URL" | jq -r '.data.id')
-          REPORT_URL="https://www.virustotal.com/gui/file-analysis/$ANALYSIS_ID"
-          echo "VirusTotal analysis id: $ANALYSIS_ID"
-          echo "Report: $REPORT_URL"
-          {
-            echo "## VirusTotal"
-            echo "Release installer submitted for scanning."
-            echo ""
-            echo "[View analysis]($REPORT_URL)"
-          } >> "$GITHUB_STEP_SUMMARY"
+          # The broker and app code are scanned on their own since VirusTotal may not unpack the Velopack installer.
+          mkdir -p vt
+          unzip -j -o Segra-*-full.nupkg lib/app/Segra.Hotkeys.exe lib/app/Segra.dll -d vt
+          for FILE in ./Segra-win-Setup.exe ./vt/Segra.Hotkeys.exe ./vt/Segra.dll; do
+            if [ ! -f "$FILE" ]; then
+              echo "::warning::$FILE not found; skipping"
+              continue
+            fi
+            # /files caps at 32MB; larger files need a one-time upload URL.
+            UPLOAD_URL=https://www.virustotal.com/api/v3/files
+            if [ "$(stat -c %s "$FILE")" -gt 33554432 ]; then
+              UPLOAD_URL=$(curl -sS --fail -H "x-apikey: $VT_API_KEY" \
+                https://www.virustotal.com/api/v3/files/upload_url | jq -r '.data')
+            fi
+            echo "Uploading $FILE to VirusTotal..."
+            ANALYSIS_ID=$(curl -sS --fail -H "x-apikey: $VT_API_KEY" \
+              -F "file=@${FILE}" "$UPLOAD_URL" | jq -r '.data.id')
+            REPORT_URL="https://www.virustotal.com/gui/file-analysis/$ANALYSIS_ID"
+            echo "$(basename "$FILE"): $REPORT_URL"
+          done

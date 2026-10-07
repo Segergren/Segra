@@ -21,11 +21,13 @@ STAGING="flatpak-staging"
 command -v flatpak-builder >/dev/null 2>&1 || { echo "error: flatpak-builder not installed (apt install flatpak-builder)"; exit 1; }
 command -v ffmpeg >/dev/null 2>&1 || { echo "error: ffmpeg not installed (apt install ffmpeg); its binary gets bundled into the payload"; exit 1; }
 
-# Must run before staging, which enumerates the runtime's sonames to decide what OBS deps to bundle.
-echo "=== Runtime/SDK (no-op if already installed) ==="
+# Runs in the background during steps 1-2; staging waits for it since it enumerates the runtime's sonames.
+echo "=== Runtime/SDK install started in the background (no-op if already installed) ==="
 flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo || true
+RUNTIME_LOG="$(mktemp)"
 flatpak install --user -y --noninteractive flathub \
-    org.gnome.Platform//47 org.gnome.Sdk//47 org.freedesktop.Platform.ffmpeg-full//24.08 || true
+    org.gnome.Platform//47 org.gnome.Sdk//47 org.freedesktop.Platform.ffmpeg-full//24.08 >"$RUNTIME_LOG" 2>&1 &
+RUNTIME_PID=$!
 
 echo "=== 1/4 Frontend + publish (linux-x64, v$VERSION) ==="
 (cd Frontend && npm ci && SEGRA_VERSION="$VERSION" npm run build)
@@ -39,6 +41,10 @@ echo "=== 2/4 OBS runtime + helpers (OBS $OBS_VERSION, Ubuntu-24.04 base) ==="
 ./Obs/build-linux-bundle.sh "$OBS_VERSION"
 OBS_TARBALL="Obs/OBS ${OBS_VERSION} linux.tar.gz"
 [ -f "$OBS_TARBALL" ] || { echo "error: '$OBS_TARBALL' not produced"; exit 1; }
+
+echo "=== Waiting for Runtime/SDK install ==="
+wait "$RUNTIME_PID" || true
+cat "$RUNTIME_LOG"; rm -f "$RUNTIME_LOG"
 
 echo "=== 3/4 Stage payload -> $STAGING ==="
 rm -rf "$STAGING"
@@ -110,18 +116,12 @@ echo "=== 4/4 flatpak-builder ==="
 rm -rf build-dir repo output
 flatpak-builder --user --force-clean --repo=repo build-dir "$MANIFEST"
 mkdir -p output
+echo "=== Exporting Segra.flatpak ==="
 flatpak build-bundle repo "output/Segra.flatpak" "$APP_ID"
-
-# The same staged tree, as a tarball the Flathub manifest consumes by url + sha256.
-PAYLOAD="output/segra-${VERSION}-x86_64.tar.gz"
-tar czf "$PAYLOAD" -C "$STAGING" .
-sha256sum "$PAYLOAD" | awk '{print $1}' > "$PAYLOAD.sha256"
 
 echo ""
 echo "=== Done ==="
 echo "Bundle:  $SCRIPT_DIR/output/Segra.flatpak"
-echo "Payload: $SCRIPT_DIR/$PAYLOAD"
-echo "sha256:  $(cat "$PAYLOAD.sha256")"
 echo "Install/run:"
 echo "  flatpak install --user ./output/Segra.flatpak"
 echo "  flatpak run $APP_ID"
