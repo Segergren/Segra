@@ -52,13 +52,13 @@ jobs:
           $packageJson | ConvertTo-Json -Depth 100 | Set-Content package.json -NoNewline
           Write-Host "Updated version: $(Select-String -Path package.json -Pattern 'version')"
 
-      - name: Build frontend; restore backend, publish hotkey broker and install vpk in parallel
+      - name: Build frontend; restore backend and install vpk in parallel
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
-          # vpk install, the NuGet restore and the hotkey broker don't depend on the frontend, so run
-          # them in the background while the frontend builds; both jobs are awaited before publish.
+          # vpk install and the NuGet restore don't depend on the frontend, so run them
+          # in the background while the frontend builds; both are awaited before publish.
           $vpkJob = Start-Job {
             dotnet tool install -g vpk --version 1.2.0
             if ($LASTEXITCODE -ne 0) { throw "vpk install exited $LASTEXITCODE" }
@@ -68,8 +68,6 @@ jobs:
             Set-Location $root
             dotnet restore -r win-x64
             if ($LASTEXITCODE -ne 0) { throw "dotnet restore exited $LASTEXITCODE" }
-            dotnet publish HotkeyBroker/Segra.Hotkeys/Segra.Hotkeys.csproj -c Release -f net10.0-windows10.0.19041.0 -r win-x64 -o publish --no-restore
-            if ($LASTEXITCODE -ne 0) { throw "hotkey broker publish exited $LASTEXITCODE" }
           }
 
           Push-Location Frontend
@@ -90,13 +88,17 @@ jobs:
           $ErrorActionPreference = 'Continue'
           Write-Host "=== vpk tool install ==="
           Receive-Job $vpkJob -Wait 2>&1 | ForEach-Object { Write-Host $_ }
-          Write-Host "=== dotnet restore -r win-x64 + hotkey broker publish ==="
+          Write-Host "=== dotnet restore -r win-x64 ==="
           Receive-Job $restoreJob -Wait 2>&1 | ForEach-Object { Write-Host $_ }
           if ($vpkJob.State -ne 'Completed') { throw "vpk install job failed (state: $($vpkJob.State))" }
           if ($restoreJob.State -ne 'Completed') { throw "dotnet restore job failed (state: $($restoreJob.State))" }
 
       - name: Publish the App
         run: dotnet publish Segra.csproj -c Release -f net10.0-windows10.0.19041.0 --self-contained -r win-x64 -o publish --no-restore -p:Version=${{ env.new_version }}
+        shell: pwsh
+
+      - name: Publish hotkey broker
+        run: dotnet publish HotkeyBroker/Segra.Hotkeys/Segra.Hotkeys.csproj -c Release -f net10.0-windows10.0.19041.0 -r win-x64 -o publish --no-restore
         shell: pwsh
 
       - name: Upload Segra binaries for signing (Pass 1)
@@ -312,8 +314,8 @@ jobs:
         # obs-ffmpeg.so links the openssl srt variant, obs-outputs.so needs all three mbedtls libs,
         # and libobs-scripting needs luajit.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder \
+          sudo apt-get -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10 update
+          sudo apt-get -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10 install -y flatpak flatpak-builder \
             ffmpeg libavcodec-extra libx264-164 libjansson4 librist4 libsrt1.5-gnutls \
             libsrt1.5-openssl libmbedtls14t64 libmbedx509-1t64 libmbedcrypto7t64 libluajit-5.1-2
           flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
