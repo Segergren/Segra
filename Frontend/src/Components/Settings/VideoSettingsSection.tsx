@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { TriangleAlert } from 'lucide-react';
 import DropdownSelect from '../DropdownSelect';
 import { Settings as SettingsType, VideoQualityPreset } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
@@ -9,6 +10,7 @@ import {
   usePendingRecordingSettings,
   RECORDING_SETTING_GROUPS,
 } from '../../Hooks/usePendingRecordingSettings';
+import { isHevcEncoder, supportsHevcPlayback } from '../../Utils/CodecSupport';
 
 interface VideoSettingsSectionProps {
   settings: SettingsType;
@@ -21,6 +23,9 @@ export default function VideoSettingsSection({
 }: VideoSettingsSectionProps) {
   const appState = useAppState();
   const hasHdrDisplay = appState.displays.some((d) => d.isHdr);
+  const selectedCodec = appState.codecs.find(
+    (c) => c.internalEncoderId === settings.codec?.internalEncoderId,
+  );
   const [localReplayBufferDuration, setLocalReplayBufferDuration] = useState<string>(
     String(settings.replayBufferDuration),
   );
@@ -492,11 +497,7 @@ export default function VideoSettingsSection({
                       value: codec.internalEncoderId,
                       label: codec.friendlyName,
                     }))}
-                  value={
-                    appState.codecs.find(
-                      (c) => c.internalEncoderId === settings.codec?.internalEncoderId,
-                    )?.internalEncoderId
-                  }
+                  value={selectedCodec?.internalEncoderId}
                   onChange={(val) =>
                     updateSettings({
                       codec: appState.codecs.find((c) => c.internalEncoderId === val),
@@ -504,6 +505,17 @@ export default function VideoSettingsSection({
                   }
                   disabled={appState.codecs.length === 0}
                 />
+                {isHevcEncoder(selectedCodec) && !supportsHevcPlayback() && (
+                  <div
+                    className="mt-2 bg-warning/10 border border-warning rounded-lg px-3 py-2 text-warning text-xs flex items-start gap-2"
+                    role="alert"
+                  >
+                    <TriangleAlert className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      No HEVC decoder installed. Segra might fail with loading the video.
+                    </span>
+                  </div>
+                )}
               </div>
 
               {monitorSelectionField}

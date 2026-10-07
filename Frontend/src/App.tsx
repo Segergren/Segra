@@ -11,7 +11,7 @@ import Video from './Pages/video';
 import { useSelectedVideo } from './Context/SelectedVideoContext';
 import { useSelectedMenu } from './Context/SelectedMenuContext';
 import { themeChange } from 'theme-change';
-import { useSettings } from './Context/SettingsContext';
+import { useSettings, useSettingsUpdater } from './Context/SettingsContext';
 import { useAppState } from './Context/AppStateContext';
 import { DEFAULT_MENU_ITEMS, MenuItemId, menuItemHasContent } from './Models/types';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -34,6 +34,7 @@ import MigrationOverlay from './Components/MigrationOverlay';
 import SetupProfileModal from './Components/SetupProfileModal';
 import { useAuth } from './Hooks/useAuth';
 import { useProfile } from './Hooks/useUserProfile';
+import { isHevcEncoder, pickPreferredH264Codec, supportsHevcPlayback } from './Utils/CodecSupport';
 
 // Create a context for release notes that can be accessed globally
 export const ReleaseNotesContext = createContext<{
@@ -55,6 +56,7 @@ function App() {
   const { selectedVideo, setSelectedVideo } = useSelectedVideo();
   const { selectedMenu, setSelectedMenu } = useSelectedMenu();
   const settings = useSettings();
+  const updateSettings = useSettingsUpdater();
   const appState = useAppState();
   const needsUsername = !settings.airplaneMode && session && profile?.username?.startsWith('user_');
 
@@ -64,6 +66,22 @@ function App() {
       signOut();
     }
   }, [settings.airplaneMode, session, signOut]);
+
+  useEffect(() => {
+    if (settings.videoQualityPreset === 'custom') return;
+    if (!settings.codec || !isHevcEncoder(settings.codec) || supportsHevcPlayback()) return;
+
+    const fallback = pickPreferredH264Codec(appState.codecs, settings.encoder);
+    if (fallback) {
+      updateSettings({ codec: fallback });
+    }
+  }, [
+    settings.videoQualityPreset,
+    settings.codec,
+    settings.encoder,
+    appState.codecs,
+    updateSettings,
+  ]);
 
   // If the current menu becomes hidden (and has no content keeping it visible),
   // fall back to the default (or first reachable item).
