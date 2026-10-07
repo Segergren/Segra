@@ -888,6 +888,11 @@ namespace Segra.Backend.Recorder
             _currentOutputWidth = outputWidth;
             _currentOutputHeight = outputHeight;
 
+            // obs_reset_video drops queued graphics tasks, which is where destroyed display captures release their DXGI duplicator
+            // (https://github.com/obsproject/obs-studio/pull/14004)
+            if (Obs.WaitForDestroyQueue())
+                Obs.QueueTask(ObsTaskType.Graphics, () => { }, wait: true);
+
             // Must be set on every reset: OBSKit reuses its settings object, so a prior HDR
             // recording would otherwise leave the next SDR one in P010/PQ.
             Obs.SetVideo(v =>
