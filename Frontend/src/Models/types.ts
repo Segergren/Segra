@@ -207,6 +207,12 @@ export interface GameSetting {
   discardSessionsWithoutBookmarksOverride: boolean | null;
   enableHdrOverride: boolean | null;
   volumeOverride: number | null; // Multiplier on top of the configured device volume (0-2)
+  highlightPaddingOverride: GameHighlightPaddingOverride | null;
+}
+
+export interface GameHighlightPaddingOverride {
+  before: number; // Seconds before a highlight moment
+  after: number; // Seconds after a highlight moment
 }
 
 export interface GameIntegrationSettings {

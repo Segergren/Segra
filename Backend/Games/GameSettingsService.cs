@@ -115,6 +115,18 @@ namespace Segra.Backend.Games
             return eff;
         }
 
+        /// <summary>
+        /// Returns the seconds to pad before and after each highlight bookmark for the game at the given exe path.
+        /// </summary>
+        public static (double Before, double After) ResolveHighlightPadding(string? exePath)
+        {
+            var s = Settings.Instance;
+            var padding = FindForExePath(exePath)?.HighlightPaddingOverride;
+            return padding != null
+                ? (padding.Before, padding.After)
+                : (s.HighlightPaddingBefore, s.HighlightPaddingAfter);
+        }
+
         private static void ApplyQualityOverride(EffectiveRecordingSettings eff, GameQualityOverride? quality)
         {
             if (quality == null) return;
