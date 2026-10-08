@@ -315,6 +315,19 @@ namespace Segra.Backend.Games
             _ = Task.Run(ContentService.SyncContentGameNamesByIgdb);
         }
 
+        private static void AddUserAgent(HttpClient httpClient)
+        {
+            if (Settings.Instance.AirplaneMode)
+            {
+                httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("Segra");
+                return;
+            }
+
+            string os = OperatingSystem.IsWindows() ? "Windows" : "Linux";
+            httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd($"Segra/{UpdateService.GetCurrentVersion()}");
+            httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd($"({os} {Environment.OSVersion.Version.ToString(3)})");
+        }
+
         private static async Task DownloadBlacklistJsonIfNeededAsync()
         {
             string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra");
@@ -325,12 +338,14 @@ namespace Segra.Backend.Games
 
             using (var httpClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All }))
             {
-                httpClient.DefaultRequestHeaders.Add("User-Agent", "Segra");
+                httpClient.Timeout = TimeSpan.FromSeconds(60);
+                AddUserAgent(httpClient);
 
                 try
                 {
                     var headRequest = new HttpRequestMessage(HttpMethod.Head, cdnUrl);
-                    var headResponse = await httpClient.SendAsync(headRequest);
+                    using var headTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                    var headResponse = await httpClient.SendAsync(headRequest, headTimeout.Token);
 
                     if (!headResponse.IsSuccessStatusCode)
                     {
@@ -422,12 +437,14 @@ namespace Segra.Backend.Games
 
             using (var httpClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All }))
             {
-                httpClient.DefaultRequestHeaders.Add("User-Agent", "Segra");
+                httpClient.Timeout = TimeSpan.FromSeconds(60);
+                AddUserAgent(httpClient);
 
                 try
                 {
                     var headRequest = new HttpRequestMessage(HttpMethod.Head, cdnUrl);
-                    var headResponse = await httpClient.SendAsync(headRequest);
+                    using var headTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                    var headResponse = await httpClient.SendAsync(headRequest, headTimeout.Token);
 
                     if (!headResponse.IsSuccessStatusCode)
                     {

@@ -723,7 +723,6 @@ namespace Segra.Backend.Recorder
                 _ = CreateDeviceLossProbeAsync();
 #endif
                 _ = GameDetectionService.StartAsync();
-                GameDetectionService.ForegroundHook.Start();
             }
             catch (Exception ex)
             {

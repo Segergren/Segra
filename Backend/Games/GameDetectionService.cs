@@ -45,8 +45,16 @@ namespace Segra.Backend.Games
 
             _running = true;
 
-            await GameUtils.InitializeAsync();
+            try
+            {
+                await GameUtils.InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to load game lists");
+            }
 
+            ForegroundHook.Start();
             _ = Task.Run(() =>
             {
                 try
