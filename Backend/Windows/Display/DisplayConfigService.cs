@@ -1,4 +1,5 @@
 using Serilog;
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 
 namespace Segra.Backend.Windows.Display
@@ -26,6 +27,9 @@ namespace Segra.Backend.Windows.Display
 
         private const int ERROR_SUCCESS = 0;
         private const int ERROR_INSUFFICIENT_BUFFER = 122;
+
+        // Last HDR detection logged per monitor; it is queried on every recording start
+        private static readonly ConcurrentDictionary<string, string> _lastHdrDetection = new();
 
         [DllImport("user32.dll")]
         private static extern int GetDisplayConfigBufferSizes(uint flags, out uint numPathArrayElements, out uint numModeInfoArrayElements);
@@ -328,8 +332,9 @@ namespace Segra.Backend.Windows.Display
             {
                 bool hdrUserEnabled = (info2.value & 0x20u) != 0; // bit5 highDynamicRangeUserEnabled
                 bool hdr = info2.activeColorMode == DISPLAYCONFIG_ADVANCED_COLOR_MODE_HDR || hdrUserEnabled;
-                Log.Information("HDR detection ({Monitor}): activeColorMode={Mode}, hdrUserEnabled={Enabled} -> HDR={Hdr}",
-                    friendlyName, info2.activeColorMode, hdrUserEnabled, hdr);
+                if (IsNewHdrDetection(friendlyName, $"{info2.activeColorMode}:{hdrUserEnabled}"))
+                    Log.Information("HDR detection ({Monitor}): activeColorMode={Mode}, hdrUserEnabled={Enabled} -> HDR={Hdr}",
+                        friendlyName, info2.activeColorMode, hdrUserEnabled, hdr);
                 return hdr;
             }
 
@@ -342,12 +347,23 @@ namespace Segra.Backend.Windows.Display
             if (DisplayConfigGetDeviceInfo(ref info) == ERROR_SUCCESS)
             {
                 bool hdr = (info.value & 0x2u) != 0; // bit1 advancedColorEnabled
-                Log.Information("HDR detection ({Monitor}): advancedColorEnabled -> HDR={Hdr}", friendlyName, hdr);
+                if (IsNewHdrDetection(friendlyName, $"advancedColorEnabled:{hdr}"))
+                    Log.Information("HDR detection ({Monitor}): advancedColorEnabled -> HDR={Hdr}", friendlyName, hdr);
                 return hdr;
             }
 
-            Log.Information("HDR detection ({Monitor}): advanced color info unavailable, assuming SDR", friendlyName);
+            if (IsNewHdrDetection(friendlyName, "unavailable"))
+                Log.Information("HDR detection ({Monitor}): advanced color info unavailable, assuming SDR", friendlyName);
             return false;
+        }
+
+        private static bool IsNewHdrDetection(string friendlyName, string detection)
+        {
+            if (_lastHdrDetection.TryGetValue(friendlyName, out string? last) && last == detection)
+                return false;
+
+            _lastHdrDetection[friendlyName] = detection;
+            return true;
         }
     }
 }
