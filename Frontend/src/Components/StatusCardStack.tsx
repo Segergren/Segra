@@ -67,10 +67,10 @@ export default function StatusCardStack({ cards }: { cards: StatusCard[] }) {
   const topDown = [...bottomUp].reverse();
 
   return (
-    // Clip only vertically, and not while a dropdown is open, so card popovers can escape the stack
+    // Clip only vertically, and not while a dropdown is open or fading out, so card popovers can escape the stack
     <div
       ref={areaRef}
-      className="flex-1 min-h-0 flex flex-col overflow-y-clip has-[.dropdown-open,.dropdown:focus-within]:overflow-visible px-2 pb-2"
+      className="flex-1 min-h-0 flex flex-col overflow-y-clip [transition:overflow_0s_250ms_allow-discrete] has-[.dropdown-open,.dropdown:focus-within]:overflow-visible has-[.dropdown-open,.dropdown:focus-within]:delay-0 px-2 pb-2"
     >
       {/* Each card carries its own top gap so it collapses together with the card on exit */}
       <div className="relative mt-auto">
