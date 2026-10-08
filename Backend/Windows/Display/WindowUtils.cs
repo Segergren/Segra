@@ -103,7 +103,7 @@ namespace Segra.Backend.Windows.Display
             return false;
         }
 
-        public static bool GetWindowDimensionsByPreRecordingExeOrPid(out uint width, out uint height)
+        public static bool GetWindowDimensionsByPreRecordingExeOrPid(out uint width, out uint height, CancellationToken cancel)
         {
             width = 0;
             height = 0;
@@ -122,6 +122,9 @@ namespace Segra.Backend.Windows.Display
 
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
+                if (cancel.IsCancellationRequested)
+                    return false;
+
                 PreRecording? preRecording = AppState.Instance.PreRecording;
 
                 if (preRecording == null)
@@ -148,12 +151,12 @@ namespace Segra.Backend.Windows.Display
                 if (targetWindow != IntPtr.Zero)
                 {
                     TrackPreRecordingWindowPid(targetWindow);
-                    return GetWindowDimensionsByWindowHandle(targetWindow, executableFileName, attempt, out width, out height);
+                    return GetWindowDimensionsByWindowHandle(targetWindow, executableFileName, attempt, cancel, out width, out height);
                 }
 
                 if (attempt < maxAttempts)
                 {
-                    Thread.Sleep(delayMs);
+                    cancel.WaitHandle.WaitOne(delayMs);
                 }
             }
 
@@ -182,9 +185,9 @@ namespace Segra.Backend.Windows.Display
         /// hands off to the real game exe mid-wait, and the wait stops early if the pending recording
         /// is cancelled (e.g. the game closes during launch).
         /// </summary>
-        public static IntPtr TryGetPreRecordingWindowHandle(int maxAttempts = 3, int delayMs = 100)
+        public static IntPtr TryGetPreRecordingWindowHandle(int maxAttempts = 3, int delayMs = 100, CancellationToken cancel = default)
         {
-            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            for (int attempt = 1; attempt <= maxAttempts && !cancel.IsCancellationRequested; attempt++)
             {
                 string? exe = AppState.Instance.PreRecording?.Exe;
                 if (string.IsNullOrEmpty(exe))
@@ -194,7 +197,7 @@ namespace Segra.Backend.Windows.Display
                 if (hwnd != IntPtr.Zero)
                     return hwnd;
                 if (attempt < maxAttempts)
-                    Thread.Sleep(delayMs);
+                    cancel.WaitHandle.WaitOne(delayMs);
             }
             return IntPtr.Zero;
         }
@@ -528,7 +531,7 @@ namespace Segra.Backend.Windows.Display
             return false;
         }
 
-        private static bool GetWindowDimensionsByWindowHandle(IntPtr windowHandle, string? executableFileName, int windowHandleAttempts, out uint width, out uint height)
+        private static bool GetWindowDimensionsByWindowHandle(IntPtr windowHandle, string? executableFileName, int windowHandleAttempts, CancellationToken cancel, out uint width, out uint height)
         {
             width = 0;
             height = 0;
@@ -546,6 +549,9 @@ namespace Segra.Backend.Windows.Display
 
             while (stableWindowDimensionsAttempt < maxStableWindowDimensionsAttempts)
             {
+                if (cancel.IsCancellationRequested)
+                    return false;
+
                 stableWindowDimensionsAttempt += 1;
 
                 // A launcher (e.g. BattlEye) can hand off to the real game exe mid-wait,
@@ -586,7 +592,7 @@ namespace Segra.Backend.Windows.Display
                     windowHandle = TryFindWindow(executableFileName, stableWindowDimensionsAttempt);
                     if (windowHandle == IntPtr.Zero)
                     {
-                        Thread.Sleep(1000);
+                        cancel.WaitHandle.WaitOne(1000);
                         continue;
                     }
                     TrackPreRecordingWindowPid(windowHandle);
@@ -609,7 +615,7 @@ namespace Segra.Backend.Windows.Display
                         Log.Warning($"Failed to find window for executable {executableFileName} after {maxStableWindowDimensionsAttempts} attempts");
                         return false;
                     }
-                    Thread.Sleep(1000);
+                    cancel.WaitHandle.WaitOne(1000);
                     continue;
                 }
 
@@ -680,7 +686,7 @@ namespace Segra.Backend.Windows.Display
                             }
 
                             Log.Information($"Window dimensions stable at {width}x{height}, check {stabilityChecks}/{requiredStabilityChecks}");
-                            Thread.Sleep(1000);
+                            cancel.WaitHandle.WaitOne(1000);
                         }
                         else
                         {
@@ -697,7 +703,7 @@ namespace Segra.Backend.Windows.Display
                                 : isStandardAspectRatio ? standardRatioChecks : 30;
                             stabilityChecks = 0;
 
-                            Thread.Sleep(1000);
+                            cancel.WaitHandle.WaitOne(1000);
                         }
                     }
                     else
@@ -717,7 +723,7 @@ namespace Segra.Backend.Windows.Display
 
                         lastWidth = width;
                         lastHeight = height;
-                        Thread.Sleep(1000);
+                        cancel.WaitHandle.WaitOne(1000);
                     }
                 }
                 else
@@ -726,7 +732,7 @@ namespace Segra.Backend.Windows.Display
                     {
                         Log.Information($"Window dimensions are {width}x{height}, waiting for valid size...");
                     }
-                    Thread.Sleep(1000);
+                    cancel.WaitHandle.WaitOne(1000);
                 }
             }
 

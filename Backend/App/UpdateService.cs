@@ -255,7 +255,7 @@ namespace Segra.Backend.App
             }
 
             // Stop any active recording first so OBS finalizes cleanly, mirroring Program.cs's shutdown path.
-            if (Core.Models.AppState.Instance.Recording != null || Core.Models.AppState.Instance.PreRecording != null)
+            if (Core.Models.AppState.Instance.Recording != null || Core.Models.AppState.Instance.PreRecording != null || Core.Models.AppState.Instance.IsFinishingRecording)
             {
                 Log.Information("Active recording detected while applying update; stopping it first.");
                 OBSService.TryStopRecording(TimeSpan.FromSeconds(15));

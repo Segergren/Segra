@@ -48,6 +48,7 @@ export interface State {
   preRecording?: PreRecording;
   recording?: Recording;
   alwaysOnBufferActive: boolean;
+  isFinishingRecording: boolean;
   hasLoadedObs: boolean;
   content: Content[];
   inputDevices: AudioDevice[];
@@ -373,6 +374,7 @@ export const initialState: State = {
   gpuVendor: GpuVendor.Unknown,
   recording: undefined,
   alwaysOnBufferActive: false,
+  isFinishingRecording: false,
   hasLoadedObs: false,
   content: [],
   inputDevices: [],

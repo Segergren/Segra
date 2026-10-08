@@ -4,11 +4,10 @@ import { useAppState } from '../Context/AppStateContext';
 import ContentCard from '../Components/ContentCard';
 
 export default function Sessions() {
-  const { recording } = useAppState();
+  const { isFinishingRecording } = useAppState();
 
   // Pre-render the progress card element
-  const isRecordingFinishing = recording && recording.endTime !== null;
-  const progressCardElement = isRecordingFinishing ? (
+  const progressCardElement = isFinishingRecording ? (
     <ContentCard key="recording-progress" type="Session" isLoading />
   ) : null;
 
@@ -18,8 +17,8 @@ export default function Sessions() {
       sectionId="sessions"
       title="Sessions"
       Icon={Play}
-      progressItems={isRecordingFinishing ? { recording: true } : {}}
-      isProgressVisible={isRecordingFinishing}
+      progressItems={isFinishingRecording ? { recording: true } : {}}
+      isProgressVisible={isFinishingRecording}
       progressCardElement={progressCardElement}
     />
   );

@@ -60,10 +60,10 @@ namespace Segra.Backend.Recorder
         private static volatile string? _alwaysOnBufferKey;
         private static volatile bool _isExiting;
 #if !WINDOWS
-        // End the wait for the screen-share dialog (see FitCanvasToPortalScreen)
-        private static volatile bool _startCancelled;
         private static volatile bool _portalFailed;
 #endif
+
+        private static CancellationTokenSource _userStop = new();
 
         public static bool IsAlwaysOnBufferActive => _alwaysOnBuffer != null;
 
@@ -191,7 +191,8 @@ namespace Segra.Backend.Recorder
         private static bool IsUsingWindowCapture =>
             !IsGameCaptureHooked && _windowCaptureItem != null && _isWindowCaptureHooked && !_isWindowCaptureBlocked;
 
-        private static readonly SemaphoreSlim _stopRecordingSemaphore = new(1, 1);
+        private static readonly SemaphoreSlim _recorderLock = new(1, 1);
+        private static readonly SemaphoreSlim _finishLock = new(1, 1);
 
         // Log processing queue - prevents OBS thread from blocking on log operations
         private static readonly Channel<(int level, string message)> _logChannel =
@@ -432,9 +433,9 @@ namespace Segra.Backend.Recorder
         /// </summary>
         private static async Task ResetReplayBuffer()
         {
-            // Take the stop semaphore so StopRecording cannot dispose the output between our
+            // Take the recorder lock so StopRecording cannot dispose the output between our
             // checks and Stop/Start. If a stop already holds it, skip the reset entirely.
-            if (!await _stopRecordingSemaphore.WaitAsync(0))
+            if (!await _recorderLock.WaitAsync(0))
             {
                 Log.Information("Skipping replay buffer reset: a recording stop is in progress.");
                 return;
@@ -464,7 +465,7 @@ namespace Segra.Backend.Recorder
             }
             finally
             {
-                _stopRecordingSemaphore.Release();
+                _recorderLock.Release();
             }
         }
 
@@ -740,6 +741,7 @@ namespace Segra.Backend.Recorder
         public static void Shutdown()
         {
             _isExiting = true;
+            CancelPendingStart();
 
             if (!IsInitialized)
             {
@@ -748,7 +750,12 @@ namespace Segra.Backend.Recorder
             }
 
             // Let an in-flight start or stop finish before OBS is torn down
-            bool locked = _stopRecordingSemaphore.Wait(TimeSpan.FromSeconds(5));
+            if (!_recorderLock.Wait(TimeSpan.FromSeconds(5)))
+            {
+                Log.Warning("Recorder is still busy; skipping OBS shutdown");
+                return;
+            }
+
             try
             {
                 Log.Information("Shutting down OBS...");
@@ -778,10 +785,13 @@ namespace Segra.Backend.Recorder
             }
             finally
             {
-                if (locked)
-                    _stopRecordingSemaphore.Release();
+                _recorderLock.Release();
             }
         }
+
+        // Not for process-exit stops: launcher chains exit PIDs while the start moves on to the real game
+        private static void CancelPendingStart() =>
+            Interlocked.Exchange(ref _userStop, new CancellationTokenSource()).Cancel();
 
 #if WINDOWS
         // libobs only detects a lost D3D11 device when presenting a swap chain, and rebuilds it right there
@@ -809,7 +819,13 @@ namespace Segra.Backend.Recorder
             _isExiting = true;
             try
             {
-                if (Task.Run(() => StopRecording()).Wait(timeout))
+                Task stop = Task.Run(async () =>
+                {
+                    await StopRecording(userRequested: true);
+                    while (AppState.Instance.IsFinishingRecording)
+                        await Task.Delay(100);
+                });
+                if (stop.Wait(timeout))
                     return true;
 
                 Log.Warning($"StopRecording did not finish within {timeout.TotalSeconds:F0}s; continuing");
@@ -915,13 +931,15 @@ namespace Segra.Backend.Recorder
 
         public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null)
         {
+            // Read before waiting for the lock, so a user stop while this start is queued cancels it too
+            CancellationToken cancel = Volatile.Read(ref _userStop).Token;
             bool started = false;
             // Held for the whole call (not just a wait-then-release at entry) so Start and Stop can never interleave.
-            _stopRecordingSemaphore.Wait();
+            _recorderLock.Wait();
             try
             {
                 StopAlwaysOnBufferCore();
-                started = StartRecordingCore(name, exePath, startManually, pid);
+                started = StartRecordingCore(name, exePath, startManually, pid, cancel);
                 return started;
             }
             catch (Exception ex)
@@ -932,9 +950,7 @@ namespace Segra.Backend.Recorder
 
                 try
                 {
-                    DisposeOutput();
-                    DisposeSources();
-                    DisposeEncoders();
+                    DisposeRecording();
                 }
                 catch (Exception cleanupEx)
                 {
@@ -956,17 +972,16 @@ namespace Segra.Backend.Recorder
             }
             finally
             {
-                _stopRecordingSemaphore.Release();
+                _recorderLock.Release();
 
                 if (!started)
                     SyncAlwaysOnBuffer();
             }
         }
 
-        private static bool StartRecordingCore(string name, string exePath, bool startManually, int? pid, bool alwaysOn = false)
+        private static bool StartRecordingCore(string name, string exePath, bool startManually, int? pid, CancellationToken cancel, bool alwaysOn = false)
         {
 #if !WINDOWS
-            _startCancelled = false;
             _portalFailed = false;
 #endif
             if (!IsOBSInstalled())
@@ -1064,7 +1079,7 @@ namespace Segra.Backend.Recorder
                     // manual recording, the selected display.
                     string? hdrTargetDeviceId = startManually
                         ? GetCaptureTargetDeviceId()
-                        : ResolveGameHdrTargetDeviceId();
+                        : ResolveGameHdrTargetDeviceId(cancel);
 
                     if (DisplayConfigService.IsDisplayHdrActive(hdrTargetDeviceId))
                     {
@@ -1131,7 +1146,7 @@ namespace Segra.Backend.Recorder
                     AddGameCapture(_captureWindowSpec, withHookTimeout: true);
 
                 // Try to get the window dimensions for the game
-                if (WindowUtils.GetWindowDimensionsByPreRecordingExeOrPid(out uint windowWidth, out uint windowHeight))
+                if (WindowUtils.GetWindowDimensionsByPreRecordingExeOrPid(out uint windowWidth, out uint windowHeight, cancel))
                 {
                     ResetVideoSettings(
                         out bool is4by3,
@@ -1153,7 +1168,10 @@ namespace Segra.Backend.Recorder
                 }
                 else
                 {
-                    _ = Task.Run(() => StopRecording());
+                    if (cancel.IsCancellationRequested)
+                        Log.Information("Recording start cancelled");
+                    AppState.Instance.PreRecording = null;
+                    DisposeRecording();
                     return false;
                 }
             }
@@ -1166,11 +1184,10 @@ namespace Segra.Backend.Recorder
                 _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
             }
 
-            if (!FitCanvasToPortalScreen(eff))
+            if (!FitCanvasToPortalScreen(eff, cancel))
             {
-                DisposeSources();
                 AppState.Instance.PreRecording = null;
-                _isStoppingOrStopped = true;
+                DisposeRecording();
                 return false;
             }
 #endif
@@ -1192,8 +1209,16 @@ namespace Segra.Backend.Recorder
 
             // OBS doesn't try to hook until the scene is live, so give it a moment here rather
             // than opening the recording on display capture for a hook that was about to land.
-            for (int i = 0; i < HookWaitMs / 50 && GameCaptureSource?.IsHooked == false; i++)
-                Thread.Sleep(50);
+            for (int i = 0; i < HookWaitMs / 50 && GameCaptureSource?.IsHooked == false && !cancel.IsCancellationRequested; i++)
+                cancel.WaitHandle.WaitOne(50);
+
+            if (cancel.IsCancellationRequested)
+            {
+                Log.Information("Recording start cancelled");
+                AppState.Instance.PreRecording = null;
+                DisposeRecording();
+                return false;
+            }
 
             string encoderId = eff.Codec!.InternalEncoderId;
             if (_isHdrRecording && _hdrEncoderId != null)
@@ -1577,7 +1602,7 @@ namespace Segra.Backend.Recorder
                     Task.Run(() => ShowModal("Recording failed", "Failed to start recording. Check the log for more details.", "error"));
                     Task.Run(() => PlaySound("error"));
                     AppState.Instance.PreRecording = null;
-                    _ = Task.Run(() => StopRecording());
+                    DisposeRecording();
                     return false;
                 }
 
@@ -1601,7 +1626,7 @@ namespace Segra.Backend.Recorder
                     Task.Run(() => ShowModal("Replay buffer failed", "Failed to start replay buffer. Check the log for more details.", "error"));
                     Task.Run(() => PlaySound("error"));
                     AppState.Instance.PreRecording = null;
-                    _ = Task.Run(() => StopRecording());
+                    DisposeRecording();
                     return false;
                 }
 
@@ -1715,17 +1740,17 @@ namespace Segra.Backend.Recorder
         // The portal, not xrandr, decides which screen is shared, so size the canvas from the stream.
         // It has a size once a screen is picked (right away with a restore token), before any output starts.
         // Returns false when a stop or exit cancelled the start during the wait.
-        private static bool FitCanvasToPortalScreen(EffectiveRecordingSettings eff)
+        private static bool FitCanvasToPortalScreen(EffectiveRecordingSettings eff, CancellationToken cancel)
         {
             var source = _displaySource;
             // Without a ScreenCast portal the source type isn't registered and never gets a size
             if (source?.TypeId != MonitorCapture.LinuxTypeId || source.DisplayName == null) return true;
 
             var waited = Stopwatch.StartNew();
-            while (source.Width == 0 && waited.Elapsed < TimeSpan.FromSeconds(30) && !_portalFailed && !_startCancelled && !_isExiting)
-                Thread.Sleep(100);
+            while (source.Width == 0 && waited.Elapsed < TimeSpan.FromSeconds(30) && !_portalFailed && !cancel.IsCancellationRequested && !_isExiting)
+                cancel.WaitHandle.WaitOne(100);
 
-            if (_startCancelled || _isExiting)
+            if (cancel.IsCancellationRequested || _isExiting)
             {
                 Log.Information("Recording cancelled while waiting for the share dialog");
                 return false;
@@ -1887,7 +1912,7 @@ namespace Segra.Backend.Recorder
         /// HDR, since otherwise the game's monitor can't change the decision and waiting would delay
         /// the recording for nothing. Falls back to the captured display if the window never appears.
         /// </summary>
-        private static string? ResolveGameHdrTargetDeviceId()
+        private static string? ResolveGameHdrTargetDeviceId(CancellationToken cancel)
         {
             string? fallbackDeviceId = GetCaptureTargetDeviceId();
 
@@ -1901,7 +1926,7 @@ namespace Segra.Backend.Recorder
                 Log.Information("HDR detection: displays disagree on HDR; waiting up to {TimeoutMs}ms for the game window to determine its monitor.", attempts * delayMs);
 
             string? windowDeviceId = DisplayService.GetDeviceIdForWindow(
-                WindowUtils.TryGetPreRecordingWindowHandle(maxAttempts: attempts, delayMs: delayMs));
+                WindowUtils.TryGetPreRecordingWindowHandle(maxAttempts: attempts, delayMs: delayMs, cancel: cancel));
 
             if (windowDeviceId != null)
                 return windowDeviceId;
@@ -1993,301 +2018,191 @@ namespace Segra.Backend.Recorder
         }
 
         // expectedPid: skip the stop if the tracked recording has since moved to a different PID.
-        public static async Task StopRecording(int? expectedPid = null)
+        // userRequested: a user or exit stop, which also cancels a start still waiting for its game window.
+        public static async Task StopRecording(int? expectedPid = null, bool userRequested = false)
         {
-#if !WINDOWS
-            // Ends a start that is waiting for the share dialog. Process-exit stops stay queued, since launcher chains hand off pids.
-            if (expectedPid == null && AppState.Instance.PreRecording != null)
-                _startCancelled = true;
-#endif
-            // Prevent race conditions when multiple callers try to stop recording simultaneously
-            await _stopRecordingSemaphore.WaitAsync();
+            if (userRequested)
+            {
+                // Game recordings only; a stopped display capture shouldn't hold back the next game
+                if (AppState.Instance.PreRecording != null || AppState.Instance.Recording?.Pid != null)
+                    GameDetectionService.OnUserStop();
+                CancelPendingStart();
+            }
+
+            Recording? session = null;
+            bool discardSession = false;
             try
             {
-                // Check if already stopping or stopped (the always-on buffer is not a recording to stop)
-                if (_isStoppingOrStopped || _alwaysOnBuffer != null)
+                // Prevent race conditions when multiple callers try to stop recording simultaneously
+                await _recorderLock.WaitAsync();
+                try
                 {
-                    Log.Information("StopRecording called but already stopping or stopped.");
-                    return;
-                }
-
-                if (expectedPid.HasValue)
-                {
-                    int? currentPid = AppState.Instance.Recording?.Pid ?? AppState.Instance.PreRecording?.Pid;
-                    if (currentPid.HasValue && currentPid.Value != expectedPid.Value)
+                    // Check if already stopping or stopped (the always-on buffer is not a recording to stop)
+                    if (_isStoppingOrStopped || _alwaysOnBuffer != null)
                     {
-                        Log.Information($"StopRecording({expectedPid}) skipped: recording is now tracking PID {currentPid}.");
+                        Log.Information("StopRecording called but already stopping or stopped.");
                         return;
                     }
-                }
 
-                // Mark as stopping to prevent concurrent stop attempts
-                _isStoppingOrStopped = true;
-
-                GeneralUtils.SetProcessPriority(ProcessPriorityClass.Normal);
-
-                RecordingPreviewService.OnRecordingStopped();
-
-                StopGameCaptureHookTimeoutTimer();
-                StopCaptureFallbackMonitor();
-                StopDiskSpaceMonitor();
-
-                // Use the same effective recording mode that StartRecording used (per-game override aware),
-                // falling back to the global setting if no recording is active.
-                RecordingMode effectiveMode = _activeEffectiveSettings?.RecordingMode ?? Settings.Instance.RecordingMode;
-                bool effectiveDiscard = _activeEffectiveSettings?.DiscardSessionsWithoutBookmarks ?? Settings.Instance.DiscardSessionsWithoutBookmarks;
-                bool isReplayBufferMode = effectiveMode == RecordingMode.Buffer;
-                bool isHybridMode = effectiveMode == RecordingMode.Hybrid;
-                string? sessionContentId = null;
-
-                if (isReplayBufferMode && _bufferOutput != null)
-                {
-                    // Let an in-flight replay save finish before stopping the buffer.
-                    await WaitForInFlightReplaySaveAsync();
-
-                    // Stop replay buffer
-                    Log.Information("Stopping replay buffer...");
-                    bool successfullyStopped = _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
-
-                    if (successfullyStopped)
+                    if (expectedPid.HasValue)
                     {
-                        Log.Information("Replay buffer stopped.");
-                        // Small delay just to be sure
-                        Thread.Sleep(200);
-                    }
-                    else
-                    {
-                        Log.Warning("Replay buffer did not stop within timeout. Forcing stop.");
-                        _bufferOutput.ForceStop();
-                        Thread.Sleep(500); // Brief wait after force stop
+                        int? currentPid = AppState.Instance.Recording?.Pid ?? AppState.Instance.PreRecording?.Pid;
+                        if (currentPid.HasValue && currentPid.Value != expectedPid.Value)
+                        {
+                            Log.Information($"StopRecording({expectedPid}) skipped: recording is now tracking PID {currentPid}.");
+                            return;
+                        }
                     }
 
-                    DisposeOutput();
-                    DisposeSources();
-                    DisposeEncoders();
+                    // Mark as stopping to prevent concurrent stop attempts
+                    _isStoppingOrStopped = true;
 
-                    PlatformServices.Tray.SetRecording(false);
+                    GeneralUtils.SetProcessPriority(ProcessPriorityClass.Normal);
 
-                    Log.Information("Replay buffer stopped and disposed.");
+                    RecordingPreviewService.OnRecordingStopped();
 
-                    _ = GameIntegrationService.Shutdown();
+                    StopGameCaptureHookTimeoutTimer();
+                    StopCaptureFallbackMonitor();
+                    StopDiskSpaceMonitor();
 
-                    // Reload content list
-                    await SettingsService.LoadContentFromFolderIntoState(false);
-                }
-                else if (!isReplayBufferMode && !isHybridMode && _output != null)
-                {
-                    // Stop standard recording
-                    if (AppState.Instance.Recording != null)
+                    Recording? recording = AppState.Instance.Recording;
+                    session = recording?.FilePath != null ? recording : null;
+                    discardSession = _activeEffectiveSettings?.DiscardSessionsWithoutBookmarks ?? Settings.Instance.DiscardSessionsWithoutBookmarks;
+
+                    if (session != null)
+                        AppState.Instance.BeginFinishingRecording();
+                    if (recording != null)
                         AppState.Instance.UpdateRecordingEndTime(DateTime.Now);
 
-                    Log.Information("Stopping recording...");
-                    bool successfullyStopped = _output.Stop(waitForCompletion: true, timeoutMs: 30000);
-
-                    if (successfullyStopped)
+                    try
                     {
-                        Log.Information("Recording stopped.");
-                        // Small delay just to be sure
-                        Thread.Sleep(200);
+                        if (_bufferOutput != null)
+                        {
+                            // Let an in-flight replay save finish before stopping the buffer.
+                            await WaitForInFlightReplaySaveAsync();
+                            StopOutput(_bufferOutput, "replay buffer");
+                        }
+                        StopOutput(_output, "recording");
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        Log.Warning("Recording did not stop within timeout. Forcing stop.");
-                        _output.ForceStop();
-                        Thread.Sleep(500); // Brief wait after force stop
+                        Log.Error(ex, "Failed to stop the recording outputs");
                     }
 
-                    DisposeOutput();
-                    DisposeSources();
-                    DisposeEncoders();
-
+                    DisposeRecording();
                     PlatformServices.Tray.SetRecording(false);
-
-                    Log.Information("Recording stopped and disposed.");
-
                     _ = GameIntegrationService.Shutdown();
 
-                    // Might be null or empty if the recording failed to start
-                    if (AppState.Instance.Recording != null && AppState.Instance.Recording.FilePath != null)
-                    {
-                        // Check if we should discard the session due to no manual bookmarks
-                        bool hasManualBookmarks = AppState.Instance.Recording.Bookmarks.Any(b => b.Type == BookmarkType.Manual);
-                        if (effectiveDiscard && !hasManualBookmarks)
-                        {
-                            Log.Information("Discarding session recording without manual bookmarks");
-                            try
-                            {
-                                if (File.Exists(AppState.Instance.Recording.FilePath))
-                                {
-                                    File.Delete(AppState.Instance.Recording.FilePath);
-                                    Log.Information($"Deleted video file: {AppState.Instance.Recording.FilePath}");
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Warning($"Failed to delete discarded session file: {ex.Message}");
-                            }
-                        }
-                        else
-                        {
-                            // Ensure file is fully written to disk/network before thumbnail generation
-                            await EnsureFileReady(AppState.Instance.Recording.FilePath!);
-
-                            int? igdbId = !string.IsNullOrEmpty(AppState.Instance.Recording.ExePath)
-                                ? GameUtils.GetIgdbIdFromExePath(AppState.Instance.Recording.ExePath)
-                                : null;
-                            sessionContentId = await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames, audioTrackTypes: AppState.Instance.Recording.AudioTrackTypes, gameExePath: AppState.Instance.Recording.ExePath);
-                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionContentId);
-                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionContentId);
-
-                            Log.Information($"Recording details:");
-                            Log.Information($"Start Time: {AppState.Instance.Recording.StartTime}");
-                            Log.Information($"End Time: {AppState.Instance.Recording.EndTime}");
-                            Log.Information($"Duration: {AppState.Instance.Recording.Duration}");
-                            Log.Information($"File Path: {AppState.Instance.Recording.FilePath}");
-                        }
-                    }
-
-                    await SettingsService.LoadContentFromFolderIntoState(false);
-                }
-                else if (isHybridMode)
-                {
-                    if (AppState.Instance.Recording != null)
-                        AppState.Instance.UpdateRecordingEndTime(DateTime.Now);
-
-                    // Stop replay buffer first if running
-                    if (_bufferOutput != null)
-                    {
-                        // Let an in-flight replay save finish before stopping the buffer.
-                        await WaitForInFlightReplaySaveAsync();
-
-                        Log.Information("Hybrid: Stopping replay buffer...");
-                        bool successfullyStopped = _bufferOutput.Stop(waitForCompletion: true, timeoutMs: 30000);
-
-                        if (successfullyStopped)
-                        {
-                            Log.Information("Hybrid: Replay buffer stopped.");
-                            // Small delay just to be sure
-                            Thread.Sleep(200);
-                        }
-                        else
-                        {
-                            Log.Warning("Hybrid: Replay buffer did not stop within timeout. Forcing stop.");
-                            _bufferOutput.ForceStop();
-                            Thread.Sleep(500);
-                        }
-                    }
-
-                    // Stop session recording
-                    if (_output != null)
-                    {
-                        Log.Information("Hybrid: Stopping recording...");
-                        bool successfullyStopped = _output.Stop(waitForCompletion: true, timeoutMs: 30000);
-
-                        if (successfullyStopped)
-                        {
-                            Log.Information("Hybrid: Recording stopped.");
-                            // Small delay just to be sure
-                            Thread.Sleep(200);
-                        }
-                        else
-                        {
-                            Log.Warning("Hybrid: Recording did not stop within timeout. Forcing stop.");
-                            _output.ForceStop();
-                            Thread.Sleep(500);
-                        }
-                    }
-
-                    DisposeOutput();
-                    DisposeSources();
-                    DisposeEncoders();
-
-                    PlatformServices.Tray.SetRecording(false);
-
-                    Log.Information("Hybrid: All outputs stopped and disposed.");
-
-                    _ = GameIntegrationService.Shutdown();
-
-                    if (AppState.Instance.Recording != null && AppState.Instance.Recording.FilePath != null)
-                    {
-                        // Check if we should discard the session due to no manual bookmarks
-                        bool hasManualBookmarks = AppState.Instance.Recording.Bookmarks.Any(b => b.Type == BookmarkType.Manual);
-                        if (effectiveDiscard && !hasManualBookmarks)
-                        {
-                            Log.Information("Hybrid: Discarding session recording without manual bookmarks");
-                            try
-                            {
-                                if (File.Exists(AppState.Instance.Recording.FilePath))
-                                {
-                                    File.Delete(AppState.Instance.Recording.FilePath);
-                                    Log.Information($"Deleted video file: {AppState.Instance.Recording.FilePath}");
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Warning($"Failed to delete discarded session file: {ex.Message}");
-                            }
-                        }
-                        else
-                        {
-                            // Ensure file is fully written to disk/network before thumbnail generation
-                            await EnsureFileReady(AppState.Instance.Recording.FilePath!);
-
-                            int? igdbId = !string.IsNullOrEmpty(AppState.Instance.Recording.ExePath)
-                                ? GameUtils.GetIgdbIdFromExePath(AppState.Instance.Recording.ExePath)
-                                : null;
-                            sessionContentId = await ContentService.CreateMetadataFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, AppState.Instance.Recording.Game, AppState.Instance.Recording.Bookmarks, igdbId: igdbId, audioTrackNames: AppState.Instance.Recording.AudioTrackNames, audioTrackTypes: AppState.Instance.Recording.AudioTrackTypes, gameExePath: AppState.Instance.Recording.ExePath);
-                            await ContentService.CreateThumbnail(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionContentId);
-                            await ContentService.CreateWaveformFile(AppState.Instance.Recording.FilePath!, Content.ContentType.Session, sessionContentId);
-                        }
-                    }
-
-                    await SettingsService.LoadContentFromFolderIntoState(false);
-                }
-                else
-                {
-                    DisposeOutput();
-                    DisposeSources();
-                    DisposeEncoders();
                     AppState.Instance.Recording = null;
                     AppState.Instance.PreRecording = null;
+                    Log.Information("Recording stopped and disposed.");
+                }
+                finally
+                {
+                    _recorderLock.Release();
+                    SyncAlwaysOnBuffer();
                 }
 
+                await FinishStoppedRecording(session, discardSession);
+            }
+            finally
+            {
+                if (session != null)
+                    AppState.Instance.EndFinishingRecording();
+            }
+        }
+
+        // Runs outside the recorder lock so a new recording can start meanwhile
+        private static async Task FinishStoppedRecording(Recording? session, bool discardSession)
+        {
+            using var work = BackgroundWork.Begin();
+            await _finishLock.WaitAsync();
+            try
+            {
+                string? sessionContentId = null;
+                if (session != null)
+                {
+                    string filePath = session.FilePath!;
+
+                    // Check if we should discard the session due to no manual bookmarks
+                    bool hasManualBookmarks = session.Bookmarks.Any(b => b.Type == BookmarkType.Manual);
+                    if (discardSession && !hasManualBookmarks)
+                    {
+                        Log.Information("Discarding session recording without manual bookmarks");
+                        try
+                        {
+                            if (File.Exists(filePath))
+                            {
+                                File.Delete(filePath);
+                                Log.Information($"Deleted video file: {filePath}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning($"Failed to delete discarded session file: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        // Ensure file is fully written to disk/network before thumbnail generation
+                        await EnsureFileReady(filePath);
+
+                        int? igdbId = !string.IsNullOrEmpty(session.ExePath)
+                            ? GameUtils.GetIgdbIdFromExePath(session.ExePath)
+                            : null;
+                        sessionContentId = await ContentService.CreateMetadataFile(filePath, Content.ContentType.Session, session.Game, session.Bookmarks, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes, gameExePath: session.ExePath);
+                        await ContentService.CreateThumbnail(filePath, Content.ContentType.Session, sessionContentId);
+                        await ContentService.CreateWaveformFile(filePath, Content.ContentType.Session, sessionContentId);
+
+                        Log.Information($"Recording details:");
+                        Log.Information($"Start Time: {session.StartTime}");
+                        Log.Information($"End Time: {session.EndTime}");
+                        Log.Information($"Duration: {session.Duration}");
+                        Log.Information($"File Path: {filePath}");
+                    }
+                }
+
+                await SettingsService.LoadContentFromFolderIntoState(false);
                 await StorageService.EnsureStorageBelowLimit();
 
-                // Reset hooked executable file name and captured dimensions
-                _hookedExecutableFileName = null;
-                CapturedWindowWidth = null;
-                CapturedWindowHeight = null;
-                _isHdrRecording = false;
-                _hdrEncoderId = null;
-                _activeEffectiveSettings = null;
-
-                // If the recording ends before it started, don't do anything
-                if (AppState.Instance.Recording == null || (!isReplayBufferMode && AppState.Instance.Recording.FilePath == null))
-                {
-                    AppState.Instance.PreRecording = null;
-                    return;
-                }
-
-                // Get the bookmarks before nullifying the recording
-                List<Bookmark> bookmarks = AppState.Instance.Recording.Bookmarks;
-
-                // Reset the recording and pre-recording
-                AppState.Instance.Recording = null;
-                AppState.Instance.PreRecording = null;
-
                 // If the recording is not a replay buffer recording, AI is enabled and auto generate highlights is enabled -> analyze the video!
-                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && !isReplayBufferMode && sessionContentId != null && bookmarks.Any(b => b.Type.IncludeInHighlight()))
+                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && sessionContentId != null && session!.Bookmarks.Any(b => b.Type.IncludeInHighlight()))
                 {
                     _ = AiService.CreateHighlight(sessionContentId);
                 }
             }
             finally
             {
-                _stopRecordingSemaphore.Release();
-                SyncAlwaysOnBuffer();
+                _finishLock.Release();
             }
+        }
+
+        private static void StopOutput(Output? output, string name)
+        {
+            if (output == null)
+                return;
+
+            Log.Information($"Stopping {name}...");
+            if (!output.Stop(waitForCompletion: true, timeoutMs: 30000))
+            {
+                Log.Warning($"Stopping {name} timed out after 30s, forcing stop.");
+                output.ForceStop();
+            }
+        }
+
+        // Caller holds _recorderLock.
+        private static void DisposeRecording()
+        {
+            DisposeOutput();
+            DisposeSources();
+            DisposeEncoders();
+            _isStoppingOrStopped = true;
+            _activeEffectiveSettings = null;
+            _isHdrRecording = false;
+            _hdrEncoderId = null;
+            _hookedExecutableFileName = null;
+            CapturedWindowWidth = null;
+            CapturedWindowHeight = null;
         }
 
         /// <summary>
@@ -2304,7 +2219,7 @@ namespace Segra.Backend.Recorder
 
             _ = Task.Run(async () =>
             {
-                await _stopRecordingSemaphore.WaitAsync();
+                await _recorderLock.WaitAsync();
                 try
                 {
                     bool wanted = Settings.Instance.AlwaysOnReplayBuffer && IsInitialized && !_isExiting
@@ -2333,7 +2248,7 @@ namespace Segra.Backend.Recorder
                     _alwaysOnBufferKey = key;
                     try
                     {
-                        if (StartRecordingCore("Manual Recording", "Unknown", startManually: true, pid: null, alwaysOn: true))
+                        if (StartRecordingCore("Manual Recording", "Unknown", startManually: true, pid: null, cancel: CancellationToken.None, alwaysOn: true))
                             return;
                     }
                     catch (Exception ex)
@@ -2351,12 +2266,12 @@ namespace Segra.Backend.Recorder
                 }
                 finally
                 {
-                    _stopRecordingSemaphore.Release();
+                    _recorderLock.Release();
                 }
             });
         }
 
-        // Caller holds _stopRecordingSemaphore. A failed buffer keeps its key so it isn't restarted as is.
+        // Caller holds _recorderLock. A failed buffer keeps its key so it isn't restarted as is.
         private static void StopAlwaysOnBufferCore(bool failed = false)
         {
             if (!failed)
@@ -2382,14 +2297,8 @@ namespace Segra.Backend.Recorder
 
         private static void DisposeAlwaysOnBuffer()
         {
-            DisposeOutput();
-            DisposeSources();
-            DisposeEncoders();
+            DisposeRecording();
             _alwaysOnBuffer = null;
-            _isStoppingOrStopped = true;
-            _activeEffectiveSettings = null;
-            _isHdrRecording = false;
-            _hdrEncoderId = null;
             AppState.Instance.AlwaysOnBufferActive = false;
         }
 
@@ -2399,7 +2308,7 @@ namespace Segra.Backend.Recorder
             // one retry; one that fails soon after starting stays off until something changes.
             bool retry = DateTime.Now - failed.StartTime > TimeSpan.FromMinutes(5);
 
-            await _stopRecordingSemaphore.WaitAsync();
+            await _recorderLock.WaitAsync();
             try
             {
                 if (_alwaysOnBuffer != failed)
@@ -2413,7 +2322,7 @@ namespace Segra.Backend.Recorder
             }
             finally
             {
-                _stopRecordingSemaphore.Release();
+                _recorderLock.Release();
             }
 
             if (retry)
@@ -2972,7 +2881,7 @@ namespace Segra.Backend.Recorder
         private static void SyncGameCaptureWithObs(IntPtr gameWindow)
         {
             // Start and stop hold this for their whole run; skip rather than race them
-            if (!_stopRecordingSemaphore.Wait(0)) return;
+            if (!_recorderLock.Wait(0)) return;
             try
             {
                 if (_isStoppingOrStopped || _mainScene == null || _captureWindowSpec == null || AppState.Instance.Recording == null) return;
@@ -2989,7 +2898,7 @@ namespace Segra.Backend.Recorder
             }
             finally
             {
-                _stopRecordingSemaphore.Release();
+                _recorderLock.Release();
             }
         }
 

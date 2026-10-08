@@ -565,7 +565,7 @@ namespace Segra.Backend.App
             // the awaits off the tray thread, whose WinForms SynchronizationContext would otherwise deadlock.
             // Skipped when the recorder is known to be dead: there is nothing to finalize and the stop may never return.
             bool recorderLost = RecorderHealthService.IsRecorderLost;
-            if (!recorderLost && (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null))
+            if (!recorderLost && (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null || AppState.Instance.IsFinishingRecording))
             {
                 Log.Information("Active recording detected during shutdown; stopping it before exit.");
                 OBSService.TryStopRecording(TimeSpan.FromSeconds(15));

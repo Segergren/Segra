@@ -18,6 +18,10 @@ namespace Segra.Backend.Games
     public static class GameDetectionService
     {
         public static bool PreventRetryRecording { get; set; } = false;
+        // After a manual stop, the game getting focus (its window opening, or tabbing back in) shouldn't restart it right away
+        private const int UserStopCooldownMs = 15000;
+        private static long _autoStartAllowedAt;
+        private static bool InUserStopCooldown => Environment.TickCount64 < Interlocked.Read(ref _autoStartAllowedAt);
 #if WINDOWS
         private static ManagementEventWatcher? processStartWatcher;
         private static ManagementEventWatcher? processStopWatcher;
@@ -479,6 +483,12 @@ namespace Segra.Backend.Games
                 return;
             }
 
+            if (InUserStopCooldown)
+            {
+                Log.Information("[StartGameRecording] Recording was just stopped manually. Skipping...");
+                return;
+            }
+
             Log.Information($"[StartGameRecording] Starting recording for game: PID {pid}, Path: {exePath}");
 
             string gameName = ExtractGameName(exePath);
@@ -490,6 +500,12 @@ namespace Segra.Backend.Games
 #else
             OBSService.StartRecording(gameName, exePath, pid: pid);
 #endif
+        }
+
+        public static void OnUserStop()
+        {
+            Interlocked.Exchange(ref _autoStartAllowedAt, Environment.TickCount64 + UserStopCooldownMs);
+            PreventRetryRecording = true;
         }
 
 #if WINDOWS
@@ -1300,8 +1316,9 @@ namespace Segra.Backend.Games
             {
                 if (eventType == EVENT_SYSTEM_FOREGROUND)
                 {
-                    // Reset retry recording flag to allow retrying recording if the user has changed foreground window
-                    PreventRetryRecording = false;
+                    // Reset retry recording flag to allow retrying recording if the user has changed foreground window,
+                    // unless it happened during the cooldown after a manual stop
+                    PreventRetryRecording = InUserStopCooldown;
 
                     if (AppState.Instance.Recording is { } recording)
                     {

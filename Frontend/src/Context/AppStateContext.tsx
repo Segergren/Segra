@@ -33,6 +33,7 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
       revived.recording = undefined;
       revived.preRecording = undefined;
       revived.alwaysOnBufferActive = false;
+      revived.isFinishingRecording = false;
       revived.hasLoadedObs = false;
       return revived;
     } catch {
