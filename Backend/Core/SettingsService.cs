@@ -887,6 +887,8 @@ namespace Segra.Backend.Core
                                 continue;
                             }
 
+                            metadata.MediaClock ??= ContentService.EstimateLegacyMediaClock(metadata);
+
                             // Safety net for metadata that reached disk without an id
                             if (ContentService.EnsureContentId(serializedMetadataFilePath, metadata))
                             {

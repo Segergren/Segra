@@ -1219,6 +1219,11 @@ namespace Segra.Backend.Core.Models
             AppState.Instance.NotifyContentUpdated();
         }
 
+        [JsonPropertyName("mediaClock")]
+        public MediaClockTimeline? MediaClock { get; set; }
+
+        public double ToMediaPosition(double wallSeconds) => MediaClock?.ToMedia(wallSeconds) ?? wallSeconds;
+
         public string FileName { get; set; } = string.Empty;
 
         private string _filePath = string.Empty;
