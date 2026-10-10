@@ -177,6 +177,9 @@ namespace Segra.Backend.Media
                         "-t", segmentDuration.ToString(CultureInfo.InvariantCulture),
                         "-i", inputFilePath,
                         "-map", "0",
+                        // Leave out the embedded chapter track, it breaks the concat
+                        "-map", "-0:d",
+                        "-map_chapters", "-1",
                         "-c", "copy",
                         "-avoid_negative_ts", "make_zero",
                     };
