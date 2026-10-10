@@ -462,6 +462,38 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Make sure bookmarks are only shown when we have valid duration and zoom
   // Prevents weird positioning on initial load
   const bookmarksReady = duration > 0 && pixelsPerSecond > 0;
+
+  // Bookmark times are wall-clock, but the video's timeline belongs to the encoder: when the
+  // recorder could not draw frames that wall time simply is not in the file. Map one onto the other.
+  const mediaClockSamples = video.mediaClock?.samples;
+  const toMediaPosition = useCallback(
+    (wallSeconds: number) => {
+      if (!mediaClockSamples?.length) return wallSeconds;
+      if (wallSeconds <= mediaClockSamples[0].wallSeconds) return mediaClockSamples[0].mediaSeconds;
+      for (let i = 1; i < mediaClockSamples.length; i++) {
+        const b = mediaClockSamples[i];
+        if (wallSeconds > b.wallSeconds) continue;
+        const a = mediaClockSamples[i - 1];
+        const span = b.wallSeconds - a.wallSeconds;
+        return span <= 0
+          ? b.mediaSeconds
+          : a.mediaSeconds +
+              ((wallSeconds - a.wallSeconds) / span) * (b.mediaSeconds - a.mediaSeconds);
+      }
+      return mediaClockSamples[mediaClockSamples.length - 1].mediaSeconds;
+    },
+    [mediaClockSamples],
+  );
+
+  const formatPosition = useCallback((seconds: number) => {
+    const total = Math.max(0, Math.round(seconds));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      : `${m}:${String(s).padStart(2, '0')}`;
+  }, []);
   const sortedSegments = useMemo(
     () => [...segments].sort((a, b) => a.startTime - b.startTime),
     [segments],
@@ -2192,7 +2224,9 @@ export default function VideoComponent({ video }: { video: Content }) {
               {bookmarksReady && (
                 <AnimatePresence initial={false}>
                   {filteredBookmarks.map((bookmark, index) => {
-                    const timeInSeconds = timeStringToSeconds(bookmark.time);
+                    const wallSeconds = timeStringToSeconds(bookmark.time);
+                    const timeInSeconds = toMediaPosition(wallSeconds);
+                    const positionDiffers = Math.abs(timeInSeconds - wallSeconds) >= 1;
                     const leftPos = timeInSeconds * pixelsPerSecond;
                     const Icon =
                       getIconMapping(video.igdbId)[bookmark.type as BookmarkType] || Skull;
@@ -2205,7 +2239,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                         exit={{ opacity: 0, scale: 0.5 }}
                         transition={{ duration: 0.1 }}
                         className="tooltip absolute bottom-0 transform -translate-x-1/2 cursor-pointer z-10 flex flex-col items-center text-[#25272e]"
-                        data-tip={`${bookmark.type}${bookmark.subtype ? ` - ${bookmark.subtype}` : ''} (${bookmark.time})`}
+                        data-tip={`${bookmark.type}${bookmark.subtype ? ` - ${bookmark.subtype}` : ''} (${positionDiffers ? `${formatPosition(timeInSeconds)} in video` : bookmark.time})`}
                         style={{ left: `${leftPos}px` }}
                         onClick={() => {
                           const seekTo = Math.max(

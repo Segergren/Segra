@@ -49,8 +49,8 @@ namespace Segra.Backend.Media
                 var (paddingBefore, paddingAfter) = GameSettingsService.ResolveHighlightPadding(content.GameExePath);
                 var segments = highlightBookmarks.Select(b => new TimeSegment
                 {
-                    StartTime = Math.Max(0, b.Time.TotalSeconds - paddingBefore),
-                    EndTime = b.Time.TotalSeconds + paddingAfter
+                    StartTime = Math.Max(0, content.ToMediaPosition(b.Time.TotalSeconds) - paddingBefore),
+                    EndTime = content.ToMediaPosition(b.Time.TotalSeconds) + paddingAfter
                 }).ToList();
 
                 var mergedSegments = MergeOverlappingSegments(segments);

@@ -27,6 +27,16 @@ export interface Content {
   compressed: boolean;
   audioTrackNames?: string[];
   audioTrackTypes?: AudioTrackType[];
+  mediaClock?: MediaClockTimeline;
+}
+
+export interface MediaClockSample {
+  wallSeconds: number;
+  mediaSeconds: number;
+}
+
+export interface MediaClockTimeline {
+  samples: MediaClockSample[];
 }
 
 export interface OBSVersion {
