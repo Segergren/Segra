@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DropdownSelect from '../DropdownSelect';
-import { Settings as SettingsType, VideoQualityPreset } from '../../Models/types';
+import { Settings as SettingsType, VideoQualityPreset, GpuVendor } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { clampInt } from '../../Utils/NumberUtils';
 import { useAppState } from '../../Context/AppStateContext';
@@ -550,6 +550,29 @@ export default function VideoSettingsSection({
             </div>
           </label>
         )}
+
+        {/* Custom preset only; Windows only, and libobs leaves Intel GPUs alone */}
+        {settings.videoQualityPreset === 'custom' &&
+          appState.platform !== 'linux' &&
+          appState.gpuVendor !== GpuVendor.Intel && (
+            <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
+              <input
+                type="checkbox"
+                checked={settings.gpuPriority === 'Realtime'}
+                onChange={(e) =>
+                  updateSettings({ gpuPriority: e.target.checked ? 'Realtime' : 'High' })
+                }
+                className="checkbox checkbox-primary checkbox-sm"
+              />
+              <div>
+                <div className="font-semibold">Realtime GPU Priority</div>
+                <div className="text-sm opacity-70 mt-0.5">
+                  Keeps recordings smooth in GPU-heavy games. When off, the game gets a few more FPS
+                  but recordings can stutter.
+                </div>
+              </div>
+            </label>
+          )}
       </div>
     </div>
   );

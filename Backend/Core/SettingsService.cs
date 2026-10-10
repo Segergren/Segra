@@ -593,6 +593,14 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.GpuPriority != updatedSettings.GpuPriority)
+            {
+                Log.Information($"GpuPriority changed from '{settings.GpuPriority}' to '{updatedSettings.GpuPriority}'");
+                settings.GpuPriority = updatedSettings.GpuPriority;
+                OBSService.ApplyGpuPrioritySetting();
+                hasChanges = true;
+            }
+
             if (settings.Bitrate != updatedSettings.Bitrate)
             {
                 Log.Information($"Bitrate changed from '{settings.Bitrate} Mbps' to '{updatedSettings.Bitrate} Mbps'");

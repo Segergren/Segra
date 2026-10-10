@@ -24,6 +24,7 @@ using System.Text.RegularExpressions;
 using static Segra.Backend.App.MessageService;
 using static Segra.Backend.Shared.GeneralUtils;
 #if WINDOWS
+using System.Runtime.InteropServices;
 using Segra.Backend.Windows.Display;
 #endif
 
@@ -818,7 +819,73 @@ namespace Segra.Backend.Recorder
                 Log.Warning($"Could not create the device-loss probe display: {ex.Message}");
             }
         }
+
+        private enum GpuSchedulingClass { Idle, BelowNormal, Normal, AboveNormal, High, Realtime }
+
+        [LibraryImport("gdi32.dll")]
+        private static partial int D3DKMTGetProcessSchedulingPriorityClass(nint process, out GpuSchedulingClass priorityClass);
+
+        [LibraryImport("gdi32.dll")]
+        private static partial int D3DKMTSetProcessSchedulingPriorityClass(nint process, GpuSchedulingClass priorityClass);
+
+        private static readonly object _gpuPriorityLock = new();
+        // The class libobs picked at device creation, put back when the recording stops; null while not raised
+        private static GpuSchedulingClass? _idleGpuSchedulingClass;
+
+        private static void SetGpuSchedulingClass(GpuSchedulingClass priorityClass)
+        {
+            using var process = Process.GetCurrentProcess();
+            if (D3DKMTGetProcessSchedulingPriorityClass(process.Handle, out var current) == 0 && current == priorityClass)
+                return;
+
+            int status = D3DKMTSetProcessSchedulingPriorityClass(process.Handle, priorityClass);
+            if (status == 0)
+                Log.Information($"GPU priority set to {priorityClass}");
+            else
+                Log.Warning($"Failed to set GPU priority to {priorityClass}: 0x{status:X8}");
+        }
 #endif
+
+        // libobs picks High under hardware-accelerated GPU scheduling, which lets a GPU-bound game in the foreground delay the capture
+        private static void SetRecordingGpuPriority(bool recording)
+        {
+#if WINDOWS
+            lock (_gpuPriorityLock)
+            {
+                if (recording)
+                {
+                    // libobs never changes the class on Intel adapters
+                    if (AppState.Instance.GpuVendor == GpuVendor.Intel)
+                        return;
+
+                    if (_idleGpuSchedulingClass == null)
+                    {
+                        using var process = Process.GetCurrentProcess();
+                        if (D3DKMTGetProcessSchedulingPriorityClass(process.Handle, out var current) != 0)
+                            return;
+                        _idleGpuSchedulingClass = current;
+                    }
+                    SetGpuSchedulingClass(Settings.Instance.GpuPriority == GpuPriority.Realtime ? GpuSchedulingClass.Realtime : GpuSchedulingClass.High);
+                }
+                else if (_idleGpuSchedulingClass is { } idle)
+                {
+                    _idleGpuSchedulingClass = null;
+                    SetGpuSchedulingClass(idle);
+                }
+            }
+#endif
+        }
+
+        public static void ApplyGpuPrioritySetting()
+        {
+#if WINDOWS
+            lock (_gpuPriorityLock)
+            {
+                if (_idleGpuSchedulingClass != null)
+                    SetRecordingGpuPriority(true);
+            }
+#endif
+        }
 
         // Bounded variants for exit paths: a wedged libobs must never keep Segra from exiting.
         public static bool TryStopRecording(TimeSpan timeout)
@@ -1291,6 +1358,13 @@ namespace Segra.Backend.Recorder
                 }
 
                 ApplyNvencBFrameLimit(videoEncoderSettings, encoderId);
+
+                // Two-pass and psycho visual tuning run on CUDA, which a GPU-bound game starves until the encoder falls behind
+                if (encoderId.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
+                {
+                    videoEncoderSettings.Set("multipass", "disabled");
+                    videoEncoderSettings.Set("psycho_aq", false);
+                }
             }
 
             try
@@ -1695,6 +1769,7 @@ namespace Segra.Backend.Recorder
 
             Log.Information("Recording started: " + videoOutputPath);
             GeneralUtils.SetProcessPriority(ProcessPriorityClass.High);
+            SetRecordingGpuPriority(true);
             if (!isReplayBufferMode)
             {
                 _ = GameIntegrationService.Start(GameUtils.GetIgdbIdFromExePath(exePath), GameUtils.GetGameNameFromExePath(exePath), exePath);
@@ -2072,6 +2147,7 @@ namespace Segra.Backend.Recorder
                     _isStoppingOrStopped = true;
 
                     GeneralUtils.SetProcessPriority(ProcessPriorityClass.Normal);
+                    SetRecordingGpuPriority(false);
 
                     RecordingPreviewService.OnRecordingStopped();
 

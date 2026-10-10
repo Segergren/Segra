@@ -7,6 +7,7 @@ export type AudioTrackType = 'mix' | 'input' | 'output';
 
 export type StartupWindowMode = 'Normal' | 'Minimized';
 export type CloseButtonAction = 'Minimize' | 'Exit';
+export type GpuPriority = 'High' | 'Realtime';
 
 export interface Content {
   id: string;
@@ -322,6 +323,7 @@ export interface Settings {
   frameRate: number;
   stretch4By3: boolean;
   enableHdr: boolean; // When false, recordings are always SDR even on an HDR display
+  gpuPriority: GpuPriority; // Windows GPU scheduling class while a recording runs
   rateControl: string;
   crfValue: number;
   cqLevel: number;
@@ -415,6 +417,7 @@ export const initialSettings: Settings = {
   frameRate: 30,
   stretch4By3: true,
   enableHdr: true,
+  gpuPriority: 'Realtime',
   rateControl: 'VBR',
   crfValue: 23,
   cqLevel: 20,

@@ -46,6 +46,7 @@ namespace Segra.Backend.Core.Models
         private int _frameRate = 60;
         private bool _stretch4By3 = true;
         private bool _enableHdr = true;
+        private GpuPriority _gpuPriority = GpuPriority.Realtime;
         private int _bitrate = 50;
         private int _minBitrate = 35;
         private int _maxBitrate = 70;
@@ -248,6 +249,17 @@ namespace Segra.Backend.Core.Models
             set
             {
                 _enableHdr = value;
+            }
+        }
+
+        // Windows GPU scheduling class applied while a recording runs
+        [JsonPropertyName("gpuPriority")]
+        public GpuPriority GpuPriority
+        {
+            get => _gpuPriority;
+            set
+            {
+                _gpuPriority = value;
             }
         }
 
@@ -1350,6 +1362,13 @@ namespace Segra.Backend.Core.Models
         Session,
         Buffer,
         Hybrid
+    }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum GpuPriority
+    {
+        High,
+        Realtime
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
