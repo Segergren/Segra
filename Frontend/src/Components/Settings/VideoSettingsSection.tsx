@@ -544,7 +544,8 @@ export default function VideoSettingsSection({
             <div>
               <div className="font-semibold">Record in HDR</div>
               <div className="text-sm opacity-70 mt-0.5">
-                Keeps HDR brightness and color. Videos can look washed out on screens without HDR.
+                Keeps HDR brightness and color, but videos can look washed out on screens without
+                HDR. When off, HDR is converted to SDR.
               </div>
             </div>
           </label>

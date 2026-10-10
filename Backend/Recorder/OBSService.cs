@@ -145,6 +145,13 @@ namespace Segra.Backend.Recorder
         // active. Both the display-capture fallback and the game capture inherit this canvas.
         private static bool _isHdrRecording = false;
         private static string? _hdrEncoderId = null;
+#if WINDOWS
+        private static bool _isHdrDisplay = false;
+
+        private static readonly ManualResetEventSlim _colorSpaceChecked = new(true);
+        private const int ColorSpaceCheckWaitMs = 3000;
+#endif
+        private static readonly object _colorSpaceCheckLock = new();
 
         // When the connected displays disagree on HDR, an auto-started game's HDR decision depends on
         // which monitor the game opens on. The game's window doesn't exist the instant the process is
@@ -1066,22 +1073,24 @@ namespace Segra.Backend.Recorder
             _isHdrRecording = false;
             _hdrEncoderId = null;
 #if WINDOWS
+            _isHdrDisplay = false;
             try
             {
-                if (!eff.EnableHdr)
-                {
-                    Log.Information("HDR recording is disabled in settings; recording in SDR.");
-                }
-                else
-                {
-                    // Base HDR on the monitor whose content we actually capture: for a game, the monitor
-                    // the game window is on (so a game on an SDR monitor is never forced to PQ); for a
-                    // manual recording, the selected display.
-                    string? hdrTargetDeviceId = startManually
-                        ? GetCaptureTargetDeviceId()
-                        : ResolveGameHdrTargetDeviceId(cancel);
+                // Base HDR on the monitor whose content we actually capture: for a game, the monitor
+                // the game window is on (so a game on an SDR monitor is never forced to PQ); for a
+                // manual recording, the selected display.
+                string? hdrTargetDeviceId = startManually
+                    ? GetCaptureTargetDeviceId()
+                    : ResolveGameHdrTargetDeviceId(cancel);
+                _isHdrDisplay = DisplayConfigService.IsDisplayHdrActive(hdrTargetDeviceId);
 
-                    if (DisplayConfigService.IsDisplayHdrActive(hdrTargetDeviceId))
+                if (_isHdrDisplay)
+                {
+                    if (!eff.EnableHdr)
+                    {
+                        Log.Information("HDR recording is disabled in settings; tone-mapping HDR to SDR.");
+                    }
+                    else
                     {
                         string userEncoderId = eff.Codec?.InternalEncoderId ?? string.Empty;
                         string? hdrEncoderId = EncoderInfo.FindHdrCapable(userEncoderId)?.Id;
@@ -1095,7 +1104,7 @@ namespace Segra.Backend.Recorder
                         }
                         else
                         {
-                            Log.Warning("HDR display detected but no HDR-capable (HEVC/AV1) encoder is available; recording in SDR.");
+                            Log.Warning("HDR display detected but no HDR-capable (HEVC/AV1) encoder is available; tone-mapping HDR to SDR.");
                         }
                     }
                 }
@@ -1105,6 +1114,7 @@ namespace Segra.Backend.Recorder
                 Log.Warning($"HDR detection failed, recording in SDR: {ex.Message}");
                 _isHdrRecording = false;
                 _hdrEncoderId = null;
+                _isHdrDisplay = false;
             }
 #endif
 
@@ -1211,6 +1221,10 @@ namespace Segra.Backend.Recorder
             // than opening the recording on display capture for a hook that was about to land.
             for (int i = 0; i < HookWaitMs / 50 && GameCaptureSource?.IsHooked == false && !cancel.IsCancellationRequested; i++)
                 cancel.WaitHandle.WaitOne(50);
+#if WINDOWS
+            if (GameCaptureSource?.IsHooked == true)
+                WaitHandle.WaitAny([_colorSpaceChecked.WaitHandle, cancel.WaitHandle], ColorSpaceCheckWaitMs);
+#endif
 
             if (cancel.IsCancellationRequested)
             {
@@ -2200,6 +2214,9 @@ namespace Segra.Backend.Recorder
             _activeEffectiveSettings = null;
             _isHdrRecording = false;
             _hdrEncoderId = null;
+#if WINDOWS
+            _isHdrDisplay = false;
+#endif
             _hookedExecutableFileName = null;
             CapturedWindowWidth = null;
             CapturedWindowHeight = null;
@@ -2364,7 +2381,20 @@ namespace Segra.Backend.Recorder
 
                 // Remove both fallbacks to save resources while game is hooked
                 DisposeDisplaySource();
+#if WINDOWS
+                // Kept as the reference for the color space check
+                if (!_colorSpaceChecked.IsSet && _windowCaptureSource != null && _isWindowCaptureHooked && !_isWindowCaptureBlocked)
+                {
+                    _ = Task.Run(() => CheckGameColorSpace(capture));
+                }
+                else
+                {
+                    _colorSpaceChecked.Set();
+                    DisposeWindowCaptureSource();
+                }
+#else
                 DisposeWindowCaptureSource();
+#endif
 
                 if (AppState.Instance.Recording != null)
                 {
@@ -2789,15 +2819,18 @@ namespace Segra.Backend.Recorder
                     Log.Warning($"Failed to unsubscribe from game capture events: {ex.Message}");
                 }
 
-                try
+                lock (_colorSpaceCheckLock)
                 {
-                    GameCaptureSource.Dispose();
+                    try
+                    {
+                        GameCaptureSource.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Failed to dispose game capture source: {ex.Message}");
+                    }
+                    GameCaptureSource = null;
                 }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to dispose game capture source: {ex.Message}");
-                }
-                GameCaptureSource = null;
             }
             // Dispose the timer if it exists
             StopGameCaptureHookTimeoutTimer();
@@ -2815,11 +2848,16 @@ namespace Segra.Backend.Recorder
                 GameCaptureSource.SetWindow(windowSpec);
 
                 // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
-                // swapchain to sRGB, so an HDR game would be captured as SDR. Force Rec.2100 PQ.
-                if (_isHdrRecording)
+                // swapchain to sRGB, which looks washed out. Force Rec.2100 PQ.
+                if (_isHdrDisplay)
                 {
                     GameCaptureSource.SetRgb10A2ColorSpace(GameCapture.Rgb10A2ColorSpace.Pq2100);
-                    Log.Information("Game capture color space set to Rec.2100 PQ (HDR)");
+                    _colorSpaceChecked.Reset();
+                    Log.Information("Game capture color space set to Rec.2100 PQ");
+                }
+                else
+                {
+                    _colorSpaceChecked.Set();
                 }
 
                 Log.Information($"Game capture configured for: {windowSpec.Split(':')[^1]}");
@@ -2939,6 +2977,197 @@ namespace Segra.Backend.Recorder
             // If the hook times out again, the next tab-in tries again
             AddGameCapture(_captureWindowSpec!, withHookTimeout: true);
             ApplyCaptureBounds(_gameCaptureItem);
+        }
+#endif
+
+#if WINDOWS
+        /// <summary>
+        /// Game capture can't tell 10-bit HDR from 10-bit SDR, but window capture gets the frame from DWM
+        /// with the real color space applied, so keep whichever interpretation matches it.
+        /// </summary>
+        private static void CheckGameColorSpace(GameCapture capture)
+        {
+            const int delayMs = 250;
+            const double minContrast = 6;
+            const double matchDiff = 5;
+            string? lastDiffs = null;
+
+            try
+            {
+                for (var deadline = DateTime.UtcNow.AddSeconds(60); DateTime.UtcNow < deadline;)
+                {
+                    Thread.Sleep(delayMs);
+                    var pq = SampleCaptures(capture);
+                    if (pq == null) return;
+                    if (pq.Value.Contrast < minContrast) continue;
+
+                    double hdrDiff = GridDiff(LumaGrid(pq.Value.Game, 1, null), pq.Value.Window);
+                    if (hdrDiff <= matchDiff)
+                    {
+                        Log.Information($"Game capture color space matches window capture (difference {hdrDiff:F1})");
+                        return;
+                    }
+
+                    // Motion can offset the captures by a frame, so only test sRGB when the image looks SDR
+                    double sdrDiff = SdrDiff(pq.Value.Game, pq.Value.Window);
+                    lastDiffs = $" (difference {hdrDiff:F1} as HDR, {sdrDiff:F1} as SDR)";
+                    if (sdrDiff >= hdrDiff) continue;
+
+                    if (!SetCheckedColorSpace(capture, GameCapture.Rgb10A2ColorSpace.Srgb)) return;
+                    Thread.Sleep(delayMs);
+                    var srgb = SampleCaptures(capture);
+                    if (srgb == null) return;
+                    double srgbDiff = SdrDiff(srgb.Value.Game, srgb.Value.Window);
+                    if (srgbDiff <= matchDiff && srgbDiff < sdrDiff / 2)
+                    {
+                        Log.Information($"Game output is 10-bit SDR; game capture color space set to sRGB (difference {srgbDiff:F1}, {sdrDiff:F1} as PQ)");
+                        return;
+                    }
+                    if (!SetCheckedColorSpace(capture, GameCapture.Rgb10A2ColorSpace.Pq2100)) return;
+
+                    if (sdrDiff <= matchDiff)
+                    {
+                        Log.Information($"Game output is SDR; game capture color space matches window capture (difference {sdrDiff:F1})");
+                        return;
+                    }
+                }
+                Log.Information($"Game capture color space could not be checked against window capture{lastDiffs}; keeping Rec.2100 PQ");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Game capture color space check failed: {ex.Message}");
+            }
+            finally
+            {
+                _colorSpaceChecked.Set();
+                if (GameCaptureSource == capture && capture.IsHooked)
+                    DisposeWindowCaptureSource();
+            }
+        }
+
+        private static bool SetCheckedColorSpace(GameCapture capture, GameCapture.Rgb10A2ColorSpace colorSpace)
+        {
+            lock (_colorSpaceCheckLock)
+            {
+                if (GameCaptureSource != capture)
+                    return false;
+                capture.SetRgb10A2ColorSpace(colorSpace);
+                return true;
+            }
+        }
+
+        // Frames are downsampled to 128x72 pixels and compared as 32x18 cell averages, so the cursor and small motion don't count
+        private const int SampleW = 128, SampleH = 72, GridW = 32, GridH = 18;
+
+        private static (byte[] Game, double[] Window, double Contrast)? SampleCaptures(GameCapture capture)
+        {
+            ScreenshotData? game, window;
+            lock (_colorSpaceCheckLock)
+            {
+                if (GameCaptureSource != capture || !capture.IsHooked || _windowCaptureSource is not { } windowSource)
+                    return null;
+                game = capture.TakeScreenshot();
+                window = windowSource.TakeScreenshot();
+            }
+
+            var gameSamples = SamplePixels(game);
+            var windowSamples = SamplePixels(window);
+            if (gameSamples == null || windowSamples == null)
+                return (Array.Empty<byte>(), Array.Empty<double>(), 0);
+
+            var windowGrid = LumaGrid(windowSamples, 1, null);
+            double mean = windowGrid.Average();
+            double contrast = Math.Sqrt(windowGrid.Average(v => (v - mean) * (v - mean)));
+            return (gameSamples, windowGrid, contrast);
+        }
+
+        // DWM puts SDR white at the Windows SDR brightness, so fit that ratio
+        private static double SdrDiff(byte[] game, double[] window)
+        {
+            double best = double.MaxValue;
+            for (double k = 0.2; k <= 4; k *= 1.05)
+                best = Math.Min(best, GridDiff(LumaGrid(game, k, SdrThroughWindowCapture), window));
+            return best;
+        }
+
+        // OBS's Reinhard tone map, applied in Rec.2020
+        private static void SdrThroughWindowCapture(ref double r, ref double g, ref double b, double k)
+        {
+            r = SrgbToLinear(r) * k;
+            g = SrgbToLinear(g) * k;
+            b = SrgbToLinear(b) * k;
+            double r2 = Tonemap(0.627403895934699 * r + 0.329283038377884 * g + 0.0433130656874172 * b);
+            double g2 = Tonemap(0.0690972893582321 * r + 0.919540395075459 * g + 0.0113623155663092 * b);
+            double b2 = Tonemap(0.0163914388751503 * r + 0.0880133078772257 * g + 0.895595253247624 * b);
+            r = LinearToSrgb(1.66049100210843 * r2 - 0.58764113878855 * g2 - 0.0728498633198849 * b2);
+            g = LinearToSrgb(-0.124550474521591 * r2 + 1.13289989712596 * g2 - 0.00834942260436948 * b2);
+            b = LinearToSrgb(-0.0181507633549053 * r2 - 0.100578898008007 * g2 + 1.11872966136291 * b2);
+
+            static double Tonemap(double x)
+            {
+                x = Math.Clamp(x / (x + 1), 0, 1);
+                return SrgbToLinear(Math.Pow(x, 1 / 2.4));
+            }
+        }
+
+        private static double SrgbToLinear(double c) => c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
+
+        private static double LinearToSrgb(double c)
+        {
+            c = Math.Clamp(c, 0, 1);
+            return c <= 0.0031308 ? c * 12.92 : 1.055 * Math.Pow(c, 1 / 2.4) - 0.055;
+        }
+
+        private delegate void PixelTransform(ref double r, ref double g, ref double b, double k);
+
+        private static double GridDiff(double[] a, double[] b)
+        {
+            double sum = 0;
+            for (int i = 0; i < a.Length; i++)
+                sum += Math.Abs(a[i] - b[i]);
+            return sum / a.Length;
+        }
+
+        private static byte[]? SamplePixels(ScreenshotData? shot)
+        {
+            if (shot == null || shot.Width == 0 || shot.Height == 0)
+                return null;
+
+            var samples = new byte[SampleW * SampleH * 3];
+            for (int sy = 0; sy < SampleH; sy++)
+            {
+                int y = (int)((sy + 0.5) * shot.Height / SampleH);
+                for (int sx = 0; sx < SampleW; sx++)
+                {
+                    int x = (int)((sx + 0.5) * shot.Width / SampleW);
+                    int i = (y * (int)shot.Width + x) * 4;
+                    int o = (sy * SampleW + sx) * 3;
+                    samples[o] = shot.Pixels[i + 2];
+                    samples[o + 1] = shot.Pixels[i + 1];
+                    samples[o + 2] = shot.Pixels[i];
+                }
+            }
+            return samples;
+        }
+
+        private static double[] LumaGrid(byte[] samples, double k, PixelTransform? transform)
+        {
+            var grid = new double[GridW * GridH];
+            for (int sy = 0; sy < SampleH; sy++)
+            {
+                int row = sy * GridH / SampleH * GridW;
+                for (int sx = 0; sx < SampleW; sx++)
+                {
+                    int o = (sy * SampleW + sx) * 3;
+                    double r = samples[o] / 255.0, g = samples[o + 1] / 255.0, b = samples[o + 2] / 255.0;
+                    transform?.Invoke(ref r, ref g, ref b, k);
+                    grid[row + sx * GridW / SampleW] += (r * 0.2126 + g * 0.7152 + b * 0.0722) * 255;
+                }
+            }
+            double perCell = SampleW / GridW * (SampleH / GridH);
+            for (int i = 0; i < grid.Length; i++)
+                grid[i] /= perCell;
+            return grid;
         }
 #endif
 
@@ -3108,8 +3337,12 @@ namespace Segra.Backend.Recorder
                 }
             }
 
-            var source = _windowCaptureSource;
-            _windowCaptureSource = null;
+            WindowCapture? source;
+            lock (_colorSpaceCheckLock)
+            {
+                source = _windowCaptureSource;
+                _windowCaptureSource = null;
+            }
             if (source != null)
             {
                 try

@@ -550,9 +550,10 @@ namespace Segra.Backend.Media
             }
         }
 
+        private const double ObsSdrWhiteNits = 300;
+
         /// <summary>
-        /// Builds the thumbnail -vf chain. HDR sources are tone-mapped from Rec.2100 (PQ/HLG) down
-        /// to Rec.709 SDR so the JPEG is not washed out; SDR sources are only scaled.
+        /// Builds the thumbnail -vf chain. HDR sources get the tone map OBS uses when recording HDR as SDR.
         /// </summary>
         private static string BuildThumbnailVideoFilter(int width, bool isHdr)
         {
@@ -560,8 +561,11 @@ namespace Segra.Backend.Media
             if (!isHdr)
                 return scale;
 
-            return "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
-                   "tonemap=tonemap=hable,zscale=t=bt709:m=bt709:r=tv,format=yuv420p," + scale;
+            string toSdrWhite = (10000 / ObsSdrWhiteNits).ToString(CultureInfo.InvariantCulture);
+            string curve = $"st(0,val/65535*{toSdrWhite});st(1,pow(ld(0)/(ld(0)+1),1/2.4));" +
+                           "if(lte(ld(1),0.04045),ld(1)/12.92,pow((ld(1)+0.055)/1.055,2.4))*65535";
+            return $"zscale=t=linear:npl=10000,format=gbrp16le,lutrgb=r='{curve}':g='{curve}':b='{curve}'," +
+                   "zscale=tin=linear:pin=bt2020:p=bt709:t=iec61966-2-1:m=bt709:r=tv,format=yuv420p," + scale;
         }
 
         private static readonly Regex _streamHeaderRegex = new(
