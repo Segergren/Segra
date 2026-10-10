@@ -299,6 +299,7 @@ namespace Segra.Backend.Media
                                 {
                                     Directory.CreateDirectory(newDir);
                                     File.Move(content.FilePath, candidatePath);
+                                    DaVinciExportService.DeleteDaVinciExport(content.FilePath);
                                     newFilePath = candidatePath;
                                     moved = true;
                                     Log.Information("Moved content for IGDB {Id}: {Old} -> {New}", igdbId, content.FilePath, candidatePath);
@@ -562,6 +563,7 @@ namespace Segra.Backend.Media
                         {
                             File.Delete(normalizedFilePath);
                             Log.Information($"Video file deleted: {normalizedFilePath}");
+                            DaVinciExportService.DeleteDaVinciExport(normalizedFilePath);
                             break;
                         }
                         catch (IOException)
@@ -878,6 +880,7 @@ namespace Segra.Backend.Media
                             if (File.Exists(currentFilePath))
                             {
                                 File.Move(currentFilePath, candidatePath);
+                                DaVinciExportService.DeleteDaVinciExport(currentFilePath);
                                 newFilePath = candidatePath;
                                 newFileName = Path.GetFileNameWithoutExtension(candidatePath);
                                 Log.Information($"Renamed video file to {candidatePath}");

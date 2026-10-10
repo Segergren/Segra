@@ -14,6 +14,7 @@ import {
   Ellipsis,
   Minimize2,
   Crown,
+  Clapperboard,
   Copy,
   Bookmark,
   ExternalLink,
@@ -64,7 +65,7 @@ export default function ContentCard({
   isHighlighted = false,
 }: VideoCardProps) {
   const { enableAi, showNewBadgeOnVideos, airplaneMode } = useSettings();
-  const { cacheFolder, content: allContent } = useAppState();
+  const { cacheFolder, content: allContent, davinciInstalled } = useAppState();
   const patchContent = usePatchContent();
   const { openModal, closeModal } = useModal();
   const { aiProgress } = useAiHighlights();
@@ -409,6 +410,7 @@ export default function ContentCard({
       (!airplaneMode && (type === 'Clip' || type === 'Highlight') ? 1 : 0) +
       (type === 'Clip' || type === 'Highlight' || type === 'Buffer' ? 1 : 0) +
       (type === 'Session' && enableAi ? 1 : 0) +
+      (canExportToDaVinci ? 1 : 0) +
       ((type === 'Clip' || type === 'Highlight') && !content?.compressed ? 1 : 0);
     const menuHeight = actionCount * 40 + 16;
     setContextMenuPosition({
@@ -419,6 +421,7 @@ export default function ContentCard({
 
   const uploadUrl = content?.uploadUrl;
 
+  const canExportToDaVinci = davinciInstalled && (content?.bookmarks?.length ?? 0) > 0;
   const hasHighlightBookmarks = content?.bookmarks?.some((bookmark) =>
     includeInHighlight(bookmark.type),
   );
@@ -504,6 +507,20 @@ export default function ContentCard({
           <span>Open File Location</span>
         </Button>
       </li>
+      {canExportToDaVinci && (
+        <li>
+          <Button
+            variant="menu"
+            onClick={() => {
+              closeMenu();
+              sendMessageToBackend('ExportMarkers', { Id: content!.id });
+            }}
+          >
+            <Clapperboard size={20} />
+            <span>Export to Resolve</span>
+          </Button>
+        </li>
+      )}
       {(type === 'Clip' || type === 'Highlight') && !content?.compressed && (
         <li>
           <Button

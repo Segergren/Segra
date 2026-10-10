@@ -189,6 +189,10 @@ namespace Segra.Backend.App
                                 Log.Warning("FilePath parameter not found in OpenFileLocation message");
                             }
                             break;
+                        case "ExportMarkers":
+                            root.TryGetProperty("Parameters", out JsonElement exportMarkersParameterElement);
+                            _ = Task.Run(() => DaVinciExportService.HandleExportMarkers(exportMarkersParameterElement));
+                            break;
                         case "CopyFileToClipboard":
                             root.TryGetProperty("Parameters", out JsonElement copyFileParams);
                             if (copyFileParams.TryGetProperty("FilePath", out JsonElement copyFilePath))

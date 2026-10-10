@@ -1,4 +1,5 @@
-import { Info, TriangleAlert, CircleAlert } from 'lucide-react';
+import { useState } from 'react';
+import { Info, TriangleAlert, CircleAlert, Copy, Check } from 'lucide-react';
 import Button from './Button';
 
 export interface ModalProps {
@@ -7,6 +8,29 @@ export interface ModalProps {
   description: string;
   type: 'info' | 'warning' | 'error';
   onClose: () => void;
+}
+
+function CodeSnippet({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <span className="inline-flex items-center gap-2 max-w-full bg-base-100 border border-base-content/10 rounded-md pl-2.5 pr-1 py-1 my-1">
+      <code className="font-mono text-sm text-base-content break-all">{text}</code>
+      <Button
+        variant="ghost"
+        size="xs"
+        icon
+        className="shrink-0"
+        onClick={() => {
+          navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+      >
+        {copied ? <Check size={14} /> : <Copy size={14} />}
+      </Button>
+    </span>
+  );
 }
 
 export default function GenericModal({ title, subtitle, description, type, onClose }: ModalProps) {
@@ -53,7 +77,11 @@ export default function GenericModal({ title, subtitle, description, type, onClo
       </div>
 
       <div className={`modal-body py-2 mt-4`}>
-        <div className="text-gray-300 text-lg whitespace-pre-line">{description}</div>
+        <div className="text-gray-300 text-lg whitespace-pre-line">
+          {description
+            .split('`')
+            .map((part, i) => (i % 2 === 1 ? <CodeSnippet key={i} text={part} /> : part))}
+        </div>
       </div>
     </>
   );

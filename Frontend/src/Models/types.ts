@@ -67,6 +67,7 @@ export interface State {
   platform: 'windows' | 'linux';
   usesScreenSharePicker: boolean;
   hotkeysNeedInputGroup: boolean;
+  davinciInstalled: boolean;
   // Windows only; the backend leaves it unset elsewhere.
   hotkeyBroker?: HotkeyBrokerStatus | null;
 }
@@ -220,6 +221,18 @@ export interface GameIntegrationSettings {
   enabled: boolean;
 }
 
+// OpenTimelineIO marker color names
+export type DaVinciMarkerColor =
+  'BLUE' | 'CYAN' | 'GREEN' | 'YELLOW' | 'RED' | 'PINK' | 'PURPLE' | 'WHITE';
+
+export interface DaVinciMarkerColors {
+  kill: DaVinciMarkerColor;
+  death: DaVinciMarkerColor;
+  assist: DaVinciMarkerColor;
+  goal: DaVinciMarkerColor;
+  manual: DaVinciMarkerColor;
+}
+
 export interface GameIntegrations {
   counterStrike2: GameIntegrationSettings;
   leagueOfLegends: GameIntegrationSettings;
@@ -340,6 +353,7 @@ export interface Settings {
   alwaysOnReplayBuffer: boolean; // Keep a display replay buffer running while nothing records
   highlightPaddingBefore: number; // Seconds before a highlight moment
   highlightPaddingAfter: number; // Seconds after a highlight moment
+  davinciMarkerColors: DaVinciMarkerColors;
   clipClearSegmentsAfterCreatingClip: boolean;
   clipShowInBrowserAfterUpload: boolean; // Open browser after upload
   clipEncoder: ClipEncoder;
@@ -393,6 +407,7 @@ export const initialState: State = {
   platform: 'windows',
   usesScreenSharePicker: false,
   hotkeysNeedInputGroup: false,
+  davinciInstalled: false,
 };
 
 export const initialSettings: Settings = {
@@ -431,6 +446,13 @@ export const initialSettings: Settings = {
   alwaysOnReplayBuffer: false,
   highlightPaddingBefore: 4,
   highlightPaddingAfter: 4,
+  davinciMarkerColors: {
+    kill: 'GREEN',
+    death: 'RED',
+    assist: 'WHITE',
+    goal: 'GREEN',
+    manual: 'YELLOW',
+  },
   clipClearSegmentsAfterCreatingClip: false,
   clipShowInBrowserAfterUpload: false,
   clipEncoder: 'cpu',
