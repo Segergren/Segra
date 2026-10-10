@@ -42,12 +42,14 @@ function GameIcon({
   size?: number;
 }) {
   const [errored, setErrored] = useState(false);
+  const { airplaneMode } = useSettings();
   // Prefer the catalog CDN icon; fall back to the exe-extracted base64 icon for custom games.
-  const src = iconId
-    ? `https://segra.tv/api/games/icon/${iconId}`
-    : customIcon
-      ? `data:image/png;base64,${customIcon}`
-      : null;
+  const src =
+    iconId && !airplaneMode
+      ? `https://segra.tv/api/games/icon/${iconId}`
+      : customIcon
+        ? `data:image/png;base64,${customIcon}`
+        : null;
   const showImage = !!src && !errored;
   return (
     <div

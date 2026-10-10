@@ -244,7 +244,7 @@ export default function GameIntegrationsSection() {
             key={integration.id}
             integration={integration}
             enabled={settings.gameIntegrations[integration.settingsKey].enabled}
-            showBackground={settings.showGameBackground}
+            showBackground={settings.showGameBackground && !settings.airplaneMode}
             onToggle={(enabled) => handleToggle(integration.settingsKey, enabled)}
           />
         ))}
