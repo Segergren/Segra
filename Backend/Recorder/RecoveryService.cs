@@ -27,6 +27,11 @@ namespace Segra.Backend.Recorder
 
                 Log.Information($"Found {orphanedFiles.Count} orphaned video file(s) without metadata");
 
+                foreach (var orphanedFile in orphanedFiles)
+                {
+                    orphanedFile.Embedded = await EmbeddedMetadataService.ReadAsync(orphanedFile.FilePath);
+                }
+
                 var fileDataList = orphanedFiles.Select(orphanedFile =>
                 {
                     string recoveryId = Guid.NewGuid().ToString();
@@ -47,7 +52,7 @@ namespace Segra.Backend.Recorder
                         _ => orphanedFile.Type.ToString()
                     };
 
-                    string? detectedGame = orphanedFile.FolderGame;
+                    string? detectedGame = !string.IsNullOrEmpty(orphanedFile.Embedded?.Game) ? orphanedFile.Embedded.Game : orphanedFile.FolderGame;
                     if (!string.IsNullOrEmpty(detectedGame))
                     {
                         _detectedGames[recoveryId] = detectedGame;
@@ -239,15 +244,22 @@ namespace Segra.Backend.Recorder
                 }
 
                 DateTime createdAt = File.GetCreationTime(orphanedFile.FilePath);
+                var embedded = orphanedFile.Embedded;
+                // The game ids only apply when the user kept the embedded game
+                bool sameGame = embedded != null && string.Equals(embedded.Game, gameName, StringComparison.Ordinal);
 
                 string? recoveredId = await ContentService.CreateMetadataFile(
                     orphanedFile.FilePath,
                     orphanedFile.Type,
                     gameName,
-                    null,
-                    null,
-                    createdAt != DateTime.MinValue ? createdAt : null,
-                    igdbId: null
+                    embedded?.Bookmarks,
+                    embedded?.Title,
+                    embedded?.CreatedAt ?? (createdAt != DateTime.MinValue ? createdAt : null),
+                    igdbId: sameGame ? embedded!.IgdbId : null,
+                    audioTrackNames: embedded?.AudioTrackNames,
+                    audioTrackTypes: embedded?.AudioTrackTypes,
+                    compressed: embedded?.Compressed ?? false,
+                    gameExePath: sameGame ? embedded!.GameExePath : null
                 );
 
                 await ContentService.CreateThumbnail(orphanedFile.FilePath, orphanedFile.Type, recoveredId);
@@ -286,6 +298,7 @@ namespace Segra.Backend.Recorder
             public required Content.ContentType Type { get; set; }
             public required string FileName { get; set; }
             public string? FolderGame { get; set; }
+            public EmbeddedMetadata? Embedded { get; set; }
         }
     }
 }

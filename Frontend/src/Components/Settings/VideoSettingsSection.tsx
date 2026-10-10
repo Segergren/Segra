@@ -551,7 +551,6 @@ export default function VideoSettingsSection({
           </label>
         )}
 
-        {/* Custom preset only; Windows only, and libobs leaves Intel GPUs alone */}
         {settings.videoQualityPreset === 'custom' &&
           appState.platform !== 'linux' &&
           appState.gpuVendor !== GpuVendor.Intel && (

@@ -829,7 +829,6 @@ namespace Segra.Backend.Recorder
         private static partial int D3DKMTSetProcessSchedulingPriorityClass(nint process, GpuSchedulingClass priorityClass);
 
         private static readonly object _gpuPriorityLock = new();
-        // The class libobs picked at device creation, put back when the recording stops; null while not raised
         private static GpuSchedulingClass? _idleGpuSchedulingClass;
 
         private static void SetGpuSchedulingClass(GpuSchedulingClass priorityClass)
@@ -846,7 +845,6 @@ namespace Segra.Backend.Recorder
         }
 #endif
 
-        // libobs picks High under hardware-accelerated GPU scheduling, which lets a GPU-bound game in the foreground delay the capture
         private static void SetRecordingGpuPriority(bool recording)
         {
 #if WINDOWS

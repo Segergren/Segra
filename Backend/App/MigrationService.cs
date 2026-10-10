@@ -152,8 +152,40 @@ internal static class MigrationService
             new("0014_id_keyed_sidecars", Apply_0014_IdKeyedSidecars),
             new("0015_delete_empty_game_folders", Apply_0015_DeleteEmptyGameFolders),
             new("0016_copy_compress_10mb_to_20mb", Apply_0016_CopyCompress10MbTo20Mb),
-            new("0017_per_device_input_options", Apply_0017_PerDeviceInputOptions)
+            new("0017_per_device_input_options", Apply_0017_PerDeviceInputOptions),
+            new("0018_embed_metadata_in_videos", Apply_0018_EmbedMetadataInVideos)
         ];
+    }
+
+    // Migration 0018: Game, title, bookmarks etc. are now stored in the video file as well, so import
+    // and recovery can restore them. Write them into existing videos.
+    private static void Apply_0018_EmbedMetadataInVideos()
+    {
+        int count = 0;
+
+        foreach (Content.ContentType type in Enum.GetValues<Content.ContentType>())
+        {
+            string metadataFolder = FolderNames.GetMetadataFolderPath(type);
+            if (!Directory.Exists(metadataFolder)) continue;
+
+            foreach (var metadataFilePath in Directory.EnumerateFiles(metadataFolder, "*.json"))
+            {
+                try
+                {
+                    var content = JsonSerializer.Deserialize<Content>(File.ReadAllText(metadataFilePath));
+                    if (content == null || !File.Exists(content.FilePath)) continue;
+
+                    EmbeddedMetadataService.EmbedAsync(content).GetAwaiter().GetResult();
+                    count++;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Migration 0018: failed for {File}", metadataFilePath);
+                }
+            }
+        }
+
+        Log.Information("Checked embedded metadata in {Count} videos", count);
     }
 
     // Migration 0017: Noise suppression and force mono moved from global settings to each input device.

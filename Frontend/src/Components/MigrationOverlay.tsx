@@ -4,6 +4,9 @@ import { MigrationStatus } from '../Models/types';
 const MigrationOverlay: React.FC = () => {
   const [migrationStatus, setMigrationStatus] = useState<MigrationStatus | null>(null);
 
+  // Debug: uncomment to show the migration UI
+  // useEffect(() => setMigrationStatus({ isRunning: true, currentMigration: 'debug' }), []);
+
   useEffect(() => {
     const handleWebSocketMessage = (event: CustomEvent<any>) => {
       const data = event.detail;

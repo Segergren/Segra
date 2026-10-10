@@ -380,13 +380,6 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
-            if (updatedSettings.DaVinciMarkerColors != null && settings.DaVinciMarkerColors != updatedSettings.DaVinciMarkerColors)
-            {
-                Log.Information($"DaVinciMarkerColors changed from '{settings.DaVinciMarkerColors}' to '{updatedSettings.DaVinciMarkerColors}'");
-                settings.DaVinciMarkerColors = updatedSettings.DaVinciMarkerColors;
-                hasChanges = true;
-            }
-
             if (updatedSettings.GameIntegrations != null)
             {
                 var current = settings.GameIntegrations;

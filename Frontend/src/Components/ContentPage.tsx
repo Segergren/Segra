@@ -15,6 +15,9 @@ import { useImports } from '../Context/ImportContext';
 import Button from './Button';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 
+// Imports that carried no Segra metadata have no game, so they are only listed under Imported
+const isUnknownImport = (item: Content) => item.isImported && item.game === 'Unknown';
+
 // Escape a filename for use inside a CSS attribute-selector string. Windows
 // filenames can't contain " or \, but escape defensively all the same.
 const escapeAttrValue = (value: string) => value.replace(/["\\]/g, '\\$&');
@@ -97,8 +100,7 @@ export default function ContentPage({
 
     const options = new Map<string, GameOption>();
     for (const item of contentItems) {
-      // Imported videos only count under Imported, not under their placeholder game
-      if (item.isImported) continue;
+      if (isUnknownImport(item)) continue;
       const existing = options.get(item.game);
       if (existing) existing.count++;
       else
@@ -127,7 +129,7 @@ export default function ContentPage({
       filtered = filtered.filter((item) =>
         selectedGame === IMPORTED
           ? item.isImported
-          : !item.isImported && item.game === selectedGame,
+          : !isUnknownImport(item) && item.game === selectedGame,
       );
     }
 

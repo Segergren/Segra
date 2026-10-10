@@ -106,7 +106,6 @@ namespace Segra.Backend.Core.Models
         private bool _removeOriginalAfterCompression = false;
         private bool _discardSessionsWithoutBookmarks = false;
         private GameIntegrations _gameIntegrations = new GameIntegrations();
-        private DaVinciMarkerColors _davinciMarkerColors = new DaVinciMarkerColors();
 
         private List<MenuItemPreference> _menuItems = KnownMenuItemIds
             .Select(id => new MenuItemPreference { Id = id, Visible = true })
@@ -252,7 +251,6 @@ namespace Segra.Backend.Core.Models
             }
         }
 
-        // Windows GPU scheduling class applied while a recording runs
         [JsonPropertyName("gpuPriority")]
         public GpuPriority GpuPriority
         {
@@ -445,16 +443,6 @@ namespace Segra.Backend.Core.Models
                 {
                     _highlightPaddingAfter = value;
                 }
-            }
-        }
-
-        [JsonPropertyName("davinciMarkerColors")]
-        public DaVinciMarkerColors DaVinciMarkerColors
-        {
-            get => _davinciMarkerColors;
-            set
-            {
-                _davinciMarkerColors = value ?? new DaVinciMarkerColors();
             }
         }
 
@@ -1547,25 +1535,6 @@ namespace Segra.Backend.Core.Models
         }
 
         public GameIntegrationSettings() : this(true) { }
-    }
-
-    // OpenTimelineIO marker color names per bookmark type
-    public record DaVinciMarkerColors
-    {
-        [JsonPropertyName("kill")]
-        public string Kill { get; set; } = "GREEN";
-
-        [JsonPropertyName("death")]
-        public string Death { get; set; } = "RED";
-
-        [JsonPropertyName("assist")]
-        public string Assist { get; set; } = "WHITE";
-
-        [JsonPropertyName("goal")]
-        public string Goal { get; set; } = "GREEN";
-
-        [JsonPropertyName("manual")]
-        public string Manual { get; set; } = "YELLOW";
     }
 
     public class GameIntegrations

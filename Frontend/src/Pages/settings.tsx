@@ -2,7 +2,6 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useScroll } from '../Context/ScrollContext';
 import { useUpdate } from '../Context/UpdateContext';
-import { useAppState } from '../Context/AppStateContext';
 import AccountSection from '../Components/Settings/AccountSection';
 import CaptureModeSection from '../Components/Settings/CaptureModeSection';
 import VideoSettingsSection from '../Components/Settings/VideoSettingsSection';
@@ -16,7 +15,6 @@ import InputGroupWarning from '../Components/Settings/InputGroupWarning';
 import GameDetectionSection from '../Components/Settings/GameDetectionSection';
 import GameIntegrationsSection from '../Components/Settings/GameIntegrationsSection';
 import HighlightsSection from '../Components/Settings/HighlightsSection';
-import DaVinciSection from '../Components/Settings/DaVinciSection';
 import PreferencesSection from '../Components/Settings/PreferencesSection';
 import MenuCustomizationSection from '../Components/Settings/MenuCustomizationSection';
 import AdvancedSection from '../Components/Settings/AdvancedSection';
@@ -48,7 +46,6 @@ export default function Settings() {
   const { openReleaseNotesModal, checkForUpdates, canSelfUpdate } = useUpdate();
   const settings = useSettings();
   const updateSettings = useSettingsUpdater();
-  const { davinciInstalled } = useAppState();
   // Airplane mode removes the Account section entirely (no login/cloud UI).
   const navItems = useMemo(
     () =>
@@ -181,7 +178,6 @@ export default function Settings() {
         <SectionHeader id="clips">Clips</SectionHeader>
         <ClipSettingsSection settings={settings} updateSettings={updateSettings} />
         <HighlightsSection settings={settings} updateSettings={updateSettings} />
-        {davinciInstalled && <DaVinciSection settings={settings} updateSettings={updateSettings} />}
 
         {/* STORAGE */}
         <SectionHeader id="storage">Storage</SectionHeader>

@@ -1,6 +1,5 @@
 using Serilog;
 using Segra.Backend.App;
-using Segra.Backend.Media;
 using Segra.Backend.Shared;
 using Segra.Backend.Platform;
 using Segra.Backend.Recorder;
@@ -350,9 +349,6 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("usesScreenSharePicker")]
         public bool UsesScreenSharePicker =>
             !OperatingSystem.IsWindows() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
-
-        [JsonPropertyName("davinciInstalled")]
-        public bool DaVinciInstalled => DaVinciExportService.IsDaVinciInstalled;
 
         public void UpdateAudioDevices()
         {

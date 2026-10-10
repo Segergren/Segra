@@ -117,7 +117,9 @@ namespace Segra.Backend.Media
 
                 try
                 {
-                    string targetFolder = PathUtils.Combine(baseTypeFolder, "Unknown");
+                    var embedded = await EmbeddedMetadataService.ReadAsync(sourceFile);
+                    string game = !string.IsNullOrEmpty(embedded?.Game) ? embedded.Game : "Unknown";
+                    string targetFolder = PathUtils.Combine(baseTypeFolder, StorageService.SanitizeGameNameForFolder(game));
                     Directory.CreateDirectory(targetFolder);
 
                     double progressPercent = (double)i / selectedFiles.Length * 100;
@@ -219,7 +221,15 @@ namespace Segra.Backend.Media
                         Log.Warning($"Failed to send import progress message: {msgEx.Message}");
                     }
 
-                    string? importedId = await ContentService.CreateMetadataFile(targetFilePath, contentType, "Unknown", null, originalFileName.Replace("_", " "), recordingDate != DateTime.MinValue ? recordingDate : null, isImported: true, audioTrackNames: audioTrackNames);
+                    if (embedded != null)
+                    {
+                        Log.Information($"Restored embedded metadata from {originalFileName}: {game}, {embedded.Bookmarks.Count} bookmarks");
+                    }
+
+                    string title = embedded != null ? embedded.Title ?? string.Empty : originalFileName.Replace("_", " ");
+                    DateTime? createdAt = embedded?.CreatedAt ?? (recordingDate != DateTime.MinValue ? recordingDate : null);
+                    string? importedId = await ContentService.CreateMetadataFile(targetFilePath, contentType, game, embedded?.Bookmarks, title, createdAt, embedded?.IgdbId, isImported: true,
+                        audioTrackNames: embedded?.AudioTrackNames ?? audioTrackNames, audioTrackTypes: embedded?.AudioTrackTypes, compressed: embedded?.Compressed ?? false, gameExePath: embedded?.GameExePath);
 
                     // Ensure file is fully written to disk/network before thumbnail generation
                     await GeneralUtils.EnsureFileReady(targetFilePath);

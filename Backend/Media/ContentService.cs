@@ -82,6 +82,8 @@ namespace Segra.Backend.Media
 
                 await File.WriteAllTextAsync(metadataFilePath, metadataJson);
                 Log.Information($"Metadata file created at: {metadataFilePath}");
+
+                await EmbeddedMetadataService.EmbedAsync(metadataContent);
                 return id;
             }
             catch (Exception ex)
@@ -299,7 +301,6 @@ namespace Segra.Backend.Media
                                 {
                                     Directory.CreateDirectory(newDir);
                                     File.Move(content.FilePath, candidatePath);
-                                    DaVinciExportService.DeleteDaVinciExport(content.FilePath);
                                     newFilePath = candidatePath;
                                     moved = true;
                                     Log.Information("Moved content for IGDB {Id}: {Old} -> {New}", igdbId, content.FilePath, candidatePath);
@@ -317,6 +318,7 @@ namespace Segra.Backend.Media
 
                     content.Game = canonicalName;
                     if (moved && newFilePath != null) content.FilePath = newFilePath;
+                    EmbeddedMetadataService.Schedule(content.Id);
 
                     changedCount++;
                 }
@@ -563,7 +565,6 @@ namespace Segra.Backend.Media
                         {
                             File.Delete(normalizedFilePath);
                             Log.Information($"Video file deleted: {normalizedFilePath}");
-                            DaVinciExportService.DeleteDaVinciExport(normalizedFilePath);
                             break;
                         }
                         catch (IOException)
@@ -743,6 +744,7 @@ namespace Segra.Backend.Media
                     }
 
                     contentItem.AddBookmark(bookmark);
+                    EmbeddedMetadataService.Schedule(contentItem.Id);
 
                     await MessageService.SendStateToFrontend("Added bookmark");
                     Log.Information($"Added bookmark of type {bookmarkType} at {timeString} to {metadataFilePath}");
@@ -801,6 +803,7 @@ namespace Segra.Backend.Media
                     {
                         contentItem.Bookmarks = contentItem.Bookmarks.Where(b => b.Id != bookmarkId).ToList();
                     }
+                    EmbeddedMetadataService.Schedule(contentItem.Id);
 
                     await MessageService.SendStateToFrontend("Deleted bookmark");
                     Log.Information($"Deleted bookmark with id {bookmarkId} from {metadataFilePath}");
@@ -880,7 +883,6 @@ namespace Segra.Backend.Media
                             if (File.Exists(currentFilePath))
                             {
                                 File.Move(currentFilePath, candidatePath);
-                                DaVinciExportService.DeleteDaVinciExport(currentFilePath);
                                 newFilePath = candidatePath;
                                 newFileName = Path.GetFileNameWithoutExtension(candidatePath);
                                 Log.Information($"Renamed video file to {candidatePath}");
@@ -895,6 +897,7 @@ namespace Segra.Backend.Media
 
                     Log.Information($"Updated title for {id} to '{newTitle}'");
                     await SettingsService.LoadContentFromFolderIntoState(true);
+                    EmbeddedMetadataService.Schedule(id);
                     await MessageService.SendStateToFrontend("Renamed content");
                 }
                 else

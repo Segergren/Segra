@@ -487,29 +487,6 @@ namespace Segra.Backend.Media
             return TimeSpan.Zero;
         }
 
-        // Frame rate as ffmpeg reports it in the video stream info, e.g. "60 fps" or "59.94 fps".
-        private static readonly Regex _fpsRegex = new(
-            @"(\d+(?:\.\d+)?)\s*fps",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-        /// <summary>
-        /// Extracts the video frame rate from ffmpeg metadata output, or null if not found.
-        /// </summary>
-        public static double? ExtractFps(string ffmpegOutput)
-        {
-            if (string.IsNullOrEmpty(ffmpegOutput))
-            {
-                return null;
-            }
-
-            var match = _fpsRegex.Match(ffmpegOutput);
-            if (match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double fps) && fps > 0)
-            {
-                return fps;
-            }
-            return null;
-        }
-
         // HDR transfer as ffmpeg reports it in the stream info: PQ = smpte2084, HLG = arib-std-b67.
         private static readonly Regex _hdrTransferRegex = new(
             @"\b(smpte2084|arib-std-b67)\b",
