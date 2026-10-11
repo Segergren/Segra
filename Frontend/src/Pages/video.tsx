@@ -46,6 +46,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Button from '../Components/Button';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 import AudioTrackIcon from '../Components/AudioTrackIcon';
+import HevcExtensionWarning from '../Components/HevcExtensionWarning';
 
 const Crosshair2Dot = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
   <Icon {...props} ref={ref} iconNode={crosshair2Dot} />
@@ -254,6 +255,8 @@ export default function VideoComponent({ video }: { video: Content }) {
   const [videoScale, setVideoScale] = useState(1);
   const [videoTranslate, setVideoTranslate] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [videoUndecodable, setVideoUndecodable] = useState(false);
+  useEffect(() => setVideoUndecodable(false), [video.filePath]);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const videoPanStartRef = useRef<{ x: number; y: number } | null>(null);
   const panMovedRef = useRef(false);
@@ -1933,6 +1936,13 @@ export default function VideoComponent({ video }: { video: Content }) {
                 className="w-full h-full object-contain"
                 src={getVideoPath()}
                 ref={videoRef}
+                onError={(e) =>
+                  setVideoUndecodable(
+                    e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED,
+                  )
+                }
+                onLoadedMetadata={(e) => setVideoUndecodable(e.currentTarget.videoWidth === 0)}
+                onPlay={(e) => videoUndecodable && e.currentTarget.pause()}
                 onClick={onVideoClick}
                 onDoubleClick={toggleFullscreen}
                 onPointerDown={onVideoPointerDown}
@@ -1948,6 +1958,9 @@ export default function VideoComponent({ video }: { video: Content }) {
                   cursor: videoScale > 1 && isPanning ? 'grabbing' : undefined,
                 }}
               />
+              {videoUndecodable && (
+                <HevcExtensionWarning variant="player" className="absolute inset-0 z-10 p-4" />
+              )}
             </div>
 
             <div

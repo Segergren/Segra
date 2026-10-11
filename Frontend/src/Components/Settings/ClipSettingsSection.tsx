@@ -9,6 +9,7 @@ import {
 } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { useAppState } from '../../Context/AppStateContext';
+import HevcExtensionWarning from '../HevcExtensionWarning';
 
 interface ClipSettingsSectionProps {
   settings: SettingsType;
@@ -378,6 +379,8 @@ export default function ClipSettingsSection({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {settings.clipCodec === 'h265' && <HevcExtensionWarning className="mt-3" />}
 
       {/* Keep Separate Audio Tracks */}
       {settings.enableSeparateAudioTracks && (

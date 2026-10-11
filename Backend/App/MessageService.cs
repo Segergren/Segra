@@ -16,6 +16,7 @@ using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
 #if WINDOWS
 using Segra.Backend.Windows.Input.HotkeyBroker;
+using Segra.Backend.Windows.Codecs;
 #endif
 
 namespace Segra.Backend.App
@@ -156,6 +157,12 @@ namespace Segra.Backend.App
 #if WINDOWS
                         case "InstallHotkeyBroker":
                             _ = Task.Run(HotkeyBrokerSetup.InstallAsync);
+                            break;
+                        case "InstallHevcExtension":
+                            _ = Task.Run(HevcExtensionInstaller.InstallAsync);
+                            break;
+                        case "RestartApp":
+                            _ = Task.Run(() => Program.Restart("requested by the user", minimized: false));
                             break;
 #endif
                         case "DeleteContent":

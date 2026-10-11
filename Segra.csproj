@@ -100,6 +100,7 @@
     <Compile Remove="Backend\Windows\Display\WindowUtils.cs" />
     <Compile Remove="Backend\Windows\Power\PowerModeMonitor.cs" />
     <Compile Remove="Backend\Windows\WebView2\WebView2RuntimeService.cs" />
+    <Compile Remove="Backend\Windows\Codecs\HevcExtensionInstaller.cs" />
     <Compile Remove="Backend\App\NotifyIconService.cs" />
     <Compile Remove="Backend\Recorder\OBSWindow.cs" />
     <Compile Remove="Backend\Recorder\NvencCapsService.cs" />

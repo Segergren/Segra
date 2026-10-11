@@ -6,6 +6,7 @@ import { Settings as SettingsType, VideoQualityPreset, GpuVendor } from '../../M
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { clampInt } from '../../Utils/NumberUtils';
 import { useAppState } from '../../Context/AppStateContext';
+import HevcExtensionWarning, { isHevcEncoder } from '../HevcExtensionWarning';
 import {
   usePendingRecordingSettings,
   RECORDING_SETTING_GROUPS,
@@ -537,6 +538,10 @@ export default function VideoSettingsSection({
 
       {settings.videoQualityPreset !== 'custom' && (
         <div className="grid grid-cols-2 gap-4 mt-3">{monitorSelectionField}</div>
+      )}
+
+      {isHevcEncoder(settings.codec?.internalEncoderId) && (
+        <HevcExtensionWarning className="mt-3" />
       )}
 
       <div className="flex flex-col gap-3 mt-3">
