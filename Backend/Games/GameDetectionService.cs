@@ -27,7 +27,7 @@ namespace Segra.Backend.Games
         // Matching the game name too covers launcher chains, where the stopped exe was the launcher
         private static bool InUserStopCooldownFor(string exePath)
         {
-            if (Volatile.Read(ref _userStopCooldown) is not { } c || Environment.TickCount64 >= c.Until)
+            if (string.IsNullOrEmpty(exePath) || Volatile.Read(ref _userStopCooldown) is not { } c || Environment.TickCount64 >= c.Until)
                 return false;
             return string.Equals(c.ExePath, exePath, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(c.Game, ExtractGameName(exePath), StringComparison.OrdinalIgnoreCase);
@@ -1327,21 +1327,19 @@ namespace Segra.Backend.Games
                 if (eventType == EVENT_SYSTEM_FOREGROUND)
                 {
                     // Reset retry recording flag to allow retrying recording if the user has changed foreground window,
-                    // unless it happened during the cooldown after a manual stop
-                    PreventRetryRecording = InUserStopCooldown;
+                    // unless the stopped game got focus during the cooldown after a manual stop
+                    _ = GetWindowThreadProcessId(hwnd, out uint pid);
+                    PreventRetryRecording = InUserStopCooldown && pid > 0 && InUserStopCooldownFor(ResolveProcessPath((int)pid));
 
                     if (AppState.Instance.Recording is { } recording)
                     {
-                        _ = GetWindowThreadProcessId(hwnd, out uint focusedPid);
-                        if (recording.Pid == (int)focusedPid)
+                        if (recording.Pid == (int)pid)
                             OBSService.OnGameFocused(hwnd);
                         return;
                     }
 
                     // The foreground hook can fire repeatedly for the same window; skip if it matches what we last logged
                     if (hwnd == _lastLoggedHwnd) return;
-
-                    _ = GetWindowThreadProcessId(hwnd, out uint pid);
 
                     if (pid <= 0)
                     {

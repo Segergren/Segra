@@ -294,11 +294,7 @@ namespace Segra.Backend.App
                             });
 
                             await UpdateService.SendCurrentUpdateProgressToFrontend();
-                            await SendFrontendMessage("MigrationStatus", new
-                            {
-                                isRunning = MigrationService.IsRunning && !Program.IsFirstRun,
-                                currentMigration = MigrationService.CurrentMigration,
-                            });
+                            await SendFrontendMessage("MigrationStatus", MigrationService.Status);
                             await FlushPendingModalsAsync();
                             _ = Task.Run(() => UpdateService.GetReleaseNotes());
                             break;

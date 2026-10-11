@@ -925,6 +925,21 @@ namespace Segra.Backend.Recorder
             }
         }
 
+        private static string? GetActiveEncoderId(EffectiveRecordingSettings eff) =>
+            _hdrEncoderId ?? eff.Codec?.InternalEncoderId;
+
+        private static void CapHardwareH264Width(ref uint outputWidth, ref uint outputHeight, string? encoderId)
+        {
+            if (outputWidth <= MaxHardwareH264Width || encoderId == null
+                || EncoderInfo.Get(encoderId) is not { IsHardware: true, Codec: "h264" })
+                return;
+
+            outputHeight = (uint)(Math.Round(outputHeight * ((double)MaxHardwareH264Width / outputWidth) / 4.0) * 4);
+            outputWidth = MaxHardwareH264Width;
+
+            Log.Information($"Downscaling to {outputWidth}x{outputHeight}, the widest {encoderId} can encode");
+        }
+
         /// <summary>
         /// Configures OBS video settings based on the provided dimensions.
         /// </summary>
@@ -972,14 +987,7 @@ namespace Segra.Backend.Recorder
                 Log.Information($"Downscaling from {baseWidth}x{baseHeight} to {outputWidth}x{outputHeight} (max height: {maxHeight})");
             }
 
-            if (outputWidth > MaxHardwareH264Width && encoderId != null
-                && EncoderInfo.Get(encoderId) is { IsHardware: true, Codec: "h264" })
-            {
-                outputHeight = (uint)(Math.Round(outputHeight * ((double)MaxHardwareH264Width / outputWidth) / 4.0) * 4);
-                outputWidth = MaxHardwareH264Width;
-
-                Log.Information($"Downscaling to {outputWidth}x{outputHeight}, the widest {encoderId} can encode");
-            }
+            CapHardwareH264Width(ref outputWidth, ref outputHeight, encoderId);
 
             _currentBaseWidth = baseWidth;
             _currentBaseHeight = baseHeight;
@@ -1201,7 +1209,7 @@ namespace Segra.Backend.Recorder
             DisposeEncoders();
 
             // Configure video settings specifically for this recording/buffer
-            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customResolution: eff.Resolution, encoderId: eff.Codec?.InternalEncoderId);
+            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customResolution: eff.Resolution, encoderId: GetActiveEncoderId(eff));
 
             _mainScene = new Scene("Recording Scene");
             Log.Information("Created recording scene");
@@ -1240,7 +1248,7 @@ namespace Segra.Backend.Recorder
                         customOutputWidth: windowWidth,
                         customOutputHeight: windowHeight,
                         customResolution: eff.Resolution,
-                        encoderId: eff.Codec?.InternalEncoderId
+                        encoderId: GetActiveEncoderId(eff)
                     );
 
                     // Scene item bounds must use BASE dimensions (not output) because the scene canvas is at base resolution.
@@ -1311,9 +1319,7 @@ namespace Segra.Backend.Recorder
                 return false;
             }
 
-            string encoderId = eff.Codec!.InternalEncoderId;
-            if (_isHdrRecording && _hdrEncoderId != null)
-                encoderId = _hdrEncoderId;
+            string encoderId = GetActiveEncoderId(eff)!;
             Log.Information($"Using encoder: {encoderId}{(_isHdrRecording ? " (HDR)" : "")}");
 
             using var videoEncoderSettings = new ObsKit.NET.Core.Settings();
@@ -1388,6 +1394,7 @@ namespace Segra.Backend.Recorder
                 _isHdrRecording = false;
                 _hdrEncoderId = null;
 
+                CapHardwareH264Width(ref _currentOutputWidth, ref _currentOutputHeight, GetActiveEncoderId(eff));
                 Obs.SetVideo(v => v
                     .BaseResolution(_currentBaseWidth, _currentBaseHeight)
                     .OutputResolution(_currentOutputWidth, _currentOutputHeight)
@@ -1868,7 +1875,7 @@ namespace Segra.Backend.Recorder
             SavePortalRestoreToken(source);
             if (width == _currentBaseWidth && height == _currentBaseHeight) return true;
 
-            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customOutputWidth: width, customOutputHeight: height, customResolution: eff.Resolution, encoderId: eff.Codec?.InternalEncoderId);
+            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customOutputWidth: width, customOutputHeight: height, customResolution: eff.Resolution, encoderId: GetActiveEncoderId(eff));
             _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
             Log.Information($"Canvas set to the shared screen's {width}x{height}");
             return true;

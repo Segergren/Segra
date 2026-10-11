@@ -21,6 +21,22 @@ internal static class MigrationService
     public static bool IsRunning { get; private set; } = false;
     public static string? CurrentMigration { get; private set; } = null;
 
+    private static int _step, _stepCount;
+    private static int? _progress, _progressTotal;
+    private static string? _progressUnit;
+    private static long _progressSentAt;
+
+    public static object Status => new
+    {
+        isRunning = IsRunning && !Program.IsFirstRun,
+        currentMigration = CurrentMigration,
+        step = _step,
+        stepCount = _stepCount,
+        progress = _progress,
+        progressTotal = _progressTotal,
+        progressUnit = _progressUnit,
+    };
+
     public static void RunMigrations()
     {
         try
@@ -38,14 +54,13 @@ internal static class MigrationService
                 return;
             }
 
-            UpdateMigrationStatus(true, pendingMigrations.First().Id);
-
-            foreach (var migration in pendingMigrations)
+            for (int i = 0; i < pendingMigrations.Count; i++)
             {
+                var migration = pendingMigrations[i];
                 try
                 {
                     Log.Information("Applying migration: {MigrationId}", migration.Id);
-                    UpdateMigrationStatus(true, migration.Id);
+                    UpdateMigrationStatus(true, migration.Id, i + 1, pendingMigrations.Count);
                     migration.Apply();
                     applied.Add(migration.Id);
                     SaveApplied(applied);
@@ -69,14 +84,75 @@ internal static class MigrationService
         }
     }
 
-    private static void UpdateMigrationStatus(bool isRunning, string? currentMigration = null)
+    private static void UpdateMigrationStatus(bool isRunning, string? currentMigration = null, int step = 0, int stepCount = 0)
     {
         IsRunning = isRunning;
         CurrentMigration = currentMigration;
+        _step = step;
+        _stepCount = stepCount;
+        _progress = _progressTotal = null;
+        _progressUnit = null;
+        SendStatus();
+    }
+
+    // Throttled so a migration over thousands of items doesn't flood the frontend
+    private static void ReportProgress(int done, int total, string unit)
+    {
+        _progress = done;
+        _progressTotal = total;
+        _progressUnit = unit;
+        long now = Environment.TickCount64;
+        if (done > 0 && done < total && now - _progressSentAt < 250) return;
+        _progressSentAt = now;
+        SendStatus();
+    }
+
+    private static void SendStatus()
+    {
         if (!Program.IsFirstRun)
         {
-            _ = MessageService.SendFrontendMessage("MigrationStatus", new { isRunning, currentMigration });
+            _ = MessageService.SendFrontendMessage("MigrationStatus", Status);
         }
+    }
+
+    // Runs the action on every video with metadata that matches the filter, reporting progress. Returns how many matched.
+    private static int ForEachVideo(string migrationId, Func<Content, bool> filter, Action<Content> action)
+    {
+        var videos = new List<Content>();
+        foreach (Content.ContentType type in Enum.GetValues<Content.ContentType>())
+        {
+            string metadataFolder = FolderNames.GetMetadataFolderPath(type);
+            if (!Directory.Exists(metadataFolder)) continue;
+
+            foreach (var metadataFilePath in Directory.EnumerateFiles(metadataFolder, "*.json"))
+            {
+                try
+                {
+                    var content = JsonSerializer.Deserialize<Content>(File.ReadAllText(metadataFilePath));
+                    if (content != null && File.Exists(content.FilePath) && filter(content))
+                        videos.Add(content);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Migration {MigrationId}: failed to read {File}", migrationId, metadataFilePath);
+                }
+            }
+        }
+
+        ReportProgress(0, videos.Count, "videos");
+        for (int i = 0; i < videos.Count; i++)
+        {
+            try
+            {
+                action(videos[i]);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Migration {MigrationId}: failed for {File}", migrationId, videos[i].FilePath);
+            }
+            ReportProgress(i + 1, videos.Count, "videos");
+        }
+        return videos.Count;
     }
 
     private static HashSet<string> LoadApplied()
@@ -153,38 +229,25 @@ internal static class MigrationService
             new("0015_delete_empty_game_folders", Apply_0015_DeleteEmptyGameFolders),
             new("0016_copy_compress_10mb_to_20mb", Apply_0016_CopyCompress10MbTo20Mb),
             new("0017_per_device_input_options", Apply_0017_PerDeviceInputOptions),
-            new("0018_embed_metadata_in_videos", Apply_0018_EmbedMetadataInVideos)
+            new("0018_embed_metadata_in_videos", Apply_0018_EmbedMetadataInVideos),
+            new("0019_index_first_in_clips", Apply_0019_IndexFirstInClips)
         ];
+    }
+
+    // Migration 0019: 0018 moved the index of faststart videos (clips, highlights, compressed videos)
+    // to the end of the file, so they no longer stream. Move it back to the front.
+    private static void Apply_0019_IndexFirstInClips()
+    {
+        ForEachVideo("0019",
+            c => c.Type is Content.ContentType.Clip or Content.ContentType.Highlight || c.Compressed,
+            c => EmbeddedMetadataService.EmbedAsync(c).GetAwaiter().GetResult());
     }
 
     // Migration 0018: Game, title, bookmarks etc. are now stored in the video file as well, so import
     // and recovery can restore them. Write them into existing videos.
     private static void Apply_0018_EmbedMetadataInVideos()
     {
-        int count = 0;
-
-        foreach (Content.ContentType type in Enum.GetValues<Content.ContentType>())
-        {
-            string metadataFolder = FolderNames.GetMetadataFolderPath(type);
-            if (!Directory.Exists(metadataFolder)) continue;
-
-            foreach (var metadataFilePath in Directory.EnumerateFiles(metadataFolder, "*.json"))
-            {
-                try
-                {
-                    var content = JsonSerializer.Deserialize<Content>(File.ReadAllText(metadataFilePath));
-                    if (content == null || !File.Exists(content.FilePath)) continue;
-
-                    EmbeddedMetadataService.EmbedAsync(content).GetAwaiter().GetResult();
-                    count++;
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Migration 0018: failed for {File}", metadataFilePath);
-                }
-            }
-        }
-
+        int count = ForEachVideo("0018", _ => true, c => EmbeddedMetadataService.EmbedAsync(c).GetAwaiter().GetResult());
         Log.Information("Checked embedded metadata in {Count} videos", count);
     }
 

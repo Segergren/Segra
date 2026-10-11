@@ -531,6 +531,11 @@ export interface AiProgress {
 export interface MigrationStatus {
   isRunning: boolean;
   currentMigration: string | null;
+  step: number;
+  stepCount: number;
+  progress: number | null;
+  progressTotal: number | null;
+  progressUnit: string | null;
 }
 
 export interface GameResponse {

@@ -11,8 +11,8 @@ namespace Segra.Backend.Media
 {
     /// <summary>
     /// Stores a video's Segra metadata (game, title, bookmarks...) inside the MP4 so import and recovery
-    /// can restore it, plus bookmarks as chapters for editors and players. Only the index (moov) is
-    /// rewritten, media data never moves.
+    /// can restore it, plus bookmarks as chapters for editors and players. Usually only the index (moov)
+    /// is rewritten; videos that keep their index in front for streaming get copied when it outgrows its space.
     /// </summary>
     internal static class EmbeddedMetadataService
     {
@@ -71,6 +71,9 @@ namespace Segra.Backend.Media
 
         public static async Task EmbedAsync(Content content)
         {
+            // Segra makes these with the index in front so they stream when shared
+            bool indexFirst = content.Type is Content.ContentType.Clip or Content.ContentType.Highlight || content.Compressed;
+
             var metadata = new EmbeddedMetadata
             {
                 Game = content.Game,
@@ -88,7 +91,7 @@ namespace Segra.Backend.Media
             await _writeLock.WaitAsync();
             try
             {
-                await Task.Run(() => Embed(content.FilePath, metadata));
+                await Task.Run(() => Embed(content.FilePath, metadata, indexFirst));
             }
             catch (Exception ex)
             {
@@ -119,7 +122,7 @@ namespace Segra.Backend.Media
             }
         });
 
-        private static void Embed(string filePath, EmbeddedMetadata metadata)
+        private static void Embed(string filePath, EmbeddedMetadata metadata, bool indexFirst)
         {
             using var fs = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
             var moov = ReadMoov(fs, out var top);
@@ -131,7 +134,7 @@ namespace Segra.Backend.Media
 
             var bookmarks = metadata.Bookmarks;
             string json = JsonSerializer.Serialize(metadata);
-            if (FindSegraJson(moov) == json)
+            if (FindSegraJson(moov) == json && (!indexFirst || IsIndexFirst(fs, top)))
             {
                 return;
             }
@@ -187,21 +190,51 @@ namespace Segra.Backend.Media
                 return (tail.ToArray(), moovOffset);
             }
 
-            WriteTail(fs, top, BuildTail);
+            if (!WriteTail(filePath, fs, top, moov, BuildTail, indexFirst, allowRewrite: true))
+            {
+                // The rewritten copy couldn't replace the file, so update the file itself
+                using var reopened = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+                WriteTail(filePath, reopened, top, moov, BuildTail, indexFirst, allowRewrite: false);
+            }
             Log.Information($"Embedded metadata and {bookmarks.Count} bookmarks in {filePath}");
         }
 
+        private enum RewriteResult { Done, Skipped, SwapFailed }
+
         // Every step leaves exactly one complete moov first in the file, so an interrupted write never loses the index.
-        private static void WriteTail(FileStream fs, List<TopBox> top, Func<long, (byte[] Data, int MoovOffset)> buildTail)
+        // Returns false when a rewritten copy closed fs but couldn't replace the file; nothing was written then.
+        private static bool WriteTail(string filePath, FileStream fs, List<TopBox> top, List<Box> moov, Func<long, (byte[] Data, int MoovOffset)> buildTail, bool indexFirst, bool allowRewrite)
         {
             int moovIdx = top.FindIndex(b => b.Type == "moov");
             TopBox oldMoov = top[moovIdx];
             int tailSize = buildTail(0).Data.Length;
 
+            // Faststart files keep the index ahead of the media so players can stream them
+            int mediaIdx = MediaIndex(fs, top);
+            var result = moovIdx < mediaIdx ? WriteFront(filePath, fs, top, moovIdx, moov, tailSize, buildTail, allowRewrite) : RewriteResult.Skipped;
+            if (result != RewriteResult.Skipped)
+            {
+                return result == RewriteResult.Done;
+            }
+
             int suffix = top.Count;
             while (suffix > 0 && IsTailBox(fs, top[suffix - 1]))
             {
                 suffix--;
+            }
+
+            if (allowRewrite && indexFirst && mediaIdx >= 0 && moovIdx >= suffix)
+            {
+                int cut = mediaIdx;
+                while (cut > 0 && IsDeadBox(fs, top[cut - 1]))
+                {
+                    cut--;
+                }
+                result = RewriteWithIndexAt(filePath, fs, moov, tailSize, buildTail, top[cut].Offset, top[mediaIdx].Offset, top[suffix].Offset);
+                if (result != RewriteResult.Skipped)
+                {
+                    return result == RewriteResult.Done;
+                }
             }
 
             if (moovIdx >= suffix)
@@ -210,28 +243,11 @@ namespace Segra.Backend.Media
                 int liveStart = moovIdx > suffix && IsOurMdat(fs, top[moovIdx - 1]) ? moovIdx - 1 : moovIdx;
                 long deadStart = top[suffix].Offset;
                 long deadEnd = top[liveStart].Offset;
-                long spare = deadEnd - deadStart - tailSize;
-                if (deadEnd - deadStart <= uint.MaxValue && (spare == 0 || spare >= 8))
+                if (Fits(deadStart, deadEnd, tailSize))
                 {
-                    var (tail, moovOffset) = buildTail(deadStart);
-                    "free"u8.CopyTo(tail.AsSpan(moovOffset + 4));
-
-                    WriteAt(fs, deadStart, FreeHeader(deadEnd - deadStart));
-                    fs.Flush(true);
-                    WriteAt(fs, deadStart + 8, tail.AsSpan(8));
-                    if (spare > 0)
-                    {
-                        WriteAt(fs, deadStart + tail.Length, FreeHeader(spare));
-                    }
-                    fs.Flush(true);
-                    WriteAt(fs, deadStart, tail.AsSpan(0, 8));
-                    fs.Flush(true);
-                    WriteAt(fs, deadStart + moovOffset + 4, "moov"u8);
-                    fs.Flush(true);
-                    WriteAt(fs, oldMoov.Offset + 4, "free"u8);
-                    fs.Flush(true);
+                    WriteIntoFreeSpace(fs, deadStart, deadEnd, oldMoov.Offset, buildTail);
                     fs.SetLength(deadEnd);
-                    return;
+                    return true;
                 }
             }
 
@@ -240,6 +256,216 @@ namespace Segra.Backend.Media
             fs.Flush(true);
             WriteAt(fs, oldMoov.Offset + 4, "free"u8);
             fs.Flush(true);
+            return true;
+        }
+
+        // Updates the index in the free space around it, or rewrites the file with room for later updates
+        private static RewriteResult WriteFront(string filePath, FileStream fs, List<TopBox> top, int moovIdx, List<Box> moov, int tailSize, Func<long, (byte[] Data, int MoovOffset)> buildTail, bool allowRewrite)
+        {
+            bool IsDead(int i) => IsDeadBox(fs, top[i]);
+
+            int liveStart = moovIdx > 0 && IsOurMdat(fs, top[moovIdx - 1]) ? moovIdx - 1 : moovIdx;
+            int first = liveStart;
+            while (first > 0 && IsDead(first - 1))
+            {
+                first--;
+            }
+            int last = moovIdx;
+            while (last + 1 < top.Count && IsDead(last + 1))
+            {
+                last++;
+            }
+
+            long regionStart = top[first].Offset;
+            long liveFrom = top[liveStart].Offset;
+            long liveTo = top[moovIdx].Offset + top[moovIdx].Size;
+            long regionEnd = top[last].Offset + top[last].Size;
+
+            foreach (var (start, end) in new[] { (regionStart, liveFrom), (liveTo, regionEnd) })
+            {
+                if (Fits(start, end, tailSize))
+                {
+                    WriteIntoFreeSpace(fs, start, end, top[moovIdx].Offset, buildTail);
+                    return RewriteResult.Done;
+                }
+            }
+
+            return allowRewrite ? RewriteWithIndexAt(filePath, fs, moov, tailSize, buildTail, regionStart, regionEnd, fs.Length) : RewriteResult.Skipped;
+        }
+
+        // Swaps in a copy of the file where [cutStart, cutEnd) is replaced by the index plus room for later updates and everything after keepEnd is dropped.
+        // Leaves the file and moov unchanged unless it returns Done; SwapFailed means fs was closed.
+        private static RewriteResult RewriteWithIndexAt(string filePath, FileStream fs, List<Box> moov, int tailSize, Func<long, (byte[] Data, int MoovOffset)> buildTail, long cutStart, long cutEnd, long keepEnd)
+        {
+            int padding = tailSize + 16 * 1024;
+            var unshifted = ShiftChunkOffsets(moov, cutEnd, (long)tailSize + padding - (cutEnd - cutStart));
+            if (unshifted == null)
+            {
+                return RewriteResult.Skipped;
+            }
+
+            string tempPath = filePath + ".segra-tmp";
+            try
+            {
+                using (var output = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    CopyRange(fs, output, 0, cutStart);
+                    output.Write(buildTail(cutStart).Data);
+                    output.Write(FreeHeader(padding));
+                    output.Write(new byte[padding - 8]);
+                    CopyRange(fs, output, cutEnd, keepEnd - cutEnd);
+                    output.Flush(true);
+                }
+                File.SetCreationTimeUtc(tempPath, File.GetCreationTimeUtc(filePath));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log.Warning($"Could not copy {filePath} to move its index to the front: {ex.Message}");
+                DeleteTemp(tempPath);
+                RestorePayloads(unshifted);
+                return RewriteResult.Skipped;
+            }
+
+            // Windows can't replace a file that has open handles, including this one
+            fs.Dispose();
+            try
+            {
+                File.Move(tempPath, filePath, true);
+                return RewriteResult.Done;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Usually the video is open elsewhere, e.g. playing
+                Log.Warning($"Could not replace {filePath} to move its index to the front: {ex.Message}");
+                DeleteTemp(tempPath);
+                RestorePayloads(unshifted);
+                return RewriteResult.SwapFailed;
+            }
+        }
+
+        private static void DeleteTemp(string tempPath)
+        {
+            try { File.Delete(tempPath); } catch { }
+        }
+
+        private static void RestorePayloads(List<(Box Table, byte[] Payload)> payloads)
+        {
+            foreach (var (table, payload) in payloads)
+            {
+                table.Payload = payload;
+            }
+        }
+
+        private static bool Fits(long start, long end, int size)
+        {
+            long spare = end - start - size;
+            return end - start <= uint.MaxValue && (spare == 0 || spare >= 8);
+        }
+
+        private static void WriteIntoFreeSpace(FileStream fs, long start, long end, long oldMoovOffset, Func<long, (byte[] Data, int MoovOffset)> buildTail)
+        {
+            var (tail, moovOffset) = buildTail(start);
+            long spare = end - start - tail.Length;
+            "free"u8.CopyTo(tail.AsSpan(moovOffset + 4));
+
+            WriteAt(fs, start, FreeHeader(end - start));
+            fs.Flush(true);
+            WriteAt(fs, start + 8, tail.AsSpan(8));
+            if (spare > 0)
+            {
+                WriteAt(fs, start + tail.Length, FreeHeader(spare));
+            }
+            fs.Flush(true);
+            WriteAt(fs, start, tail.AsSpan(0, 8));
+            fs.Flush(true);
+            WriteAt(fs, start + moovOffset + 4, "moov"u8);
+            fs.Flush(true);
+            WriteAt(fs, oldMoovOffset + 4, "free"u8);
+            fs.Flush(true);
+        }
+
+        // Moves every chunk offset at or after `from` by `delta` and returns the old tables, or changes nothing and returns null
+        private static List<(Box Table, byte[] Payload)>? ShiftChunkOffsets(List<Box> moov, long from, long delta)
+        {
+            static Box? Child(Box? box, string type) => box?.Children?.FirstOrDefault(b => b.Type == type);
+
+            // Item locations hold file offsets too, and they aren't updated here
+            static bool HasItemLocations(List<Box> boxes) => boxes.Any(b =>
+                (b.Type == "meta" && b.Payload != null && b.Payload.AsSpan().IndexOf("iloc"u8) >= 0)
+                || (b.Children != null && HasItemLocations(b.Children)));
+            if (HasItemLocations(moov))
+            {
+                return null;
+            }
+
+            var updates = new List<(Box Table, byte[] Payload)>();
+            foreach (var trak in moov.Where(b => b.Type == "trak"))
+            {
+                var stbl = Child(Child(Child(trak, "mdia"), "minf"), "stbl");
+                // saio (encryption info) also points into the media
+                if (stbl?.Children == null || stbl.Children.Any(b => b.Type == "saio"))
+                {
+                    return null;
+                }
+                foreach (var table in stbl.Children.Where(b => b.Type is "stco" or "co64"))
+                {
+                    bool wide = table.Type == "co64";
+                    int entrySize = wide ? 8 : 4;
+                    byte[] payload = (byte[])table.Payload!.Clone();
+                    if (payload.Length < 8)
+                    {
+                        return null;
+                    }
+                    uint count = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(4));
+                    if (8 + (long)count * entrySize > payload.Length)
+                    {
+                        return null;
+                    }
+                    for (int i = 0; i < count; i++)
+                    {
+                        var entry = payload.AsSpan(8 + i * entrySize, entrySize);
+                        long offset = wide ? (long)BinaryPrimitives.ReadUInt64BigEndian(entry) : BinaryPrimitives.ReadUInt32BigEndian(entry);
+                        if (offset < from)
+                        {
+                            continue;
+                        }
+                        offset += delta;
+                        if (wide)
+                        {
+                            BinaryPrimitives.WriteUInt64BigEndian(entry, (ulong)offset);
+                        }
+                        else if (offset <= uint.MaxValue)
+                        {
+                            BinaryPrimitives.WriteUInt32BigEndian(entry, (uint)offset);
+                        }
+                        else
+                        {
+                            return null;
+                        }
+                    }
+                    updates.Add((table, payload));
+                }
+            }
+
+            var unshifted = updates.Select(u => (u.Table, u.Table.Payload!)).ToList();
+            RestorePayloads(updates);
+            return unshifted;
+        }
+
+        private static void CopyRange(FileStream source, Stream destination, long offset, long count)
+        {
+            source.Position = offset;
+            byte[] buffer = new byte[1024 * 1024];
+            while (count > 0)
+            {
+                int read = source.Read(buffer, 0, (int)Math.Min(buffer.Length, count));
+                if (read == 0)
+                {
+                    throw new EndOfStreamException();
+                }
+                destination.Write(buffer, 0, read);
+                count -= read;
+            }
         }
 
         private static List<Box>? ReadMoov(FileStream fs, out List<TopBox>? top)
@@ -300,7 +526,20 @@ namespace Segra.Backend.Media
         }
 
         private static bool IsTailBox(FileStream fs, TopBox box) =>
-            box.Type is "free" or "skip" or "moov" || IsOurMdat(fs, box);
+            box.Type == "moov" || IsDeadBox(fs, box);
+
+        private static bool IsDeadBox(FileStream fs, TopBox box) =>
+            box.Type is "free" or "skip" || IsOurMdat(fs, box);
+
+        private static int MediaIndex(FileStream fs, List<TopBox> top) =>
+            top.FindIndex(b => b.Type == "mdat" && !IsOurMdat(fs, b));
+
+        // A file without media data counts as index first, there's nothing to move
+        private static bool IsIndexFirst(FileStream fs, List<TopBox> top)
+        {
+            int mediaIdx = MediaIndex(fs, top);
+            return mediaIdx < 0 || top.FindIndex(b => b.Type == "moov") < mediaIdx;
+        }
 
         private static bool IsOurMdat(FileStream fs, TopBox box)
         {
@@ -467,9 +706,15 @@ namespace Segra.Backend.Media
 
             foreach (var other in moov.Where(b => b.Type == "trak" && b.Children != null))
             {
+                var chap = new Box("chap", new BigEndianWriter().U32(trackId).ToArray());
+                var tref = other.Children!.FirstOrDefault(b => b.Type == "tref" && b.Children != null);
+                if (tref != null)
+                {
+                    tref.Children!.Add(chap);
+                    continue;
+                }
                 int mdia = other.Children!.FindIndex(b => b.Type == "mdia");
-                other.Children.Insert(mdia < 0 ? other.Children.Count : mdia,
-                    new Box("tref", new List<Box> { new("chap", new BigEndianWriter().U32(trackId).ToArray()) }));
+                other.Children.Insert(mdia < 0 ? other.Children.Count : mdia, new Box("tref", new List<Box> { chap }));
             }
             moov.Insert(moov.FindLastIndex(b => b.Type == "trak") + 1, trak);
             return (co64, samples.SelectMany(s => s).ToArray());
