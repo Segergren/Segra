@@ -241,9 +241,8 @@ namespace Segra.Backend.Platform.Windows
                     return;
 
                 provider = new BufferedWaveProvider(
-                    WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels))
+                    WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels), TimeSpan.FromSeconds(1))
                 {
-                    BufferDuration = TimeSpan.FromSeconds(1),
                     DiscardOnBufferOverflow = true
                 };
 

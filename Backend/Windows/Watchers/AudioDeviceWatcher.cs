@@ -1,53 +1,30 @@
 using NAudio.CoreAudioApi;
-using NAudio.CoreAudioApi.Interfaces;
 
 namespace Segra.Backend.Windows.Watchers
 {
-    public class AudioDeviceWatcher : IMMNotificationClient, IDisposable
+    public class AudioDeviceWatcher : IDisposable
     {
         private MMDeviceEnumerator? _deviceEnumerator;
+        private MMDeviceNotificationClient? _notificationClient;
 
         public event Action? DevicesChanged;
 
         public AudioDeviceWatcher()
         {
             _deviceEnumerator = new MMDeviceEnumerator();
-            _deviceEnumerator.RegisterEndpointNotificationCallback(this);
-        }
-
-        public void OnDeviceStateChanged(string deviceId, DeviceState newState)
-        {
-            DevicesChanged?.Invoke();
-        }
-
-        public void OnDeviceAdded(string pwstrDeviceId)
-        {
-            DevicesChanged?.Invoke();
-        }
-
-        public void OnDeviceRemoved(string deviceId)
-        {
-            DevicesChanged?.Invoke();
-        }
-
-        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
-        {
-            DevicesChanged?.Invoke();
-        }
-
-        public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
-        {
-            // Not needed for this purpose
+            _notificationClient = _deviceEnumerator.CreateNotificationClient(useSynchronizationContext: false);
+            _notificationClient.DeviceStateChanged += (_, _) => DevicesChanged?.Invoke();
+            _notificationClient.DeviceAdded += (_, _) => DevicesChanged?.Invoke();
+            _notificationClient.DeviceRemoved += (_, _) => DevicesChanged?.Invoke();
+            _notificationClient.DefaultDeviceChanged += (_, _) => DevicesChanged?.Invoke();
         }
 
         public void Dispose()
         {
-            if (_deviceEnumerator != null)
-            {
-                _deviceEnumerator.UnregisterEndpointNotificationCallback(this);
-                _deviceEnumerator.Dispose();
-                _deviceEnumerator = null;
-            }
+            _notificationClient?.Dispose();
+            _notificationClient = null;
+            _deviceEnumerator?.Dispose();
+            _deviceEnumerator = null;
         }
     }
 }

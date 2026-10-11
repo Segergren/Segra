@@ -75,7 +75,7 @@ jobs:
           # vpk install and the NuGet restore don't depend on the frontend, so run them
           # in the background while the frontend builds; both are awaited before publish.
           $vpkJob = Start-Job {
-            dotnet tool install -g vpk --version 1.2.0
+            dotnet tool install -g vpk --version 1.2.161
             if ($LASTEXITCODE -ne 0) { throw "vpk install exited $LASTEXITCODE" }
           }
           $restoreJob = Start-Job -ArgumentList $PWD.Path {

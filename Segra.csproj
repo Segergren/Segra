@@ -64,29 +64,29 @@
 
   <!-- Cross-platform packages (both TFMs) -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.10" />
-    <PackageReference Include="NuGet.Versioning" Version="7.6.0" />
-    <PackageReference Include="PhotinoX" Version="5.1.1" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.12" />
+    <PackageReference Include="NuGet.Versioning" Version="7.9.0" />
+    <PackageReference Include="PhotinoX" Version="5.3.5" />
     <PackageReference Include="PhotinoX.Server" Version="5.0.0" />
     <PackageReference Include="Serilog" Version="4.4.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
-    <PackageReference Include="Velopack" Version="1.2.0" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
     <PackageReference Include="ObsKit.NET" Version="1.6.1" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
 
   <!-- Windows-only packages (NAudio/WASAPI, WMI, DirectX) -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
-    <PackageReference Include="NAudio" Version="2.3.0" />
-    <PackageReference Include="System.Management" Version="10.0.10" />
+    <PackageReference Include="NAudio" Version="3.1.0" />
+    <PackageReference Include="System.Management" Version="10.0.12" />
     <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
   </ItemGroup>
 
   <!-- Linux needs System.Drawing.Common (Windows gets it via WinForms) and
        System.Resources.Extensions for the non-string (icon/bitmap) resx resources. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
-    <PackageReference Include="System.Resources.Extensions" Version="10.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.12" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.12" />
   </ItemGroup>
 
   <!-- Windows-only source files (WASAPI/WMI/WinForms/WinRT/registry/DirectX). Excluded from the

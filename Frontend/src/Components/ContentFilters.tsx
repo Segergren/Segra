@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowUpDown, Clock, HardDrive, Timer, Gamepad2, FileUp, Monitor } from 'lucide-react';
-import DropdownSelect from './DropdownSelect';
+import GameFilterDropdown from './GameFilterDropdown';
 
 export type SortOption = 'newest' | 'oldest' | 'size' | 'duration' | 'game';
 
@@ -197,22 +197,12 @@ export default function ContentFilters({
         </ul>
       </div>
       {/* Game filter */}
-      <div className="w-55">
-        <DropdownSelect
-          size="sm"
-          items={gameItems}
-          value={selectedGame}
-          onChange={onGameFilterChange}
-          disabled={totalCount === 0}
-          buttonContent={
-            <span className="flex-1 min-w-0 text-left font-medium">
-              {(gameItems.find((item) => item.value === selectedGame) ?? gameItems[0]).label}
-            </span>
-          }
-          buttonClassName={`btn btn-sm no-animation btn-secondary border border-base-400 h-8 hover:text-primary hover:*:text-primary text-gray-300 w-full justify-between ${totalCount === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-          itemClassName="flex items-center justify-start gap-2 px-3 py-2.5 text-sm hover:bg-white/5 rounded-lg transition-all duration-200 hover:pl-4"
-        />
-      </div>
+      <GameFilterDropdown
+        items={gameItems}
+        value={selectedGame}
+        onChange={onGameFilterChange}
+        disabled={totalCount === 0}
+      />
     </div>
   );
 }
