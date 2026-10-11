@@ -2111,8 +2111,13 @@ namespace Segra.Backend.Recorder
             if (userRequested)
             {
                 // Game recordings only; a stopped display capture shouldn't hold back the next game
-                if (AppState.Instance.PreRecording != null || AppState.Instance.Recording?.Pid != null)
-                    GameDetectionService.OnUserStop();
+                // Capture once: teardown can null these on another thread
+                var preRecording = AppState.Instance.PreRecording;
+                var recording = AppState.Instance.Recording;
+                if (preRecording != null)
+                    GameDetectionService.OnUserStop(preRecording.Exe, preRecording.Game);
+                else if (recording?.Pid != null)
+                    GameDetectionService.OnUserStop(recording.ExePath, recording.Game);
                 CancelPendingStart();
             }
 

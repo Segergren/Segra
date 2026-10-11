@@ -20,8 +20,18 @@ namespace Segra.Backend.Games
         public static bool PreventRetryRecording { get; set; } = false;
         // After a manual stop, the game getting focus (its window opening, or tabbing back in) shouldn't restart it right away
         private const int UserStopCooldownMs = 15000;
-        private static long _autoStartAllowedAt;
-        private static bool InUserStopCooldown => Environment.TickCount64 < Interlocked.Read(ref _autoStartAllowedAt);
+        private sealed record UserStopCooldown(long Until, string? ExePath, string? Game);
+        private static UserStopCooldown? _userStopCooldown;
+        private static bool InUserStopCooldown => Volatile.Read(ref _userStopCooldown) is { } c && Environment.TickCount64 < c.Until;
+
+        // Matching the game name too covers launcher chains, where the stopped exe was the launcher
+        private static bool InUserStopCooldownFor(string exePath)
+        {
+            if (Volatile.Read(ref _userStopCooldown) is not { } c || Environment.TickCount64 >= c.Until)
+                return false;
+            return string.Equals(c.ExePath, exePath, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.Game, ExtractGameName(exePath), StringComparison.OrdinalIgnoreCase);
+        }
 #if WINDOWS
         private static ManagementEventWatcher? processStartWatcher;
         private static ManagementEventWatcher? processStopWatcher;
@@ -483,9 +493,9 @@ namespace Segra.Backend.Games
                 return;
             }
 
-            if (InUserStopCooldown)
+            if (InUserStopCooldownFor(exePath))
             {
-                Log.Information("[StartGameRecording] Recording was just stopped manually. Skipping...");
+                Log.Information("[StartGameRecording] Recording of this game was just stopped manually. Skipping...");
                 return;
             }
 
@@ -502,9 +512,9 @@ namespace Segra.Backend.Games
 #endif
         }
 
-        public static void OnUserStop()
+        public static void OnUserStop(string? exePath, string? game)
         {
-            Interlocked.Exchange(ref _autoStartAllowedAt, Environment.TickCount64 + UserStopCooldownMs);
+            Volatile.Write(ref _userStopCooldown, new UserStopCooldown(Environment.TickCount64 + UserStopCooldownMs, exePath, game));
             PreventRetryRecording = true;
         }
 
