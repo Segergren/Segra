@@ -7,6 +7,8 @@ export type SortOption = 'newest' | 'oldest' | 'size' | 'duration' | 'game';
 export const ALL_GAMES = '__all__';
 export const IMPORTED = 'Imported';
 
+const ICON_CLASS = 'shrink-0 text-base-content/60';
+
 export interface GameOption {
   key: string;
   name: string;
@@ -26,7 +28,7 @@ export interface ContentFiltersProps {
 
 function GameIcon({ src }: { src: string | null }) {
   const [failed, setFailed] = useState(false);
-  if (!src || failed) return <Gamepad2 size={18} className="shrink-0 text-base-content/60" />;
+  if (!src || failed) return <Gamepad2 size={18} className={ICON_CLASS} />;
   return (
     <img
       src={src}
@@ -98,7 +100,7 @@ export default function ContentFilters({
       value: ALL_GAMES,
       label: (
         <GameLabel
-          icon={<Gamepad2 size={18} className="shrink-0 text-base-content/60" />}
+          icon={<Gamepad2 size={18} className={ICON_CLASS} />}
           name="All games"
           count={totalCount}
         />
@@ -110,9 +112,9 @@ export default function ContentFilters({
         <GameLabel
           icon={
             g.key === IMPORTED ? (
-              <FileUp size={18} className="shrink-0 text-base-content/60" />
+              <FileUp size={18} className={ICON_CLASS} />
             ) : g.key === 'Manual Recording' ? (
-              <Monitor size={18} className="shrink-0 text-base-content/60" />
+              <Monitor size={18} className={ICON_CLASS} />
             ) : (
               <GameIcon src={g.icon} />
             )

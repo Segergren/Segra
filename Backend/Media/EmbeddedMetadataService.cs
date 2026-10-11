@@ -69,10 +69,13 @@ namespace Segra.Backend.Media
             });
         }
 
+        // Segra makes these with the index in front so they stream when shared
+        public static bool KeepsIndexFirst(Content content) =>
+            content.Type is Content.ContentType.Clip or Content.ContentType.Highlight || content.Compressed;
+
         public static async Task EmbedAsync(Content content)
         {
-            // Segra makes these with the index in front so they stream when shared
-            bool indexFirst = content.Type is Content.ContentType.Clip or Content.ContentType.Highlight || content.Compressed;
+            bool indexFirst = KeepsIndexFirst(content);
 
             var metadata = new EmbeddedMetadata
             {

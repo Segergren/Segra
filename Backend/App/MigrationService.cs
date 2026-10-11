@@ -238,9 +238,7 @@ internal static class MigrationService
     // to the end of the file, so they no longer stream. Move it back to the front.
     private static void Apply_0019_IndexFirstInClips()
     {
-        ForEachVideo("0019",
-            c => c.Type is Content.ContentType.Clip or Content.ContentType.Highlight || c.Compressed,
-            c => EmbeddedMetadataService.EmbedAsync(c).GetAwaiter().GetResult());
+        ForEachVideo("0019", EmbeddedMetadataService.KeepsIndexFirst, c => EmbeddedMetadataService.EmbedAsync(c).GetAwaiter().GetResult());
     }
 
     // Migration 0018: Game, title, bookmarks etc. are now stored in the video file as well, so import

@@ -91,9 +91,9 @@ export default function ContentPage({
       const listed =
         state.gameList.find((g) => item.igdbId != null && g.igdbId === item.igdbId) ??
         state.gameList.find((g) => g.name === item.game);
-      if (listed?.icon && !airplaneMode) return `https://segra.tv/api/games/icon/${listed.icon}`;
       const setting = gameSettings.find((g) => g.name === item.game);
-      if (setting?.icon && !airplaneMode) return `https://segra.tv/api/games/icon/${setting.icon}`;
+      const iconId = listed?.icon || setting?.icon;
+      if (iconId && !airplaneMode) return `https://segra.tv/api/games/icon/${iconId}`;
       if (setting?.customIcon) return `data:image/png;base64,${setting.customIcon}`;
       return null;
     };

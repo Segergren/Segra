@@ -496,26 +496,29 @@ export default function VideoSettingsSection({
                       };
                       return rank(a.internalEncoderId) - rank(b.internalEncoderId);
                     })
-                    .map((codec) => ({
-                      value: codec.internalEncoderId,
-                      label: (
-                        <span className="flex items-center gap-2">
-                          <EncoderVendorIcon
-                            encoderId={codec.internalEncoderId}
-                            isHardware={codec.isHardwareEncoder}
-                          />
-                          {codec.friendlyName}
-                          {getSecondaryGpuLabel(codec.internalEncoderId) && (
-                            <span
-                              className="text-xs font-normal text-base-content/50"
-                              title="Runs on a different GPU than your main one"
-                            >
-                              {getSecondaryGpuLabel(codec.internalEncoderId)}
-                            </span>
-                          )}
-                        </span>
-                      ),
-                    }))}
+                    .map((codec) => {
+                      const secondaryGpuLabel = getSecondaryGpuLabel(codec.internalEncoderId);
+                      return {
+                        value: codec.internalEncoderId,
+                        label: (
+                          <span className="flex items-center gap-2">
+                            <EncoderVendorIcon
+                              encoderId={codec.internalEncoderId}
+                              isHardware={codec.isHardwareEncoder}
+                            />
+                            {codec.friendlyName}
+                            {secondaryGpuLabel && (
+                              <span
+                                className="text-xs font-normal text-base-content/50"
+                                title="Runs on a different GPU than your main one"
+                              >
+                                {secondaryGpuLabel}
+                              </span>
+                            )}
+                          </span>
+                        ),
+                      };
+                    })}
                   value={
                     appState.codecs.find(
                       (c) => c.internalEncoderId === settings.codec?.internalEncoderId,
