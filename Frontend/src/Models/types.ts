@@ -46,6 +46,7 @@ export interface HotkeyBrokerStatus {
 
 export interface State {
   gpuVendor: GpuVendor;
+  integratedGpuVendors: GpuVendor[];
   preRecording?: PreRecording;
   recording?: Recording;
   alwaysOnBufferActive: boolean;
@@ -374,6 +375,7 @@ export interface Settings {
 
 export const initialState: State = {
   gpuVendor: GpuVendor.Unknown,
+  integratedGpuVendors: [],
   recording: undefined,
   alwaysOnBufferActive: false,
   isFinishingRecording: false,

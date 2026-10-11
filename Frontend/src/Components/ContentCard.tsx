@@ -348,8 +348,6 @@ export default function ContentCard({
     if (!isRenaming) return;
     setIsRenaming(false);
     const trimmed = renameValue.trim();
-    const invalidChars = /[<>:"/\\|?*]/;
-    if (trimmed && invalidChars.test(trimmed)) return;
     sendMessageToBackend('RenameContent', {
       Id: content!.id,
       Title: trimmed,

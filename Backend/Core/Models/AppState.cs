@@ -67,6 +67,9 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("integratedGpuVendors")]
+        public List<string> IntegratedGpuVendors => GetIntegratedGpuVendors();
+
         [JsonPropertyName("preRecording")]
         public PreRecording? PreRecording
         {

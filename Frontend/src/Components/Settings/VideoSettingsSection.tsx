@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DropdownSelect from '../DropdownSelect';
+import EncoderVendorIcon, { getEncoderVendor } from '../EncoderVendorIcon';
 import { Settings as SettingsType, VideoQualityPreset, GpuVendor } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { clampInt } from '../../Utils/NumberUtils';
@@ -20,6 +21,13 @@ export default function VideoSettingsSection({
   updateSettings,
 }: VideoSettingsSectionProps) {
   const appState = useAppState();
+  const getSecondaryGpuLabel = (encoderId: string) => {
+    const vendor = getEncoderVendor(encoderId);
+    if (!vendor || appState.gpuVendor === GpuVendor.Unknown || vendor === appState.gpuVendor) {
+      return null;
+    }
+    return appState.integratedGpuVendors?.includes(vendor) ? 'Integrated GPU' : 'Secondary GPU';
+  };
   const hasHdrDisplay = appState.displays.some((d) => d.isHdr);
   const [localReplayBufferDuration, setLocalReplayBufferDuration] = useState<string>(
     String(settings.replayBufferDuration),
@@ -480,17 +488,32 @@ export default function VideoSettingsSection({
                         : !codec.isHardwareEncoder,
                     )
                     .sort((a, b) => {
-                      const priorityOrder = ['jim_nvenc', 'h264_texture_amf', 'obs_x264'];
-                      const aIndex = priorityOrder.indexOf(a.internalEncoderId);
-                      const bIndex = priorityOrder.indexOf(b.internalEncoderId);
-                      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-                      if (aIndex !== -1) return -1;
-                      if (bIndex !== -1) return 1;
-                      return 0;
+                      const priorityOrder = ['nvenc', 'amf', 'qsv', 'obs_x264'];
+                      const rank = (id: string) => {
+                        const index = priorityOrder.findIndex((p) => id.includes(p));
+                        return index === -1 ? priorityOrder.length : index;
+                      };
+                      return rank(a.internalEncoderId) - rank(b.internalEncoderId);
                     })
                     .map((codec) => ({
                       value: codec.internalEncoderId,
-                      label: codec.friendlyName,
+                      label: (
+                        <span className="flex items-center gap-2">
+                          <EncoderVendorIcon
+                            encoderId={codec.internalEncoderId}
+                            isHardware={codec.isHardwareEncoder}
+                          />
+                          {codec.friendlyName}
+                          {getSecondaryGpuLabel(codec.internalEncoderId) && (
+                            <span
+                              className="text-xs font-normal text-base-content/50"
+                              title="Runs on a different GPU than your main one"
+                            >
+                              {getSecondaryGpuLabel(codec.internalEncoderId)}
+                            </span>
+                          )}
+                        </span>
+                      ),
                     }))}
                   value={
                     appState.codecs.find(

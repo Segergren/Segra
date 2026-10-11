@@ -258,6 +258,46 @@ namespace Segra.Backend.Shared
 #endif
         }
 
+        private static List<string>? _cachedIntegratedGpuVendors;
+
+        // Vendors whose only GPUs are integrated ones
+        public static List<string> GetIntegratedGpuVendors()
+        {
+            if (_cachedIntegratedGpuVendors != null)
+            {
+                return _cachedIntegratedGpuVendors;
+            }
+
+            var integrated = new HashSet<GpuVendor>();
+            var dedicated = new HashSet<GpuVendor>();
+#if WINDOWS
+            try
+            {
+                using var factory = DXCore.DXCoreCreateAdapterFactory<IDXCoreAdapterFactory>();
+                using var list = factory.CreateAdapterList<IDXCoreAdapterList>(new[] { DXCore.D3D12_Graphics });
+                for (uint i = 0; i < list.AdapterCount; ++i)
+                {
+                    using var adapter = list.GetAdapter<IDXCoreAdapter>(i);
+                    GpuVendor vendor = adapter.HardwareID.VendorID switch
+                    {
+                        0x10DE => GpuVendor.Nvidia,
+                        0x1002 or 0x1022 => GpuVendor.AMD,
+                        0x8086 => GpuVendor.Intel,
+                        _ => GpuVendor.Unknown
+                    };
+                    if (vendor == GpuVendor.Unknown) continue;
+                    (adapter.IsIntegrated ? integrated : dedicated).Add(vendor);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error detecting integrated GPUs: {ex.Message}");
+            }
+#endif
+            _cachedIntegratedGpuVendors = integrated.Except(dedicated).Select(v => v.ToString()).ToList();
+            return _cachedIntegratedGpuVendors;
+        }
+
 #if !WINDOWS
         // NVIDIA's driver is decode-only (nvidia-vaapi-driver), so it's never a VAAPI encoding candidate.
         private static readonly string[] VaapiCapableDrivers = ["amdgpu", "radeon", "i915", "xe"];
