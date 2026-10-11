@@ -108,6 +108,8 @@ namespace Segra.Backend.Recorder
         private static string? _hookedExecutableFileName;
         private static System.Threading.Timer? _gameCaptureHookTimeoutTimer = null;
         private const int FastHookWindowMs = 5000;
+        // NVENC, AMF, QSV and VAAPI can't encode H.264 wider than this
+        private const uint MaxHardwareH264Width = 4096;
         private const int HookWaitMs = 2000;
         private static bool _isStillHookedAfterUnhook = false;
         private static DateTime _lastDeviceRebuildUtc = DateTime.MinValue;
@@ -927,7 +929,7 @@ namespace Segra.Backend.Recorder
         /// Configures OBS video settings based on the provided dimensions.
         /// </summary>
         /// <param name="is4by3">True if the content was detected as 4:3 and stretched to 16:9.</param>
-        private static void ResetVideoSettings(out bool is4by3, uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null, string? customResolution = null)
+        private static void ResetVideoSettings(out bool is4by3, uint? customFps = null, uint? customOutputWidth = null, uint? customOutputHeight = null, string? customResolution = null, string? encoderId = null)
         {
             SettingsService.GetPrimaryMonitorResolution(out uint baseWidth, out uint baseHeight);
 
@@ -968,6 +970,15 @@ namespace Segra.Backend.Recorder
                 outputHeight = (uint)(Math.Round(outputHeight / 4.0) * 4);
 
                 Log.Information($"Downscaling from {baseWidth}x{baseHeight} to {outputWidth}x{outputHeight} (max height: {maxHeight})");
+            }
+
+            if (outputWidth > MaxHardwareH264Width && encoderId != null
+                && EncoderInfo.Get(encoderId) is { IsHardware: true, Codec: "h264" })
+            {
+                outputHeight = (uint)(Math.Round(outputHeight * ((double)MaxHardwareH264Width / outputWidth) / 4.0) * 4);
+                outputWidth = MaxHardwareH264Width;
+
+                Log.Information($"Downscaling to {outputWidth}x{outputHeight}, the widest {encoderId} can encode");
             }
 
             _currentBaseWidth = baseWidth;
@@ -1190,7 +1201,7 @@ namespace Segra.Backend.Recorder
             DisposeEncoders();
 
             // Configure video settings specifically for this recording/buffer
-            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customResolution: eff.Resolution);
+            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customResolution: eff.Resolution, encoderId: eff.Codec?.InternalEncoderId);
 
             _mainScene = new Scene("Recording Scene");
             Log.Information("Created recording scene");
@@ -1228,7 +1239,8 @@ namespace Segra.Backend.Recorder
                         customFps: (uint)eff.FrameRate,
                         customOutputWidth: windowWidth,
                         customOutputHeight: windowHeight,
-                        customResolution: eff.Resolution
+                        customResolution: eff.Resolution,
+                        encoderId: eff.Codec?.InternalEncoderId
                     );
 
                     // Scene item bounds must use BASE dimensions (not output) because the scene canvas is at base resolution.
@@ -1856,7 +1868,7 @@ namespace Segra.Backend.Recorder
             SavePortalRestoreToken(source);
             if (width == _currentBaseWidth && height == _currentBaseHeight) return true;
 
-            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customOutputWidth: width, customOutputHeight: height, customResolution: eff.Resolution);
+            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customOutputWidth: width, customOutputHeight: height, customResolution: eff.Resolution, encoderId: eff.Codec?.InternalEncoderId);
             _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
             Log.Information($"Canvas set to the shared screen's {width}x{height}");
             return true;
