@@ -81,7 +81,7 @@ export default function GameFilterDropdown({
         transition={WIDTH_SPRING}
         className={`btn btn-sm no-animation btn-secondary border border-base-400 h-8 p-0 overflow-hidden justify-end hover:text-primary hover:*:text-primary text-gray-300 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
       >
-        <span ref={measureRef} className="flex items-center w-max shrink-0 px-3 font-medium">
+        <span ref={measureRef} className="flex items-center w-max shrink-0 px-3">
           <span className="max-w-56 min-w-0 flex">{selected?.label}</span>
           <motion.span
             aria-hidden
