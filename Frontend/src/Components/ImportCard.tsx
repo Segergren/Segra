@@ -5,12 +5,16 @@ interface ImportCardProps {
 }
 
 export default function ImportCard({ importItem }: ImportCardProps) {
+  const isRecovery = importItem.action === 'recover';
+
   const getStatusText = () => {
     switch (importItem.status) {
       case 'importing':
-        return `Importing ${importItem.currentFileIndex} of ${importItem.totalFiles}`;
+        return isRecovery
+          ? 'Recovering'
+          : `Importing ${importItem.currentFileIndex} of ${importItem.totalFiles}`;
       case 'done':
-        return 'Import Complete';
+        return isRecovery ? 'Recovery Complete' : 'Import Complete';
       case 'error':
         return importItem.message || 'Import Error';
       default:

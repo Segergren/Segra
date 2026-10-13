@@ -2,6 +2,7 @@ import { createContext, useContext, ReactNode, useState, useEffect } from 'react
 
 export interface ImportProgress {
   id: string;
+  action?: 'recover';
   fileName: string;
   progress: number;
   status: 'importing' | 'done' | 'error';
@@ -24,12 +25,13 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       const data = event.detail;
 
       if (data.method === 'ImportProgress') {
-        const { id, fileName, progress, status, totalFiles, currentFileIndex, message } =
+        const { id, action, fileName, progress, status, totalFiles, currentFileIndex, message } =
           data.content;
         setImports((prev) => ({
           ...prev,
           [id]: {
             id,
+            action,
             fileName,
             progress,
             status,

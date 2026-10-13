@@ -228,9 +228,28 @@ namespace Segra.Backend.Recorder
 
         private static async Task RecoverFile(OrphanedFile orphanedFile, string? detectedGame)
         {
+            int progressId = Guid.NewGuid().GetHashCode();
+            string displayName = Path.GetFileNameWithoutExtension(orphanedFile.FileName);
+            Task SendProgress(double progress, string status, string? message = null) =>
+                MessageService.SendFrontendMessage("ImportProgress", new
+                {
+                    id = progressId,
+                    action = "recover",
+                    progress,
+                    fileName = displayName,
+                    totalFiles = 1,
+                    currentFileIndex = 1,
+                    status,
+                    message
+                });
+
             try
             {
                 Log.Information($"Recovering file: {orphanedFile.FileName}");
+                await SendProgress(0, "importing");
+
+                if (EmbeddedMetadataService.IsUnfinishedFragmented(orphanedFile.FilePath))
+                    await RemuxUnfinished(orphanedFile.FilePath, p => _ = SendProgress(p * 90, "importing"));
 
                 string gameName;
                 if (!string.IsNullOrEmpty(detectedGame))
@@ -262,14 +281,72 @@ namespace Segra.Backend.Recorder
                     gameExePath: sameGame ? embedded!.GameExePath : null
                 );
 
+                await SendProgress(92, "importing");
                 await ContentService.CreateThumbnail(orphanedFile.FilePath, orphanedFile.Type, recoveredId);
+                await SendProgress(95, "importing");
                 await ContentService.CreateWaveformFile(orphanedFile.FilePath, orphanedFile.Type, recoveredId);
 
                 Log.Information($"Successfully recovered: {orphanedFile.FileName}");
+                await SendProgress(100, "done");
             }
             catch (Exception ex)
             {
                 Log.Error($"Failed to recover file {orphanedFile.FileName}: {ex.Message}");
+                await SendProgress(100, "error", "Recovery failed");
+            }
+        }
+
+        // Lossless copy into a regular MP4 so it gets a duration and seek index; keeps the original if it fails
+        private static async Task RemuxUnfinished(string filePath, Action<double> onProgress)
+        {
+            string tempPath = filePath + ".remux.tmp";
+            using var stopPolling = new CancellationTokenSource();
+            try
+            {
+                Log.Information($"Remuxing unfinished recording: {filePath}");
+                List<string> arguments = ["-y", "-i", filePath, "-map", "0", "-c", "copy"];
+                // Stream copy drops OBS's track names (trak/udta/name), so carry them over as titles
+                var trackNames = await Mp4BoxReader.ReadAudioTrackNamesAsync(filePath);
+                for (int t = 0; t < (trackNames?.Count ?? 0); t++)
+                {
+                    if (!string.IsNullOrWhiteSpace(trackNames![t]))
+                        arguments.AddRange([$"-metadata:s:a:{t}", $"title={trackNames[t]}"]);
+                }
+                arguments.AddRange(["-f", "mp4", tempPath]);
+
+                // A stream copy is about as large as its source, so the output size tracks progress
+                long sourceSize = new FileInfo(filePath).Length;
+                _ = Task.Run(async () =>
+                {
+                    while (true)
+                    {
+                        await Task.Delay(500);
+                        // Checked after the delay so no update lands after the final one
+                        if (stopPolling.IsCancellationRequested)
+                            break;
+                        var temp = new FileInfo(tempPath);
+                        if (temp.Exists && sourceSize > 0)
+                            onProgress(Math.Min(1, (double)temp.Length / sourceSize));
+                    }
+                });
+
+                await FFmpegService.RunSimple(arguments);
+                stopPolling.Cancel();
+                File.Move(tempPath, filePath, overwrite: true);
+                Log.Information($"Remuxed unfinished recording: {filePath}");
+            }
+            catch (Exception ex)
+            {
+                stopPolling.Cancel();
+                Log.Warning($"Could not remux {filePath}, keeping it as is: {ex.Message}");
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch (Exception)
+                {
+                    // Best effort
+                }
             }
         }
 

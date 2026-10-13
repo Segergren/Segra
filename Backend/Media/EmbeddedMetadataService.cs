@@ -125,6 +125,47 @@ namespace Segra.Backend.Media
             }
         });
 
+        /// <summary>
+        /// True for a hybrid MP4 that never got finalized (its fragments are still in place), e.g. after a crash.
+        /// Players see such a file as a live stream without a duration.
+        /// </summary>
+        public static bool IsUnfinishedFragmented(string filePath)
+        {
+            try
+            {
+                using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                Span<byte> header = stackalloc byte[16];
+                long pos = 0;
+                // A crash usually leaves a truncated last box, so stop at the first one that doesn't fit
+                while (fs.Length - pos >= 16)
+                {
+                    fs.Position = pos;
+                    fs.ReadExactly(header);
+                    string type = Encoding.Latin1.GetString(header.Slice(4, 4));
+                    if (type == "moof")
+                    {
+                        return true;
+                    }
+                    long size = BinaryPrimitives.ReadUInt32BigEndian(header);
+                    if (size == 1)
+                    {
+                        size = (long)BinaryPrimitives.ReadUInt64BigEndian(header[8..]);
+                    }
+                    if (size < 8)
+                    {
+                        return false;
+                    }
+                    pos += size;
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Could not read MP4 layout of {filePath}: {ex.Message}");
+                return false;
+            }
+        }
+
         private static void Embed(string filePath, EmbeddedMetadata metadata, bool indexFirst)
         {
             using var fs = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
