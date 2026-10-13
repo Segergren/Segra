@@ -24,7 +24,6 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
     );
   };
   const saveHotkey = hotkeyFor(HotkeyAction.SaveReplayBuffer, 'the Save Replay Buffer hotkey');
-  const bookmarkHotkey = hotkeyFor(HotkeyAction.CreateBookmark, 'the Create Bookmark hotkey');
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
@@ -40,10 +39,12 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           onClick={() => updateSettings({ recordingMode: 'Session' })}
         >
           <div className="text-lg font-semibold mb-3">Session Recording</div>
-          <div className="text-sm text-left text-base-content opacity-70">
+          <div className="text-sm text-left">
             <p>
-              Records each game from launch to close as one video. Press {bookmarkHotkey} to
-              bookmark a moment. Supported games bookmark kills and deaths automatically.
+              <span className="opacity-70">
+                Records each game from launch to close as one video.
+              </span>{' '}
+              <span className="text-primary">Uses disk space.</span>
             </p>
           </div>
         </div>
@@ -54,10 +55,12 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           <div className="flex items-center gap-2 mb-3">
             <div className="text-lg font-semibold text-center">Replay Buffer</div>
           </div>
-          <div className="text-sm text-left text-base-content opacity-70">
+          <div className="text-sm text-left">
             <p>
-              Keeps the last {bufferLength} of gameplay in memory. Press {saveHotkey} to save it as
-              a clip. Uses almost no disk space.
+              <span className="opacity-70">
+                Keeps the last {bufferLength} of gameplay in memory so you can save it as a clip.
+              </span>{' '}
+              <span className="text-primary">Uses RAM.</span>
             </p>
           </div>
         </div>
@@ -68,10 +71,12 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           <div className="flex items-center gap-2 mb-3">
             <div className="text-lg font-semibold">Hybrid (Session + Buffer)</div>
           </div>
-          <div className="text-sm text-left text-base-content opacity-70">
+          <div className="text-sm text-left">
             <p>
-              Records each game as one video with a replay buffer alongside. Press {saveHotkey} to
-              save the last {bufferLength} as a clip. Uses the most disk space.
+              <span className="opacity-70">
+                Records each game as one video and lets you save the last {bufferLength} as a clip.
+              </span>{' '}
+              <span className="text-primary">Uses RAM and disk space.</span>
             </p>
           </div>
         </div>
