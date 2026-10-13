@@ -1,6 +1,7 @@
 using Serilog;
 using Segra.Backend.App;
 using Segra.Backend.Core;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Segra.Backend.Shared;
 using System.Globalization;
@@ -16,8 +17,12 @@ namespace Segra.Backend.Media
         // Clip IDs that were explicitly cancelled by the user, so their FFmpeg failures are not surfaced as errors
         private static readonly HashSet<int> CancelledClipIds = new();
         private static readonly object ProcessLock = new();
+        // Reading a long session's index takes a moment, and the frontend asks on every selection change
+        private static readonly ConcurrentDictionary<string, StreamFormats?> StreamFormatsCache = new();
 
-        public static async Task CreateClips(List<Segment> segments, bool createSeparateClips = false)
+        // copyMatchingVideo is for segments that cover whole videos: when all of them share identical
+        // encoder headers, their video is joined as is instead of being re-encoded
+        public static async Task CreateClips(List<Segment> segments, bool createSeparateClips = false, bool copyMatchingVideo = false)
         {
             using var work = BackgroundWork.Begin();
             int id = Guid.NewGuid().GetHashCode();
@@ -89,23 +94,30 @@ namespace Segra.Backend.Media
                     perSegmentTrackNames,
                     perSegmentTrackTypes);
 
+                // Use the actual file path from metadata when available, fall back to reconstructed path
+                List<string> inputFilePaths = segments.Select(segment =>
+                {
+                    if (!string.IsNullOrEmpty(segment.FilePath) && File.Exists(segment.FilePath))
+                        return segment.FilePath;
+
+                    string inputGameFolder = StorageService.SanitizeGameNameForFolder(segment.Game);
+                    string inputFolderName = FolderNames.GetVideoFolderName(Enum.Parse<Content.ContentType>(segment.Type));
+                    return PathUtils.Combine(videoFolder, inputFolderName, inputGameFolder, $"{segment.FileName}.mp4");
+                }).ToList();
+
+                // The join copies the encoded streams, so clips cut from different videos must share one format
+                List<string> sourceVideos = inputFilePaths.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                bool joinsVideos = !createSeparateClips && sourceVideos.Count > 1;
+                bool copyVideo = copyMatchingVideo && joinsVideos && await HaveSameStreamFormats(sourceVideos, includeAudio: false);
+                Dictionary<string, string?> joinVideoFilters = joinsVideos && !copyVideo
+                    ? await BuildJoinVideoFilters(sourceVideos)
+                    : new Dictionary<string, string?>();
+
                 double processedDuration = 0;
                 int segmentIndex = 0;
                 foreach (var segment in segments)
                 {
-                    // Use the actual file path from metadata when available, fall back to reconstructed path
-                    string inputFilePath;
-                    if (!string.IsNullOrEmpty(segment.FilePath) && File.Exists(segment.FilePath))
-                    {
-                        inputFilePath = segment.FilePath;
-                    }
-                    else
-                    {
-                        string inputGameFolder = StorageService.SanitizeGameNameForFolder(segment.Game);
-                        var segmentType = Enum.Parse<Content.ContentType>(segment.Type);
-                        string inputFolderName = FolderNames.GetVideoFolderName(segmentType);
-                        inputFilePath = PathUtils.Combine(videoFolder, inputFolderName, inputGameFolder, $"{segment.FileName}.mp4");
-                    }
+                    string inputFilePath = inputFilePaths[segmentIndex];
                     if (!File.Exists(inputFilePath))
                     {
                         Log.Information($"Input video file not found: {inputFilePath}");
@@ -118,8 +130,9 @@ namespace Segra.Backend.Media
 
                     List<string>? segmentTrackNames = perSegmentTrackNames[segmentIndex];
                     List<string>? targetLayout = Settings.Instance.ClipKeepSeparateAudioTracks ? unionAudioLayout : null;
+                    joinVideoFilters.TryGetValue(inputFilePath, out string? videoFilter);
 
-                    await ExtractClip(id, inputFilePath, tempFileName, segment.StartTime, segment.EndTime, segmentTrackNames, segment.MutedAudioTracks, segment.AudioTrackVolumes, targetLayout, progress =>
+                    await ExtractClip(id, inputFilePath, tempFileName, segment.StartTime, segment.EndTime, segmentTrackNames, segment.MutedAudioTracks, segment.AudioTrackVolumes, targetLayout, videoFilter, joinsVideos, copyVideo, progress =>
                     {
                         double clampedProgress = Math.Min(progress, 1.0);
                         double currentProgress = (processedDuration + (clampedProgress * clipDuration)) / totalDuration * 95;
@@ -325,6 +338,145 @@ namespace Segra.Backend.Media
             }
         }
 
+        // Joins whole sessions into a new session by stream copy only, since re-encoding hours of video
+        // would take too long. Each session's bookmarks move by the length of the sessions before it.
+        public static async Task MergeSessions(List<Content> sessions)
+        {
+            using var work = BackgroundWork.Begin();
+            int id = Guid.NewGuid().GetHashCode();
+            // For the progress card's thumbnail; outputType tells the frontend it isn't a clip
+            var segments = sessions.Select((session, i) => new Segment
+            {
+                Id = i,
+                Type = session.Type.ToString(),
+                ContentId = session.Id,
+                EndTime = session.Duration.TotalSeconds,
+                FileName = session.FileName,
+                FilePath = session.FilePath,
+                Game = session.Game
+            }).ToList();
+            Task SendProgress(double progress, string? error = null) =>
+                MessageService.SendFrontendMessage("ClipProgress", new { id, progress, segments, error, outputType = "Session" });
+
+            string? concatFilePath = null;
+            string? outputFilePath = null;
+            try
+            {
+                await SendProgress(0);
+                if (!await CanMergeWithoutReencoding(sessions))
+                {
+                    Log.Warning($"[Clip {id}] Sessions differ in video or audio format, not merging");
+                    await SendProgress(-1, "These sessions can't be merged without re-encoding");
+                    return;
+                }
+
+                long neededBytes = sessions.Sum(s => new FileInfo(s.FilePath).Length);
+                if (StorageService.GetContentDriveFreeBytes() is long freeBytes && freeBytes < neededBytes)
+                {
+                    await SendProgress(-1, "Not enough free disk space");
+                    _ = MessageService.ShowModal(
+                        "Merge failed",
+                        $"The merged session needs about {neededBytes / 1e9:F1} GB of free space on the drive your recordings are saved to.",
+                        "error");
+                    return;
+                }
+
+                Content first = sessions[0];
+                string outputFolder = PathUtils.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions, StorageService.SanitizeGameNameForFolder(first.Game));
+                Directory.CreateDirectory(outputFolder);
+                outputFilePath = GetUniqueOutputFilePath(PathUtils.Combine(outputFolder, $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4"));
+
+                concatFilePath = PathUtils.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
+                await File.WriteAllLinesAsync(concatFilePath, sessions.Select(s => FFmpegService.BuildConcatListLine(s.FilePath)));
+
+                // The data track holds the old bookmark chapters; the merged bookmarks are embedded again below
+                string trackNameArgs = string.Concat((first.AudioTrackNames ?? []).Select((name, i) =>
+                    $"-metadata:s:a:{i} title=\"{name.Replace("\"", "\\\"")}\" "));
+                try
+                {
+                    await FFmpegService.RunWithProgress(id,
+                        $"-y -f concat -safe 0 -i \"{concatFilePath}\" -map 0 -map -0:d -c copy -map_chapters -1 {trackNameArgs}-avoid_negative_ts make_zero \"{outputFilePath}\"",
+                        sessions.Sum(s => s.Duration.TotalSeconds),
+                        progress => _ = SendProgress(Math.Min(progress, 1.0) * 95),
+                        process =>
+                        {
+                            lock (ProcessLock)
+                            {
+                                ActiveFFmpegProcesses[id] = new List<Process> { process };
+                            }
+                        });
+                }
+                finally
+                {
+                    lock (ProcessLock)
+                    {
+                        ActiveFFmpegProcesses.Remove(id);
+                    }
+                }
+
+                if (!File.Exists(outputFilePath))
+                    throw new Exception("Failed to create the merged session");
+                await EnsureFileReady(outputFilePath);
+                await SendProgress(97);
+
+                var bookmarks = new List<Bookmark>();
+                TimeSpan offset = TimeSpan.Zero;
+                foreach (var session in sessions)
+                {
+                    bookmarks.AddRange(session.Bookmarks.Select(b => new Bookmark { Type = b.Type, Subtype = b.Subtype, Time = b.Time + offset }));
+                    offset += session.Duration;
+                }
+
+                string? sessionId = await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Session, first.Game, bookmarks, igdbId: first.IgdbId, audioTrackNames: first.AudioTrackNames, audioTrackTypes: first.AudioTrackTypes, gameExePath: first.GameExePath);
+                await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Session, sessionId);
+                await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Session, sessionId);
+                await SendProgress(99);
+
+                await SettingsService.LoadContentFromFolderIntoState(sendToFrontend: false);
+                await MessageService.SendStateToFrontend("Sessions merged");
+                await SendProgress(100);
+            }
+            catch (Exception ex)
+            {
+                bool wasCancelled;
+                lock (ProcessLock)
+                {
+                    wasCancelled = CancelledClipIds.Remove(id);
+                }
+
+                if (!string.IsNullOrEmpty(outputFilePath))
+                {
+                    SafeDelete(outputFilePath);
+                }
+
+                if (wasCancelled)
+                {
+                    Log.Information($"[Clip {id}] Session merge stopped due to user cancellation");
+                    return;
+                }
+
+                Log.Error(ex, $"[Clip {id}] Error merging sessions");
+                string cardError = ex.Message;
+                if (ex is FFmpegException ffEx)
+                {
+                    cardError = FFmpegErrors.Describe(ffEx.ExitCode).Message;
+                    _ = MessageService.ShowModal("Merge failed", FFmpegErrors.DescribeForUser(ffEx.ExitCode), "error");
+                }
+                await SendProgress(-1, cardError);
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(concatFilePath))
+                {
+                    SafeDelete(concatFilePath);
+                }
+                lock (ProcessLock)
+                {
+                    CancelledClipIds.Remove(id);
+                }
+            }
+        }
+
         public static async void CancelClip(int clipId)
         {
             Log.Information($"[Clip {clipId}] Cancel requested");
@@ -379,7 +531,8 @@ namespace Segra.Backend.Media
         }
 
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
-                            List<string>? audioTrackNames, List<int>? mutedAudioTracks, Dictionary<int, double>? audioTrackVolumes, List<string>? targetAudioLayout, Action<double> progressCallback)
+                            List<string>? audioTrackNames, List<int>? mutedAudioTracks, Dictionary<int, double>? audioTrackVolumes, List<string>? targetAudioLayout,
+                            string? videoFilter, bool normalizeAudio, bool copyVideo, Action<double> progressCallback)
         {
             double duration = endTime - startTime;
             var settings = Settings.Instance;
@@ -389,8 +542,14 @@ namespace Segra.Backend.Media
             string presetArgs;
             // VAAPI needs the device named before the input and frames uploaded to it; empty otherwise.
             string hwDeviceArgs = "";
-            string hwFilterArgs = "";
-            if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
+            string? hwUploadFilter = null;
+            if (copyVideo)
+            {
+                videoCodec = "copy";
+                qualityArgs = "";
+                presetArgs = "";
+            }
+            else if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
             {
 #if !WINDOWS
                 // Our Linux ffmpeg only ships VAAPI hardware encoders, regardless of GPU vendor.
@@ -408,7 +567,7 @@ namespace Segra.Backend.Media
                     qualityArgs = $"-rc_mode CQP -qp {settings.ClipQualityGpu}";
                     presetArgs = "";
                     hwDeviceArgs = $"-vaapi_device {vaapiNode} ";
-                    hwFilterArgs = "-vf \"format=nv12,hwupload\" ";
+                    hwUploadFilter = "format=nv12,hwupload";
                 }
                 else
                 {
@@ -493,7 +652,7 @@ namespace Segra.Backend.Media
                 presetArgs = $"-preset {settings.ClipPreset}";
             }
 
-            string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
+            string fpsArg = settings.ClipFps > 0 && !copyVideo ? $"-r {settings.ClipFps}" : "";
 
             // Build audio mapping, filter, and metadata based on per-segment muted tracks
             string mapArgs = "";
@@ -715,11 +874,14 @@ namespace Segra.Backend.Media
             // each temp clip's per-slot sample rate depends on whether the slot got real audio or silence.
             // The concat demuxer then uses the first clip's stream params for subsequent clips, playing
             // mismatched samples at the wrong rate (the reported "shrunken audio").
-            string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
-            string hwDecodeArgs = await BuildHwDecodeArgs(inputFilePath);
+            // Clips joined from different videos can differ the same way, and in channel count.
+            string audioRateArg = normalizeAudio ? "-ar 48000 -ac 2 " : targetAudioLayout != null ? "-ar 48000 " : "";
+            string videoFilterChain = string.Join(",", new[] { videoFilter, hwUploadFilter }.Where(f => !string.IsNullOrEmpty(f)));
+            string videoFilterArgs = videoFilterChain.Length > 0 ? $"-vf \"{videoFilterChain}\" " : "";
+            string hwDecodeArgs = copyVideo ? "" : await BuildHwDecodeArgs(inputFilePath);
             string BuildArguments(string decodeArgs) =>
                              $"-y {decodeArgs}{hwDeviceArgs}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}{hwFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}{videoFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
                              $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-map_chapters -1 -t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
             string arguments = BuildArguments(hwDecodeArgs);
             Log.Information("Extracting clip");
@@ -790,6 +952,89 @@ namespace Segra.Backend.Media
             {
                 return CancelledClipIds.Contains(clipId);
             }
+        }
+
+        /// <summary>
+        /// Whether merging these whole videos can skip re-encoding. Sessions are copied entirely, so
+        /// their audio tracks must match as well; other videos only copy their video.
+        /// </summary>
+        public static async Task<bool> CanMergeWithoutReencoding(List<Content> contents)
+        {
+            List<string> paths = contents.Select(c => c.FilePath).ToList();
+            if (contents.Count < 2) return false;
+            if (contents.Any(c => c.Type != Content.ContentType.Session))
+                return await HaveSameStreamFormats(paths, includeAudio: false);
+
+            // Tracks are matched by device name everywhere else, so a different device is a different track
+            List<string> firstTrackNames = contents[0].AudioTrackNames ?? [];
+            return contents.All(c => (c.AudioTrackNames ?? []).SequenceEqual(firstTrackNames, StringComparer.OrdinalIgnoreCase))
+                && await HaveSameStreamFormats(paths, includeAudio: true);
+        }
+
+        // Copied streams are decoded with the first file's headers, so they must match byte for byte
+        private static async Task<bool> HaveSameStreamFormats(List<string> inputFilePaths, bool includeAudio)
+        {
+            StreamFormats? first = null;
+            foreach (string inputFilePath in inputFilePaths)
+            {
+                StreamFormats? formats = await GetStreamFormats(inputFilePath);
+                if (formats == null) return false;
+                first ??= formats;
+                if (!formats.Video.SequenceEqual(first.Video) || (includeAudio && !formats.Audio.SequenceEqual(first.Audio)))
+                    return false;
+            }
+            return first != null;
+        }
+
+        private static async Task<StreamFormats?> GetStreamFormats(string filePath)
+        {
+            string key;
+            try
+            {
+                var info = new FileInfo(filePath);
+                key = $"{filePath}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+
+            if (StreamFormatsCache.TryGetValue(key, out StreamFormats? cached))
+                return cached;
+
+            StreamFormats? formats = await Mp4BoxReader.ReadStreamFormatsAsync(filePath);
+            StreamFormatsCache[key] = formats;
+            return formats;
+        }
+
+        // Scales every video to the largest size, and tone maps HDR ones when they're mixed with SDR
+        private static async Task<Dictionary<string, string?>> BuildJoinVideoFilters(List<string> inputFilePaths)
+        {
+            var formats = new Dictionary<string, (int Width, int Height, bool IsHdr)?>(StringComparer.OrdinalIgnoreCase);
+            foreach (string inputFilePath in inputFilePaths)
+            {
+                formats[inputFilePath] = await FFmpegService.GetVideoFormat(inputFilePath);
+            }
+
+            var filters = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            var known = formats.Values.Where(f => f.HasValue).Select(f => f!.Value).ToList();
+            if (known.Count == 0) return filters;
+
+            var largest = known.MaxBy(f => f.Width * f.Height);
+            bool sameSize = known.Count == formats.Count && known.All(f => f.Width == largest.Width && f.Height == largest.Height);
+            bool mixedHdr = known.Any(f => f.IsHdr) && known.Any(f => !f.IsHdr);
+
+            foreach (var (inputFilePath, format) in formats)
+            {
+                var parts = new List<string>();
+                if (mixedHdr && format?.IsHdr == true)
+                    parts.Add(FFmpegService.BuildHdrToSdrFilter());
+                if (!sameSize)
+                    parts.Add($"scale={largest.Width}:{largest.Height}:force_original_aspect_ratio=decrease:force_divisible_by=2," +
+                              $"pad={largest.Width}:{largest.Height}:-1:-1,setsar=1");
+                filters[inputFilePath] = parts.Count > 0 ? string.Join(",", parts) : null;
+            }
+            return filters;
         }
 
         private static List<string>? BuildUnionAudioLayout(List<List<string>?> perSegmentTrackNames)

@@ -5,7 +5,7 @@ import { Content, ContentType } from '../Models/types';
 import { useScroll } from '../Context/ScrollContext';
 import { useLayoutEffect, useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { FileUp, Trash2 } from 'lucide-react';
+import { FileUp, Merge, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import ContentFilters, { ALL_GAMES, GameOption, IMPORTED, SortOption } from './ContentFilters';
@@ -13,6 +13,7 @@ import { useSettings } from '../Context/SettingsContext';
 import { useModal } from '../Context/ModalContext';
 import { useImports } from '../Context/ImportContext';
 import Button from './Button';
+import MergeModal from './MergeModal';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 
 // Imports that carried no Segra metadata have no game, so they are only listed under Imported
@@ -44,7 +45,7 @@ export default function ContentPage({
   const state = useAppState();
   const { setSelectedVideo } = useSelectedVideo();
   const { scrollPositions, setScrollPosition } = useScroll();
-  const { isModalOpen } = useModal();
+  const { isModalOpen, openModal, closeModal } = useModal();
   const confirmDelete = useDeleteConfirmation();
   const { imports } = useImports();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -215,6 +216,64 @@ export default function ContentPage({
       },
     });
   }, [selectedItems, confirmDelete]);
+
+  // Whether a selection can be merged without re-encoding, keyed by its sorted ids
+  const [mergeChecks, setMergeChecks] = useState<Record<string, boolean>>({});
+  const requestedMergeChecks = useRef(new Set<string>());
+  const selectionKey = useMemo(() => [...selectedItems].sort().join(','), [selectedItems]);
+  const mergeIsFast: boolean | undefined = mergeChecks[selectionKey];
+
+  useEffect(() => {
+    if (selectedItems.size < 2 || requestedMergeChecks.current.has(selectionKey)) return;
+    const timer = setTimeout(() => {
+      requestedMergeChecks.current.add(selectionKey);
+      sendMessageToBackend('CheckMerge', { Ids: selectionKey.split(',') });
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [selectionKey, selectedItems.size]);
+
+  useEffect(() => {
+    const handleMergeCheck = (event: CustomEvent<{ method: string; content: any }>) => {
+      if (event.detail.method !== 'MergeCheck') return;
+      const { ids, fast } = event.detail.content as { ids: string[]; fast: boolean };
+      setMergeChecks((prev) => ({ ...prev, [[...ids].sort().join(',')]: fast }));
+    };
+    window.addEventListener('websocket-message', handleMergeCheck as EventListener);
+    return () => window.removeEventListener('websocket-message', handleMergeCheck as EventListener);
+  }, []);
+
+  // Re-encoding hours of video takes far too long, so sessions only merge when they can be copied
+  const isSessionPage = contentType === 'Session';
+  const isMergeDisabled = selectedItems.size < 2 || (isSessionPage && mergeIsFast !== true);
+  const mergeHint =
+    selectedItems.size < 2
+      ? 'Select at least two to merge'
+      : mergeIsFast !== false
+        ? undefined
+        : isSessionPage
+          ? 'These were recorded with different video or audio settings. Merging them would mean re-encoding, which takes too long for full sessions.'
+          : 'These were recorded with different video settings, so they get re-encoded with your clip settings.';
+
+  const handleMergeSelected = () => {
+    const items = contentItems
+      .filter((item) => selectedItems.has(item.id))
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    if (items.length < 2) return;
+
+    openModal(
+      <MergeModal
+        items={items}
+        slow={mergeIsFast === false}
+        onMerge={(ids) => {
+          sendMessageToBackend('MergeContent', { Ids: ids });
+          setSelectedItems(new Set());
+          closeModal();
+        }}
+        onClose={closeModal}
+      />,
+      { size: 'lg' },
+    );
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -591,6 +650,21 @@ export default function ContentPage({
             className="fixed bottom-3 left-1/2 -translate-x-1/2 bg-base-300 border border-base-400 rounded-xl px-4 py-2 flex items-center gap-3 shadow-lg z-50"
           >
             <span className="text-sm text-gray-300">{selectedItems.size} Selected</span>
+            <span
+              className={`inline-flex ${mergeHint ? 'tooltip tooltip-top tooltip-primary [&::before]:delay-200 [&::after]:delay-200' : ''}`}
+              data-tip={mergeHint}
+            >
+              <Button
+                variant="primary"
+                size="sm"
+                className="h-8"
+                disabled={isMergeDisabled}
+                onClick={handleMergeSelected}
+              >
+                <Merge size={16} />
+                {mergeIsFast === false && !isSessionPage ? 'Merge (slow)' : 'Merge'}
+              </Button>
+            </span>
             <Button variant="danger" size="sm" className="h-8" onClick={handleDeleteSelected}>
               <Trash2 size={16} />
               Delete

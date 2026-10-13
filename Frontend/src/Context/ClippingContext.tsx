@@ -2,13 +2,14 @@ import { createContext, useContext, useState, useEffect, useRef, type ReactNode 
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSegments } from './SegmentsContext';
 import { useSettings } from './SettingsContext';
-import { Segment } from '../Models/types';
+import { ContentType, Segment } from '../Models/types';
 
 export interface ClippingProgress {
   id: number;
   progress: number;
   segments: Segment[];
   error?: string;
+  outputType?: ContentType; // Set when the result isn't a clip, e.g. merged sessions
 }
 
 export interface ClippingContextType {

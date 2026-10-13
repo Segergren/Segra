@@ -139,6 +139,14 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement clipParameterElement);
                             _ = Task.Run(() => HandleCreateClip(clipParameterElement));
                             break;
+                        case "MergeContent":
+                            root.TryGetProperty("Parameters", out JsonElement mergeParameterElement);
+                            _ = Task.Run(() => HandleMergeContent(mergeParameterElement));
+                            break;
+                        case "CheckMerge":
+                            root.TryGetProperty("Parameters", out JsonElement checkMergeParameterElement);
+                            _ = Task.Run(() => HandleCheckMerge(checkMergeParameterElement));
+                            break;
                         case "CreateAiClip":
                             root.TryGetProperty("Parameters", out JsonElement aiClipParameterElement);
                             _ = Task.Run(() => HandleCreateAiClip(aiClipParameterElement));
@@ -890,6 +898,59 @@ namespace Segra.Backend.App
                 Log.Information("Segments property not found in CreateClip message.");
             }
         }
+
+        // Joins whole videos, in the given order, into a new session (sessions) or a new clip (the rest)
+        private static async Task HandleMergeContent(JsonElement message)
+        {
+            Log.Information($"MergeContent: {message}");
+
+            List<string> ids = ReadIds(message);
+            List<Content> contents = FindContents(ids);
+            if (contents.Count != ids.Count)
+            {
+                Log.Warning($"{ids.Count - contents.Count} of the videos to merge were not found in state");
+            }
+
+            if (contents.Count > 0 && contents.All(c => c.Type == Content.ContentType.Session))
+            {
+                await ClipService.MergeSessions(contents);
+                return;
+            }
+
+            var segments = contents.Select((content, i) => new Segment
+            {
+                Id = i,
+                Type = content.Type.ToString(),
+                ContentId = content.Id,
+                StartTime = 0,
+                EndTime = content.Duration.TotalSeconds,
+                FileName = content.FileName,
+                FilePath = content.FilePath,
+                Game = content.Game,
+                IgdbId = content.IgdbId
+            }).ToList();
+
+            await ClipService.CreateClips(segments, copyMatchingVideo: true);
+        }
+
+        // Tells the frontend whether merging the selected videos would have to re-encode them
+        private static async Task HandleCheckMerge(JsonElement message)
+        {
+            List<string> ids = ReadIds(message);
+            List<Content> contents = FindContents(ids);
+            bool fast = contents.Count == ids.Count && await ClipService.CanMergeWithoutReencoding(contents);
+            await SendFrontendMessage("MergeCheck", new { ids, fast });
+        }
+
+        private static List<string> ReadIds(JsonElement message) =>
+            message.ValueKind == JsonValueKind.Object &&
+            message.TryGetProperty("Ids", out JsonElement idsElement) &&
+            idsElement.ValueKind == JsonValueKind.Array
+                ? idsElement.EnumerateArray().Select(e => e.GetString()).OfType<string>().ToList()
+                : [];
+
+        private static List<Content> FindContents(List<string> ids) =>
+            ids.Select(id => AppState.Instance.Content.FirstOrDefault(c => c.Id == id)).OfType<Content>().ToList();
 
         private static async Task SetVideoLocationAsync()
         {

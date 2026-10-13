@@ -426,7 +426,7 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Runs ffmpeg to get metadata and returns stderr output
         /// </summary>
-        public static async Task<string> GetMetadata(string inputFilePath)
+        public static async Task<string> GetMetadata(string inputFilePath, int timeoutSeconds = 2)
         {
             if (!FFmpegExists())
             {
@@ -450,7 +450,7 @@ namespace Segra.Backend.Media
             using var process = new Process { StartInfo = processStartInfo };
             process.Start();
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
             try
             {
                 string output = await process.StandardError.ReadToEndAsync(cts.Token);
@@ -527,7 +527,46 @@ namespace Segra.Backend.Media
             }
         }
 
+        private static readonly Regex _videoSizeRegex = new(
+            @"Video: [^\n]*?, (\d{2,5})x(\d{2,5})",
+            RegexOptions.Compiled);
+
+        /// <summary>
+        /// Returns the first video stream's size and whether it is HDR, or null if it can't be read.
+        /// </summary>
+        public static async Task<(int Width, int Height, bool IsHdr)?> GetVideoFormat(string filePath)
+        {
+            try
+            {
+                // Longer than the default timeout, since a sleeping drive can take seconds to spin up
+                string metadata = await GetMetadata(filePath, timeoutSeconds: 10);
+                var match = _videoSizeRegex.Match(metadata);
+                if (!match.Success) return null;
+
+                return (int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture),
+                        int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture),
+                        ExtractIsHdr(metadata));
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("Could not read the video format of {File}: {Message}", filePath, ex.Message);
+                return null;
+            }
+        }
+
         private const double ObsSdrWhiteNits = 300;
+
+        /// <summary>
+        /// Filter chain that tone maps HDR to SDR the way OBS does when it records HDR as SDR.
+        /// </summary>
+        public static string BuildHdrToSdrFilter()
+        {
+            string toSdrWhite = (10000 / ObsSdrWhiteNits).ToString(CultureInfo.InvariantCulture);
+            string curve = $"st(0,val/65535*{toSdrWhite});st(1,pow(ld(0)/(ld(0)+1),1/2.4));" +
+                           "if(lte(ld(1),0.04045),ld(1)/12.92,pow((ld(1)+0.055)/1.055,2.4))*65535";
+            return $"zscale=t=linear:npl=10000,format=gbrp16le,lutrgb=r='{curve}':g='{curve}':b='{curve}'," +
+                   "zscale=tin=linear:pin=bt2020:p=bt709:t=iec61966-2-1:m=bt709:r=tv,format=yuv420p";
+        }
 
         /// <summary>
         /// Builds the thumbnail -vf chain. HDR sources get the tone map OBS uses when recording HDR as SDR.
@@ -535,14 +574,7 @@ namespace Segra.Backend.Media
         private static string BuildThumbnailVideoFilter(int width, bool isHdr)
         {
             string scale = $"scale={width}:-1";
-            if (!isHdr)
-                return scale;
-
-            string toSdrWhite = (10000 / ObsSdrWhiteNits).ToString(CultureInfo.InvariantCulture);
-            string curve = $"st(0,val/65535*{toSdrWhite});st(1,pow(ld(0)/(ld(0)+1),1/2.4));" +
-                           "if(lte(ld(1),0.04045),ld(1)/12.92,pow((ld(1)+0.055)/1.055,2.4))*65535";
-            return $"zscale=t=linear:npl=10000,format=gbrp16le,lutrgb=r='{curve}':g='{curve}':b='{curve}'," +
-                   "zscale=tin=linear:pin=bt2020:p=bt709:t=iec61966-2-1:m=bt709:r=tv,format=yuv420p," + scale;
+            return isHdr ? $"{BuildHdrToSdrFilter()},{scale}" : scale;
         }
 
         private static readonly Regex _streamHeaderRegex = new(

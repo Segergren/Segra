@@ -48,6 +48,7 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
   };
 
   const isError = clipping.progress === -1;
+  const isSessionMerge = clipping.outputType === 'Session';
 
   return (
     <div className="w-full px-2">
@@ -99,7 +100,13 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
             <div
               className={`text-sm font-medium truncate ${isError ? 'text-error' : 'text-gray-200'}`}
             >
-              {isError ? 'Clip Failed' : 'Creating Clip'}
+              {isSessionMerge
+                ? isError
+                  ? 'Merge Failed'
+                  : 'Merging'
+                : isError
+                  ? 'Clip Failed'
+                  : 'Creating Clip'}
             </div>
             <div className={`text-xs truncate ${isError ? 'text-error/70' : 'text-gray-400'}`}>
               {isError ? clipping.error || 'Unknown error' : `${Math.round(displayProgress)}%`}
