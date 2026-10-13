@@ -207,8 +207,12 @@ namespace Segra.Backend.Media
             }
         }
 
+        // Serializes sidecar read-modify-write so concurrent writers don't drop each other's changes; update actions must not re-enter
+        private static readonly SemaphoreSlim _metadataWriteLock = new(1, 1);
+
         public static async Task<Content?> UpdateMetadataFile(string metadataFilePath, Action<Content> updateAction)
         {
+            await _metadataWriteLock.WaitAsync();
             try
             {
                 if (!File.Exists(metadataFilePath))
@@ -238,6 +242,10 @@ namespace Segra.Backend.Media
             {
                 Log.Error($"Error updating metadata file {metadataFilePath}: {ex.Message}");
                 return null;
+            }
+            finally
+            {
+                _metadataWriteLock.Release();
             }
         }
 
@@ -689,6 +697,49 @@ namespace Segra.Backend.Media
             }
         }
 
+        /// <summary>
+        /// Adds the bookmarks a content item doesn't have yet (matched by id) to its metadata and video file.
+        /// Never throws, since callers include fire-and-forget bookmark propagation from game integrations.
+        /// </summary>
+        public static async Task AddBookmarks(string contentId, List<Bookmark> bookmarks)
+        {
+            if (bookmarks.Count == 0)
+                return;
+
+            try
+            {
+                var contentItem = AppState.Instance.Content.FirstOrDefault(c => c.Id == contentId);
+                if (contentItem == null)
+                    return;
+
+                // Metadata written before bookmarks existed can deserialize with a null list
+                var existing = contentItem.Bookmarks ?? [];
+                var newBookmarks = bookmarks.Where(b => !existing.Any(e => e.Id == b.Id)).ToList();
+                if (newBookmarks.Count == 0)
+                    return;
+
+                List<Bookmark> added = [];
+                var content = await UpdateMetadataFile(FolderNames.GetMetadataFilePath(contentItem.Type, contentId), c =>
+                {
+                    c.Bookmarks ??= [];
+                    added = newBookmarks.Where(b => !c.Bookmarks.Any(e => e.Id == b.Id)).ToList();
+                    c.Bookmarks.AddRange(added);
+                });
+                if (content == null || added.Count == 0)
+                    return;
+
+                contentItem.Bookmarks ??= [];
+                foreach (var bookmark in added)
+                    contentItem.AddBookmark(bookmark);
+                EmbeddedMetadataService.Schedule(contentId);
+                Log.Information($"Added {added.Count} bookmarks to {contentItem.FilePath}");
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error adding bookmarks to {contentId}: {ex.Message}");
+            }
+        }
+
         public static async Task HandleAddBookmark(JsonElement message)
         {
             try
@@ -723,8 +774,6 @@ namespace Segra.Backend.Media
                         return;
                     }
 
-                    string metadataFilePath = FolderNames.GetMetadataFilePath(contentItem.Type, contentItem.Id);
-
                     var bookmark = new Bookmark
                     {
                         Id = bookmarkId,
@@ -732,22 +781,8 @@ namespace Segra.Backend.Media
                         Time = TimeSpan.Parse(timeString)
                     };
 
-                    var content = await UpdateMetadataFile(metadataFilePath, c =>
-                    {
-                        c.Bookmarks ??= [];
-                        c.AddBookmark(bookmark);
-                    });
-
-                    if (content == null)
-                    {
-                        return;
-                    }
-
-                    contentItem.AddBookmark(bookmark);
-                    EmbeddedMetadataService.Schedule(contentItem.Id);
-
+                    await AddBookmarks(contentId, [bookmark]);
                     await MessageService.SendStateToFrontend("Added bookmark");
-                    Log.Information($"Added bookmark of type {bookmarkType} at {timeString} to {metadataFilePath}");
                 }
                 else
                 {
@@ -890,10 +925,13 @@ namespace Segra.Backend.Media
                         }
                     }
 
-                    currentContent.Title = newTitle;
-                    currentContent.FileName = newFileName;
-                    currentContent.FilePath = newFilePath;
-                    await File.WriteAllTextAsync(metadataFilePath, JsonSerializer.Serialize(currentContent, _jsonOptions));
+                    if (await UpdateMetadataFile(metadataFilePath, c =>
+                    {
+                        c.Title = newTitle;
+                        c.FileName = newFileName;
+                        c.FilePath = newFilePath;
+                    }) == null)
+                        return;
 
                     Log.Information($"Updated title for {id} to '{newTitle}'");
                     await SettingsService.LoadContentFromFolderIntoState(true);

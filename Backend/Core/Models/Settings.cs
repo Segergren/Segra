@@ -1171,6 +1171,9 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("startSettings")]
         public JsonObject? StartSettings { get; set; }
 
+        // Lets saved replays pick up bookmarks that integrations add after the save
+        public event Action<Bookmark>? BookmarkAdded;
+
         public void AddBookmark(Bookmark bookmark)
         {
             lock (_bookmarksLock)
@@ -1178,6 +1181,15 @@ namespace Segra.Backend.Core.Models
                 Bookmarks.Add(bookmark);
             }
             AppState.Instance.NotifyRecordingUpdated();
+            BookmarkAdded?.Invoke(bookmark);
+        }
+
+        public List<Bookmark> GetBookmarks()
+        {
+            lock (_bookmarksLock)
+            {
+                return [.. Bookmarks];
+            }
         }
 
         [JsonPropertyName("duration")]
