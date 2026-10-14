@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
-import { createFile, MP4BoxBuffer } from 'mp4box';
 import type { ISOFile } from 'mp4box';
 import { Content } from '../Models/types';
 import { attachNativeCaptureTap, type NativeAudioSink } from '../Services/nativeAudioSink';
@@ -56,10 +55,6 @@ const PREROLL_FRAMES = 2;
 // The native sink plays ~90 ms behind the graph (worklet batching + backend cushion and
 // device buffer), so audio is scheduled that much earlier to stay in sync with the video.
 const NATIVE_SINK_LATENCY_SECONDS = 0.09;
-
-function makeMp4BoxBuffer(data: ArrayBuffer, fileStart: number): MP4BoxBuffer {
-  return MP4BoxBuffer.fromArrayBuffer(data, fileStart);
-}
 
 // Walk esds -> DecoderSpecificInfo.data to obtain the raw AudioSpecificConfig.
 // AAC streams in MP4 require this as the AudioDecoder `description`.
@@ -587,7 +582,10 @@ export function useAudioTracks(
 
       // mp4box is used only as a moov parser. After we extract compact sample
       // tables we drop the file reference and manage fetching ourselves.
-      let file: ISOFile | null = createFile();
+      // Loaded on first use so it isn't parsed at app startup
+      const mp4box = await import('mp4box');
+      if (cancelled || abortController.signal.aborted) return;
+      let file: ISOFile | null = mp4box.createFile();
       // Skip mp4box's per-sample object lists; sample tables are read from stbl below.
       file.buildSampleLists = function (this: ISOFile) {
         for (const trak of this.moov.traks) {
@@ -622,7 +620,7 @@ export function useAudioTracks(
       const appendRange = async (start: number, end: number) => {
         if (end < start || start >= fileSize) return;
         const ab = await rangeFetch(start, end, abortController.signal);
-        return file!.appendBuffer(makeMp4BoxBuffer(ab, start));
+        return file!.appendBuffer(mp4box.MP4BoxBuffer.fromArrayBuffer(ab, start));
       };
 
       try {

@@ -60,4 +60,10 @@ const renderApp = () =>
     </StrictMode>,
   );
 
-fontsReady.then(renderApp);
+// Preload the video player's mp4box chunk once the UI is up, so opening a video doesn't wait for it
+const preloadVideoParser = () => void import('mp4box');
+
+fontsReady.then(renderApp).then(() => {
+  if ('requestIdleCallback' in window) requestIdleCallback(preloadVideoParser, { timeout: 5000 });
+  else setTimeout(preloadVideoParser, 2000);
+});

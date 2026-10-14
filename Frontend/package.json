@@ -28,7 +28,6 @@
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.3.0",
-    "react-use-websocket": "^4.13.0",
     "semver": "^7.8.5",
     "theme-change": "^3.0.4"
   },

@@ -43,7 +43,9 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
 
   const saveCachedState = (value: State) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+      // The game list is ~3 MB, the backend resends it on every connection, and it would
+      // eat most of the localStorage quota
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...value, gameList: [] }));
     } catch {
       // ignore caching errors
     }
