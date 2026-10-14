@@ -230,8 +230,35 @@ internal static class MigrationService
             new("0016_copy_compress_10mb_to_20mb", Apply_0016_CopyCompress10MbTo20Mb),
             new("0017_per_device_input_options", Apply_0017_PerDeviceInputOptions),
             new("0018_embed_metadata_in_videos", Apply_0018_EmbedMetadataInVideos),
-            new("0019_index_first_in_clips", Apply_0019_IndexFirstInClips)
+            new("0019_index_first_in_clips", Apply_0019_IndexFirstInClips),
+            new("0020_remove_legacy_nvenc_presets", Apply_0020_RemoveLegacyNvencPresets)
         ];
+    }
+
+    // Migration 0020: FFmpeg removed the legacy NVENC presets (hp, hq, ll, ...), so clips with them fail to encode.
+    private static void Apply_0020_RemoveLegacyNvencPresets()
+    {
+        try
+        {
+            var settings = Settings.Instance;
+            string? replacement = settings.ClipPreset switch
+            {
+                "hq" or "bd" or "llhq" => "slow",
+                "hp" or "ll" or "llhp" or "losslesshp" => "fast",
+                "lossless" => "medium",
+                _ => null
+            };
+            if (replacement == null) return;
+
+            Log.Information($"ClipPreset changed from '{settings.ClipPreset}' to '{replacement}' (legacy NVENC preset)");
+            settings.ClipPreset = replacement;
+            SettingsService.SaveSettings();
+            _ = MessageService.SendSettingsToFrontend("Migrated legacy NVENC clip preset");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to migrate legacy NVENC clip preset");
+        }
     }
 
     // Migration 0019: 0018 moved the index of faststart videos (clips, highlights, compressed videos)

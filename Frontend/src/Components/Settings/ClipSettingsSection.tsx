@@ -81,14 +81,6 @@ export default function ClipSettingsSection({
           { value: 'slow', label: 'Slow' },
           { value: 'medium', label: 'Medium' },
           { value: 'fast', label: 'Fast' },
-          { value: 'hp', label: 'High Performance' },
-          { value: 'hq', label: 'High Quality' },
-          { value: 'bd', label: 'Blu-ray Disk' },
-          { value: 'll', label: 'Low Latency' },
-          { value: 'llhq', label: 'Low Latency High Quality' },
-          { value: 'llhp', label: 'Low Latency High Performance' },
-          { value: 'lossless', label: 'Lossless' },
-          { value: 'losslesshp', label: 'Lossless High Performance' },
         ];
       case GpuVendor.AMD:
         return [
@@ -309,7 +301,7 @@ export default function ClipSettingsSection({
                         ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'].includes(settings.clipPreset)
                       ) {
                         // Switching from AV1 to H.264/H.265, set default preset
-                        updates.clipPreset = 'hq' as ClipPreset;
+                        updates.clipPreset = 'medium' as ClipPreset;
                       }
                     }
 

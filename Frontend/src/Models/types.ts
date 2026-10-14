@@ -256,18 +256,7 @@ export type CpuClipPreset =
   | 'slow'
   | 'slower'
   | 'veryslow';
-export type NvidiaClipPreset =
-  | 'slow'
-  | 'medium'
-  | 'fast'
-  | 'hp'
-  | 'hq'
-  | 'bd'
-  | 'll'
-  | 'llhq'
-  | 'llhp'
-  | 'lossless'
-  | 'losslesshp';
+export type NvidiaClipPreset = 'slow' | 'medium' | 'fast';
 export type Av1NvencPreset = 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | 'p6' | 'p7';
 export type AmdClipPreset = 'quality' | 'transcoding' | 'lowlatency' | 'ultralowlatency';
 export type IntelClipPreset = 'fast' | 'medium' | 'slow';
