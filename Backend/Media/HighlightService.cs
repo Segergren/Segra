@@ -263,7 +263,7 @@ namespace Segra.Backend.Media
                 Log.Error(ffEx, "Error extracting and concatenating segments");
                 _ = MessageService.ShowModal(
                     "Highlight creation failed",
-                    FFmpegErrors.DescribeForUser(ffEx.ExitCode),
+                    FFmpegErrors.DescribeForUser(ffEx),
                     "error");
                 return false;
             }

@@ -310,11 +310,10 @@ namespace Segra.Backend.Media
                     string cardError = ex.Message;
                     if (ex is FFmpegException ffEx)
                     {
-                        var (shortMessage, _) = FFmpegErrors.Describe(ffEx.ExitCode);
-                        cardError = shortMessage;
+                        cardError = FFmpegErrors.Summarize(ffEx);
                         _ = MessageService.ShowModal(
                             "Clip creation failed",
-                            FFmpegErrors.DescribeForUser(ffEx.ExitCode),
+                            FFmpegErrors.DescribeForUser(ffEx),
                             "error");
                     }
 
@@ -459,8 +458,8 @@ namespace Segra.Backend.Media
                 string cardError = ex.Message;
                 if (ex is FFmpegException ffEx)
                 {
-                    cardError = FFmpegErrors.Describe(ffEx.ExitCode).Message;
-                    _ = MessageService.ShowModal("Merge failed", FFmpegErrors.DescribeForUser(ffEx.ExitCode), "error");
+                    cardError = FFmpegErrors.Summarize(ffEx);
+                    _ = MessageService.ShowModal("Merge failed", FFmpegErrors.DescribeForUser(ffEx), "error");
                 }
                 await SendProgress(-1, cardError);
             }
