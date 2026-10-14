@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DropdownSelect from '../DropdownSelect';
 import EncoderVendorIcon, { getEncoderVendor } from '../EncoderVendorIcon';
+import MonitorBrandIcon from '../MonitorBrandIcon';
 import { Settings as SettingsType, VideoQualityPreset, GpuVendor } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { clampInt } from '../../Utils/NumberUtils';
@@ -98,7 +99,15 @@ export default function VideoSettingsSection({
             const label = hasDuplicateName
               ? `${d.deviceName} (${i + 1})${d.isPrimary ? ' (Primary)' : ''}`
               : `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`;
-            return { value: d.deviceId, label };
+            return {
+              value: d.deviceId,
+              label: (
+                <span className="flex items-center gap-2">
+                  <MonitorBrandIcon display={d} />
+                  {label}
+                </span>
+              ),
+            };
           }),
         ]}
         value={settings.selectedDisplay?.deviceId || 'Automatic'}
