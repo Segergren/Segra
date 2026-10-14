@@ -853,6 +853,8 @@ namespace Segra.Backend.Core
             }
         }
 
+        private static int _invalidMetadataLogged;
+
         public static async Task LoadContentFromFolderIntoState(bool sendToFrontend = true, bool awaitMigrations = true)
         {
             // Migrations rename metadata files while they backfill ids. Loading alongside them
@@ -864,6 +866,7 @@ namespace Segra.Backend.Core
 
             var contentTypes = Enum.GetValues(typeof(Content.ContentType)).Cast<Content.ContentType>().ToArray();
             var content = new List<Content>();
+            int invalidMetadataCount = 0;
 
             try
             {
@@ -891,7 +894,7 @@ namespace Segra.Backend.Core
 
                             if (metadata == null || !File.Exists(metadata.FilePath))
                             {
-                                Log.Warning($"Invalid or missing metadata for file: {serializedMetadataFilePath}");
+                                invalidMetadataCount++;
                                 continue;
                             }
 
@@ -926,6 +929,9 @@ namespace Segra.Backend.Core
                 }
 
                 content = content.OrderByDescending(v => v.CreatedAt).ToList();
+
+                if (invalidMetadataCount > 0 && Interlocked.Exchange(ref _invalidMetadataLogged, 1) == 0)
+                    Log.Warning($"Skipped {invalidMetadataCount} metadata files with invalid content or a missing video");
             }
             catch (Exception ex)
             {

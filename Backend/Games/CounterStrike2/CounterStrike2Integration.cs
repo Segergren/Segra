@@ -129,8 +129,6 @@ namespace Segra.Backend.Games.CounterStrike2
                 if (context.Request.HttpMethod == "POST")
                 {
                     string body = await ReadRequestBodyAsync(context.Request);
-                    Log.Debug($"CS2 integration received payload: {body.Replace("\n", "").Replace("\r", "").Replace("\t", "")}");
-
                     GameState gameState = DeserializeState(body);
                     ProcessGameState(gameState);
                 }

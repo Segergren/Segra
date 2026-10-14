@@ -1,4 +1,5 @@
 using Serilog;
+using System.Text;
 using System.Reflection;
 using System.Diagnostics;
 using Segra.Backend.Recorder;
@@ -14,20 +15,20 @@ namespace Segra.Backend.App
         {
             try
             {
-                Log.Information("============ DIAGNOSTIC SNAPSHOT ============");
+                var lines = new List<string>();
+                LogAppAndRuntime(lines);
+                LogSystemHardware(lines);
+                LogDrives(lines);
+                LogRecordingAndEncoding(lines);
+                LogAudio(lines);
+                LogDisplay(lines);
+                LogStorage(lines);
+                LogGameDetection(lines);
+                LogAccountAndMisc(lines);
+                LogClipExport(lines);
 
-                LogAppAndRuntime();
-                LogSystemHardware();
-                LogDrives();
-                LogRecordingAndEncoding();
-                LogAudio();
-                LogDisplay();
-                LogStorage();
-                LogGameDetection();
-                LogAccountAndMisc();
-                LogClipExport();
-
-                Log.Information("============ END DIAGNOSTIC SNAPSHOT ============");
+                var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(string.Join('\n', lines)));
+                Log.Information($"Diagnostic snapshot: {encoded}");
             }
             catch (Exception ex)
             {
@@ -35,37 +36,37 @@ namespace Segra.Backend.App
             }
         }
 
-        private static void LogAppAndRuntime()
+        private static void LogAppAndRuntime(List<string> lines)
         {
-            Log.Information("--- App & runtime ---");
+            lines.Add("--- App & runtime ---");
             var version = Assembly.GetExecutingAssembly().GetName().Version;
-            Log.Information($"App version: {version}");
+            lines.Add($"App version: {version}");
 #if DEBUG
-            Log.Information("Build configuration: Debug");
+            lines.Add("Build configuration: Debug");
 #else
-            Log.Information("Build configuration: Release");
+            lines.Add("Build configuration: Release");
 #endif
-            Log.Information($"Is first run: {Program.IsFirstRun}");
-            Log.Information($"OS version: {Environment.OSVersion.VersionString}");
-            Log.Information($"OS description: {RuntimeInformation.OSDescription}");
-            Log.Information($"OS architecture: {RuntimeInformation.OSArchitecture}");
-            Log.Information($"Process architecture: {RuntimeInformation.ProcessArchitecture}");
-            Log.Information($".NET runtime: {RuntimeInformation.FrameworkDescription}");
-            Log.Information($"Processor count: {Environment.ProcessorCount}");
+            lines.Add($"Is first run: {Program.IsFirstRun}");
+            lines.Add($"OS version: {Environment.OSVersion.VersionString}");
+            lines.Add($"OS description: {RuntimeInformation.OSDescription}");
+            lines.Add($"OS architecture: {RuntimeInformation.OSArchitecture}");
+            lines.Add($"Process architecture: {RuntimeInformation.ProcessArchitecture}");
+            lines.Add($".NET runtime: {RuntimeInformation.FrameworkDescription}");
+            lines.Add($"Processor count: {Environment.ProcessorCount}");
 
             using var process = Process.GetCurrentProcess();
-            Log.Information($"Working set: {process.WorkingSet64 / (1024 * 1024)} MiB");
-            Log.Information($"Private memory: {process.PrivateMemorySize64 / (1024 * 1024)} MiB");
-            Log.Information($"Process uptime: {DateTime.Now - process.StartTime}");
-            Log.Information($"System uptime: {TimeSpan.FromMilliseconds(Environment.TickCount64)}");
-            Log.Information($"UTC time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}");
-            Log.Information($"Local time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            Log.Information($"Time zone: {TimeZoneInfo.Local.Id} (UTC offset {TimeZoneInfo.Local.BaseUtcOffset})");
+            lines.Add($"Working set: {process.WorkingSet64 / (1024 * 1024)} MiB");
+            lines.Add($"Private memory: {process.PrivateMemorySize64 / (1024 * 1024)} MiB");
+            lines.Add($"Process uptime: {DateTime.Now - process.StartTime}");
+            lines.Add($"System uptime: {TimeSpan.FromMilliseconds(Environment.TickCount64)}");
+            lines.Add($"UTC time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}");
+            lines.Add($"Local time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            lines.Add($"Time zone: {TimeZoneInfo.Local.Id} (UTC offset {TimeZoneInfo.Local.BaseUtcOffset})");
         }
 
-        private static void LogSystemHardware()
+        private static void LogSystemHardware(List<string> lines)
         {
-            Log.Information("--- System hardware ---");
+            lines.Add("--- System hardware ---");
 
 #if !WINDOWS
             // Linux: read CPU/memory from procfs; GPU vendor from the detection helper.
@@ -76,19 +77,19 @@ namespace Segra.Backend.App
                     var model = File.ReadLines("/proc/cpuinfo")
                         .FirstOrDefault(l => l.StartsWith("model name"));
                     if (model != null)
-                        Log.Information($"CPU: {model.Split(':', 2).Last().Trim()} ({Environment.ProcessorCount} logical)");
+                        lines.Add($"CPU: {model.Split(':', 2).Last().Trim()} ({Environment.ProcessorCount} logical)");
                 }
                 if (File.Exists("/proc/meminfo"))
                 {
                     var memTotal = File.ReadLines("/proc/meminfo").FirstOrDefault(l => l.StartsWith("MemTotal"));
                     if (memTotal != null && long.TryParse(new string(memTotal.Where(char.IsDigit).ToArray()), out long kb))
-                        Log.Information($"Total physical memory: {kb / 1024.0 / 1024.0:F2} GB");
+                        lines.Add($"Total physical memory: {kb / 1024.0 / 1024.0:F2} GB");
                 }
-                Log.Information($"GPU vendor: {Shared.GeneralUtils.DetectGpuVendor()}");
+                lines.Add($"GPU vendor: {Shared.GeneralUtils.DetectGpuVendor()}");
             }
             catch (Exception ex)
             {
-                Log.Information($"System hardware: error reading ({ex.Message})");
+                lines.Add($"System hardware: error reading ({ex.Message})");
             }
             return;
 #else
@@ -98,12 +99,12 @@ namespace Segra.Backend.App
                     "SELECT Name, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed FROM Win32_Processor");
                 foreach (System.Management.ManagementObject cpu in cpuSearcher.Get())
                 {
-                    Log.Information($"CPU: {cpu["Name"]} ({cpu["NumberOfCores"]} cores, {cpu["NumberOfLogicalProcessors"]} logical, {cpu["MaxClockSpeed"]} MHz)");
+                    lines.Add($"CPU: {cpu["Name"]} ({cpu["NumberOfCores"]} cores, {cpu["NumberOfLogicalProcessors"]} logical, {cpu["MaxClockSpeed"]} MHz)");
                 }
             }
             catch (Exception ex)
             {
-                Log.Information($"CPU: error reading ({ex.Message})");
+                lines.Add($"CPU: error reading ({ex.Message})");
             }
 
             try
@@ -116,13 +117,13 @@ namespace Segra.Backend.App
                     {
                         ulong bytes = Convert.ToUInt64(raw);
                         double gb = bytes / 1024.0 / 1024.0 / 1024.0;
-                        Log.Information($"Total physical memory: {gb:F2} GB");
+                        lines.Add($"Total physical memory: {gb:F2} GB");
                     }
                 }
             }
             catch (Exception ex)
             {
-                Log.Information($"Total physical memory: error reading ({ex.Message})");
+                lines.Add($"Total physical memory: error reading ({ex.Message})");
             }
 
             try
@@ -130,7 +131,7 @@ namespace Segra.Backend.App
                 using var gpuSearcher = new System.Management.ManagementObjectSearcher(
                     "SELECT Name, AdapterRAM, DriverVersion, DriverDate, VideoModeDescription, CurrentHorizontalResolution, CurrentVerticalResolution, CurrentRefreshRate FROM Win32_VideoController");
                 var gpus = gpuSearcher.Get().Cast<System.Management.ManagementObject>().ToList();
-                Log.Information($"GPU adapters ({gpus.Count}):");
+                lines.Add($"GPU adapters ({gpus.Count}):");
                 foreach (var gpu in gpus)
                 {
                     string name = gpu["Name"]?.ToString() ?? "<unknown>";
@@ -148,36 +149,36 @@ namespace Segra.Backend.App
                     {
                         resStr = $", mode={gpu["CurrentHorizontalResolution"]}x{gpu["CurrentVerticalResolution"]}@{gpu["CurrentRefreshRate"]}Hz";
                     }
-                    Log.Information($"  - {name} (driver={driver}, driverDate={driverDate}, vramReported={vramStr}{resStr})");
+                    lines.Add($"  - {name} (driver={driver}, driverDate={driverDate}, vramReported={vramStr}{resStr})");
                 }
             }
             catch (Exception ex)
             {
-                Log.Information($"GPU adapters: error reading ({ex.Message})");
+                lines.Add($"GPU adapters: error reading ({ex.Message})");
             }
 #endif
         }
 
-        private static void LogDrives()
+        private static void LogDrives(List<string> lines)
         {
-            Log.Information("--- Drives ---");
+            lines.Add("--- Drives ---");
 
 #if !WINDOWS
             // Linux: enumerate mounted drives via the cross-platform DriveInfo API.
             try
             {
                 var drives = DriveInfo.GetDrives().Where(d => d.IsReady).ToList();
-                Log.Information($"Drives ({drives.Count}):");
+                lines.Add($"Drives ({drives.Count}):");
                 foreach (var d in drives)
                 {
                     double totalGb = d.TotalSize / 1024.0 / 1024.0 / 1024.0;
                     double freeGb = d.AvailableFreeSpace / 1024.0 / 1024.0 / 1024.0;
-                    Log.Information($"  - {d.Name} ({d.DriveType}, {d.DriveFormat}) total={totalGb:F2} GB, free={freeGb:F2} GB");
+                    lines.Add($"  - {d.Name} ({d.DriveType}, {d.DriveFormat}) total={totalGb:F2} GB, free={freeGb:F2} GB");
                 }
             }
             catch (Exception ex)
             {
-                Log.Information($"Drives: error reading ({ex.Message})");
+                lines.Add($"Drives: error reading ({ex.Message})");
             }
             return;
 #else
@@ -188,7 +189,7 @@ namespace Segra.Backend.App
                     @"\\.\root\Microsoft\Windows\Storage",
                     "SELECT FriendlyName, Model, Size, MediaType, BusType, SpindleSpeed FROM MSFT_PhysicalDisk");
                 var disks = physSearcher.Get().Cast<System.Management.ManagementObject>().ToList();
-                Log.Information($"Physical disks ({disks.Count}):");
+                lines.Add($"Physical disks ({disks.Count}):");
                 foreach (var disk in disks)
                 {
                     string name = disk["FriendlyName"]?.ToString() ?? disk["Model"]?.ToString() ?? "<unknown>";
@@ -206,19 +207,19 @@ namespace Segra.Backend.App
                         uint rpm = Convert.ToUInt32(sp);
                         if (rpm > 0 && rpm != uint.MaxValue) spindleStr = $", {rpm} RPM";
                     }
-                    Log.Information($"  - {name} (size={sizeStr}, media={media}, bus={bus}{spindleStr})");
+                    lines.Add($"  - {name} (size={sizeStr}, media={media}, bus={bus}{spindleStr})");
                 }
             }
             catch (Exception ex)
             {
                 // MSFT_PhysicalDisk may be unavailable on some Windows versions; fall back to Win32_DiskDrive.
-                Log.Information($"MSFT_PhysicalDisk unavailable ({ex.Message}), falling back to Win32_DiskDrive");
+                lines.Add($"MSFT_PhysicalDisk unavailable ({ex.Message}), falling back to Win32_DiskDrive");
                 try
                 {
                     using var fallback = new System.Management.ManagementObjectSearcher(
                         "SELECT Model, Size, InterfaceType, MediaType FROM Win32_DiskDrive");
                     var disks = fallback.Get().Cast<System.Management.ManagementObject>().ToList();
-                    Log.Information($"Physical disks ({disks.Count}):");
+                    lines.Add($"Physical disks ({disks.Count}):");
                     foreach (var disk in disks)
                     {
                         string model = disk["Model"]?.ToString() ?? "<unknown>";
@@ -230,12 +231,12 @@ namespace Segra.Backend.App
                         }
                         string iface = disk["InterfaceType"]?.ToString() ?? "<unknown>";
                         string media = disk["MediaType"]?.ToString() ?? "<unknown>";
-                        Log.Information($"  - {model} (size={sizeStr}, interface={iface}, media={media})");
+                        lines.Add($"  - {model} (size={sizeStr}, interface={iface}, media={media})");
                     }
                 }
                 catch (Exception ex2)
                 {
-                    Log.Information($"Physical disks: error reading ({ex2.Message})");
+                    lines.Add($"Physical disks: error reading ({ex2.Message})");
                 }
             }
 
@@ -245,7 +246,7 @@ namespace Segra.Backend.App
                 using var logicalSearcher = new System.Management.ManagementObjectSearcher(
                     "SELECT DeviceID, DriveType, FileSystem, VolumeName, Size, FreeSpace FROM Win32_LogicalDisk");
                 var volumes = logicalSearcher.Get().Cast<System.Management.ManagementObject>().ToList();
-                Log.Information($"Logical drives ({volumes.Count}):");
+                lines.Add($"Logical drives ({volumes.Count}):");
                 foreach (var vol in volumes)
                 {
                     string id = vol["DeviceID"]?.ToString() ?? "<unknown>";
@@ -263,12 +264,12 @@ namespace Segra.Backend.App
                         double pct = size > 0 ? (size - free) * 100.0 / size : 0;
                         usageStr = $"used={usedGb:F2} GB / total={sizeGb:F2} GB ({pct:F1}%), free={freeGb:F2} GB";
                     }
-                    Log.Information($"  - {id} ({type}, {fs}, label=\"{label}\") {usageStr}");
+                    lines.Add($"  - {id} ({type}, {fs}, label=\"{label}\") {usageStr}");
                 }
             }
             catch (Exception ex)
             {
-                Log.Information($"Logical drives: error reading ({ex.Message})");
+                lines.Add($"Logical drives: error reading ({ex.Message})");
             }
 #endif
         }
@@ -319,96 +320,96 @@ namespace Segra.Backend.App
             _ => $"Unknown({code})"
         };
 
-        private static void LogRecordingAndEncoding()
+        private static void LogRecordingAndEncoding(List<string> lines)
         {
-            Log.Information("--- Recording & encoding ---");
+            lines.Add("--- Recording & encoding ---");
             var s = Settings.Instance;
-            Log.Information($"Selected OBS version: {s.SelectedOBSVersion ?? "automatic"}");
-            Log.Information($"Has loaded OBS: {AppState.Instance.HasLoadedObs}");
-            Log.Information($"Pending OBS update: {s.PendingOBSUpdate}");
-            Log.Information($"Available OBS versions: {AppState.Instance.AvailableOBSVersions.Count}");
+            lines.Add($"Selected OBS version: {s.SelectedOBSVersion ?? "automatic"}");
+            lines.Add($"Has loaded OBS: {AppState.Instance.HasLoadedObs}");
+            lines.Add($"Pending OBS update: {s.PendingOBSUpdate}");
+            lines.Add($"Available OBS versions: {AppState.Instance.AvailableOBSVersions.Count}");
 
             if (AppState.Instance.PreRecording != null)
-                Log.Information($"PreRecording: game={AppState.Instance.PreRecording.Game}, status={AppState.Instance.PreRecording.Status}, pid={AppState.Instance.PreRecording.Pid?.ToString() ?? "<none>"}");
+                lines.Add($"PreRecording: game={AppState.Instance.PreRecording.Game}, status={AppState.Instance.PreRecording.Status}, pid={AppState.Instance.PreRecording.Pid?.ToString() ?? "<none>"}");
             else
-                Log.Information("PreRecording: <none>");
+                lines.Add("PreRecording: <none>");
 
             if (AppState.Instance.Recording != null)
-                Log.Information($"Recording: game={AppState.Instance.Recording.Game}, startTime={AppState.Instance.Recording.StartTime:O}, hook={AppState.Instance.Recording.IsUsingGameHook}, windowCapture={AppState.Instance.Recording.IsUsingWindowCapture}, pid={AppState.Instance.Recording.Pid?.ToString() ?? "<none>"}");
+                lines.Add($"Recording: game={AppState.Instance.Recording.Game}, startTime={AppState.Instance.Recording.StartTime:O}, hook={AppState.Instance.Recording.IsUsingGameHook}, windowCapture={AppState.Instance.Recording.IsUsingWindowCapture}, pid={AppState.Instance.Recording.Pid?.ToString() ?? "<none>"}");
             else
-                Log.Information("Recording: <none>");
+                lines.Add("Recording: <none>");
 
-            Log.Information($"Encoder: {s.Encoder}");
+            lines.Add($"Encoder: {s.Encoder}");
             if (s.Codec != null)
-                Log.Information($"Codec: {s.Codec.FriendlyName} (id={s.Codec.InternalEncoderId}, hw={s.Codec.IsHardwareEncoder})");
+                lines.Add($"Codec: {s.Codec.FriendlyName} (id={s.Codec.InternalEncoderId}, hw={s.Codec.IsHardwareEncoder})");
             else
-                Log.Information("Codec: <null>");
-            Log.Information($"Resolution: {s.Resolution} @ {s.FrameRate} fps (stretch4By3={s.Stretch4By3})");
-            Log.Information($"Bitrate: {s.Bitrate} Mbps (min={s.MinBitrate}, max={s.MaxBitrate})");
-            Log.Information($"Rate control: {s.RateControl} (CRF={s.CrfValue}, CQ={s.CqLevel})");
-            Log.Information($"Video quality preset: {s.VideoQualityPreset}");
-            Log.Information($"Recording mode: {s.RecordingMode}");
-            Log.Information($"Replay buffer: duration={s.ReplayBufferDuration}s, maxSize={s.ReplayBufferMaxSize}MB, alwaysOn={s.AlwaysOnReplayBuffer} (active={AppState.Instance.AlwaysOnBufferActive})");
-            Log.Information($"GPU vendor: {AppState.Instance.GpuVendor}");
+                lines.Add("Codec: <null>");
+            lines.Add($"Resolution: {s.Resolution} @ {s.FrameRate} fps (stretch4By3={s.Stretch4By3})");
+            lines.Add($"Bitrate: {s.Bitrate} Mbps (min={s.MinBitrate}, max={s.MaxBitrate})");
+            lines.Add($"Rate control: {s.RateControl} (CRF={s.CrfValue}, CQ={s.CqLevel})");
+            lines.Add($"Video quality preset: {s.VideoQualityPreset}");
+            lines.Add($"Recording mode: {s.RecordingMode}");
+            lines.Add($"Replay buffer: duration={s.ReplayBufferDuration}s, maxSize={s.ReplayBufferMaxSize}MB, alwaysOn={s.AlwaysOnReplayBuffer} (active={AppState.Instance.AlwaysOnBufferActive})");
+            lines.Add($"GPU vendor: {AppState.Instance.GpuVendor}");
 #if WINDOWS
-            Log.Information($"NVENC capabilities: {NvencCapsService.GetCapsSummaryOrNull() ?? "<none>"}");
+            lines.Add($"NVENC capabilities: {NvencCapsService.GetCapsSummaryOrNull() ?? "<none>"}");
 #endif
-            Log.Information($"Available codecs ({AppState.Instance.Codecs.Count}):");
+            lines.Add($"Available codecs ({AppState.Instance.Codecs.Count}):");
             foreach (var codec in AppState.Instance.Codecs)
             {
-                Log.Information($"  - {codec.FriendlyName} (id={codec.InternalEncoderId}, hw={codec.IsHardwareEncoder})");
+                lines.Add($"  - {codec.FriendlyName} (id={codec.InternalEncoderId}, hw={codec.IsHardwareEncoder})");
             }
         }
 
-        private static void LogAudio()
+        private static void LogAudio(List<string> lines)
         {
-            Log.Information("--- Audio ---");
+            lines.Add("--- Audio ---");
             var s = Settings.Instance;
-            Log.Information($"Configured input devices ({s.InputDevices.Count}):");
+            lines.Add($"Configured input devices ({s.InputDevices.Count}):");
             foreach (var d in s.InputDevices)
-                Log.Information($"  - {d.Name} (id={d.Id}, volume={d.Volume:F2}, noiseSuppression={d.NoiseSuppression}, forceMono={d.ForceMono})");
-            Log.Information($"Configured output devices ({s.OutputDevices.Count}):");
+                lines.Add($"  - {d.Name} (id={d.Id}, volume={d.Volume:F2}, noiseSuppression={d.NoiseSuppression}, forceMono={d.ForceMono})");
+            lines.Add($"Configured output devices ({s.OutputDevices.Count}):");
             foreach (var d in s.OutputDevices)
-                Log.Information($"  - {d.Name} (id={d.Id}, volume={d.Volume:F2})");
-            Log.Information($"Detected input devices: {AppState.Instance.InputDevices.Count}");
-            Log.Information($"Detected output devices: {AppState.Instance.OutputDevices.Count}");
-            Log.Information($"Separate audio tracks: {s.EnableSeparateAudioTracks}");
-            Log.Information($"Audio output mode: {s.AudioOutputMode}");
+                lines.Add($"  - {d.Name} (id={d.Id}, volume={d.Volume:F2})");
+            lines.Add($"Detected input devices: {AppState.Instance.InputDevices.Count}");
+            lines.Add($"Detected output devices: {AppState.Instance.OutputDevices.Count}");
+            lines.Add($"Separate audio tracks: {s.EnableSeparateAudioTracks}");
+            lines.Add($"Audio output mode: {s.AudioOutputMode}");
         }
 
-        private static void LogDisplay()
+        private static void LogDisplay(List<string> lines)
         {
-            Log.Information("--- Display ---");
+            lines.Add("--- Display ---");
             var s = Settings.Instance;
-            Log.Information($"Detected displays ({AppState.Instance.Displays.Count}):");
+            lines.Add($"Detected displays ({AppState.Instance.Displays.Count}):");
             foreach (var d in AppState.Instance.Displays)
-                Log.Information($"  - {d.DeviceName} (id={d.DeviceId}, primary={d.IsPrimary})");
+                lines.Add($"  - {d.DeviceName} (id={d.DeviceId}, primary={d.IsPrimary})");
             if (s.SelectedDisplay != null)
-                Log.Information($"Selected display: {s.SelectedDisplay.DeviceName} (primary={s.SelectedDisplay.IsPrimary})");
+                lines.Add($"Selected display: {s.SelectedDisplay.DeviceName} (primary={s.SelectedDisplay.IsPrimary})");
             else
-                Log.Information("Selected display: <auto>");
-            Log.Information($"Max display height: {AppState.Instance.MaxDisplayHeight}");
+                lines.Add("Selected display: <auto>");
+            lines.Add($"Max display height: {AppState.Instance.MaxDisplayHeight}");
         }
 
-        private static void LogStorage()
+        private static void LogStorage(List<string> lines)
         {
-            Log.Information("--- Storage ---");
+            lines.Add("--- Storage ---");
             var s = Settings.Instance;
-            Log.Information($"Content folder: {s.ContentFolder}");
-            LogDriveInfo("Content folder drive", s.ContentFolder);
-            Log.Information($"Cache folder: {s.CacheFolder}");
-            LogDriveInfo("Cache folder drive", s.CacheFolder);
-            Log.Information($"Current content size: {AppState.Instance.CurrentFolderSizeGb:F2} GB");
-            Log.Information($"Storage limit: {s.StorageLimit} GB");
+            lines.Add($"Content folder: {s.ContentFolder}");
+            LogDriveInfo(lines, "Content folder drive", s.ContentFolder);
+            lines.Add($"Cache folder: {s.CacheFolder}");
+            LogDriveInfo(lines, "Cache folder drive", s.CacheFolder);
+            lines.Add($"Current content size: {AppState.Instance.CurrentFolderSizeGb:F2} GB");
+            lines.Add($"Storage limit: {s.StorageLimit} GB");
 
             var byType = AppState.Instance.Content
                 .GroupBy(c => c.Type)
                 .OrderBy(g => g.Key.ToString())
                 .Select(g => $"{g.Key}={g.Count()}");
-            Log.Information($"Content count: {AppState.Instance.Content.Count} ({string.Join(", ", byType)})");
+            lines.Add($"Content count: {AppState.Instance.Content.Count} ({string.Join(", ", byType)})");
         }
 
-        private static void LogDriveInfo(string label, string path)
+        private static void LogDriveInfo(List<string> lines, string label, string path)
         {
             try
             {
@@ -418,55 +419,55 @@ namespace Segra.Backend.App
                 var drive = new DriveInfo(root);
                 if (!drive.IsReady)
                 {
-                    Log.Information($"{label}: {root} not ready");
+                    lines.Add($"{label}: {root} not ready");
                     return;
                 }
                 double freeGb = drive.AvailableFreeSpace / (double)StorageService.BYTES_PER_GB;
                 double totalGb = drive.TotalSize / (double)StorageService.BYTES_PER_GB;
-                Log.Information($"{label}: {root} free={freeGb:F2} GB / total={totalGb:F2} GB ({drive.DriveFormat})");
+                lines.Add($"{label}: {root} free={freeGb:F2} GB / total={totalGb:F2} GB ({drive.DriveFormat})");
             }
             catch (Exception ex)
             {
-                Log.Information($"{label}: error reading drive info ({ex.Message})");
+                lines.Add($"{label}: error reading drive info ({ex.Message})");
             }
         }
 
-        private static void LogGameDetection()
+        private static void LogGameDetection(List<string> lines)
         {
-            Log.Information("--- Game detection ---");
+            lines.Add("--- Game detection ---");
             var s = Settings.Instance;
-            Log.Information($"Custom game settings: {s.Games.Count} entries ({s.Games.Count(g => g.Record)} recording, {s.Games.Count(g => !g.Record)} blocked)");
-            Log.Information($"Game integrations: CS2={s.GameIntegrations.CounterStrike2.Enabled}, LoL={s.GameIntegrations.LeagueOfLegends.Enabled}, PUBG={s.GameIntegrations.Pubg.Enabled}, RocketLeague={s.GameIntegrations.RocketLeague.Enabled}");
+            lines.Add($"Custom game settings: {s.Games.Count} entries ({s.Games.Count(g => g.Record)} recording, {s.Games.Count(g => !g.Record)} blocked)");
+            lines.Add($"Game integrations: CS2={s.GameIntegrations.CounterStrike2.Enabled}, LoL={s.GameIntegrations.LeagueOfLegends.Enabled}, PUBG={s.GameIntegrations.Pubg.Enabled}, RocketLeague={s.GameIntegrations.RocketLeague.Enabled}");
         }
 
-        private static void LogAccountAndMisc()
+        private static void LogAccountAndMisc(List<string> lines)
         {
-            Log.Information("--- Account & misc settings ---");
+            lines.Add("--- Account & misc settings ---");
             var s = Settings.Instance;
-            Log.Information($"Logged in: {s.Auth.HasCredentials()}");
-            Log.Information($"Enable AI: {s.EnableAi}");
-            Log.Information($"Auto generate highlights: {s.AutoGenerateHighlights}");
-            Log.Information($"Run on startup: {s.RunOnStartup}");
-            Log.Information($"Receive beta updates: {s.ReceiveBetaUpdates}");
-            Log.Information($"Auto install updates: {s.AutoInstallUpdates}");
-            Log.Information($"Confirm before deleting: {s.ConfirmBeforeDeleting}");
-            Log.Information($"Remove original after compression: {s.RemoveOriginalAfterCompression}");
-            Log.Information($"Discard sessions without bookmarks: {s.DiscardSessionsWithoutBookmarks}");
+            lines.Add($"Logged in: {s.Auth.HasCredentials()}");
+            lines.Add($"Enable AI: {s.EnableAi}");
+            lines.Add($"Auto generate highlights: {s.AutoGenerateHighlights}");
+            lines.Add($"Run on startup: {s.RunOnStartup}");
+            lines.Add($"Receive beta updates: {s.ReceiveBetaUpdates}");
+            lines.Add($"Auto install updates: {s.AutoInstallUpdates}");
+            lines.Add($"Confirm before deleting: {s.ConfirmBeforeDeleting}");
+            lines.Add($"Remove original after compression: {s.RemoveOriginalAfterCompression}");
+            lines.Add($"Discard sessions without bookmarks: {s.DiscardSessionsWithoutBookmarks}");
         }
 
-        private static void LogClipExport()
+        private static void LogClipExport(List<string> lines)
         {
-            Log.Information("--- Clip export settings ---");
+            lines.Add("--- Clip export settings ---");
             var s = Settings.Instance;
-            Log.Information($"Clip encoder: {s.ClipEncoder}");
-            Log.Information($"Clip codec: {s.ClipCodec}");
-            Log.Information($"Clip fps: {s.ClipFps}");
-            Log.Information($"Clip quality CPU (CRF): {s.ClipQualityCpu}");
-            Log.Information($"Clip quality GPU (CQ): {s.ClipQualityGpu}");
-            Log.Information($"Clip preset: {s.ClipPreset}");
-            Log.Information($"Clip audio quality: {s.ClipAudioQuality}");
-            Log.Information($"Clip keep separate audio tracks: {s.ClipKeepSeparateAudioTracks}");
-            Log.Information($"Clip quality preset: {s.ClipQualityPreset}");
+            lines.Add($"Clip encoder: {s.ClipEncoder}");
+            lines.Add($"Clip codec: {s.ClipCodec}");
+            lines.Add($"Clip fps: {s.ClipFps}");
+            lines.Add($"Clip quality CPU (CRF): {s.ClipQualityCpu}");
+            lines.Add($"Clip quality GPU (CQ): {s.ClipQualityGpu}");
+            lines.Add($"Clip preset: {s.ClipPreset}");
+            lines.Add($"Clip audio quality: {s.ClipAudioQuality}");
+            lines.Add($"Clip keep separate audio tracks: {s.ClipKeepSeparateAudioTracks}");
+            lines.Add($"Clip quality preset: {s.ClipQualityPreset}");
         }
     }
 }
