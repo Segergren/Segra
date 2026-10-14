@@ -1356,7 +1356,7 @@ namespace Segra.Backend.Core.Models
         }
     }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(JsonStringEnumConverter<RecordingMode>))]
     public enum RecordingMode
     {
         Session,
@@ -1364,28 +1364,28 @@ namespace Segra.Backend.Core.Models
         Hybrid
     }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(JsonStringEnumConverter<GpuPriority>))]
     public enum GpuPriority
     {
         High,
         Realtime
     }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(JsonStringEnumConverter<StartupWindowMode>))]
     public enum StartupWindowMode
     {
         Normal,
         Minimized
     }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(JsonStringEnumConverter<CloseButtonAction>))]
     public enum CloseButtonAction
     {
         Minimize,
         Exit
     }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(JsonStringEnumConverter<AudioOutputMode>))]
     public enum AudioOutputMode
     {
         All,

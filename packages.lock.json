@@ -32,12 +32,6 @@
           "PhotinoX.Native": "5.3.5"
         }
       },
-      "PhotinoX.Server": {
-        "type": "Direct",
-        "requested": "[5.0.0, )",
-        "resolved": "5.0.0",
-        "contentHash": "TEDIgOYeXixVNMJS7QWsVhvJKHixv/dU1A8V4ltUe3lW1kMa2hEsS2HVbF09daR7vh8C9I7d9h+jbJZz91IDvA=="
-      },
       "Serilog": {
         "type": "Direct",
         "requested": "[4.4.0, )",
@@ -181,12 +175,6 @@
         "dependencies": {
           "PhotinoX.Native": "5.3.5"
         }
-      },
-      "PhotinoX.Server": {
-        "type": "Direct",
-        "requested": "[5.0.0, )",
-        "resolved": "5.0.0",
-        "contentHash": "TEDIgOYeXixVNMJS7QWsVhvJKHixv/dU1A8V4ltUe3lW1kMa2hEsS2HVbF09daR7vh8C9I7d9h+jbJZz91IDvA=="
       },
       "Serilog": {
         "type": "Direct",

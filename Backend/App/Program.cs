@@ -3,7 +3,6 @@ using Velopack;
 using Photino.NET;
 using System.IO.Pipes;
 using Segra.Backend.Api;
-using Photino.NET.Server;
 using Segra.Backend.Core;
 using System.Diagnostics;
 using System.Drawing;
@@ -206,26 +205,18 @@ namespace Segra.Backend.App
 #endif
 
                 // VS Code sets SEGRA_VSCODE=1 via launch.json; Visual Studio does not.
-                // In VS Code the Vite dev server runs separately, so PhotinoServer is not needed
-                // and its RunAsync() would otherwise open a spurious browser tab.
+                // In VS Code the Vite dev server runs separately, so the frontend server is not needed.
                 // A child process (self-restart) inherits the variable without the debugger, so require both.
                 bool IsDebugMode = Debugger.IsAttached;
                 bool IsVSCodeDebug = IsDebugMode && Environment.GetEnvironmentVariable("SEGRA_VSCODE") == "1";
 
-                string baseUrl = string.Empty;
-                if (!IsVSCodeDebug)
-                {
-                    PhotinoServer
-                        .CreateStaticFileServer(args, startPort: 44040, portRange: 100, webRootFolder: "wwwroot", out baseUrl)
-                        .RunAsync();
-                }
+                Task<string> frontendServer = IsVSCodeDebug ? Task.FromResult(string.Empty) : Task.Run(FrontendServer.Start);
 
                 // Version-stamped URL: WebKitGTK's disk cache persists across app updates and the
                 // static server sends no cache headers, so a bare /index.html can keep rendering
                 // the previous build's frontend until a manual refresh.
                 string? appVersion = Assembly.GetExecutingAssembly()
                     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-                appUrl = IsDebugMode ? "http://localhost:2882" : $"{baseUrl}/index.html?v={Uri.EscapeDataString(appVersion ?? "0")}";
 
                 if (IsDebugMode)
                 {
@@ -260,8 +251,6 @@ namespace Segra.Backend.App
                     });
                 }
 
-                Log.Information("Serving React app at {AppUrl}", appUrl);
-
                 Task.Run(() =>
                 {
                     ContentServer.StartServer(ContentServer.Prefix);
@@ -269,13 +258,27 @@ namespace Segra.Backend.App
 
                 IsFirstRun = !SettingsService.LoadSettings();
                 hasLoadedInitialSettings = true;
-                AppState.Instance.Initialize();
-                SettingsService.SaveSettings();
+
+                // Runs alongside the window and webview startup instead of delaying them
+                Task stateInit = Task.Run(() =>
+                {
+                    try
+                    {
+                        AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
+                        AppState.Instance.Initialize();
+                        SettingsService.SaveSettings();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Failed to initialize app state");
+                    }
+                });
                 if (IsFirstRun)
                 {
+                    // Default device selection needs the enumerated devices
+                    stateInit.Wait();
                     _ = SettingsService.LoadContentFromFolderIntoState(true);
                     PlatformServices.Startup.SetStartupStatus(true);
-                    AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
                     SettingsService.SelectDefaultDevices();
                     _ = PresetsService.ApplyVideoPreset("high");
                     _ = PresetsService.ApplyClipPreset("standard");
@@ -361,11 +364,16 @@ namespace Segra.Backend.App
                 // (HotkeyCaptureService.Start() is called from OBSService.InitializeAsync once OBS is
                 // ready, since hotkeys register through OBS's own hotkey system.)
                 // OBSWindow hosts the Win32 message pump the graphics-hook game_capture needs.
-                Task.Run(() => Application.Run(new OBSWindow()));
+                // Waits for the state init: OBS init ends by starting the always-on replay buffer,
+                // which needs the enumerated devices and displays.
+                stateInit.ContinueWith(_ => Application.Run(new OBSWindow()), TaskScheduler.Default);
 #else
                 // Linux libobs runs headless (no message pump needed); initialize OBS directly.
-                Task.Run(() => OBSService.InitializeAsync());
+                stateInit.ContinueWith(_ => OBSService.InitializeAsync(), TaskScheduler.Default);
 #endif
+
+                appUrl = IsDebugMode ? "http://localhost:2882" : $"{frontendServer.Result}/index.html?v={Uri.EscapeDataString(appVersion ?? "0")}";
+                Log.Information("Serving React app at {AppUrl}", appUrl);
 
                 // The message loop outlives every window, so closing to tray can destroy the
                 // webview (and its ~275MB of processes) instead of just hiding it.

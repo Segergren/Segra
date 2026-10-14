@@ -130,7 +130,8 @@ namespace Segra.Backend.Windows.Display
             pendingDisplays = DisplayConfigService.QueryActiveDisplays()
                 .Select(d => new Core.Models.Display
                 {
-                    DeviceName = GetFriendlyMonitorName(d.DevicePath, d.FriendlyName),
+                    // The CCD name is the monitor's EDID name; WMI is only needed when it reports none
+                    DeviceName = d.FriendlyName != d.DevicePath ? d.FriendlyName : GetFriendlyMonitorName(d.DevicePath, d.FriendlyName),
                     DeviceId = d.DevicePath,
                     IsPrimary = d.IsPrimary,
                     IsHdr = d.IsHdr,

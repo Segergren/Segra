@@ -44,6 +44,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
 
   <!-- Builds made outside GitHub Actions never auto update -->
@@ -67,7 +68,6 @@
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.12" />
     <PackageReference Include="NuGet.Versioning" Version="7.9.0" />
     <PackageReference Include="PhotinoX" Version="5.3.5" />
-    <PackageReference Include="PhotinoX.Server" Version="5.0.0" />
     <PackageReference Include="Serilog" Version="4.4.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageReference Include="Velopack" Version="1.2.161" />
@@ -164,12 +164,6 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="wwwroot\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 
   <Target Name="BuildFrontendAssets" Inputs="@(FrontendSourceFiles)" Outputs="Resources\wwwroot\index.html">

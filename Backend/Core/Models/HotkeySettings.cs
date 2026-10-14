@@ -5,7 +5,7 @@ namespace Segra.Backend.Core.Models
     public class Hotkey
     {
         [JsonPropertyName("action")]
-        [JsonConverter(typeof(JsonStringEnumConverter))]
+        [JsonConverter(typeof(JsonStringEnumConverter<HotkeyAction>))]
         public HotkeyAction Action { get; set; }
 
         [JsonPropertyName("enabled")]
@@ -22,7 +22,7 @@ namespace Segra.Backend.Core.Models
         }
     }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(JsonStringEnumConverter<HotkeyAction>))]
     public enum HotkeyAction
     {
         CreateBookmark,

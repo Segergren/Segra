@@ -36,7 +36,8 @@ namespace Segra.Backend.Core
 
                 var json = JsonSerializer.Serialize(Settings.Instance, new JsonSerializerOptions
                 {
-                    WriteIndented = true
+                    WriteIndented = true,
+                    TypeInfoResolver = SettingsJsonContext.Resolver
                 });
 
                 lock (_saveLock)
@@ -86,7 +87,8 @@ namespace Segra.Backend.Core
                     Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
                     ReadCommentHandling = JsonCommentHandling.Skip,
                     AllowTrailingCommas = true,
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                    TypeInfoResolver = SettingsJsonContext.Resolver
                 };
 
                 Settings.Instance.BeginBulkUpdate();
@@ -170,13 +172,11 @@ namespace Segra.Backend.Core
                 }
 
                 Settings.Instance.RunOnStartup = PlatformServices.Startup.GetStartupStatus();
-                AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
 
                 Log.Information("Settings loaded from {0}", SettingsFilePath);
 
-                // The file has been read, so forcing this save is safe even though
-                // Program.Main hasn't set hasLoadedInitialSettings yet.
-                Settings.Instance.EndBulkUpdateAndSaveSettings(force: true);
+                // Program.Main saves once the app state is initialized
+                Settings.Instance._isBulkUpdating = false;
                 return true;
             }
             catch (Exception ex)
