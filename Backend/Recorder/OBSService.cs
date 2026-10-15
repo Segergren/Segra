@@ -2923,6 +2923,7 @@ namespace Segra.Backend.Recorder
                 try
                 {
                     _gameCaptureItem.Remove();
+                    _gameCaptureItem.Dispose();
                 }
                 catch (Exception ex)
                 {
