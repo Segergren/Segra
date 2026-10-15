@@ -12,7 +12,9 @@ namespace Segra.Backend.Games.GrandTheftAuto
             [
                 new() { Text = "WASTED", BookmarkType = BookmarkType.Death },
             ],
-            Threshold = 180,
+            // Online draws "wasted" in light gray, story mode in red
+            Threshold = 140,
+            MaxChannel = true,
             PollIntervalMs = 200,
             EventCooldown = TimeSpan.FromSeconds(3),
         };

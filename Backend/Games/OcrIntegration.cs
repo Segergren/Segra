@@ -36,6 +36,8 @@ namespace Segra.Backend.Games
             public required IReadOnlyList<OcrKeyword> Keywords { get; init; }
             // 0 = grayscale only, no binarization
             public int Threshold { get; init; } = 150;
+            // Brightest channel instead of luma, so saturated text like red passes the threshold
+            public bool MaxChannel { get; init; }
             // Crops are resized as if the game ran at this height, 0 = native size
             public int ReferenceHeight { get; init; }
             public int PollIntervalMs { get; init; } = 250;
@@ -183,7 +185,10 @@ namespace Segra.Backend.Games
 
             var grays = new byte[w * h];
             for (int i = 0; i < grays.Length; i++)
-                grays[i] = (byte)((pixels[i * 4 + 2] * 77 + pixels[i * 4 + 1] * 150 + pixels[i * 4] * 29) >> 8);
+            {
+                byte b = pixels[i * 4], g = pixels[i * 4 + 1], r = pixels[i * 4 + 2];
+                grays[i] = _config.MaxChannel ? Math.Max(r, Math.Max(g, b)) : (byte)((r * 77 + g * 150 + b * 29) >> 8);
+            }
 
             // At 1080p: 6 px radius (about half a letter) and lines from 25 px
             if (localContrast)
