@@ -53,6 +53,7 @@ namespace Segra.Backend.Recorder
         private static SceneItem? _displayItem;
 
         private static RecordingOutput? _output;
+        private static MediaClock? _mediaClock;
         private static ReplayBuffer? _bufferOutput;
 
         // Set while the always-on display buffer owns the outputs; holds what its saves are tagged with.
@@ -1752,6 +1753,9 @@ namespace Segra.Backend.Recorder
                 hasPlayedStartSound = true;
 
                 Log.Information("Session recording started successfully");
+
+                _mediaClock?.Dispose();
+                _mediaClock = new MediaClock(startTime ?? DateTime.Now, (uint)eff.FrameRate, () => (int)(_output?.TotalFrames ?? 0));
             }
 
             if (_bufferOutput != null)
@@ -2289,7 +2293,7 @@ namespace Segra.Backend.Recorder
                         int? igdbId = !string.IsNullOrEmpty(session.ExePath)
                             ? GameUtils.GetIgdbIdFromExePath(session.ExePath)
                             : null;
-                        sessionContentId = await ContentService.CreateMetadataFile(filePath, Content.ContentType.Session, session.Game, session.Bookmarks, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes, gameExePath: session.ExePath);
+                        sessionContentId = await ContentService.CreateMetadataFile(filePath, Content.ContentType.Session, session.Game, session.Bookmarks, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes, gameExePath: session.ExePath, mediaClock: _mediaClock?.Snapshot());
                         await ContentService.CreateThumbnail(filePath, Content.ContentType.Session, sessionContentId);
                         await ContentService.CreateWaveformFile(filePath, Content.ContentType.Session, sessionContentId);
 
@@ -3735,6 +3739,8 @@ namespace Segra.Backend.Recorder
         /// </summary>
         public static void DisposeOutput()
         {
+            _mediaClock?.Dispose();
+            _mediaClock = null;
             // The 'saved' signal cannot be delivered past this point; fail any pending save so
             // its waiter doesn't sit out the backstop. If OBS still completes the file during
             // disposal, the orphaned-file recovery scan picks it up. Disposing the output also
