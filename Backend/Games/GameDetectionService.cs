@@ -359,11 +359,14 @@ namespace Segra.Backend.Games
             if (string.IsNullOrEmpty(install) || !Directory.Exists(install)) return null;
             try
             {
+                string[] blockedTexts = GameUtils.GetBlacklistedPathTexts();
                 string? biggest = null; long biggestLen = -1;
                 foreach (var exe in Directory.EnumerateFiles(install, "*.exe", SearchOption.AllDirectories))
                 {
                     string norm = PathUtils.Normalize(exe);
                     if (GameUtils.IsGameExePath(norm)) return norm; // catalog hit wins immediately
+                    string relative = Path.GetRelativePath(install, exe);
+                    if (blockedTexts.Any(t => relative.Contains(t, StringComparison.OrdinalIgnoreCase))) continue;
                     long len = new FileInfo(exe).Length;
                     if (len > biggestLen) { biggestLen = len; biggest = norm; }
                 }
