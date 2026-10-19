@@ -149,10 +149,18 @@ namespace Segra.Backend.Media
 
                 string arguments = $"-y -i \"{filePath}\" -map 0:v:0 -map 0:a? -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k {trackTitleArgs}-movflags +faststart \"{tempOutputPath}\"";
 
-                await FFmpegService.RunWithProgress(processId, arguments, duration, (progress) =>
+                try
                 {
-                    _ = MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = (int)(progress * 100), status = "compressing" });
-                });
+                    await FFmpegService.RunWithProgress(processId, arguments, duration, (progress) =>
+                    {
+                        _ = MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = (int)(progress * 100), status = "compressing" });
+                    });
+                }
+                catch
+                {
+                    try { File.Delete(tempOutputPath); } catch { }
+                    throw;
+                }
 
                 if (!File.Exists(tempOutputPath))
                 {

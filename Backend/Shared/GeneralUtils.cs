@@ -387,7 +387,7 @@ namespace Segra.Backend.Shared
             return message;
         }
 
-        private static readonly Regex UsernamePathRegex = new(@"([\\/]Users[\\/])([^\\/]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex UsernamePathRegex = new(@"([\\/](?:Users|home)[\\/])([^\\/]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public static string RedactUsername(string text)
         {

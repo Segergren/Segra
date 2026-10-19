@@ -127,7 +127,7 @@ export default function StorageSettingsSection({
 
   const handleStorageLimitBlur = () => {
     const currentFolderSizeGb = appState.currentFolderSizeGb;
-    const numericLimit = clampInt(localStorageLimit, 1, Number.MAX_SAFE_INTEGER, 1);
+    const numericLimit = clampInt(localStorageLimit, 1, 2147483647, 1);
     setLocalStorageLimit(String(numericLimit));
 
     // Check if the new limit is below the current folder size

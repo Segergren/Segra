@@ -27,7 +27,7 @@ namespace Segra.Backend.App
                 LogAccountAndMisc(lines);
                 LogClipExport(lines);
 
-                var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(string.Join('\n', lines)));
+                var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(Shared.GeneralUtils.RedactUsername(string.Join('\n', lines))));
                 Log.Information($"Diagnostic snapshot: {encoded}");
             }
             catch (Exception ex)

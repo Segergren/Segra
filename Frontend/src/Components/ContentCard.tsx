@@ -348,6 +348,7 @@ export default function ContentCard({
     if (!isRenaming) return;
     setIsRenaming(false);
     const trimmed = renameValue.trim();
+    if (trimmed === (content!.title || '')) return;
     sendMessageToBackend('RenameContent', {
       Id: content!.id,
       Title: trimmed,

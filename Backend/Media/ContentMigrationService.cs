@@ -348,7 +348,15 @@ namespace Segra.Backend.Media
         {
             try
             {
-                return Path.GetPathRoot(Path.GetFullPath(path));
+                string fullPath = Path.GetFullPath(path);
+                if (OperatingSystem.IsWindows())
+                    return Path.GetPathRoot(fullPath);
+
+                // Every Unix path has the root "/", so compare mount points instead
+                return DriveInfo.GetDrives()
+                    .Select(d => d.RootDirectory.FullName)
+                    .Where(mount => fullPath == mount || fullPath.StartsWith(mount.TrimEnd('/') + "/", StringComparison.Ordinal))
+                    .MaxBy(mount => mount.Length);
             }
             catch
             {

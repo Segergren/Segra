@@ -11,7 +11,7 @@ import {
 const sourcedElements = new WeakSet<HTMLMediaElement>();
 
 /**
- * Routes a single-audio-track <video> element's own audio through the native sink (played by
+ * Routes a <video> element's own audio (anything that isn't multi-track) through the native sink (played by
  * Segra.exe) so Windows application-audio capture (Discord/OBS) includes it. The element stays
  * the playback clock: its own A/V sync, volume, mute and playbackRate continue to apply, so no
  * scheduling logic is needed here. Multi-track content is left to useAudioTracks, and when the
@@ -32,9 +32,8 @@ export function useNativeElementAudio(
     const vid = videoRef.current;
     if (!vid) return;
 
-    // Multi-track (>= 2) is handled by useAudioTracks' WebCodecs graph; no audio track at all
-    // needs no capture. Only exactly-one-track content takes the element path.
-    if ((video.audioTrackNames?.length ?? 0) !== 1) return;
+    // Multi-track (>= 2) is handled by useAudioTracks' WebCodecs graph
+    if ((video.audioTrackNames?.length ?? 0) > 1) return;
     if (sourcedElements.has(vid)) return;
 
     let cancelled = false;

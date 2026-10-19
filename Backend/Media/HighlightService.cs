@@ -155,6 +155,8 @@ namespace Segra.Backend.Media
 
             List<string> tempFiles = new();
             string? concatFilePath = null;
+            bool outputExisted = File.Exists(outputFilePath);
+            bool succeeded = false;
 
             try
             {
@@ -223,6 +225,7 @@ namespace Segra.Backend.Media
                 {
                     File.Move(tempFiles[0], outputFilePath, overwrite: true);
                     tempFiles.Clear();
+                    succeeded = true;
                     return true;
                 }
 
@@ -256,7 +259,8 @@ namespace Segra.Backend.Media
                 await FFmpegService.RunSimple(concatArguments);
 
                 progressCallback?.Invoke(1.0, "Done");
-                return File.Exists(outputFilePath);
+                succeeded = File.Exists(outputFilePath);
+                return succeeded;
             }
             catch (FFmpegException ffEx)
             {
@@ -283,6 +287,12 @@ namespace Segra.Backend.Media
                 if (!string.IsNullOrEmpty(concatFilePath))
                 {
                     try { File.Delete(concatFilePath); }
+                    catch { /* ignore cleanup errors */ }
+                }
+
+                if (!succeeded && !outputExisted)
+                {
+                    try { File.Delete(outputFilePath); }
                     catch { /* ignore cleanup errors */ }
                 }
             }

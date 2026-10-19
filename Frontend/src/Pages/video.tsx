@@ -843,6 +843,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     if (!container) return;
 
     const handleWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       e.preventDefault();
       if (duration === 0) return;
 
