@@ -280,6 +280,10 @@ namespace Segra.Backend.App
                             break;
                         case "NewConnection":
                             Log.Information("NewConnection command received.");
+
+                            // Sent over Photino's channel when the socket opens, so it can arrive before the socket is registered
+                            await WaitForConnectionAsync(ConnectGraceMs);
+
                             await SendSettingsToFrontend("New connection");
                             await SendStateToFrontend("New connection");
 
