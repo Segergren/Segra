@@ -736,6 +736,11 @@ namespace Segra.Backend.Media
                     filterParts.Add($"[0:a:0]{atrim}[out_a0]");
                     mapParts.Add("-map \"[out_a0]\"");
                 }
+                else if (enabledSourceTracks.Count == 0 && mutedAudioTracks?.Contains(0) != true)
+                {
+                    filterParts.Add($"[0:a:0]{WithAtrim(GetVolumeFilter(audioTrackVolumes, 0), durationStr)}[out_a0]");
+                    mapParts.Add("-map \"[out_a0]\"");
+                }
                 else if (enabledSourceTracks.Count == 0)
                 {
                     extraInputParts.Add(silenceInput);
@@ -770,7 +775,7 @@ namespace Segra.Backend.Media
                         }
                     }
                     string inputs = string.Join("", mixInputLabels);
-                    filterParts.Add($"{inputs}amix=inputs={enabledSourceTracks.Count}:duration=longest,{atrim}[out_a0]");
+                    filterParts.Add($"{inputs}amix=inputs={enabledSourceTracks.Count}:duration=longest:normalize=0,{atrim}[out_a0]");
                     mapParts.Add("-map \"[out_a0]\"");
                 }
                 metaParts.Add($"-metadata:s:a:0 title=\"{targetAudioLayout[0]}\"");
@@ -851,10 +856,25 @@ namespace Segra.Backend.Media
                             else
                             {
                                 string allInputs = string.Join("", mixInputLabels);
-                                filterPartsList.Add($"{allInputs}amix=inputs={enabledTracks.Count}:duration=longest[mix]");
+                                filterPartsList.Add($"{allInputs}amix=inputs={enabledTracks.Count}:duration=longest:normalize=0[mix]");
                                 filterArgs = $"-filter_complex \"{string.Join(";", filterPartsList)}\" ";
                                 mapArgs = "-map 0:v:0 -map \"[mix]\" ";
                             }
+                        }
+
+                        metadataArgs = "-metadata:s:a:0 title=\"Full Mix\" ";
+                    }
+                    else
+                    {
+                        double fullMixVol = mutedAudioTracks?.Contains(0) == true ? 0 : GetTrackVolume(audioTrackVolumes, 0);
+                        if (Math.Abs(fullMixVol - 1.0) > 0.001)
+                        {
+                            filterArgs = $"-filter_complex \"[0:a:0]volume={fullMixVol.ToString(CultureInfo.InvariantCulture)}[vol_0]\" ";
+                            mapArgs = "-map 0:v:0 -map \"[vol_0]\" ";
+                        }
+                        else
+                        {
+                            mapArgs = "-map 0:v:0 -map 0:a:0 ";
                         }
 
                         metadataArgs = "-metadata:s:a:0 title=\"Full Mix\" ";
