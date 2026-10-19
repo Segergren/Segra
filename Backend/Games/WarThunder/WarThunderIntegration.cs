@@ -186,8 +186,13 @@ namespace Segra.Backend.Games.WarThunder
                 }
             }
 
-            int idx = msg.IndexOf(_nickname, StringComparison.Ordinal);
-            bool isKill = idx >= 0 && idx < 3;
+            // The attacker comes first, after any squadron tag, with up to two icon glyphs glued to the name: "=TAG= ⋇Nick (Tiger II) destroyed ..."
+            int idx = msg.IndexOf(_nickname + " (", StringComparison.Ordinal);
+            if (idx < 0)
+                idx = msg.IndexOf(_nickname, StringComparison.Ordinal);
+            int afterTag = msg.IndexOf(' ') + 1;
+            bool isKill = idx >= 0 && (idx < 3
+                || (afterTag > 0 && idx >= afterTag && idx < afterTag + 3 && msg.LastIndexOf(' ', idx - 1) == afterTag - 1));
 
             foreach (var verb in KillVerbs)
             {
