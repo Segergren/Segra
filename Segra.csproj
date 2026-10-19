@@ -65,7 +65,7 @@
 
   <!-- Cross-platform packages (both TFMs) -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.13" />
     <PackageReference Include="NuGet.Versioning" Version="7.9.0" />
     <PackageReference Include="PhotinoX" Version="5.3.5" />
     <PackageReference Include="Serilog" Version="4.4.0" />
@@ -77,16 +77,16 @@
 
   <!-- Windows-only packages (NAudio/WASAPI, WMI, DirectX) -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
-    <PackageReference Include="NAudio" Version="3.1.0" />
-    <PackageReference Include="System.Management" Version="10.0.12" />
+    <PackageReference Include="NAudio" Version="3.2.0" />
+    <PackageReference Include="System.Management" Version="10.0.13" />
     <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
   </ItemGroup>
 
   <!-- Linux needs System.Drawing.Common (Windows gets it via WinForms) and
        System.Resources.Extensions for the non-string (icon/bitmap) resx resources. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <PackageReference Include="System.Drawing.Common" Version="10.0.12" />
-    <PackageReference Include="System.Resources.Extensions" Version="10.0.12" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.13" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.13" />
   </ItemGroup>
 
   <!-- Windows-only source files (WASAPI/WMI/WinForms/WinRT/registry/DirectX). Excluded from the

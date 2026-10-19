@@ -4,11 +4,11 @@
     "net10.0": {
       "Microsoft.Extensions.FileProviders.Embedded": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "u9y/tTPnkv+lsIqN4NRjhzh5XGv7pPCXjPEdbYVK9daidg+xFFEHv//gTlrjZJAKLMcHbArnCU/wVl0KrPJEJA==",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "H4baeis/dx/NZ87070hjvJc5mry36x68yQjiMKS3uFxa2tlAwWAciZZh3baTjGCDc7ChURQdLOzPLVsXfkAEFw==",
         "dependencies": {
-          "Microsoft.Extensions.FileProviders.Abstractions": "10.0.12"
+          "Microsoft.Extensions.FileProviders.Abstractions": "10.0.13"
         }
       },
       "NuGet.Versioning": {
@@ -49,20 +49,20 @@
       },
       "System.Drawing.Common": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "FBUxiucg2gsnyItbpGgyXI5u8FYLcqdLKS1XJkHHTj3RK1c6kpsJr/Y9i4edUNF7LqCYFrHqpHEvpt8/lNBe9w==",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "s8JRuC+ec1djwT471SbZRXWCBFXCKkNNGILWD/OCmIcdL0KP0w4arMjyEZzNUuKxolperKtlxHhS+34rA4N3XA==",
         "dependencies": {
-          "Microsoft.Win32.SystemEvents": "10.0.12"
+          "Microsoft.Win32.SystemEvents": "10.0.13"
         }
       },
       "System.Resources.Extensions": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "g+md0uklu5Zmm9DxgMOobKRheIZIDfmxhe7RN9PTnr1PiozfV7+4yQSqdL3Xa8Sv8fr6GGr2UJrd4C3gjQs7/w==",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "sQ1cUyPtMp6rtjDzKC5vch2jaPbMfTk8JS1UABRye2Ua8w7xQDNc9rW8Xwb1WqGF9mbklWM6rkrl3J+ps/T7JA==",
         "dependencies": {
-          "System.Formats.Nrbf": "10.0.12"
+          "System.Formats.Nrbf": "10.0.13"
         }
       },
       "Velopack": {
@@ -79,21 +79,21 @@
       },
       "Microsoft.Extensions.FileProviders.Abstractions": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "iQseV6HixWzEYQH4i++84ToIroXnM5jC1TJF4EqBz3lWNG1HBTMYDLkRb6Wm3wk5V6WqSfl7NukO/LYsloGyfg==",
+        "resolved": "10.0.13",
+        "contentHash": "BZDwtN3uoWRghDi5lRRZPDjMMCg2Ds7J6YEYjqka/TLjqnzquEpXyvchrIMeoubwT1ns23ow6PPeAoBHJO81Rw==",
         "dependencies": {
-          "Microsoft.Extensions.Primitives": "10.0.12"
+          "Microsoft.Extensions.Primitives": "10.0.13"
         }
       },
       "Microsoft.Extensions.Primitives": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "dYfCLR52UA+3DL7C4I/pvSaRPkNqxrUAQmbFL2u0zvYKKzqgrFCJl08Df+F1aYc8leu9JvpC9bsURUdpExcBXQ=="
+        "resolved": "10.0.13",
+        "contentHash": "ZjTwxzhiw2TMEzIbUDkMF0dfDB2I4NQgIfKD0ELu9/5Mk+SRGdKZcD0/lvBrRCAPo6KN2r0BW86MRancoyJkoA=="
       },
       "Microsoft.Win32.SystemEvents": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "kdj5cqOwgZCMltEhQ4+WVUoFkMHG08EJfy1MDyS9H+FBg66vTTFyX8YcNl8IQh5wRQv79P+iduQgDGY8ucBR+w=="
+        "resolved": "10.0.13",
+        "contentHash": "rtd1rRf5uiusn/r+hNsODiCjvA+nErw+1EQb2uCv0EedLi2GEYWgLK0V31SXzcZ2b0D7VeoOrHJ0WCQqfbO67Q=="
       },
       "PhotinoX.Native": {
         "type": "Transitive",
@@ -102,15 +102,15 @@
       },
       "System.Formats.Nrbf": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "J7c0zqHgdUIrzXU8ko5ft5McUBK6AI0Dcgav6QvGcFvbB21trihIrxYAXMv3tEdkmVqJwow1RXWtoZ9aO95umw=="
+        "resolved": "10.0.13",
+        "contentHash": "sKdW9UAUGT9Xmtf9HPy+7IdXs8B6Yr5NpqbB1mTjislf8oGkEyyUyJUtH36qGNBxBnNkGGbdqc6cPbVq5Te2uQ=="
       }
     },
     "net10.0/linux-x64": {
       "Microsoft.Win32.SystemEvents": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "kdj5cqOwgZCMltEhQ4+WVUoFkMHG08EJfy1MDyS9H+FBg66vTTFyX8YcNl8IQh5wRQv79P+iduQgDGY8ucBR+w=="
+        "resolved": "10.0.13",
+        "contentHash": "rtd1rRf5uiusn/r+hNsODiCjvA+nErw+1EQb2uCv0EedLi2GEYWgLK0V31SXzcZ2b0D7VeoOrHJ0WCQqfbO67Q=="
       },
       "PhotinoX.Native": {
         "type": "Transitive",
@@ -121,8 +121,8 @@
     "net10.0/win-x64": {
       "Microsoft.Win32.SystemEvents": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "kdj5cqOwgZCMltEhQ4+WVUoFkMHG08EJfy1MDyS9H+FBg66vTTFyX8YcNl8IQh5wRQv79P+iduQgDGY8ucBR+w=="
+        "resolved": "10.0.13",
+        "contentHash": "rtd1rRf5uiusn/r+hNsODiCjvA+nErw+1EQb2uCv0EedLi2GEYWgLK0V31SXzcZ2b0D7VeoOrHJ0WCQqfbO67Q=="
       },
       "PhotinoX.Native": {
         "type": "Transitive",
@@ -133,26 +133,26 @@
     "net10.0-windows10.0.19041": {
       "Microsoft.Extensions.FileProviders.Embedded": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "u9y/tTPnkv+lsIqN4NRjhzh5XGv7pPCXjPEdbYVK9daidg+xFFEHv//gTlrjZJAKLMcHbArnCU/wVl0KrPJEJA==",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "H4baeis/dx/NZ87070hjvJc5mry36x68yQjiMKS3uFxa2tlAwWAciZZh3baTjGCDc7ChURQdLOzPLVsXfkAEFw==",
         "dependencies": {
-          "Microsoft.Extensions.FileProviders.Abstractions": "10.0.12"
+          "Microsoft.Extensions.FileProviders.Abstractions": "10.0.13"
         }
       },
       "NAudio": {
         "type": "Direct",
-        "requested": "[3.1.0, )",
-        "resolved": "3.1.0",
-        "contentHash": "wD5UttLb5Eu/caAYPy/siDg7xf3KVkdJfMLXr+cJfAvxgh6wDnWOBxXfhYNMUiIaQRr2VPDjgPH2QIzBSP6gqw==",
+        "requested": "[3.2.0, )",
+        "resolved": "3.2.0",
+        "contentHash": "8t+OqiAOVp46P4fpeECc2eT11KQPv3Vo922C4D27m3jxF49OCo4zmQYjZasJMBLFrg6TVRoeVgBlUd8DDWQjZw==",
         "dependencies": {
-          "NAudio.Asio": "3.1.0",
-          "NAudio.Core": "3.1.0",
-          "NAudio.Dmo": "3.1.0",
-          "NAudio.Midi": "3.1.0",
-          "NAudio.Wasapi": "3.1.0",
-          "NAudio.WinForms": "3.1.0",
-          "NAudio.WinMM": "3.1.0"
+          "NAudio.Asio": "3.2.0",
+          "NAudio.Core": "3.2.0",
+          "NAudio.Dmo": "3.2.0",
+          "NAudio.Midi": "3.2.0",
+          "NAudio.Wasapi": "3.2.0",
+          "NAudio.WinForms": "3.2.0",
+          "NAudio.WinMM": "3.2.0"
         }
       },
       "NuGet.Versioning": {
@@ -193,9 +193,9 @@
       },
       "System.Management": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "ApUsYmsNG8aPiMxsO6ROGZnqJwSZY8zeMlAQcuQg+ilPFUcIyBUC0BL8qA6wmPLNVsvL4nyhUrhhxh6qn0cx0Q=="
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "cL8qiJmJtlSIcAoZH4s07VTxTdddvEP12MFeM+KBZagn4CuD/0SFQsmKn5g9MLfiSrYjdAxIwOTO0kATY9A0UA=="
       },
       "Velopack": {
         "type": "Direct",
@@ -222,72 +222,72 @@
       },
       "Microsoft.Extensions.FileProviders.Abstractions": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "iQseV6HixWzEYQH4i++84ToIroXnM5jC1TJF4EqBz3lWNG1HBTMYDLkRb6Wm3wk5V6WqSfl7NukO/LYsloGyfg==",
+        "resolved": "10.0.13",
+        "contentHash": "BZDwtN3uoWRghDi5lRRZPDjMMCg2Ds7J6YEYjqka/TLjqnzquEpXyvchrIMeoubwT1ns23ow6PPeAoBHJO81Rw==",
         "dependencies": {
-          "Microsoft.Extensions.Primitives": "10.0.12"
+          "Microsoft.Extensions.Primitives": "10.0.13"
         }
       },
       "Microsoft.Extensions.Primitives": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "dYfCLR52UA+3DL7C4I/pvSaRPkNqxrUAQmbFL2u0zvYKKzqgrFCJl08Df+F1aYc8leu9JvpC9bsURUdpExcBXQ=="
+        "resolved": "10.0.13",
+        "contentHash": "ZjTwxzhiw2TMEzIbUDkMF0dfDB2I4NQgIfKD0ELu9/5Mk+SRGdKZcD0/lvBrRCAPo6KN2r0BW86MRancoyJkoA=="
       },
       "NAudio.Asio": {
         "type": "Transitive",
-        "resolved": "3.1.0",
-        "contentHash": "v+ZgbdCaE/XyhByYNC+xgNdRNWy43GHWYJ+fLrXwjOLXYUToq45G5EGzdqlY//3KsX1zuVn+mU+SBBZ744zK6g==",
+        "resolved": "3.2.0",
+        "contentHash": "FjQGSdrjXQaI7wwHVbeV+/HVqS0lfS06LZvt7ts6rZ1ytpUklpFpCeBWI9q94MtAxroQY5toRFOYwestXjxldg==",
         "dependencies": {
-          "NAudio.Core": "3.1.0"
+          "NAudio.Core": "3.2.0"
         }
       },
       "NAudio.Core": {
         "type": "Transitive",
-        "resolved": "3.1.0",
-        "contentHash": "8Hrd3Uqb2wEB64eZYF+0vl9xBadeSn6JnFDsHuGrw87ucJ+pB7u5NzVpHl8OlCNvIvH+sD9b2h4JOqXBuZGYwg==",
+        "resolved": "3.2.0",
+        "contentHash": "XmKfK+iJ9nGwQyMB412+d0CghABNwshFdO3ZRowQ7fDTOXggN9S7J69Dw70/z6DuyfhVdSgnS0FoBtUnwZRCEQ==",
         "dependencies": {
           "System.Numerics.Tensors": "9.0.0"
         }
       },
       "NAudio.Dmo": {
         "type": "Transitive",
-        "resolved": "3.1.0",
-        "contentHash": "XhVjBgIyj6qnZRfeGS2CkL6mffRLnT4WK/hAoNGZsqJK1p+XpWe0nFbUA+6Cmgj18oLoHYk2KouPw/Q94mTCnA==",
+        "resolved": "3.2.0",
+        "contentHash": "Ia+6VJn7DvTSZhbMBphyw6rxDNJEMqn/cb0fMeSZWVvKZKNB3SJorq+FnhttAmBAYzurMOoY29mMdBSTcnO2LQ==",
         "dependencies": {
-          "NAudio.Core": "3.1.0"
+          "NAudio.Core": "3.2.0"
         }
       },
       "NAudio.Midi": {
         "type": "Transitive",
-        "resolved": "3.1.0",
-        "contentHash": "McIiQyY5o0Q3QlF5oRm+b0A8IE0SorA/9HvNi88bH3MdSnGp7cM/9sze/zqbS/9PFdKYVRZPtoLwqoAF4BgjeA==",
+        "resolved": "3.2.0",
+        "contentHash": "5+P+4RvTjE5gBgwX4K4kq7YIYITZoOnm0gWElPq5IA3hRu92CWzd5vKsiOq3ZYplqUcLEq6itH80ShhdNg5AeA==",
         "dependencies": {
-          "NAudio.Core": "3.1.0"
+          "NAudio.Core": "3.2.0"
         }
       },
       "NAudio.Wasapi": {
         "type": "Transitive",
-        "resolved": "3.1.0",
-        "contentHash": "iTG+oBJaiID344yz84PrTiVF98av5SsuOUu7ICskcUd6f5ShHDMskG9sE4XUM05Vdlwy88bMQDDC3e+85Mv8yw==",
+        "resolved": "3.2.0",
+        "contentHash": "jkT7CTrkpea+2EPvmnKrFaiKibqR0PMsbqaMoe7IeX7Okr9WYF88p41RWRwxI1hg1b8FBPBjiOj7UL9H9S5DwQ==",
         "dependencies": {
-          "NAudio.Core": "3.1.0"
+          "NAudio.Core": "3.2.0"
         }
       },
       "NAudio.WinForms": {
         "type": "Transitive",
-        "resolved": "3.1.0",
-        "contentHash": "oIjQu3bp9QtAB6wAf04pgeDUce+dIrSDcvNp689e/xYStyktG33nY2GwW7d1mS2zDAeA/YhUjY5DkakDWs9+1w==",
+        "resolved": "3.2.0",
+        "contentHash": "hTShD8NHhlSKAyYNzkTYxuXfEhJl8oj9G7Ojc7nuFsjsy7fO9p+OaZC8LTrhT8BNmEA9ZXxbgV/AbUpC54IP+A==",
         "dependencies": {
-          "NAudio.WinMM": "3.1.0"
+          "NAudio.WinMM": "3.2.0"
         }
       },
       "NAudio.WinMM": {
         "type": "Transitive",
-        "resolved": "3.1.0",
-        "contentHash": "2LXIZwBQKxDZP+GvTvC9zrHiF0LQ3lvTi5dqgS175hY/bOtqFlDRRhzEnVv/lLFlQ+a1I/ZQ3m6CclTvztkf6A==",
+        "resolved": "3.2.0",
+        "contentHash": "oKm1sWG3xBDqrijb6DTtMXjiWOkushFwAHqgulgg8ZWppAdJahq4eTH9Ydcol5qMvhC4UtoRpVC5mcWng0T1YA==",
         "dependencies": {
-          "NAudio.Core": "3.1.0",
-          "NAudio.Midi": "3.1.0"
+          "NAudio.Core": "3.2.0",
+          "NAudio.Midi": "3.2.0"
         }
       },
       "PhotinoX.Native": {
@@ -322,9 +322,9 @@
     "net10.0-windows10.0.19041/linux-x64": {
       "System.Management": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "ApUsYmsNG8aPiMxsO6ROGZnqJwSZY8zeMlAQcuQg+ilPFUcIyBUC0BL8qA6wmPLNVsvL4nyhUrhhxh6qn0cx0Q=="
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "cL8qiJmJtlSIcAoZH4s07VTxTdddvEP12MFeM+KBZagn4CuD/0SFQsmKn5g9MLfiSrYjdAxIwOTO0kATY9A0UA=="
       },
       "PhotinoX.Native": {
         "type": "Transitive",
@@ -335,9 +335,9 @@
     "net10.0-windows10.0.19041/win-x64": {
       "System.Management": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "ApUsYmsNG8aPiMxsO6ROGZnqJwSZY8zeMlAQcuQg+ilPFUcIyBUC0BL8qA6wmPLNVsvL4nyhUrhhxh6qn0cx0Q=="
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "cL8qiJmJtlSIcAoZH4s07VTxTdddvEP12MFeM+KBZagn4CuD/0SFQsmKn5g9MLfiSrYjdAxIwOTO0kATY9A0UA=="
       },
       "PhotinoX.Native": {
         "type": "Transitive",
