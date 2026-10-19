@@ -517,13 +517,18 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            bool rejectedFolder = false;
             if (settings.ContentFolder != updatedSettings.ContentFolder)
             {
                 Log.Information($"ContentFolder changed from '{settings.ContentFolder}' to '{updatedSettings.ContentFolder}'");
 
+                if (!IsAbsolutePath(updatedSettings.ContentFolder) || !TryCreateDirectory(updatedSettings.ContentFolder))
+                {
+                    Log.Warning($"Ignoring content folder '{updatedSettings.ContentFolder}': not an absolute path or can't be created");
+                    rejectedFolder = true;
+                }
                 // Check if the new folder would exceed storage limit
-                bool shouldProceed = await StorageWarningService.CheckContentFolderChange(updatedSettings.ContentFolder);
-                if (shouldProceed)
+                else if (await StorageWarningService.CheckContentFolderChange(updatedSettings.ContentFolder))
                 {
                     settings.ContentFolder = updatedSettings.ContentFolder;
                     hasChanges = true;
@@ -531,11 +536,22 @@ namespace Segra.Backend.Core
                 // If not proceeding, a warning modal was sent to the frontend
             }
 
+            string? previousCacheFolder = null;
             if (settings.CacheFolder != updatedSettings.CacheFolder)
             {
                 Log.Information($"CacheFolder changed from '{settings.CacheFolder}' to '{updatedSettings.CacheFolder}'");
-                settings.CacheFolder = updatedSettings.CacheFolder;
-                hasChanges = true;
+
+                if (!IsAbsolutePath(updatedSettings.CacheFolder) || !TryCreateDirectory(updatedSettings.CacheFolder))
+                {
+                    Log.Warning($"Ignoring cache folder '{updatedSettings.CacheFolder}': not an absolute path or can't be created");
+                    rejectedFolder = true;
+                }
+                else
+                {
+                    previousCacheFolder = settings.CacheFolder;
+                    settings.CacheFolder = updatedSettings.CacheFolder;
+                    hasChanges = true;
+                }
             }
 
             if (settings.RecordingMode != updatedSettings.RecordingMode)
@@ -858,6 +874,29 @@ namespace Segra.Backend.Core
                 // End bulk update without saving if no changes were made
                 settings._isBulkUpdating = false;
                 Log.Information("No settings changes detected");
+
+                if (rejectedFolder)
+                    await MessageService.SendSettingsToFrontend("Folder path rejected");
+            }
+
+            if (previousCacheFolder != null)
+                await MigrateCacheFolder(previousCacheFolder, settings.CacheFolder);
+        }
+
+        private static bool IsAbsolutePath(string? path) =>
+            !string.IsNullOrWhiteSpace(path) && Path.IsPathFullyQualified(path);
+
+        private static bool TryCreateDirectory(string path)
+        {
+            try
+            {
+                Directory.CreateDirectory(path);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Could not create folder '{path}': {ex.Message}");
+                return false;
             }
         }
 
@@ -1100,7 +1139,9 @@ namespace Segra.Backend.Core
                 return;
             }
 
-            if (string.Equals(oldCacheFolder.Replace("/", "\\"), newCacheFolder.Replace("/", "\\"), StringComparison.OrdinalIgnoreCase))
+            static string Canonical(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+            if (string.Equals(Canonical(oldCacheFolder), Canonical(newCacheFolder),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
             {
                 Log.Information("Cache folder unchanged, no migration needed");
                 return;
@@ -1110,8 +1151,8 @@ namespace Segra.Backend.Core
 
             foreach (var folderName in foldersToMigrate)
             {
-                string sourcePath = Path.Combine(oldCacheFolder.Replace("/", "\\"), folderName);
-                string destPath = Path.Combine(newCacheFolder.Replace("/", "\\"), folderName);
+                string sourcePath = Path.Combine(Canonical(oldCacheFolder), folderName);
+                string destPath = Path.Combine(Canonical(newCacheFolder), folderName);
 
                 if (!Directory.Exists(sourcePath))
                 {

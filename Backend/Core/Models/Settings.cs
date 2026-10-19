@@ -181,10 +181,12 @@ namespace Segra.Backend.Core.Models
             set
             {
                 string normalized = Shared.PathUtils.Normalize(value);
-                bool hasChanged = Instance._contentFolder != normalized;
+                bool hasChanged = _contentFolder != normalized;
 
                 _contentFolder = normalized;
-                Instance._contentFolder = normalized;
+
+                // UpdateSettings deserializes a copy; only the instance itself may apply the change
+                if (!ReferenceEquals(this, Instance)) return;
 
                 if (hasChanged || AppState.Instance.Content.Count == 0)
                 {
