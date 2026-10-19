@@ -1759,6 +1759,8 @@ namespace Segra.Backend.Recorder
                     if (RetryWithoutHdr(() => StartRecordingCore(name, exePath, startManually, pid, cancel, alwaysOn)) is bool startedInSdr)
                         return startedInSdr;
 
+                    // Stop the game detection polling loop from retrying until the user switches foreground window
+                    GameDetectionService.PreventRetryRecording = true;
                     Task.Run(() => ShowModal("Recording failed", "Failed to start recording. Check the log for more details.", "error"));
                     Task.Run(() => PlaySound("error"));
                     AppState.Instance.PreRecording = null;
@@ -1785,6 +1787,7 @@ namespace Segra.Backend.Recorder
                     if (alwaysOn)
                         return false;
 
+                    GameDetectionService.PreventRetryRecording = true;
                     Task.Run(() => ShowModal("Replay buffer failed", "Failed to start replay buffer. Check the log for more details.", "error"));
                     Task.Run(() => PlaySound("error"));
                     AppState.Instance.PreRecording = null;

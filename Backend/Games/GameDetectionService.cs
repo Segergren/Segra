@@ -34,6 +34,8 @@ namespace Segra.Backend.Games
         // Wine, so its Linux PIDs are volatile; every process in the session shares this path, so we track
         // it to detect when the game closes (instead of a single PID that may exit mid-session).
         private static string? _recordingSteamInstallPath;
+        // Proton game whose start failed; not retried until it closes
+        private static string? _failedSteamInstallPath;
         // First sighting of pids that still showed the Wine loader; Wine renames a process to its exe shortly after exec
         private static readonly Dictionary<int, DateTime> _wineStarting = new();
 #endif
@@ -199,6 +201,9 @@ namespace Segra.Backend.Games
                 current.ExceptWith(wineStarting);
                 foreach (int pid in _wineStarting.Keys.Except(wineStarting).ToList())
                     _wineStarting.Remove(pid);
+
+                if (_failedSteamInstallPath != null && !AnyProcessHasSteamInstall(current, _failedSteamInstallPath))
+                    _failedSteamInstallPath = null;
 
                 if (AppState.Instance.Recording == null && AppState.Instance.PreRecording == null)
                 {
@@ -379,7 +384,7 @@ namespace Segra.Backend.Games
         }
 
         // True while any live process still belongs to the given game's Proton session (they all carry
-        // STEAM_COMPAT_INSTALL_PATH). Only reached while recording a Proton game, so scanning environ is fine.
+        // STEAM_COMPAT_INSTALL_PATH). Only reached while recording or blocking a Proton game, so scanning environ is fine.
         private static bool AnyProcessHasSteamInstall(HashSet<int> pids, string installDir)
         {
             if (Platform.Linux.FlatpakHost.IsFlatpak)
@@ -388,13 +393,13 @@ namespace Segra.Backend.Games
                 var installPaths = Platform.Linux.FlatpakHost.ReadEnvVarValues("STEAM_COMPAT_INSTALL_PATH");
                 // A failed read must not look like the game exited.
                 if (installPaths == null) return true;
-                return installPaths.Any(p => PathUtils.Normalize(p).Equals(installDir, StringComparison.OrdinalIgnoreCase));
+                return installPaths.Any(p => PathUtils.Normalize(p).TrimEnd('/').Equals(installDir, StringComparison.OrdinalIgnoreCase));
             }
 
             foreach (int pid in pids)
             {
                 string? p = ReadProcEnvVar(pid, "STEAM_COMPAT_INSTALL_PATH");
-                if (p != null && PathUtils.Normalize(p).Equals(installDir, StringComparison.OrdinalIgnoreCase))
+                if (p != null && PathUtils.Normalize(p).TrimEnd('/').Equals(installDir, StringComparison.OrdinalIgnoreCase))
                     return true;
             }
             return false;
@@ -479,6 +484,12 @@ namespace Segra.Backend.Games
                 return;
             }
 
+#if !WINDOWS
+            string? steamInstallPath = SteamInstallDirFromExe(exePath);
+            if (steamInstallPath != null && string.Equals(steamInstallPath, _failedSteamInstallPath, StringComparison.OrdinalIgnoreCase))
+                return;
+#endif
+
             Log.Information($"[StartGameRecording] Starting recording for game: PID {pid}, Path: {exePath}");
 
             string gameName = ExtractGameName(exePath);
@@ -488,7 +499,9 @@ namespace Segra.Backend.Games
 #if WINDOWS
             _ = Task.Run(() => OBSService.StartRecording(gameName, exePath, pid: pid));
 #else
-            OBSService.StartRecording(gameName, exePath, pid: pid);
+            PreventRetryRecording = false;
+            if (!OBSService.StartRecording(gameName, exePath, pid: pid) && PreventRetryRecording)
+                _failedSteamInstallPath = steamInstallPath;
 #endif
         }
 
