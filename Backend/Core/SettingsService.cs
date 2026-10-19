@@ -16,6 +16,7 @@ namespace Segra.Backend.Core
     internal static class SettingsService
     {
         public static readonly string SettingsFilePath = PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "settings.json"));
+        private static readonly string BackupFilePath = SettingsFilePath + ".bak";
         private static readonly object _saveLock = new();
         private static string? _lastSavedJson;
 
@@ -48,8 +49,29 @@ namespace Segra.Backend.Core
                     if (!unchanged)
                     {
                         string tempPath = SettingsFilePath + ".tmp";
-                        File.WriteAllText(tempPath, json);
-                        File.Move(tempPath, SettingsFilePath, true);
+                        using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                        using (var writer = new StreamWriter(stream))
+                        {
+                            writer.Write(json);
+                            writer.Flush();
+                            stream.Flush(true);
+                        }
+
+                        bool replaced = false;
+                        if (File.Exists(SettingsFilePath))
+                        {
+                            try
+                            {
+                                File.Replace(tempPath, SettingsFilePath, BackupFilePath);
+                                replaced = true;
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Warning($"Could not keep a settings backup: {ex.Message}");
+                            }
+                        }
+                        if (!replaced)
+                            File.Move(tempPath, SettingsFilePath, true);
                         _lastSavedJson = json;
                     }
                 }
@@ -78,15 +100,56 @@ namespace Segra.Backend.Core
 
         public static bool LoadSettings()
         {
+            if (File.Exists(SettingsFilePath))
+            {
+                if (TryLoadSettingsFile(SettingsFilePath))
+                    return true;
+
+                try
+                {
+                    File.Move(SettingsFilePath, SettingsFilePath + ".corrupt", true);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Could not move the unreadable settings file aside: {ex.Message}");
+                }
+            }
+
+            if (!File.Exists(BackupFilePath))
+            {
+                Log.Information($"Settings file not found at {SettingsFilePath}. Using default settings.");
+                return false;
+            }
+
+            if (!TryLoadSettingsFile(BackupFilePath))
+                return false;
+
+            Log.Warning($"Settings restored from {BackupFilePath}");
+            _lastSavedJson = null;
+            return true;
+        }
+
+        // A lock (antivirus, a profile still syncing) must not get a good file set aside as corrupt
+        private static string ReadAllTextWithRetry(string path)
+        {
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    return File.ReadAllText(path);
+                }
+                catch (IOException) when (attempt < 5)
+                {
+                    Thread.Sleep(200);
+                }
+            }
+        }
+
+        private static bool TryLoadSettingsFile(string path)
+        {
             try
             {
-                if (!File.Exists(SettingsFilePath))
-                {
-                    Log.Information($"Settings file not found at {SettingsFilePath}. Using default settings.");
-                    return false;
-                }
-
-                var json = File.ReadAllText(SettingsFilePath);
+                var json = ReadAllTextWithRetry(path);
                 _lastSavedJson = json;
 
                 var options = new JsonSerializerOptions
@@ -181,7 +244,7 @@ namespace Segra.Backend.Core
 
                 Settings.Instance.RunOnStartup = PlatformServices.Startup.GetStartupStatus();
 
-                Log.Information("Settings loaded from {0}", SettingsFilePath);
+                Log.Information("Settings loaded from {0}", path);
 
                 // Program.Main saves once the app state is initialized
                 Settings.Instance._isBulkUpdating = false;
@@ -189,7 +252,8 @@ namespace Segra.Backend.Core
             }
             catch (Exception ex)
             {
-                Log.Error($"Failed to load settings: {ex.Message}");
+                Log.Error($"Failed to load settings from {path}: {ex.Message}");
+                Settings.Instance._isBulkUpdating = false;
                 return false;
             }
         }
