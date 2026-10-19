@@ -283,7 +283,9 @@ namespace Segra.Backend.App
                             await SendSettingsToFrontend("New connection");
                             await SendStateToFrontend("New connection");
 
-                            await SendGameList();
+                            // Empty until games.json has loaded, which sends the list itself
+                            if (GameUtils.GetGameList().Count > 0)
+                                await SendGameList();
 
                             // canSelfUpdate: false on Linux/Flatpak, where the package manager owns updates.
                             // Informational version, not GetName().Version: it keeps the -beta.N suffix,
@@ -588,7 +590,6 @@ namespace Segra.Backend.App
             {
                 if (ResentOnConnect.Contains(method))
                 {
-                    Log.Debug($"Skipped '{method}' message: no frontend connected, it is resent on the next connection");
                     return;
                 }
 

@@ -1377,7 +1377,9 @@ namespace Segra.Backend.Recorder
             }
             else
             {
-                videoEncoderSettings.Set("preset", "Quality");
+                // Only AMF has a preset by this name, the other encoders keep their default preset
+                if (encoderId.Contains("amf", StringComparison.OrdinalIgnoreCase))
+                    videoEncoderSettings.Set("preset", "Quality");
                 // HEVC needs the Main 10 profile for 10-bit HDR; AV1 derives bit depth from the P010 input.
                 videoEncoderSettings.Set("profile", _isHdrRecording && EncoderInfo.Get(encoderId)?.Codec == "hevc" ? "main10" : "high");
                 videoEncoderSettings.Set("use_bufsize", true);
@@ -1418,11 +1420,12 @@ namespace Segra.Backend.Recorder
 
                 ApplyNvencBFrameLimit(videoEncoderSettings, encoderId);
 
-                // Two-pass and psycho visual tuning run on CUDA, which a GPU-bound game starves until the encoder falls behind
                 if (encoderId.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
                 {
+                    // Two-pass, adaptive quantization and look-ahead add GPU work that a GPU-bound game starves until the encoder falls behind
                     videoEncoderSettings.Set("multipass", "disabled");
-                    videoEncoderSettings.Set("psycho_aq", false);
+                    videoEncoderSettings.Set("adaptive_quantization", false);
+                    videoEncoderSettings.Set("lookahead", false);
                 }
             }
 
@@ -4198,9 +4201,9 @@ namespace Segra.Backend.Recorder
             new(StringComparer.OrdinalIgnoreCase)
             {
                 // ── NVIDIA NVENC ────────────────────────────────────
-                ["jim_nvenc"] = "NVIDIA NVENC H.264",
-                ["jim_hevc_nvenc"] = "NVIDIA NVENC H.265",
-                ["jim_av1_nvenc"] = "NVIDIA NVENC AV1",
+                ["obs_nvenc_h264_tex"] = "NVIDIA NVENC H.264",
+                ["obs_nvenc_hevc_tex"] = "NVIDIA NVENC H.265",
+                ["obs_nvenc_av1_tex"] = "NVIDIA NVENC AV1",
 
                 // ── AMD AMF ────────────────────────────────────────
                 ["h264_texture_amf"] = "AMD AMF H.264",
@@ -4240,19 +4243,22 @@ namespace Segra.Backend.Recorder
             var videoEncoders = new List<(string Id, bool IsHardware, string? Name)>();
             var audioEncoders = new List<(string Id, bool IsHardware, string? Name)>();
 
-            // Several of our curated encoder ids (e.g. jim_nvenc, obs_qsv11_v2) are marked
-            // deprecated/internal by libobs despite being the ones we actually use, so this
-            // must stay a per-id EncoderInfo lookup rather than EncoderInfo.GetVideoEncoders()
-            // (which filters those out). Look up once via a map instead of once per encoder -
+            // Includes internal encoders, which are enumerated and logged too. Built once since
             // EncoderInfo.Get() re-enumerates every registered encoder internally.
             var encoderInfoById = EncoderInfo.GetAll(includeInternal: true)
                 .ToDictionary(e => e.Id, StringComparer.OrdinalIgnoreCase);
 
             foreach (var encoderId in encoderTypes)
             {
+                encoderInfoById.TryGetValue(encoderId, out var info);
+
+                // Deprecated ids are aliases that libobs reroutes to a current encoder
+                if (info?.IsDeprecated == true)
+                    continue;
+
                 EncoderFriendlyNames.TryGetValue(encoderId, out var name);
                 string friendlyName = name ?? encoderId;
-                bool isHardware = encoderInfoById.TryGetValue(encoderId, out var info) && info.IsHardware;
+                bool isHardware = info?.IsHardware == true;
 
                 (info?.IsAudio == true ? audioEncoders : videoEncoders).Add((encoderId, isHardware, name));
 
@@ -4262,9 +4268,17 @@ namespace Segra.Backend.Recorder
                 }
             }
 
-            int idWidth = encoderTypes.Count > 0 ? encoderTypes.Max(id => id.Length) : 0;
+            int idWidth = videoEncoders.Concat(audioEncoders).Select(e => e.Id.Length).DefaultIfEmpty().Max();
             LogEncoderGroup("Video encoders", videoEncoders, idWidth);
             LogEncoderGroup("Audio encoders", audioEncoders, idWidth);
+
+            _ = EnsureCodecAvailableAsync();
+        }
+
+        private static async Task EnsureCodecAvailableAsync()
+        {
+            // A pending migration can still rename the saved codec id
+            await MigrationService.WaitForMigrationsAsync();
 
             var codec = Settings.Instance.Codec;
             if (codec == null || !AppState.Instance.Codecs.Any(c => c.InternalEncoderId.Equals(codec.InternalEncoderId, StringComparison.OrdinalIgnoreCase)))
@@ -4312,10 +4326,10 @@ namespace Segra.Backend.Recorder
             }
             else if (encoderType == "gpu")
             {
-                // Prefer NVIDIA NVENC (jim_nvenc)
+                // Prefer NVIDIA NVENC H.264
                 selectedCodec = availableCodecs.FirstOrDefault(
                     c => c.InternalEncoderId.Equals(
-                        "jim_nvenc",
+                        "obs_nvenc_h264_tex",
                         StringComparison.OrdinalIgnoreCase
                     )
                 );

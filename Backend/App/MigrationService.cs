@@ -231,8 +231,46 @@ internal static class MigrationService
             new("0017_per_device_input_options", Apply_0017_PerDeviceInputOptions),
             new("0018_embed_metadata_in_videos", Apply_0018_EmbedMetadataInVideos),
             new("0019_index_first_in_clips", Apply_0019_IndexFirstInClips),
-            new("0020_remove_legacy_nvenc_presets", Apply_0020_RemoveLegacyNvencPresets)
+            new("0020_remove_legacy_nvenc_presets", Apply_0020_RemoveLegacyNvencPresets),
+            new("0021_non_deprecated_nvenc_ids", Apply_0021_NonDeprecatedNvencIds)
         ];
+    }
+
+    // Migration 0021: The jim_* NVENC ids are deprecated aliases of the obs_nvenc_*_tex encoders, which Segra now uses.
+    private static void Apply_0021_NonDeprecatedNvencIds()
+    {
+        try
+        {
+            var settings = Settings.Instance;
+            bool changed = MigrateNvencId(settings.Codec);
+            foreach (var game in settings.Games)
+                changed |= MigrateNvencId(game.QualityOverride?.Codec);
+
+            if (!changed) return;
+
+            SettingsService.SaveSettings();
+            _ = MessageService.SendSettingsToFrontend("Migrated deprecated NVENC encoder ids");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to migrate deprecated NVENC encoder ids");
+        }
+    }
+
+    private static bool MigrateNvencId(Codec? codec)
+    {
+        string? newId = codec?.InternalEncoderId switch
+        {
+            "jim_nvenc" => "obs_nvenc_h264_tex",
+            "jim_hevc_nvenc" => "obs_nvenc_hevc_tex",
+            "jim_av1_nvenc" => "obs_nvenc_av1_tex",
+            _ => null
+        };
+        if (newId == null) return false;
+
+        Log.Information($"Codec id changed from '{codec!.InternalEncoderId}' to '{newId}' (deprecated NVENC id)");
+        codec.InternalEncoderId = newId;
+        return true;
     }
 
     // Migration 0020: FFmpeg removed the legacy NVENC presets (hp, hq, ll, ...), so clips with them fail to encode.

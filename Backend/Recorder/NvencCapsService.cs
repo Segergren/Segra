@@ -41,13 +41,8 @@ namespace Segra.Backend.Recorder
         // Maps OBS NVENC encoder ids to the codec section names emitted by obs-nvenc-test
         private static readonly Dictionary<string, string> EncoderIdToCodec = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["jim_nvenc"] = "h264",
             ["obs_nvenc_h264_tex"] = "h264",
-            ["ffmpeg_nvenc"] = "h264",
-            ["jim_hevc_nvenc"] = "hevc",
             ["obs_nvenc_hevc_tex"] = "hevc",
-            ["ffmpeg_hevc_nvenc"] = "hevc",
-            ["jim_av1_nvenc"] = "av1",
             ["obs_nvenc_av1_tex"] = "av1",
         };
 
