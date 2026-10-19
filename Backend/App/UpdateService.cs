@@ -254,6 +254,16 @@ namespace Segra.Backend.App
                 return;
             }
 
+            StopRecordingAndShutDownObs();
+
+            // Auto updates run unattended: no Velopack dialogs, and Segra comes back in the tray.
+            string[]? restartArgs = isAutoUpdate ? [RestartMinimizedArg] : null;
+            UpdateManager.WaitExitThenApplyUpdates(LatestUpdateInfo, silent: isAutoUpdate, restart: true, restartArgs);
+            Environment.Exit(0);
+        }
+
+        private static void StopRecordingAndShutDownObs()
+        {
             // Stop any active recording first so OBS finalizes cleanly, mirroring Program.cs's shutdown path.
             if (Core.Models.AppState.Instance.Recording != null || Core.Models.AppState.Instance.PreRecording != null || Core.Models.AppState.Instance.IsFinishingRecording)
             {
@@ -267,7 +277,6 @@ namespace Segra.Backend.App
 #endif
 
             // Shutdown OBS before restarting to unload graphics-hook64.dll from game processes.
-            // Environment.Exit below kills the process immediately, bypassing Program.Shutdown().
             OBSService.TryShutdown(TimeSpan.FromSeconds(10));
 
 #if WINDOWS
@@ -281,11 +290,6 @@ namespace Segra.Backend.App
                 Log.Error(ex, "Error stopping the hotkey broker");
             }
 #endif
-
-            // Auto updates run unattended: no Velopack dialogs, and Segra comes back in the tray.
-            string[]? restartArgs = isAutoUpdate ? [RestartMinimizedArg] : null;
-            UpdateManager.WaitExitThenApplyUpdates(LatestUpdateInfo, silent: isAutoUpdate, restart: true, restartArgs);
-            Environment.Exit(0);
         }
 
         private static async Task SendUpdateProgressToFrontend(string version, int progress, string status, string message)
@@ -367,9 +371,7 @@ namespace Segra.Backend.App
 
                 LatestUpdateInfo = updateInfo;
 
-#if WINDOWS
-                HotkeyCaptureService.ShutdownBroker(TimeSpan.FromSeconds(20));
-#endif
+                StopRecordingAndShutDownObs();
 
                 Log.Information($"Applying force reinstall of {targetVersion}");
                 UpdateManager.ApplyUpdatesAndRestart(updateInfo.TargetFullRelease);
