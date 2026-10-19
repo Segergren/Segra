@@ -409,11 +409,11 @@ namespace Segra.Backend.Media
                 string waveformJsonPath = FolderNames.GetWaveformFilePath(type, id);
 
                 // Decode audio to raw mono 16-bit PCM at a modest sample rate for efficiency.
-                // Probe the file for its audio track count so multi-track recordings can be
-                // mixed together rather than ffmpeg silently picking just one stream.
+                // A Full Mix track already contains every source, so only multi-track files
+                // without one need all their tracks decoded and mixed.
                 int sampleRate = 11025;
                 var audioTrackNames = await Mp4BoxReader.ReadAudioTrackNamesAsync(videoFilePath);
-                int audioStreamCount = audioTrackNames?.Count ?? 1;
+                int audioStreamCount = audioTrackNames == null || audioTrackNames[0] == "Full Mix" ? 1 : audioTrackNames.Count;
                 await FFmpegService.ExtractPcmAudio(videoFilePath, tempPcmPath, sampleRate, audioStreamCount);
 
                 if (!File.Exists(tempPcmPath))
@@ -529,6 +529,7 @@ namespace Segra.Backend.Media
                 await File.WriteAllTextAsync(waveformJsonPathTemp, json);
                 File.Move(waveformJsonPathTemp, waveformJsonPath, true);
                 Log.Information($"Waveform JSON successfully created at: {waveformJsonPath}");
+                await MessageService.SendFrontendMessage("WaveformCreated", new { id, type = type.ToString() });
 
                 try { File.Delete(tempPcmPath); } catch { /* ignore */ }
             }

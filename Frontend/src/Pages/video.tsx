@@ -222,6 +222,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const peaksMaxRef = useRef<number>(128);
   const waveformStateRef = useRef({ pixelsPerSecond: 0, duration: 0 });
   const waveformBufferRef = useRef({ regionLeft: 0, regionRight: 0 });
+  const [waveformVersion, setWaveformVersion] = useState(0);
 
   // Audio tracks
   const audioTracks = useAudioTracks(videoRef, video);
@@ -1393,7 +1394,19 @@ export default function VideoComponent({ video }: { video: Content }) {
       cancelled = true;
       peaksRef.current = null;
     };
-  }, [settings.showAudioWaveformInTimeline, renderWaveformBuffer]);
+  }, [settings.showAudioWaveformInTimeline, renderWaveformBuffer, waveformVersion]);
+
+  // Session waveforms are generated after the recording finishes, so refetch once this one is ready
+  useEffect(() => {
+    const handleMessage = (event: CustomEvent) => {
+      if (event.detail?.method !== 'WaveformCreated') return;
+      if (event.detail?.content?.id !== video.id || peaksRef.current?.length) return;
+      setWaveformVersion((v) => v + 1);
+    };
+
+    window.addEventListener('websocket-message', handleMessage as EventListener);
+    return () => window.removeEventListener('websocket-message', handleMessage as EventListener);
+  }, [video.id]);
 
   // Re-render waveform buffer when zoom changes
   useEffect(() => {

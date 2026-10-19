@@ -2298,7 +2298,14 @@ namespace Segra.Backend.Recorder
                             : null;
                         sessionContentId = await ContentService.CreateMetadataFile(filePath, Content.ContentType.Session, session.Game, session.Bookmarks, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes, gameExePath: session.ExePath);
                         await ContentService.CreateThumbnail(filePath, Content.ContentType.Session, sessionContentId);
-                        await ContentService.CreateWaveformFile(filePath, Content.ContentType.Session, sessionContentId);
+                        // Decoding a long session's audio takes seconds, so it doesn't hold up the finishing state
+                        var waveformWork = BackgroundWork.Begin();
+                        string? waveformId = sessionContentId;
+                        _ = Task.Run(async () =>
+                        {
+                            using (waveformWork)
+                                await ContentService.CreateWaveformFile(filePath, Content.ContentType.Session, waveformId);
+                        });
 
                         Log.Information($"Recording details:");
                         Log.Information($"Start Time: {session.StartTime}");

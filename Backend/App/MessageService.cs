@@ -48,6 +48,7 @@ namespace Segra.Backend.App
             "pong",
             "RecordingPreviewState",
             "RecordingPreviewFrame",
+            "WaveformCreated",
             "MigrationStatus"
         };
 
