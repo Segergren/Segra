@@ -1124,6 +1124,13 @@ namespace Segra.Backend.Recorder
                 return false;
             }
 
+            if (IsHeldForSleep)
+            {
+                Log.Information("The system is going to sleep or just woke up. Skipping recording.");
+                AppState.Instance.PreRecording = null;
+                return false;
+            }
+
             // Resolve global settings overlaid with any per-game overrides for this game.
             // Note: the static _activeEffectiveSettings is only published once the early-return guards
             // below have passed, so a blocked start attempt can never clobber an active recording's settings.
@@ -2365,7 +2372,7 @@ namespace Segra.Backend.Recorder
                 try
                 {
                     bool wanted = Settings.Instance.AlwaysOnReplayBuffer && IsInitialized && !_isExiting
-                        && !RecorderHealthService.IsRecorderLost
+                        && !RecorderHealthService.IsRecorderLost && !IsHeldForSleep
                         && AppState.Instance.Recording == null && AppState.Instance.PreRecording == null;
 
                     if (_alwaysOnBuffer != null)
@@ -2485,6 +2492,75 @@ namespace Segra.Backend.Recorder
                 s.InputDevices, s.OutputDevices, s.EnableSeparateAudioTracks,
                 s.SelectedDisplay?.DeviceId, s.ContentFolder, AppState.Instance.Displays
             });
+        }
+
+        // Recording is held around a system sleep: on wake libobs would encode every frame interval it slept through.
+        // An Environment.TickCount64 deadline, which counts time asleep, so a lost wake notice can't hold it for long.
+        private static long _sleepHoldUntil;
+        private const int SleepHoldMs = 60000;
+        // Windows waits about two seconds for a suspend notification
+        private const int SuspendStopTimeoutMs = 1500;
+        // Lets audio devices and the graphics driver come back before the always-on buffer restarts
+        private const int ResumeSettleMs = 10000;
+
+        private static bool IsHeldForSleep => Environment.TickCount64 < Volatile.Read(ref _sleepHoldUntil);
+
+        public static void OnSystemSuspend()
+        {
+            Volatile.Write(ref _sleepHoldUntil, Environment.TickCount64 + SleepHoldMs);
+            CancelPendingStart();
+            Task.Run(() => StopForSleepAsync(resumed: false)).Wait(SuspendStopTimeoutMs);
+        }
+
+        public static void OnSystemResume()
+        {
+            long hold = Environment.TickCount64 + SleepHoldMs;
+            Volatile.Write(ref _sleepHoldUntil, hold);
+            _ = Task.Run(async () =>
+            {
+                await StopForSleepAsync(resumed: true);
+                await Task.Delay(ResumeSettleMs);
+
+                // Unless the system went to sleep again meanwhile
+                if (Interlocked.CompareExchange(ref _sleepHoldUntil, 0, hold) == hold)
+                    SyncAlwaysOnBuffer();
+            });
+        }
+
+        // Force-stopped: after a sleep a normal stop first encodes every frame it skipped
+        private static async Task StopForSleepAsync(bool resumed)
+        {
+            try
+            {
+                bool recording;
+                await _recorderLock.WaitAsync();
+                try
+                {
+                    bool bufferActive = _bufferOutput?.IsActive == true;
+                    bool outputActive = _output?.IsActive == true;
+                    if (resumed && (bufferActive || outputActive))
+                        Log.Warning("The recorder ran through the sleep; force-stopping it");
+
+                    if (bufferActive)
+                        _bufferOutput!.ForceStop();
+                    if (outputActive)
+                        _output!.ForceStop();
+
+                    StopAlwaysOnBufferCore();
+                    recording = AppState.Instance.Recording != null;
+                }
+                finally
+                {
+                    _recorderLock.Release();
+                }
+
+                if (recording)
+                    await StopRecording();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to stop recording for the system sleep");
+            }
         }
 
         /// <summary>
