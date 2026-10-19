@@ -1258,7 +1258,9 @@ namespace Segra.Backend.Recorder
             DisposeEncoders();
 
             // Configure video settings specifically for this recording/buffer
-            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customResolution: eff.Resolution, encoderId: GetActiveEncoderId(eff));
+            var displaySize = startManually ? GetSelectedDisplaySize() : null;
+            ResetVideoSettings(out _, customFps: (uint)eff.FrameRate, customOutputWidth: displaySize?.Width, customOutputHeight: displaySize?.Height,
+                customResolution: eff.Resolution, encoderId: GetActiveEncoderId(eff));
 
             _mainScene = new Scene("Recording Scene");
             Log.Information("Created recording scene");
@@ -2020,6 +2022,17 @@ namespace Segra.Backend.Recorder
                 Log.Warning($"Failed to follow the game's monitor: {ex.Message}");
             }
 #endif
+        }
+
+        private static (uint Width, uint Height)? GetSelectedDisplaySize()
+        {
+            var displays = AppState.Instance.Displays;
+            int index = ResolveSelectedMonitorIndex(warnIfNotFound: false);
+            if (displays == null || index >= displays.Count)
+                return null;
+
+            var display = displays[index];
+            return display.Width > 0 && display.Height > 0 ? ((uint)display.Width, (uint)display.Height) : null;
         }
 
         /// <summary>
