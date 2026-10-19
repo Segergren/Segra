@@ -419,7 +419,7 @@ namespace Segra.Backend.App
 
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
-                .WriteTo.Debug()
+                .WriteTo.Debug(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
                 //.WriteTo.Debug(restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning) // Remove restricted minimum level to show all logs but increase lag while debugging
                 .WriteTo.Sink(new TrimmingFileSink(LogFilePath, maxFileSizeBytes, trimTargetBytes, LogOutputTemplate))
                 .CreateLogger();
@@ -787,8 +787,6 @@ namespace Segra.Backend.App
                     _ = Task.Run(() => MessageService.HandleMessage(args.Message));
                 })
                 .Load(appUrl!);
-
-            Log.Information("Window variable has been set");
 
             Window.SetTitle("Segra");
 

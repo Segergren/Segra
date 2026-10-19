@@ -524,7 +524,7 @@ namespace Segra.Backend.Recorder
             {
                 try
                 {
-                    if (message.Contains("there's no UI task handler") || message.Contains("segra_track_probe") || message.Contains("CoInitializeEx failed") || message.Contains("NVAudioEffects") || message.Contains("NVVideoEffects") || message.Contains("update_hook_file"))
+                    if (message.Contains("there's no UI task handler") || message.Contains("segra_track_probe") || message.Contains("CoInitializeEx failed") || message.Contains("NVAudioEffects") || message.Contains("NVVideoEffects") || message.Contains("update_hook_file") || message.StartsWith("send_off_encoder_packet: Encoder packet timing for PTS") || (message.StartsWith("send_interleaved: Track") && message.Contains("encoder packet timing")))
                         continue;
 
                     switch ((ObsLogLevel)level)
@@ -725,7 +725,8 @@ namespace Segra.Backend.Recorder
                             try
                             {
                                 // Queue the message for async processing - this is non-blocking
-                                _logChannel.Writer.TryWrite(((int)level, message));
+                                // Some libobs messages end with '\n', which adds a blank line after the log entry
+                                _logChannel.Writer.TryWrite(((int)level, message.TrimEnd()));
                             }
                             catch
                             {
@@ -4224,13 +4225,20 @@ namespace Segra.Backend.Recorder
                 ["ffmpeg_openh264"] = "Software OpenH264",
             };
 
+        // One entry per group; the name column is only set for encoders offered in the UI
+        private static void LogEncoderGroup(string title, List<(string Id, bool IsHardware, string? Name)> encoders, int idWidth)
+        {
+            var rows = encoders.Select(e =>
+                $"\n    {e.Id.PadRight(idWidth)}  {(e.IsHardware ? "hardware" : "software")}{(e.Name != null ? $"  {e.Name}" : "")}");
+            Log.Information("{EncoderList}", $"{title} ({encoders.Count}):{string.Concat(rows)}");
+        }
+
         private static void SetAvailableEncodersInState()
         {
-            Log.Information("Available encoders:");
-
             // Enumerate all encoder types using ObsKit.NET
             var encoderTypes = Obs.EnumerateEncoderTypes().ToList();
-            int idx = 0;
+            var videoEncoders = new List<(string Id, bool IsHardware, string? Name)>();
+            var audioEncoders = new List<(string Id, bool IsHardware, string? Name)>();
 
             // Several of our curated encoder ids (e.g. jim_nvenc, obs_qsv11_v2) are marked
             // deprecated/internal by libobs despite being the ones we actually use, so this
@@ -4246,15 +4254,17 @@ namespace Segra.Backend.Recorder
                 string friendlyName = name ?? encoderId;
                 bool isHardware = encoderInfoById.TryGetValue(encoderId, out var info) && info.IsHardware;
 
-                Log.Information($"{idx} - {friendlyName} | {encoderId} | {(isHardware ? "Hardware" : "Software")}");
+                (info?.IsAudio == true ? audioEncoders : videoEncoders).Add((encoderId, isHardware, name));
+
                 if (name != null)
                 {
                     AppState.Instance.Codecs.Add(new Codec { InternalEncoderId = encoderId, FriendlyName = friendlyName, IsHardwareEncoder = isHardware });
                 }
-                idx++;
             }
 
-            Log.Information($"Total encoders found: {idx}");
+            int idWidth = encoderTypes.Count > 0 ? encoderTypes.Max(id => id.Length) : 0;
+            LogEncoderGroup("Video encoders", videoEncoders, idWidth);
+            LogEncoderGroup("Audio encoders", audioEncoders, idWidth);
 
             var codec = Settings.Instance.Codec;
             if (codec == null || !AppState.Instance.Codecs.Any(c => c.InternalEncoderId.Equals(codec.InternalEncoderId, StringComparison.OrdinalIgnoreCase)))

@@ -17,6 +17,7 @@ namespace Segra.Backend.Core
     {
         public static readonly string SettingsFilePath = PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra", "settings.json"));
         private static readonly object _saveLock = new();
+        private static string? _lastSavedJson;
 
         public static void SaveSettings(bool force = false, bool suppressLog = false)
         {
@@ -40,14 +41,20 @@ namespace Segra.Backend.Core
                     TypeInfoResolver = SettingsJsonContext.Resolver
                 });
 
+                bool unchanged;
                 lock (_saveLock)
                 {
-                    string tempPath = SettingsFilePath + ".tmp";
-                    File.WriteAllText(tempPath, json);
-                    File.Move(tempPath, SettingsFilePath, true);
+                    unchanged = json == _lastSavedJson;
+                    if (!unchanged)
+                    {
+                        string tempPath = SettingsFilePath + ".tmp";
+                        File.WriteAllText(tempPath, json);
+                        File.Move(tempPath, SettingsFilePath, true);
+                        _lastSavedJson = json;
+                    }
                 }
 
-                if (!suppressLog)
+                if (!unchanged && !suppressLog)
                 {
                     Log.Information($"Settings saved to {SettingsFilePath}");
                 }
@@ -80,6 +87,7 @@ namespace Segra.Backend.Core
                 }
 
                 var json = File.ReadAllText(SettingsFilePath);
+                _lastSavedJson = json;
 
                 var options = new JsonSerializerOptions
                 {
