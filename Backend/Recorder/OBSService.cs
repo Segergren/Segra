@@ -148,6 +148,8 @@ namespace Segra.Backend.Recorder
         // active. Both the display-capture fallback and the game capture inherit this canvas.
         private static bool _isHdrRecording = false;
         private static string? _hdrEncoderId = null;
+        // HDR encoders that failed to start (e.g. no 10-bit support). Guarded by _recorderLock.
+        private static readonly HashSet<string> _hdrStartFailedEncoders = new(StringComparer.OrdinalIgnoreCase);
 #if WINDOWS
         private static bool _isHdrDisplay = false;
 
@@ -1221,7 +1223,11 @@ namespace Segra.Backend.Recorder
                     {
                         string userEncoderId = eff.Codec?.InternalEncoderId ?? string.Empty;
                         string? hdrEncoderId = EncoderInfo.FindHdrCapable(userEncoderId)?.Id;
-                        if (hdrEncoderId != null)
+                        if (hdrEncoderId != null && _hdrStartFailedEncoders.Contains(hdrEncoderId))
+                        {
+                            Log.Warning($"HDR encoder '{hdrEncoderId}' failed to start earlier; tone-mapping HDR to SDR.");
+                        }
+                        else if (hdrEncoderId != null)
                         {
                             _isHdrRecording = true;
                             _hdrEncoderId = hdrEncoderId;
@@ -1750,6 +1756,9 @@ namespace Segra.Backend.Recorder
                 {
                     string error = _output.LastError ?? "Unknown error";
                     Log.Error($"Failed to start recording: {error}");
+                    if (RetryWithoutHdr(() => StartRecordingCore(name, exePath, startManually, pid, cancel, alwaysOn)) is bool startedInSdr)
+                        return startedInSdr;
+
                     Task.Run(() => ShowModal("Recording failed", "Failed to start recording. Check the log for more details.", "error"));
                     Task.Run(() => PlaySound("error"));
                     AppState.Instance.PreRecording = null;
@@ -1771,6 +1780,8 @@ namespace Segra.Backend.Recorder
                 {
                     string error = _bufferOutput.LastError ?? "Unknown error";
                     Log.Error($"Failed to start replay buffer: {error}");
+                    if (_output == null && RetryWithoutHdr(() => StartRecordingCore(name, exePath, startManually, pid, cancel, alwaysOn)) is bool bufferStartedInSdr)
+                        return bufferStartedInSdr;
                     if (alwaysOn)
                         return false;
 
@@ -2363,6 +2374,31 @@ namespace Segra.Backend.Recorder
             _hookedExecutableFileName = null;
             CapturedWindowWidth = null;
             CapturedWindowHeight = null;
+        }
+
+        // Null when the failed start wasn't in HDR, otherwise whether the SDR retry started
+        private static bool? RetryWithoutHdr(Func<bool> start)
+        {
+            if (!_isHdrRecording || _hdrEncoderId == null)
+                return null;
+
+            string encoderId = _hdrEncoderId;
+            Log.Warning($"Output failed to start with HDR encoder '{encoderId}'; retrying in SDR.");
+            _hdrStartFailedEncoders.Add(encoderId);
+            DisposeRecording();
+
+            bool started = false;
+            try
+            {
+                started = start();
+                return started;
+            }
+            finally
+            {
+                // Failing in SDR as well means HDR wasn't the cause
+                if (!started)
+                    _hdrStartFailedEncoders.Remove(encoderId);
+            }
         }
 
         /// <summary>
