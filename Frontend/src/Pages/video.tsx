@@ -415,6 +415,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const controlsHideTimeoutRef = useRef<number | null>(null);
   const controlsShowTimeoutRef = useRef<number | null>(null);
   const isPointerOverControlsRef = useRef(false);
+  const hiddenMouseAnchorRef = useRef<{ x: number; y: number } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -627,6 +628,54 @@ export default function VideoComponent({ video }: { video: Content }) {
         showControlsTemporarily();
         return;
       }
+
+      // YouTube-style shortcuts
+      if (!isTyping && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const key = e.key.toLowerCase();
+        const vidEl = videoRef.current;
+
+        if (key === 'k') {
+          if (e.repeat) return;
+          e.preventDefault();
+          handlePlayPause();
+          return;
+        }
+        if (key === 'j' || key === 'l') {
+          e.preventDefault();
+          showControlsTemporarily();
+          skipTime(key === 'j' ? -10 : 10);
+          return;
+        }
+        if ((e.key === ',' || e.key === '.') && vidEl) {
+          e.preventDefault();
+          vidEl.pause();
+          skipTime((e.key === ',' ? -1 : 1) / (settings.frameRate || 60));
+          return;
+        }
+        if (e.key === '<' || e.key === '>') {
+          e.preventDefault();
+          const index = PLAYBACK_SPEEDS.findIndex((s) => s >= playbackRate);
+          const next = index + (e.key === '<' ? -1 : 1);
+          if (next >= 0 && next < PLAYBACK_SPEEDS.length) {
+            setPlaybackRateForPlayer(PLAYBACK_SPEEDS[next]);
+          }
+          showControlsTemporarily();
+          return;
+        }
+        if (/^[0-9]$/.test(e.key) && vidEl && vidEl.duration) {
+          e.preventDefault();
+          skipTime(vidEl.duration * (Number(e.key) / 10) - vidEl.currentTime);
+          showControlsTemporarily();
+          return;
+        }
+        if ((e.key === 'Home' || e.key === 'End') && vidEl && vidEl.duration) {
+          e.preventDefault();
+          skipTime(e.key === 'Home' ? -vidEl.currentTime : vidEl.duration);
+          showControlsTemporarily();
+          return;
+        }
+      }
+
       if (e.key === 'Escape' && isFullscreen) {
         e.preventDefault();
         exitFullscreen();
@@ -644,7 +693,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       vid.removeEventListener('ratechange', onRateChange);
       window.removeEventListener('keydown', handleKeyDown, keyOptions as any);
     };
-  }, [volume, isMuted, isFullscreen, audioTracks.isMultiTrack]);
+  }, [volume, isMuted, isFullscreen, audioTracks.isMultiTrack, playbackRate, settings.frameRate]);
 
   // Per-segment audio override state, kept in refs for the rAF loop below.
   // `segmentsDirtyRef` is separate from the id ref because `null` is already
@@ -1042,6 +1091,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const enterFullscreen = () => {
     setIsFullscreen(true);
     sendMessageToBackend('ToggleFullscreen', { enabled: true });
+    scheduleControlsHide();
   };
 
   const exitFullscreen = () => {
@@ -1053,6 +1103,11 @@ export default function VideoComponent({ video }: { video: Content }) {
     if (isFullscreen) exitFullscreen();
     else enterFullscreen();
   };
+
+  // Hide the cursor whenever the controls hide under it, not only after the hide timer
+  useEffect(() => {
+    if (!controlsVisible && playerContainerRef.current?.matches(':hover')) hideCursor();
+  }, [controlsVisible, isFullscreen]);
 
   // Prevent page scrollbars while our overlay is active
   useEffect(() => {
@@ -1921,12 +1976,23 @@ export default function VideoComponent({ video }: { video: Content }) {
         <div className="flex flex-col flex-1 w-full h-full p-4 pb-2 overflow-hidden lg:w-3/4">
           <TopInfoBar video={video} />
           <div
-            className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative flex-1 min-h-0 overflow-hidden rounded-lg'}`}
+            className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative flex-1 min-h-0 mb-px overflow-hidden rounded-lg'}`}
             ref={playerContainerRef}
-            onMouseMove={() => {
+            onMouseMove={(e) => {
+              // Ignore small jitter while the controls are hidden
+              if (!controlsVisibleRef.current) {
+                const anchor = hiddenMouseAnchorRef.current;
+                if (!anchor) {
+                  hiddenMouseAnchorRef.current = { x: e.clientX, y: e.clientY };
+                  return;
+                }
+                if (Math.hypot(e.clientX - anchor.x, e.clientY - anchor.y) < 10) return;
+              }
+              hiddenMouseAnchorRef.current = null;
               showControlsTemporarily();
             }}
             onMouseLeave={() => {
+              hiddenMouseAnchorRef.current = null;
               isPointerOverControlsRef.current = false;
               showCursor();
               if (controlsShowTimeoutRef.current) {

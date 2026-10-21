@@ -428,6 +428,7 @@ namespace Segra.Backend.App
         private static Size? _windowSizeBeforeFullscreen;
         private static Point? _windowLocationBeforeFullscreen;
         private static bool _wasMaximizedBeforeFullscreen;
+        private static bool _isFullscreen;
         private static Point? _lastNormalLocation;
         private static Size? _lastNormalSize;
         private static CancellationTokenSource? _windowStateSaveDebounceCts;
@@ -437,32 +438,32 @@ namespace Segra.Backend.App
         {
             try
             {
-                if (Window == null) return;
+                if (Window == null || enabled == _isFullscreen) return;
 
                 if (enabled)
                 {
                     _wasMaximizedBeforeFullscreen = Window.WindowState == PhotinoWindowState.Maximized;
                     _windowSizeBeforeFullscreen = Window.Size;
                     _windowLocationBeforeFullscreen = Window.Location;
-                    Window.SetMaximized(true);
+                    _isFullscreen = true;
+                    Window.SetFullScreen(true);
                 }
                 else
                 {
+                    Window.SetFullScreen(false);
+
                     if (_wasMaximizedBeforeFullscreen)
                     {
-                        return;
+                        Window.SetMaximized(true);
                     }
                     else if (_windowSizeBeforeFullscreen.HasValue && _windowLocationBeforeFullscreen.HasValue)
                     {
                         // Was not maximized, restore size and position
-                        Window.SetMaximized(false);
                         Window.SetSize(_windowSizeBeforeFullscreen.Value);
                         Window.SetLocation(_windowLocationBeforeFullscreen.Value);
                     }
-                    else
-                    {
-                        Window.SetMaximized(false);
-                    }
+
+                    _isFullscreen = false;
                 }
             }
             catch (Exception ex)
@@ -796,7 +797,7 @@ namespace Segra.Backend.App
             // the latest position/size.
             Window.RegisterLocationChangedHandler((sender, e) =>
             {
-                if (Window != null && Window.WindowState != PhotinoWindowState.Maximized &&
+                if (Window != null && !_isFullscreen && Window.WindowState != PhotinoWindowState.Maximized &&
                     Window.WindowState != PhotinoWindowState.Minimized)
                 {
                     _lastNormalLocation = e.Location;
@@ -805,7 +806,7 @@ namespace Segra.Backend.App
             });
             Window.RegisterSizeChangedHandler((sender, e) =>
             {
-                if (Window != null && Window.WindowState != PhotinoWindowState.Maximized &&
+                if (Window != null && !_isFullscreen && Window.WindowState != PhotinoWindowState.Maximized &&
                     Window.WindowState != PhotinoWindowState.Minimized)
                 {
                     _lastNormalSize = e.Size;
@@ -830,6 +831,7 @@ namespace Segra.Backend.App
                 }
 
                 SaveWindowState();
+                _isFullscreen = false;
                 Window = null;
                 Log.Information("Application window closing to tray");
             });
@@ -948,9 +950,9 @@ namespace Segra.Backend.App
 
             try
             {
-                bool maximized = Window.WindowState == PhotinoWindowState.Maximized;
-                Point location = Window.Location;
-                Size size = Window.Size;
+                bool maximized = _isFullscreen ? _wasMaximizedBeforeFullscreen : Window.WindowState == PhotinoWindowState.Maximized;
+                Point location = _isFullscreen ? _windowLocationBeforeFullscreen ?? Window.Location : Window.Location;
+                Size size = _isFullscreen ? _windowSizeBeforeFullscreen ?? Window.Size : Window.Size;
 
                 // A maximized window reports its maximized bounds, so persist the last
                 // tracked normal bounds (or the previously saved ones) instead.
