@@ -1435,6 +1435,11 @@ namespace Segra.Backend.Recorder
                     videoEncoderSettings.Set("adaptive_quantization", false);
                     videoEncoderSettings.Set("lookahead", false);
                 }
+                else if (encoderId.Contains("qsv", StringComparison.OrdinalIgnoreCase) && (eff.RateControl is "CBR" or "VBR"))
+                {
+                    // Look-ahead adds GPU work and has failed to start on some Intel GPUs; "ultra-low" is the only QSV latency that turns it off
+                    videoEncoderSettings.Set("latency", "ultra-low");
+                }
             }
 
             try
