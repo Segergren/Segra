@@ -28,9 +28,6 @@ namespace Segra.Backend.App
         static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
         [DllImport("user32.dll")]
-        static extern bool SetProcessDPIAware();
-
-        [DllImport("user32.dll")]
         static extern uint GetDpiForSystem();
 
         [DllImport("user32.dll")]
@@ -86,10 +83,7 @@ namespace Segra.Backend.App
 
             PlatformServices.Initialize();
 
-#if WINDOWS
-            // Set process DPI aware to ensure we capture at physical resolution
-            SetProcessDPIAware();
-#else
+#if !WINDOWS
             // Re-exec once with LD_LIBRARY_PATH set so libobs is loadable (never returns on first launch).
             Segra.Backend.Platform.Linux.LinuxObsRuntime.ConfigureAndReexecIfNeeded();
 #endif
