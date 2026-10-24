@@ -24,9 +24,8 @@ import { clampInt } from '../../Utils/NumberUtils';
 import CustomGameModal from '../CustomGameModal';
 import DropdownSelect from '../DropdownSelect';
 import RangeSlider from '../RangeSlider';
+import BitrateInput from './BitrateInput';
 import { useDeleteConfirmation } from '../../Hooks/useDeleteConfirmation';
-
-const BITRATE_OPTIONS = Array.from({ length: 19 }, (_, i) => (i + 2) * 5); // 10..100 Mbps
 
 // Square game icon from the CDN, with a graceful fallback when there's no icon (custom games)
 // or the image fails to load.
@@ -910,10 +909,10 @@ function QualityOverrideEditor({
                   <label className="label">
                     <span className="label-text text-base-content">Bitrate</span>
                   </label>
-                  <DropdownSelect
-                    items={BITRATE_OPTIONS.map((v) => ({ value: String(v), label: `${v} Mbps` }))}
-                    value={String(value.bitrate)}
-                    onChange={(val) => onChange({ bitrate: Number(val) })}
+                  <BitrateInput
+                    value={value.bitrate}
+                    onChange={(bitrate) => onChange({ bitrate })}
+                    className="bg-base-300"
                   />
                 </div>
               )}
@@ -925,26 +924,24 @@ function QualityOverrideEditor({
                     <label className="label">
                       <span className="label-text text-base-content">Minimum Bitrate</span>
                     </label>
-                    <DropdownSelect
-                      items={BITRATE_OPTIONS.map((v) => ({ value: String(v), label: `${v} Mbps` }))}
-                      value={String(value.minBitrate)}
-                      onChange={(val) => {
-                        const min = Number(val);
-                        onChange({ minBitrate: min, maxBitrate: Math.max(min, value.maxBitrate) });
-                      }}
+                    <BitrateInput
+                      value={value.minBitrate}
+                      onChange={(min) =>
+                        onChange({ minBitrate: min, maxBitrate: Math.max(min, value.maxBitrate) })
+                      }
+                      className="bg-base-300"
                     />
                   </div>
                   <div className="form-control">
                     <label className="label">
                       <span className="label-text text-base-content">Maximum Bitrate</span>
                     </label>
-                    <DropdownSelect
-                      items={BITRATE_OPTIONS.map((v) => ({ value: String(v), label: `${v} Mbps` }))}
-                      value={String(value.maxBitrate)}
-                      onChange={(val) => {
-                        const max = Number(val);
-                        onChange({ maxBitrate: max, minBitrate: Math.min(max, value.minBitrate) });
-                      }}
+                    <BitrateInput
+                      value={value.maxBitrate}
+                      onChange={(max) =>
+                        onChange({ maxBitrate: max, minBitrate: Math.min(max, value.minBitrate) })
+                      }
+                      className="bg-base-300"
                     />
                   </div>
                 </>

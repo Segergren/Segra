@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DropdownSelect from '../DropdownSelect';
+import BitrateInput from './BitrateInput';
 import EncoderVendorIcon, { getEncoderVendor } from '../EncoderVendorIcon';
 import MonitorBrandIcon from '../MonitorBrandIcon';
 import { Settings as SettingsType, VideoQualityPreset, GpuVendor } from '../../Models/types';
@@ -357,13 +358,9 @@ export default function VideoSettingsSection({
                   <label className="label">
                     <span className="label-text text-base-content">Bitrate</span>
                   </label>
-                  <DropdownSelect
-                    items={Array.from({ length: 19 }, (_, i) => (i + 2) * 5).map((v) => ({
-                      value: String(v),
-                      label: `${v} Mbps`,
-                    }))}
-                    value={String(settings.bitrate)}
-                    onChange={(val) => updateSettings({ bitrate: Number(val) })}
+                  <BitrateInput
+                    value={settings.bitrate}
+                    onChange={(bitrate) => updateSettings({ bitrate })}
                   />
                 </div>
               )}
@@ -375,40 +372,28 @@ export default function VideoSettingsSection({
                     <label className="label">
                       <span className="label-text text-base-content">Minimum Bitrate</span>
                     </label>
-                    <DropdownSelect
-                      items={Array.from({ length: 19 }, (_, i) => (i + 2) * 5).map((v) => ({
-                        value: String(v),
-                        label: `${v} Mbps`,
-                      }))}
-                      value={String(settings.minBitrate ?? settings.bitrate)}
-                      onChange={(val) => {
-                        const min = Number(val);
-                        const max = Math.max(min, settings.maxBitrate ?? min);
-                        updateSettings({ minBitrate: min, maxBitrate: max });
-                      }}
+                    <BitrateInput
+                      value={settings.minBitrate}
+                      onChange={(min) =>
+                        updateSettings({
+                          minBitrate: min,
+                          maxBitrate: Math.max(min, settings.maxBitrate),
+                        })
+                      }
                     />
                   </div>
                   <div className="form-control">
                     <label className="label">
                       <span className="label-text text-base-content">Maximum Bitrate</span>
                     </label>
-                    <DropdownSelect
-                      items={Array.from({ length: 19 }, (_, i) => (i + 2) * 5).map((v) => ({
-                        value: String(v),
-                        label: `${v} Mbps`,
-                      }))}
-                      value={String(
-                        settings.maxBitrate ??
-                          Math.max(
-                            settings.minBitrate ?? settings.bitrate,
-                            Math.round((settings.bitrate || 10) * 1.5),
-                          ),
-                      )}
-                      onChange={(val) => {
-                        const max = Number(val);
-                        const min = Math.min(max, settings.minBitrate ?? settings.bitrate);
-                        updateSettings({ maxBitrate: max, minBitrate: min });
-                      }}
+                    <BitrateInput
+                      value={settings.maxBitrate}
+                      onChange={(max) =>
+                        updateSettings({
+                          maxBitrate: max,
+                          minBitrate: Math.min(max, settings.minBitrate),
+                        })
+                      }
                     />
                   </div>
                 </>
