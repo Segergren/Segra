@@ -42,10 +42,10 @@ namespace Segra.Backend.Windows.Storage
         }
 
         // A drive considered too full to safely start a recording
-        public sealed record FullDrive(string Label, string Root, double UsedPercent);
+        public sealed record FullDrive(string Label, string Root, double FreeGb);
 
-        // Drives are considered full at or above this used percentage
-        public const double DriveFullThresholdPercent = 99.0;
+        // System and temp drives are considered full below this much free space
+        public const long MinimumSystemFreeSpaceBytes = 2L * 1024 * 1024 * 1024; // 2 GB
 
         // Absolute floor for the while-recording low-space stop. The effective threshold scales up
         // with the configured bitrate (see OBSService), but never drops below this so OBS can always
@@ -103,15 +103,14 @@ namespace Segra.Backend.Windows.Storage
             }
         }
 
-        // Checks the system (C:), recording (content folder) and temp drives.
-        // Returns any drive that is at or above DriveFullThresholdPercent, deduplicated by drive root.
+        // Checks the system (C:) and temp drives; the recording drive has its own bitrate-based check.
+        // Returns any drive below MinimumSystemFreeSpaceBytes free, deduplicated by drive root.
         public static List<FullDrive> GetFullDrives()
         {
             var stopwatch = Stopwatch.StartNew();
             var checks = new (string Label, string Path)[]
             {
                 ("System drive", Environment.SystemDirectory),
-                ("Recording drive", Settings.Instance.ContentFolder),
                 ("Temp drive", Path.GetTempPath())
             };
 
@@ -130,10 +129,9 @@ namespace Segra.Backend.Windows.Storage
                     var drive = new DriveInfo(root);
                     if (!drive.IsReady || drive.TotalSize <= 0) continue;
 
-                    double usedPercent = (drive.TotalSize - drive.AvailableFreeSpace) / (double)drive.TotalSize * 100.0;
-                    if (usedPercent >= DriveFullThresholdPercent)
+                    if (drive.AvailableFreeSpace < MinimumSystemFreeSpaceBytes)
                     {
-                        fullDrives.Add(new FullDrive(label, root, usedPercent));
+                        fullDrives.Add(new FullDrive(label, root, drive.AvailableFreeSpace / (double)BYTES_PER_GB));
                     }
                 }
                 catch (Exception ex)
