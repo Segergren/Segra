@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Settings as SettingsType, HotkeyAction } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
+import { useAppState } from '../../Context/AppStateContext';
 interface HotkeysSectionProps {
   settings: SettingsType;
   updateSettings: (updates: Partial<SettingsType>) => void;
@@ -88,9 +89,41 @@ const getActionRank = (action: HotkeyAction): number => {
   return rank === -1 ? ACTION_ORDER.length : rank;
 };
 
+const VK_SHIFT = 16;
+const VK_CONTROL = 17;
+const VK_ALT = 18;
+const VK_ESCAPE = 27;
+
+// Combined with one other key, in the order they are saved and shown
+const MODIFIER_KEYS = [VK_CONTROL, VK_ALT, VK_SHIFT];
+
+const isModifierKey = (keyCode: number) => MODIFIER_KEYS.includes(keyCode);
+
+// Chromium on Windows reports the AltGr key as AltGraph instead of Ctrl and Alt, while Windows and
+// so the hotkey itself see Ctrl+Alt. On Linux AltGr is just the right Alt key.
+const getHeldModifiers = (e: KeyboardEvent, altGraphIsCtrlAlt: boolean): number[] => {
+  const altGraph = e.getModifierState('AltGraph');
+  const keys: number[] = [];
+  if (e.ctrlKey || (altGraph && altGraphIsCtrlAlt)) keys.push(VK_CONTROL);
+  if (e.altKey || altGraph) keys.push(VK_ALT);
+  if (e.shiftKey) keys.push(VK_SHIFT);
+  return keys;
+};
+
+const formatKeys = (keys: number[]) => keys.map((key) => getKeyName(key)).join(' + ');
+
+const getCaptureLabel = (keys: number[]) => {
+  if (keys.length === 0) return 'Press Keys...';
+  // Modifiers alone are still waiting for the key they go with
+  return keys.every(isModifierKey) ? `${formatKeys(keys)} + ...` : formatKeys(keys);
+};
+
 export default function HotkeysSection({ settings, updateSettings }: HotkeysSectionProps) {
+  const { platform } = useAppState();
   const [capturing, setCapturing] = useState<number | null>(null);
   const [pressedKeys, setPressedKeys] = useState<number[]>([]);
+  // The key handlers read this between renders
+  const pressedKeysRef = useRef<number[]>([]);
   const isCapturing = capturing !== null;
 
   // Global hotkeys also see keys pressed here
@@ -103,53 +136,80 @@ export default function HotkeysSection({ settings, updateSettings }: HotkeysSect
   useEffect(() => {
     if (capturing === null) return;
 
+    const altGraphIsCtrlAlt = platform === 'windows';
+    const updateKeys = (keys: number[]) => {
+      pressedKeysRef.current = keys;
+      setPressedKeys(keys);
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       e.preventDefault();
+      if (e.keyCode === VK_ESCAPE) return;
 
-      const keys: number[] = [];
-      if (e.ctrlKey) keys.push(17);
-      if (e.altKey) keys.push(18);
-      if (e.shiftKey) keys.push(16);
+      const keys = pressedKeysRef.current;
+      const modifiers = getHeldModifiers(e, altGraphIsCtrlAlt);
+      const mainKey = keys.find((key) => !isModifierKey(key));
 
-      // Add the main key if it's not a modifier
-      if (e.keyCode !== 16 && e.keyCode !== 17 && e.keyCode !== 18) {
-        keys.push(e.keyCode);
+      // The held key repeating, which Chromium stops flagging as a repeat after a modifier is released
+      if (e.keyCode === mainKey) return;
+
+      if (!isModifierKey(e.keyCode)) {
+        updateKeys([...modifiers, e.keyCode]);
+      } else if (mainKey === undefined) {
+        updateKeys(modifiers);
+      } else {
+        // A modifier pressed while the key is held still belongs to the combination
+        updateKeys([
+          ...MODIFIER_KEYS.filter((key) => keys.includes(key) || modifiers.includes(key)),
+          mainKey,
+        ]);
       }
-
-      setPressedKeys(keys);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       e.preventDefault();
 
       // Cancel on Escape
-      if (e.keyCode === 27) {
+      if (e.keyCode === VK_ESCAPE) {
         setCapturing(null);
-        setPressedKeys([]);
+        updateKeys([]);
         return;
       }
 
-      // Save hotkey if we have keys and released a non-modifier key
-      if (pressedKeys.length > 0 && e.keyCode !== 16 && e.keyCode !== 17 && e.keyCode !== 18) {
+      const keys = pressedKeysRef.current;
+      const mainKey = keys.find((key) => !isModifierKey(key));
+      if (mainKey === undefined) {
+        // Only modifiers so far, so keep showing the ones still held
+        if (isModifierKey(e.keyCode)) updateKeys(getHeldModifiers(e, altGraphIsCtrlAlt));
+        return;
+      }
+
+      // Saved when the key is released, so letting go of a modifier first doesn't drop it
+      if (e.keyCode === mainKey) {
         const updatedHotkeys = [...settings.keybindings];
         updatedHotkeys[capturing] = {
           ...updatedHotkeys[capturing],
-          keys: pressedKeys,
+          keys,
         };
         updateSettings({ keybindings: updatedHotkeys });
         setCapturing(null);
-        setPressedKeys([]);
+        updateKeys([]);
       }
     };
 
+    // Keys released while another window has focus never send their keyup here
+    const handleBlur = () => updateKeys([]);
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
     };
-  }, [capturing, pressedKeys, settings.keybindings, updateSettings]);
+  }, [capturing, platform, settings.keybindings, updateSettings]);
 
   // Indices stay those of settings.keybindings so updates hit the right entry
   const orderedHotkeys = settings.keybindings
@@ -191,12 +251,11 @@ export default function HotkeysSection({ settings, updateSettings }: HotkeysSect
               className={`kbd kbd-md cursor-pointer min-w-[120px] transition-all hover:bg-base-300 outline-none h-10 ${capturing === index ? 'animate-pulse bg-base-300' : ''}`}
               onClick={() => {
                 setCapturing(index);
+                pressedKeysRef.current = [];
                 setPressedKeys([]);
               }}
             >
-              {capturing === index
-                ? 'Press Keys...'
-                : hotkey.keys.map((key) => getKeyName(key)).join(' + ')}
+              {capturing === index ? getCaptureLabel(pressedKeys) : formatKeys(hotkey.keys)}
             </button>
           </div>
         ))}
