@@ -17,11 +17,52 @@ namespace Segra.Backend.Media
             WriteIndented = true
         };
 
+        public static MediaClockTimeline? EstimateLegacyMediaClock(Content content)
+        {
+            if (content.MediaClock != null || content.Type != Content.ContentType.Session) return null;
+
+            if (content.Duration <= TimeSpan.Zero) return null;
+
+            if (!DateTime.TryParseExact(
+                    content.FileName,
+                    "yyyy-MM-dd_HH-mm-ss",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None,
+                    out DateTime startWall))
+            {
+                return null;
+            }
+
+            DateTime endWall;
+            try
+            {
+                endWall = File.Exists(content.FilePath) ? File.GetLastWriteTime(content.FilePath) : content.CreatedAt;
+            }
+            catch
+            {
+                endWall = content.CreatedAt;
+            }
+
+            double window = (endWall - startWall).TotalSeconds;
+            double lost = window - content.Duration.TotalSeconds;
+
+            if (lost < 10 || lost > content.Duration.TotalSeconds * 0.5) return null;
+
+            return new MediaClockTimeline
+            {
+                Samples =
+                [
+                    new MediaClockSample { WallSeconds = lost, MediaSeconds = 0 },
+                    new MediaClockSample { WallSeconds = window, MediaSeconds = window - lost }
+                ]
+            };
+        }
+
         /// <summary>
         /// Writes the metadata file for a video and returns the new content id, or null when it could not be written.
         /// The id is the file name of the metadata, thumbnail and waveform files.
         /// </summary>
-        public static async Task<string?> CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null, int? igdbId = null, bool isImported = false, List<string>? audioTrackNames = null, List<string>? audioTrackTypes = null, bool compressed = false, string? gameExePath = null)
+        public static async Task<string?> CreateMetadataFile(string filePath, Content.ContentType type, string game, List<Bookmark>? bookmarks = null, string? title = null, DateTime? createdAt = null, int? igdbId = null, bool isImported = false, List<string>? audioTrackNames = null, List<string>? audioTrackTypes = null, bool compressed = false, string? gameExePath = null, MediaClockTimeline? mediaClock = null)
         {
             bookmarks ??= [];
             filePath = PathUtils.Normalize(filePath);
@@ -70,6 +111,7 @@ namespace Segra.Backend.Media
                     FileSizeKb = sizeKb,
                     CreatedAt = createdAt ?? DateTime.Now,
                     Duration = duration,
+                    MediaClock = mediaClock,
                     AudioTrackNames = audioTrackNames,
                     AudioTrackTypes = audioTrackTypes,
                     IgdbId = igdbId,
