@@ -605,7 +605,7 @@ namespace Segra.Backend.Recorder
                          message.Contains("Could not write headers for file") ||
                          message.Contains("Could not write packet for file") ||
                          message.Contains("Failed to create muxer thread") ||
-                         message.Contains("Could not save buffer because encoders paused")))
+                         message.Contains("Could not save buffer because")))
                     {
                         OnReplayMuxFailureLine(message.Trim());
                     }
@@ -696,8 +696,10 @@ namespace Segra.Backend.Recorder
                 // Initialize OBS using ObsKit.NET fluent API
 #if WINDOWS
                 string baseDir = AppContext.BaseDirectory;
-                string obsModulePath = Path.Combine(baseDir, "obs-plugins", "64bit");
-                string obsModuleDataPath = Path.Combine(baseDir, "data", "obs-plugins", "%module%");
+                // OBS 33+ bundles keep each module in core/<module>/
+                bool coreLayout = Directory.Exists(Path.Combine(baseDir, "core"));
+                string obsModulePath = coreLayout ? Path.Combine(baseDir, "core", "%module%") : Path.Combine(baseDir, "obs-plugins", "64bit");
+                string obsModuleDataPath = coreLayout ? Path.Combine(baseDir, "core", "%module%", "data") : Path.Combine(baseDir, "data", "obs-plugins", "%module%");
                 string obsDataPath = Path.Combine(baseDir, "data", "libobs");
                 Log.Information($"OBS runtime paths: data='{obsDataPath}', modules='{obsModulePath}'");
 #else
@@ -4177,6 +4179,12 @@ namespace Segra.Backend.Recorder
                     if (Directory.Exists(obsPluginsPath))
                     {
                         Directory.Delete(obsPluginsPath, true);
+                    }
+
+                    string corePath = Path.Combine(currentDirectory, "core");
+                    if (Directory.Exists(corePath))
+                    {
+                        Directory.Delete(corePath, true);
                     }
                 }
 
