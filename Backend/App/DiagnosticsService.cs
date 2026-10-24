@@ -400,7 +400,7 @@ namespace Segra.Backend.App
             lines.Add($"Cache folder: {s.CacheFolder}");
             LogDriveInfo(lines, "Cache folder drive", s.CacheFolder);
             lines.Add($"Current content size: {AppState.Instance.CurrentFolderSizeGb:F2} GB");
-            lines.Add($"Storage limit: {s.StorageLimit} GB");
+            lines.Add(s.UnlimitedStorage ? "Storage limit: Unlimited" : $"Storage limit: {s.StorageLimit} GB");
 
             var byType = AppState.Instance.Content
                 .GroupBy(c => c.Type)

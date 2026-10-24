@@ -60,6 +60,7 @@ namespace Segra.Backend.Core.Models
         private string? _pipeWireRestoreToken = null; // lets the Wayland screen-share portal skip its picker
         private bool _pendingOBSUpdate = false;
         private int _storageLimit = 100;
+        private bool _unlimitedStorage = false;
         private List<DeviceSetting> _inputDevices = new List<DeviceSetting>();
         private List<DeviceSetting> _outputDevices = new List<DeviceSetting>();
         private Display? _selectedDisplay = null;
@@ -352,6 +353,17 @@ namespace Segra.Backend.Core.Models
             set
             {
                 _storageLimit = value;
+            }
+        }
+
+        // Turns off the storage limit cleanup. The low drive space stop while recording still applies.
+        [JsonPropertyName("unlimitedStorage")]
+        public bool UnlimitedStorage
+        {
+            get => _unlimitedStorage;
+            set
+            {
+                _unlimitedStorage = value;
             }
         }
 

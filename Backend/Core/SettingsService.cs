@@ -764,6 +764,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.UnlimitedStorage != updatedSettings.UnlimitedStorage)
+            {
+                Log.Information($"UnlimitedStorage changed from '{settings.UnlimitedStorage}' to '{updatedSettings.UnlimitedStorage}'");
+                settings.UnlimitedStorage = updatedSettings.UnlimitedStorage;
+                hasChanges = true;
+            }
+
             if (!settings.InputDevices.SequenceEqual(updatedSettings.InputDevices, new DeviceSettingEqualityComparer()))
             {
                 static string Describe(DeviceSetting d) => $"{d.Name} (noiseSuppression={d.NoiseSuppression}, forceMono={d.ForceMono})";

@@ -310,6 +310,7 @@ export interface Settings {
   encoder: 'gpu' | 'cpu';
   codec: Codec | null;
   storageLimit: number;
+  unlimitedStorage: boolean; // Never deletes old recordings to stay under storageLimit
   contentFolder: string;
   cacheFolder: string;
   inputDevices: DeviceSetting[];
@@ -403,6 +404,7 @@ export const initialSettings: Settings = {
   encoder: 'gpu',
   codec: null,
   storageLimit: 100,
+  unlimitedStorage: false,
   contentFolder: '',
   cacheFolder: '',
   inputDevices: [],

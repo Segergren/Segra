@@ -100,6 +100,9 @@ namespace Segra.Backend.Windows.Storage
         {
             try
             {
+                if (Settings.Instance.UnlimitedStorage)
+                    return true;
+
                 if (!Directory.Exists(newContentFolder))
                 {
                     // New folder doesn't exist yet, no content to check
@@ -150,6 +153,9 @@ namespace Segra.Backend.Windows.Storage
         {
             try
             {
+                if (Settings.Instance.UnlimitedStorage)
+                    return true;
+
                 long totalImportSizeBytes = 0;
                 foreach (string file in selectedFiles)
                 {

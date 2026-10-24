@@ -178,6 +178,9 @@ namespace Segra.Backend.Windows.Storage
 
         public static async Task EnsureStorageBelowLimit()
         {
+            if (Settings.Instance.UnlimitedStorage)
+                return;
+
             Log.Information("Starting storage limit check");
             long storageLimit = Settings.Instance.StorageLimit; // This is in GB
             string contentFolder = Settings.Instance.ContentFolder;

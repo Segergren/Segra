@@ -125,32 +125,50 @@ export default function StorageSettingsSection({
     sendMessageToBackend('SetCacheLocation');
   };
 
-  const handleStorageLimitBlur = () => {
+  // A limit below the current folder size makes the next cleanup delete older recordings
+  const confirmLimit = (limitGb: number, onConfirm: () => void, onCancel?: () => void) => {
     const currentFolderSizeGb = appState.currentFolderSizeGb;
+    if (limitGb >= currentFolderSizeGb) {
+      onConfirm();
+      return;
+    }
+
+    openModal(
+      <ConfirmationModal
+        title="Storage Limit Warning"
+        description={`The storage limit (${limitGb} GB) is lower than your current folder size (${currentFolderSizeGb.toFixed(2)} GB).\n\nThis will cause older recordings to be automatically deleted to free up space.\n\nAre you sure you want to continue?`}
+        confirmText="Apply Limit"
+        cancelText="Cancel"
+        onConfirm={() => {
+          onConfirm();
+          closeModal();
+        }}
+        onCancel={() => {
+          onCancel?.();
+          closeModal();
+        }}
+      />,
+    );
+  };
+
+  const handleStorageLimitBlur = () => {
     const numericLimit = clampInt(localStorageLimit, 1, 2147483647, 1);
     setLocalStorageLimit(String(numericLimit));
+    if (numericLimit === settings.storageLimit) return;
 
-    // Check if the new limit is below the current folder size
-    if (numericLimit < currentFolderSizeGb) {
-      openModal(
-        <ConfirmationModal
-          title="Storage Limit Warning"
-          description={`The storage limit you entered (${numericLimit} GB) is lower than your current folder size (${currentFolderSizeGb.toFixed(2)} GB).\n\nThis will cause older recordings to be automatically deleted to free up space.\n\nAre you sure you want to continue?`}
-          confirmText="Apply Limit"
-          cancelText="Cancel"
-          onConfirm={() => {
-            updateSettings({ storageLimit: numericLimit });
-            closeModal();
-          }}
-          onCancel={() => {
-            // Reset to the previous value
-            setLocalStorageLimit(String(settings.storageLimit));
-            closeModal();
-          }}
-        />,
-      );
+    confirmLimit(
+      numericLimit,
+      () => updateSettings({ storageLimit: numericLimit }),
+      // Reset to the previous value
+      () => setLocalStorageLimit(String(settings.storageLimit)),
+    );
+  };
+
+  const handleUnlimitedChange = (unlimited: boolean) => {
+    if (unlimited) {
+      updateSettings({ unlimitedStorage: true });
     } else {
-      updateSettings({ storageLimit: numericLimit });
+      confirmLimit(settings.storageLimit, () => updateSettings({ unlimitedStorage: false }));
     }
   };
 
@@ -226,20 +244,41 @@ export default function StorageSettingsSection({
             <span className="label-text text-base-content">Storage Limit</span>
           </label>
 
-          <div className="relative w-full">
-            <input
-              type="number"
-              name="storageLimit"
-              value={localStorageLimit}
-              onChange={(e) => setLocalStorageLimit(e.target.value)}
-              onBlur={handleStorageLimitBlur}
-              placeholder="Set maximum storage in GB"
-              min="1"
-              className="input input-bordered bg-base-200 w-full block pr-12 outline-none focus:border-base-400"
-            />
-            <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
-              GB
-            </span>
+          <div className="join w-full">
+            <div className="relative flex-1">
+              <input
+                type="number"
+                name="storageLimit"
+                value={settings.unlimitedStorage ? '' : localStorageLimit}
+                onChange={(e) => setLocalStorageLimit(e.target.value)}
+                onBlur={handleStorageLimitBlur}
+                disabled={settings.unlimitedStorage}
+                placeholder={settings.unlimitedStorage ? 'No limit' : 'Set maximum storage in GB'}
+                min="1"
+                className="input input-bordered join-item bg-base-200 w-full block pr-12 outline-none focus:border-base-400 disabled:bg-base-200 disabled:border-base-400 disabled:placeholder:opacity-100 disabled:placeholder:text-base-content/50"
+              />
+              {!settings.unlimitedStorage && (
+                <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
+                  GB
+                </span>
+              )}
+            </div>
+            {/* Positioned like the input, so its left border paints over the input's edge */}
+            <label className="btn btn-secondary bg-base-200 hover:bg-base-300 border-base-400 hover:border-base-400 font-semibold join-item gap-2 relative">
+              <input
+                type="checkbox"
+                name="unlimitedStorage"
+                checked={settings.unlimitedStorage}
+                onChange={(e) => handleUnlimitedChange(e.target.checked)}
+                className="checkbox checkbox-primary checkbox-sm"
+              />
+              Unlimited
+            </label>
+          </div>
+          <div className="mt-1 px-1 text-xs opacity-70 leading-snug">
+            {settings.unlimitedStorage
+              ? 'Nothing is deleted to free up space. Recording stops when the drive is almost full.'
+              : 'Older sessions and replay buffers are deleted to stay under the limit.'}
           </div>
         </div>
       </div>
@@ -249,6 +288,7 @@ export default function StorageSettingsSection({
           content={appState.content}
           contentFolder={settings.contentFolder}
           storageLimitGb={settings.storageLimit}
+          unlimited={settings.unlimitedStorage}
           usedGb={appState.currentFolderSizeGb}
           driveUsedGb={driveUsedGb}
           driveFreeGb={driveFreeGb}
