@@ -214,6 +214,24 @@ namespace Segra.Backend.Recorder
                 SingleWriter = false
             });
 
+        // The always-on buffer, or a recording in a buffer mode, has a replay to save.
+        public static bool CanSaveReplay
+        {
+            get
+            {
+                var mode = ActiveEffectiveSettings?.RecordingMode ?? Settings.Instance.RecordingMode;
+                return IsAlwaysOnBufferActive || (AppState.Instance.Recording != null && (mode == RecordingMode.Buffer || mode == RecordingMode.Hybrid));
+            }
+        }
+
+        // Saves with immediate feedback (sound + the app's shockwave); "ReplayBufferSaved" follows once OBS has written the file.
+        public static void SaveReplayWithFeedback()
+        {
+            _ = SendFrontendMessage("ReplayBufferSaveStarted", new { });
+            _ = Task.Run(SaveReplayBuffer);
+            _ = Task.Run(() => PlatformServices.Sound.Play(Properties.Resources.bookmark, Settings.Instance.SoundEffectsVolume));
+        }
+
         public static async Task<bool> SaveReplayBuffer()
         {
             // One save at a time: OBS defers a save requested while a previous one is still

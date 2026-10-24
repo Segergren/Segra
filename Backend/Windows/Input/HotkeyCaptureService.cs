@@ -368,15 +368,10 @@ namespace Segra.Backend.Windows.Input
                     break;
 
                 case HotkeyAction.SaveReplayBuffer:
-                    if (OBSService.IsAlwaysOnBufferActive || (recording != null && (recordingMode == RecordingMode.Buffer || recordingMode == RecordingMode.Hybrid)))
+                    if (OBSService.CanSaveReplay)
                     {
                         Log.Information("Saving replay buffer...");
-                        // Immediate keypress acknowledgment (sound + shockwave); the separate
-                        // "ReplayBufferSaved" event is sent by SaveReplayBuffer once OBS
-                        // confirms the file is actually written.
-                        _ = MessageService.SendFrontendMessage("ReplayBufferSaveStarted", new { });
-                        Task.Run(OBSService.SaveReplayBuffer);
-                        Task.Run(PlayBookmarkSound);
+                        OBSService.SaveReplayWithFeedback();
                     }
                     break;
 

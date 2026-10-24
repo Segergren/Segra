@@ -344,11 +344,39 @@ namespace Segra.Backend.App
                 Log.Information($"Starting application{(startMinimized ? " minimized" : "")}");
 
                 // Tray icon (WinForms NotifyIcon on Windows; no-op on Linux)
-                PlatformServices.Tray.Initialize(
-                    onOpen: () => _ = ShowApplicationWindow(),
-                    onResetWindowSize: ResetWindowSize,
-                    onExit: () => { Shutdown(); Environment.Exit(0); },
-                    isWindowOpen: () => Window != null && Window.WindowState != PhotinoWindowState.Minimized);
+                PlatformServices.Tray.Initialize(new TrayActions
+                {
+                    Open = () => _ = ShowApplicationWindow(),
+                    StartRecording = () =>
+                    {
+                        Log.Information("Tray: starting display recording");
+                        _ = Task.Run(() => OBSService.StartRecording(startManually: true));
+                    },
+                    StopRecording = () =>
+                    {
+                        Log.Information("Tray: stopping recording");
+                        _ = Task.Run(() => OBSService.StopRecording(userRequested: true));
+                    },
+                    SaveReplay = () =>
+                    {
+                        Log.Information("Tray: saving replay buffer");
+                        OBSService.SaveReplayWithFeedback();
+                    },
+                    ToggleAutoRecordGames = () =>
+                    {
+                        Settings.Instance.AutoRecordGames = !Settings.Instance.AutoRecordGames;
+                        Log.Information($"Tray: AutoRecordGames set to '{Settings.Instance.AutoRecordGames}'");
+                        SettingsService.SaveSettings();
+                        _ = MessageService.SendSettingsToFrontend("Auto-record games toggled from the tray");
+                    },
+                    ResetWindowSize = ResetWindowSize,
+                    Exit = ExitApplication,
+                    IsRecording = () => AppState.Instance.Recording != null || AppState.Instance.PreRecording != null,
+                    CanStartRecording = () => OBSService.IsInitialized,
+                    CanSaveReplay = () => OBSService.CanSaveReplay,
+                    IsAutoRecordGamesEnabled = () => Settings.Instance.AutoRecordGames,
+                    CanResetWindowSize = IsWindowSizeChanged
+                });
 
 #if WINDOWS
                 // Start monitoring system power state changes (sleep/wake)
@@ -555,6 +583,55 @@ namespace Segra.Backend.App
             }
         }
 
+        private static int _exiting;
+
+        // Closes the window the same way closing to tray does, so quitting feels instant, then shuts down in the background.
+        private static void ExitApplication()
+        {
+            if (Interlocked.Exchange(ref _exiting, 1) == 1)
+                return;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    if (App != null)
+                        await App.Dispatcher.InvokeAsync(CloseWindowForExit);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Could not close the window before exiting");
+                }
+
+                try
+                {
+                    Shutdown();
+                }
+                finally
+                {
+                    Environment.Exit(0);
+                }
+            });
+        }
+
+        private static void CloseWindowForExit()
+        {
+            var window = Window;
+            if (window == null)
+                return;
+
+            ReleaseWindow();
+            window.Close();
+        }
+
+        // Shared by closing to tray and exiting.
+        private static void ReleaseWindow()
+        {
+            SaveWindowState();
+            _isFullscreen = false;
+            Window = null;
+        }
+
         private static void Shutdown()
         {
             Log.Information("Application shutting down.");
@@ -655,6 +732,10 @@ namespace Segra.Backend.App
 
         private static async Task ShowApplicationWindow()
         {
+            // A relaunch during the background shutdown must not bring back the window of the exiting instance.
+            if (Volatile.Read(ref _exiting) == 1)
+                return;
+
             Log.Information("Showing application window. Window is " + (Window == null ? "null" : "not null"));
             if (Window == null)
             {
@@ -816,17 +897,17 @@ namespace Segra.Backend.App
 
             Window.RegisterClosingHandler((sender, e) =>
             {
+                ReleaseWindow();
+
+                if (Volatile.Read(ref _exiting) == 1)
+                    return;
+
                 if (Settings.Instance.CloseButtonAction == CloseButtonAction.Exit)
                 {
-                    e.Cancel = true;
-                    Shutdown();
-                    Environment.Exit(0);
+                    ExitApplication();
                     return;
                 }
 
-                SaveWindowState();
-                _isFullscreen = false;
-                Window = null;
                 Log.Information("Application window closing to tray");
             });
 
@@ -847,6 +928,24 @@ namespace Segra.Backend.App
             // WebKitGTK handles DPI scaling itself; use a sensible default size.
             return new Size(1280, 720);
 #endif
+        }
+
+        // Whether ResetWindowSize would change anything; the tray only offers it then.
+        private static bool IsWindowSizeChanged()
+        {
+            var window = Window;
+            if (window == null)
+            {
+                var saved = Settings.Instance.LastWindowState;
+                return saved != null && (saved.Maximized ||
+                    (saved.Width > 0 && saved.Height > 0 && new Size(saved.Width, saved.Height) != GetDefaultWindowSize()));
+            }
+
+            if (_isFullscreen || window.WindowState == PhotinoWindowState.Maximized)
+                return true;
+
+            Size? size = window.WindowState == PhotinoWindowState.Minimized ? _lastNormalSize : window.Size;
+            return size != GetDefaultWindowSize();
         }
 
         // Returns the window to its default size while keeping its position. Triggered from the tray menu.

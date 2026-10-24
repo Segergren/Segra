@@ -11,10 +11,27 @@ namespace Segra.Backend.Platform
         event Action Changed;
     }
 
+    /// <summary>What the tray menu can do. The predicates are evaluated each time the menu opens.</summary>
+    internal sealed class TrayActions
+    {
+        public required Action Open { get; init; }
+        public required Action StartRecording { get; init; }
+        public required Action StopRecording { get; init; }
+        public required Action SaveReplay { get; init; }
+        public required Action ToggleAutoRecordGames { get; init; }
+        public required Action ResetWindowSize { get; init; }
+        public required Action Exit { get; init; }
+        public required Func<bool> IsRecording { get; init; }
+        public required Func<bool> CanStartRecording { get; init; }
+        public required Func<bool> CanSaveReplay { get; init; }
+        public required Func<bool> IsAutoRecordGamesEnabled { get; init; }
+        public required Func<bool> CanResetWindowSize { get; init; }
+    }
+
     /// <summary>System tray / notification-area icon. No-op on platforms without a tray.</summary>
     internal interface ITrayIcon
     {
-        void Initialize(Action onOpen, Action onResetWindowSize, Action onExit, Func<bool> isWindowOpen);
+        void Initialize(TrayActions actions);
         void SetRecording(bool recording);
     }
 
