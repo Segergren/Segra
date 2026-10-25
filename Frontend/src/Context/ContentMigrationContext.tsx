@@ -41,9 +41,14 @@ export function ContentMigrationProvider({ children }: { children: ReactNode }) 
 
       if (data.method === 'ContentMigrationProgress') {
         const migration = data.content as ContentMigrationProgress;
+        // The backend only sends the pending list when it changes, so keep the last one
         setMigrations((prev) => ({
           ...prev,
-          [migration.id]: migration,
+          [migration.id]: {
+            ...migration,
+            pendingContentIds:
+              migration.pendingContentIds ?? prev[migration.id]?.pendingContentIds ?? [],
+          },
         }));
 
         if (migration.status !== 'migrating') {

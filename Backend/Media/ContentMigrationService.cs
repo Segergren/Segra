@@ -97,27 +97,31 @@ namespace Segra.Backend.Media
                     searches.Add((folder, SearchOption.TopDirectoryOnly));
             }
 
-            // Held for the whole sweep so a migration can't start and have its live temp file deleted
+            // Scan without the lock so a slow or network folder can't hold up starting a migration
+            var leftovers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (folder, option) in searches)
+            {
+                if (!Directory.Exists(folder))
+                    continue;
+
+                try
+                {
+                    leftovers.UnionWith(Directory.EnumerateFiles(folder, "*" + TempSuffix, option));
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("Could not scan {Folder} for interrupted moves: {Message}", folder, ex.Message);
+                }
+            }
+
+            if (leftovers.Count == 0)
+                return;
+
+            // A migration started since the scan may own one of these files, so only delete while none is running
             lock (_lock)
             {
                 if (_isMigrating)
                     return;
-
-                var leftovers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var (folder, option) in searches)
-                {
-                    if (!Directory.Exists(folder))
-                        continue;
-
-                    try
-                    {
-                        leftovers.UnionWith(Directory.EnumerateFiles(folder, "*" + TempSuffix, option));
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning("Could not scan {Folder} for interrupted moves: {Message}", folder, ex.Message);
-                    }
-                }
 
                 foreach (string leftover in leftovers)
                 {
@@ -226,7 +230,7 @@ namespace Segra.Backend.Media
 
                     try
                     {
-                        if (await MigrateOne(item, contentFolder, totalBytes, movedBytes, migrationId, displayName, index, outside.Count, pendingIds, token))
+                        if (await MigrateOne(item, contentFolder, totalBytes, movedBytes, migrationId, displayName, index, outside.Count, token))
                         {
                             succeeded++;
                             movedBytes += item.SizeBytes;
@@ -275,7 +279,7 @@ namespace Segra.Backend.Media
             }
         }
 
-        private static async Task<bool> MigrateOne(OutsideContent item, string contentFolder, long totalBytes, long movedBytesBefore, string migrationId, string displayName, int index, int total, IReadOnlyList<string> pendingIds, CancellationToken token)
+        private static async Task<bool> MigrateOne(OutsideContent item, string contentFolder, long totalBytes, long movedBytesBefore, string migrationId, string displayName, int index, int total, CancellationToken token)
         {
             Content content = item.Content;
             string sourcePath = content.FilePath;
@@ -329,7 +333,7 @@ namespace Segra.Backend.Media
                     if (File.Exists(tempPath))
                         File.Delete(tempPath);
 
-                    await CopyWithProgressAsync(sourcePath, tempPath, movedBytesBefore, totalBytes, migrationId, displayName, index, total, pendingIds, token);
+                    await CopyWithProgressAsync(sourcePath, tempPath, movedBytesBefore, totalBytes, migrationId, displayName, index, total, token);
 
                     long sourceLen = new FileInfo(sourcePath).Length;
                     long tempLen = new FileInfo(tempPath).Length;
@@ -359,7 +363,7 @@ namespace Segra.Backend.Media
             return true;
         }
 
-        private static async Task CopyWithProgressAsync(string source, string dest, long movedBytesBefore, long totalBytes, string migrationId, string displayName, int index, int total, IReadOnlyList<string> pendingIds, CancellationToken token)
+        private static async Task CopyWithProgressAsync(string source, string dest, long movedBytesBefore, long totalBytes, string migrationId, string displayName, int index, int total, CancellationToken token)
         {
             const int bufferSize = 1024 * 1024;
             byte[] buffer = new byte[bufferSize];
@@ -380,7 +384,7 @@ namespace Segra.Backend.Media
                 if (rounded != lastReportedPercent)
                 {
                     lastReportedPercent = rounded;
-                    await SendProgress(migrationId, displayName, overall, "migrating", index, total, pendingIds);
+                    await SendProgress(migrationId, displayName, overall, "migrating", index, total);
                 }
             }
 
@@ -397,7 +401,8 @@ namespace Segra.Backend.Media
                 status,
                 totalFiles,
                 currentFileIndex,
-                pendingContentIds = pendingContentIds ?? [],
+                // Null means unchanged; only sent when a file starts so per-percent ticks stay small
+                pendingContentIds,
                 message
             });
         }
