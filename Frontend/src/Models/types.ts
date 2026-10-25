@@ -1,3 +1,5 @@
+import type { HoverIntentHandlers } from '../Hooks/useHoverIntent';
+
 export type ContentType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
 
 export type RecordingMode = 'Session' | 'Buffer' | 'Hybrid';
@@ -352,6 +354,7 @@ export interface Settings {
   showNewBadgeOnVideos: boolean;
   showGameBackground: boolean; // Show game background while recording
   showAudioWaveformInTimeline: boolean; // Show audio waveform in video timeline
+  showBookmarksInFullscreen: boolean;
   enableSeparateAudioTracks: boolean; // Advanced: per-source audio tracks
   audioOutputMode: AudioOutputMode;
   videoQualityPreset: VideoQualityPreset;
@@ -442,6 +445,7 @@ export const initialSettings: Settings = {
   showNewBadgeOnVideos: false,
   showGameBackground: true,
   showAudioWaveformInTimeline: true,
+  showBookmarksInFullscreen: true,
   enableSeparateAudioTracks: false,
   audioOutputMode: 'All',
   videoQualityPreset: 'high',
@@ -503,12 +507,14 @@ export interface SegmentCardProps {
   moveCard: (dragIndex: number, hoverIndex: number) => void;
   formatTime: (time: number) => string;
   isHovered: boolean;
-  setHoveredSegmentId: (id: number | null) => void;
+  segmentHover: HoverIntentHandlers<number>;
   removeSegment: (id: number) => void;
   audioTrackNames?: string[];
   audioTrackTypes?: AudioTrackType[];
-  onMutedAudioTracksChange?: (id: number, mutedTracks: number[]) => void;
-  onAudioTrackVolumesChange?: (id: number, volumes: Record<number, number>) => void;
+  onAudioMixChange?: (
+    id: number,
+    mix: Pick<Segment, 'mutedAudioTracks' | 'audioTrackVolumes'>,
+  ) => void;
 }
 
 export interface AiProgress {

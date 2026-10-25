@@ -20,6 +20,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
     key:
       | 'showGameBackground'
       | 'showAudioWaveformInTimeline'
+      | 'showBookmarksInFullscreen'
       | 'showNewBadgeOnVideos'
       | 'confirmBeforeDeleting';
     label: React.ReactNode;
@@ -38,6 +39,11 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
       key: 'showAudioWaveformInTimeline',
       label: 'Show Audio Waveform',
       description: 'Draws the audio waveform along the video editor timeline.',
+    },
+    {
+      key: 'showBookmarksInFullscreen',
+      label: 'Show Bookmarks in Fullscreen',
+      description: 'Shows bookmarks above the seek bar in the fullscreen video player.',
     },
     {
       key: 'showNewBadgeOnVideos',

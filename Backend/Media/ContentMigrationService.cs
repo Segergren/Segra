@@ -16,12 +16,15 @@ namespace Segra.Backend.Media
     internal static class ContentMigrationService
     {
         private const string ProgressMessage = "ContentMigrationProgress";
+        private const string TempSuffix = ".segramigrating";
+        private static readonly TimeSpan LeftoverCleanupDelay = TimeSpan.FromMinutes(5);
 
         // Leave the same free-space floor StorageService keeps while recording.
         private const long SafetyMarginBytes = StorageService.MinimumRecordingFreeSpaceBytes;
 
         private static readonly object _lock = new();
         private static bool _isMigrating;
+        private static CancellationTokenSource? _cancellation;
 
         public sealed record OutsideContent(Content Content, long SizeBytes, bool CrossDrive);
 
@@ -69,9 +72,85 @@ namespace Segra.Backend.Media
             return result;
         }
 
+        /// <summary>
+        /// Deletes partial copies left behind when the app was closed during a cross-drive move.
+        /// The originals were never touched, so only the temp files need to go.
+        /// </summary>
+        public static async Task CleanupInterruptedCopiesAsync()
+        {
+            await Task.Delay(LeftoverCleanupDelay);
+
+            // The current recording path, plus every folder holding a library video, so leftovers in a
+            // previous recording path (next to videos not moved yet) are found too
+            var searches = new List<(string Folder, SearchOption Option)>();
+            string contentFolder = Settings.Instance.ContentFolder;
+            if (!string.IsNullOrWhiteSpace(contentFolder))
+            {
+                foreach (var type in Enum.GetValues<Content.ContentType>())
+                    searches.Add((FolderNames.GetVideoFolderPath(contentFolder, type), SearchOption.AllDirectories));
+            }
+            foreach (string? folder in AppState.Instance.Content.ToList()
+                .Select(c => string.IsNullOrWhiteSpace(c?.FilePath) ? null : Path.GetDirectoryName(c.FilePath))
+                .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (folder != null)
+                    searches.Add((folder, SearchOption.TopDirectoryOnly));
+            }
+
+            // Held for the whole sweep so a migration can't start and have its live temp file deleted
+            lock (_lock)
+            {
+                if (_isMigrating)
+                    return;
+
+                var leftovers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (folder, option) in searches)
+                {
+                    if (!Directory.Exists(folder))
+                        continue;
+
+                    try
+                    {
+                        leftovers.UnionWith(Directory.EnumerateFiles(folder, "*" + TempSuffix, option));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning("Could not scan {Folder} for interrupted moves: {Message}", folder, ex.Message);
+                    }
+                }
+
+                foreach (string leftover in leftovers)
+                {
+                    try
+                    {
+                        File.Delete(leftover);
+                        Log.Information("Deleted partial copy from an interrupted move: {File}", leftover);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning("Could not delete partial copy {File}: {Message}", leftover, ex.Message);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Stops the running migration after the current file. Files that were already moved stay moved.
+        /// </summary>
+        public static void Cancel()
+        {
+            lock (_lock)
+            {
+                if (_cancellation == null) return;
+                _cancellation.Cancel();
+            }
+            Log.Information("Content migration cancel requested.");
+        }
+
         public static async Task HandleMigrateContent()
         {
             using var work = BackgroundWork.Begin();
+            CancellationToken token;
             lock (_lock)
             {
                 if (_isMigrating)
@@ -80,6 +159,8 @@ namespace Segra.Backend.Media
                     return;
                 }
                 _isMigrating = true;
+                _cancellation = new CancellationTokenSource();
+                token = _cancellation.Token;
             }
 
             string migrationId = Guid.NewGuid().ToString("N");
@@ -89,14 +170,14 @@ namespace Segra.Backend.Media
                 string contentFolder = Settings.Instance.ContentFolder;
                 if (string.IsNullOrWhiteSpace(contentFolder))
                 {
-                    await SendProgress(migrationId, string.Empty, 0, "error", 0, 0, "No recording path is configured.");
+                    await SendProgress(migrationId, string.Empty, 0, "error", 0, 0, message: "No recording path is configured.");
                     return;
                 }
 
                 var outside = GetContentOutsideRecordingPath(contentFolder);
                 if (outside.Count == 0)
                 {
-                    await SendProgress(migrationId, string.Empty, 100, "done", 0, 0, "Nothing to move.");
+                    await SendProgress(migrationId, string.Empty, 100, "done", 0, 0, message: "Nothing to move.");
                     return;
                 }
 
@@ -115,65 +196,86 @@ namespace Segra.Backend.Media
                         $"Moving these videos needs about {needGb:F1} GB free on the recording drive, but only {freeGb:F1} GB is available.\n\nFree up some space or pick a different recording path, then try again.",
                         "error");
 
-                    await SendProgress(migrationId, string.Empty, 0, "error", 0, outside.Count, "Not enough free space.");
+                    await SendProgress(migrationId, string.Empty, 0, "error", 0, outside.Count, message: "Not enough free space.");
                     return;
                 }
 
                 long totalBytes = Math.Max(1, outside.Sum(o => o.SizeBytes));
                 long movedBytes = 0;
+                // Content still waiting to move, so the frontend can lock just those cards
+                var pendingIds = outside.Select(o => o.Content.Id).ToList();
                 int index = 0;
                 int succeeded = 0;
                 int failed = 0;
+                bool cancelled = false;
 
                 foreach (var item in outside)
                 {
+                    if (token.IsCancellationRequested)
+                    {
+                        cancelled = true;
+                        break;
+                    }
+
                     index++;
                     string displayName = !string.IsNullOrWhiteSpace(item.Content.Title)
                         ? item.Content.Title
                         : item.Content.FileName;
 
-                    await SendProgress(migrationId, displayName, (double)movedBytes / totalBytes * 100, "migrating", index, outside.Count);
+                    await SendProgress(migrationId, displayName, (double)movedBytes / totalBytes * 100, "migrating", index, outside.Count, pendingIds);
 
                     try
                     {
-                        if (await MigrateOne(item, contentFolder, totalBytes, movedBytes, migrationId, displayName, index, outside.Count))
+                        if (await MigrateOne(item, contentFolder, totalBytes, movedBytes, migrationId, displayName, index, outside.Count, pendingIds, token))
                         {
                             succeeded++;
                             movedBytes += item.SizeBytes;
                         }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        cancelled = true;
+                        break;
                     }
                     catch (Exception ex)
                     {
                         failed++;
                         Log.Error(ex, "Failed to migrate content {File}", item.Content.FilePath);
                     }
+
+                    pendingIds.Remove(item.Content.Id);
                 }
 
                 await SettingsService.LoadContentFromFolderIntoState(sendToFrontend: true);
 
-                string status = failed == 0 ? "done" : "error";
-                string summary = failed == 0
-                    ? $"Moved {succeeded} video{(succeeded == 1 ? string.Empty : "s")} to your recording path."
-                    : $"Moved {succeeded} video{(succeeded == 1 ? string.Empty : "s")}, {failed} could not be moved. See logs for details.";
+                string movedText = $"{succeeded} video{(succeeded == 1 ? string.Empty : "s")}";
+                string status = cancelled ? "cancelled" : failed == 0 ? "done" : "error";
+                string summary = cancelled
+                    ? $"Move cancelled. Moved {movedText}."
+                    : failed == 0
+                        ? $"Moved {movedText} to your recording path."
+                        : $"Moved {movedText}, {failed} could not be moved. See logs for details.";
 
-                await SendProgress(migrationId, string.Empty, 100, status, outside.Count, outside.Count, summary);
-                Log.Information("Content migration complete: {Succeeded} moved, {Failed} failed.", succeeded, failed);
+                await SendProgress(migrationId, string.Empty, 100, status, outside.Count, outside.Count, message: summary);
+                Log.Information("Content migration {Result}: {Succeeded} moved, {Failed} failed.", cancelled ? "cancelled" : "complete", succeeded, failed);
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Unexpected error during content migration.");
-                await SendProgress(migrationId, string.Empty, 0, "error", 0, 0, "Migration failed unexpectedly.");
+                await SendProgress(migrationId, string.Empty, 0, "error", 0, 0, message: "Migration failed unexpectedly.");
             }
             finally
             {
                 lock (_lock)
                 {
                     _isMigrating = false;
+                    _cancellation?.Dispose();
+                    _cancellation = null;
                 }
             }
         }
 
-        private static async Task<bool> MigrateOne(OutsideContent item, string contentFolder, long totalBytes, long movedBytesBefore, string migrationId, string displayName, int index, int total)
+        private static async Task<bool> MigrateOne(OutsideContent item, string contentFolder, long totalBytes, long movedBytesBefore, string migrationId, string displayName, int index, int total, IReadOnlyList<string> pendingIds, CancellationToken token)
         {
             Content content = item.Content;
             string sourcePath = content.FilePath;
@@ -221,13 +323,13 @@ namespace Segra.Backend.Media
             {
                 // Cross-volume: copy to temp, verify, swap in, and only delete the source after the
                 // sidecar is committed so an interrupted run never loses or orphans the original.
-                string tempPath = destPath + ".segramigrating";
+                string tempPath = destPath + TempSuffix;
                 try
                 {
                     if (File.Exists(tempPath))
                         File.Delete(tempPath);
 
-                    await CopyWithProgressAsync(sourcePath, tempPath, movedBytesBefore, totalBytes, migrationId, displayName, index, total);
+                    await CopyWithProgressAsync(sourcePath, tempPath, movedBytesBefore, totalBytes, migrationId, displayName, index, total, pendingIds, token);
 
                     long sourceLen = new FileInfo(sourcePath).Length;
                     long tempLen = new FileInfo(tempPath).Length;
@@ -257,7 +359,7 @@ namespace Segra.Backend.Media
             return true;
         }
 
-        private static async Task CopyWithProgressAsync(string source, string dest, long movedBytesBefore, long totalBytes, string migrationId, string displayName, int index, int total)
+        private static async Task CopyWithProgressAsync(string source, string dest, long movedBytesBefore, long totalBytes, string migrationId, string displayName, int index, int total, IReadOnlyList<string> pendingIds, CancellationToken token)
         {
             const int bufferSize = 1024 * 1024;
             byte[] buffer = new byte[bufferSize];
@@ -268,9 +370,9 @@ namespace Segra.Backend.Media
             using var dst = new FileStream(dest, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize, useAsync: true);
 
             int read;
-            while ((read = await src.ReadAsync(buffer.AsMemory(0, bufferSize))) > 0)
+            while ((read = await src.ReadAsync(buffer.AsMemory(0, bufferSize), token)) > 0)
             {
-                await dst.WriteAsync(buffer.AsMemory(0, read));
+                await dst.WriteAsync(buffer.AsMemory(0, read), token);
                 fileCopied += read;
 
                 double overall = (double)(movedBytesBefore + fileCopied) / totalBytes * 100;
@@ -278,14 +380,14 @@ namespace Segra.Backend.Media
                 if (rounded != lastReportedPercent)
                 {
                     lastReportedPercent = rounded;
-                    await SendProgress(migrationId, displayName, overall, "migrating", index, total);
+                    await SendProgress(migrationId, displayName, overall, "migrating", index, total, pendingIds);
                 }
             }
 
             await dst.FlushAsync();
         }
 
-        private static Task SendProgress(string id, string fileName, double progress, string status, int currentFileIndex, int totalFiles, string? message = null)
+        private static Task SendProgress(string id, string fileName, double progress, string status, int currentFileIndex, int totalFiles, IReadOnlyList<string>? pendingContentIds = null, string? message = null)
         {
             return MessageService.SendFrontendMessage(ProgressMessage, new
             {
@@ -295,6 +397,7 @@ namespace Segra.Backend.Media
                 status,
                 totalFiles,
                 currentFileIndex,
+                pendingContentIds = pendingContentIds ?? [],
                 message
             });
         }

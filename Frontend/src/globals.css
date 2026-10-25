@@ -230,6 +230,70 @@ body.dragging-playhead * {
   cursor: pointer !important;
 }
 
+/* Hides the cursor over the video player while its controls are hidden */
+[data-cursor-hidden],
+[data-cursor-hidden] * {
+  cursor: none !important;
+}
+
+/* Video player seek bar, thumb appears on hover */
+.player-seek {
+  appearance: none;
+}
+.player-seek::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  transform: scale(0);
+  transition: transform 150ms ease;
+}
+.player-seek::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  transform: scale(0);
+  transition: transform 150ms ease;
+}
+.player-seek:hover::-webkit-slider-thumb,
+.player-seek:active::-webkit-slider-thumb {
+  transform: scale(1);
+}
+.player-seek:hover::-moz-range-thumb,
+.player-seek:active::-moz-range-thumb {
+  transform: scale(1);
+}
+
+/* Video player volume sliders */
+.player-volume {
+  appearance: none;
+}
+.player-volume::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: #fff;
+  transition: transform 150ms ease;
+}
+.player-volume::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 0;
+  border-radius: 9999px;
+  background: #fff;
+  transition: transform 150ms ease;
+}
+.player-volume.is-muted::-webkit-slider-thumb {
+  background: rgb(255 255 255 / 0.5);
+}
+.player-volume.is-muted::-moz-range-thumb {
+  background: rgb(255 255 255 / 0.5);
+}
+
 /* Remove all focus rings globally */
 *,
 *:focus,

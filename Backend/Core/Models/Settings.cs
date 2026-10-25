@@ -99,6 +99,7 @@ namespace Segra.Backend.Core.Models
         private bool _showNewBadgeOnVideos = false;
         private bool _showGameBackground = true;
         private bool _showAudioWaveformInTimeline = true;
+        private bool _showBookmarksInFullscreen = true;
         private bool _enableSeparateAudioTracks = false;
         private AudioOutputMode _audioOutputMode = AudioOutputMode.All;
         private string _videoQualityPreset = "high";
@@ -840,6 +841,19 @@ namespace Segra.Backend.Core.Models
                 if (_showAudioWaveformInTimeline != value)
                 {
                     _showAudioWaveformInTimeline = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("showBookmarksInFullscreen")]
+        public bool ShowBookmarksInFullscreen
+        {
+            get => _showBookmarksInFullscreen;
+            set
+            {
+                if (_showBookmarksInFullscreen != value)
+                {
+                    _showBookmarksInFullscreen = value;
                 }
             }
         }

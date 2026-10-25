@@ -403,6 +403,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.ShowBookmarksInFullscreen != updatedSettings.ShowBookmarksInFullscreen)
+            {
+                Log.Information($"ShowBookmarksInFullscreen changed from '{settings.ShowBookmarksInFullscreen}' to '{updatedSettings.ShowBookmarksInFullscreen}'");
+                settings.ShowBookmarksInFullscreen = updatedSettings.ShowBookmarksInFullscreen;
+                hasChanges = true;
+            }
+
             if (settings.EnableSeparateAudioTracks != updatedSettings.EnableSeparateAudioTracks)
             {
                 Log.Information($"EnableSeparateAudioTracks changed from '{settings.EnableSeparateAudioTracks}' to '{updatedSettings.EnableSeparateAudioTracks}'");

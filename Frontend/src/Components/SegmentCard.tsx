@@ -3,7 +3,8 @@ import { SegmentCardProps } from '../Models/types';
 import { useDrag, useDrop } from 'react-dnd';
 import { Headphones } from 'lucide-react';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
-import AudioTrackIcon from './AudioTrackIcon';
+import AudioTrackMixer, { AUDIO_TRACK_MENU_CLASS } from './AudioTrackMixer';
+import { hasCustomAudioMix, toggleTrackInMix } from '../Utils/AudioMixUtils';
 
 const DRAG_TYPE = 'SEGMENT_CARD';
 
@@ -14,12 +15,11 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
     moveCard,
     formatTime,
     isHovered,
-    setHoveredSegmentId,
+    segmentHover,
     removeSegment,
     audioTrackNames,
     audioTrackTypes,
-    onMutedAudioTracksChange,
-    onAudioTrackVolumesChange,
+    onAudioMixChange,
   }) => {
     const [audioMenuPos, setAudioMenuPos] = useState<{
       x: number;
@@ -88,40 +88,24 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
       setIncomingSrc(thumbnailDataUrl);
       setIncomingVisible(false);
     }, [thumbnailDataUrl, baseSrc]);
-    const hasAudioTracks =
-      audioTrackNames && audioTrackNames.length > 1 && onMutedAudioTracksChange;
+    const hasAudioTracks = audioTrackNames && audioTrackNames.length > 1 && onAudioMixChange;
     const mutedTracks = segment.mutedAudioTracks ?? [];
     const trackVolumes = segment.audioTrackVolumes ?? {};
-
-    const toggleTrack = (trackIndex: number) => {
-      if (!onMutedAudioTracksChange || !audioTrackNames) return;
-      const isMuted = mutedTracks.includes(trackIndex);
-      if (isMuted) {
-        // Enabling this track
-        if (trackIndex === 0) {
-          // Enabling Full Mix: mute all individual tracks
-          const newMuted = audioTrackNames.map((_, i) => i).filter((i) => i !== 0);
-          onMutedAudioTracksChange(segment.id, newMuted);
-        } else {
-          // Enabling an individual track: mute Full Mix
-          const newMuted = mutedTracks.filter((t) => t !== trackIndex);
-          if (!newMuted.includes(0)) newMuted.push(0);
-          onMutedAudioTracksChange(segment.id, newMuted);
-        }
-      } else {
-        // Muting this track
-        onMutedAudioTracksChange(segment.id, [...mutedTracks, trackIndex]);
-      }
-    };
+    const trackIndices = audioTrackNames?.map((_, i) => i) ?? [];
+    const customMix = hasCustomAudioMix(segment.mutedAudioTracks, segment.audioTrackVolumes);
+    const closeAudioMenu = () =>
+      setAudioMenuPos((prev) => (prev ? { ...prev, visible: false } : null));
 
     return (
       <div
         ref={dragDropRef}
         className={`mb-2 cursor-move w-full relative rounded-xl transition-all duration-200 !outline !outline-1 ${isHovered ? '!outline-primary' : '!outline-base-400'}`}
         style={{ opacity: isDragging ? 0.3 : 1 }}
-        onMouseEnter={() => setHoveredSegmentId(segment.id)}
+        onMouseEnter={(e) => segmentHover.enter(segment.id, e)}
+        onMouseMove={segmentHover.move}
+        onMouseDown={segmentHover.commit}
         onMouseLeave={() => {
-          setHoveredSegmentId(null);
+          segmentHover.leave();
           setAudioMenuPos((prev) => (prev ? { ...prev, visible: false } : null));
         }}
         onContextMenu={(e) => {
@@ -186,7 +170,7 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
                   setAudioMenuPos((prev) => (prev ? { ...prev, visible: false } : null));
                 } else {
                   const rect = e.currentTarget.getBoundingClientRect();
-                  const estimatedHeight = 16 + audioTrackNames.length * 24;
+                  const estimatedHeight = 24 + audioTrackNames.length * 32;
                   const fitsBelow = rect.bottom + 4 + estimatedHeight <= window.innerHeight;
                   const top = fitsBelow
                     ? rect.bottom + 4
@@ -203,13 +187,14 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
                   );
                 }
               }}
-              className={`flex items-center justify-center w-6 h-6 rounded transition-all cursor-pointer bg-black/75 text-white/80 hover:text-white hover:bg-black/90 ${isHovered || audioMenuPos?.visible ? 'opacity-100' : 'opacity-0'}`}
+              className={`flex items-center justify-center w-6 h-6 rounded-full transition-all cursor-pointer bg-black/60 backdrop-blur-sm hover:bg-black/80 ${audioMenuPos?.visible || customMix ? 'text-accent' : 'text-white/80 hover:text-white'} ${isHovered || audioMenuPos?.visible || customMix ? 'opacity-100' : 'opacity-0'}`}
+              aria-label="Segment audio"
             >
               <Headphones className="w-3.5 h-3.5" />
             </button>
             {audioMenuPos && (
               <div
-                className={`fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200] cursor-default transition-all duration-300 ${
+                className={`fixed z-[200] cursor-default transition-all duration-300 ${AUDIO_TRACK_MENU_CLASS} ${
                   audioMenuPos.visible
                     ? 'opacity-100 translate-y-0 pointer-events-auto'
                     : audioMenuPos.flipUp
@@ -223,54 +208,29 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
                   setAudioMenuPos((prev) => (prev && !prev.visible ? null : prev))
                 }
               >
-                {audioTrackNames.map((name, i) => {
-                  const isMuted = mutedTracks.includes(i);
-                  const vol = trackVolumes[i] ?? 1;
-                  return (
-                    <div key={i} className="flex items-center justify-between gap-2 py-0.5">
-                      <label className="flex items-center gap-2 min-w-0 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={!isMuted}
-                          onChange={() => toggleTrack(i)}
-                          className="checkbox checkbox-primary checkbox-xs shrink-0"
-                        />
-                        <AudioTrackIcon
-                          type={audioTrackTypes?.[i]}
-                          className="h-3.5 w-3.5 shrink-0 text-white/60"
-                        />
-                        <span className="text-xs text-white/80 truncate">
-                          {name.replace(' (Default)', '')}
-                        </span>
-                      </label>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.02"
-                          value={vol}
-                          onChange={(e) => {
-                            if (!onAudioTrackVolumesChange) return;
-                            const newVolumes = { ...trackVolumes, [i]: parseFloat(e.target.value) };
-                            onAudioTrackVolumesChange(segment.id, newVolumes);
-                          }}
-                          className={`w-16 h-1 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:border-0 ${
-                            isMuted
-                              ? '[&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0'
-                              : '[&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-accent)] [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-accent)]'
-                          }`}
-                          style={{
-                            backgroundImage: `linear-gradient(to right, var(--color-accent) ${(isMuted ? 0 : vol) * 100}%, #4b5563 ${(isMuted ? 0 : vol) * 100}%)`,
-                          }}
-                        />
-                        <span className="text-[10px] text-white/50 w-7 text-right tabular-nums">
-                          {Math.round(vol * 100)}%
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+                <AudioTrackMixer
+                  tracks={audioTrackNames.map((name, i) => ({
+                    index: i,
+                    name,
+                    type: audioTrackTypes?.[i],
+                  }))}
+                  mutedTracks={new Set(mutedTracks)}
+                  volumes={trackVolumes}
+                  onToggleMute={(index) =>
+                    onAudioMixChange(segment.id, {
+                      mutedAudioTracks: toggleTrackInMix(mutedTracks, index, trackIndices),
+                    })
+                  }
+                  onVolumeChange={(index, volume, unmute) =>
+                    onAudioMixChange(segment.id, {
+                      audioTrackVolumes: { ...trackVolumes, [index]: volume },
+                      mutedAudioTracks: unmute
+                        ? toggleTrackInMix(mutedTracks, index, trackIndices)
+                        : mutedTracks,
+                    })
+                  }
+                  onClose={audioMenuPos.visible ? closeAudioMenu : undefined}
+                />
               </div>
             )}
           </div>

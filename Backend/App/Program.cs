@@ -9,6 +9,7 @@ using System.Drawing;
 using Segra.Backend.Shared;
 using Segra.Backend.Platform;
 using Segra.Backend.Recorder;
+using Segra.Backend.Media;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Windows.Storage;
 using System.Reflection;
@@ -333,6 +334,7 @@ namespace Segra.Backend.App
                 Task.Run(AudioStreamServer.StartAsync);
 #endif
                 Task.Run(StorageService.EnsureStorageBelowLimit);
+                Task.Run(ContentMigrationService.CleanupInterruptedCopiesAsync);
 
                 // Check for updates
                 Task.Run(() => UpdateService.UpdateAppIfNecessary(forceCheck: true));

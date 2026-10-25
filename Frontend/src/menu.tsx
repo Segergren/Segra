@@ -52,7 +52,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { updateInfo } = useUpdate();
   const { aiProgress } = useAiHighlights();
   const { obsDownloadProgress } = useObsDownload();
-  const { migrations: contentMigrations, isMigrating } = useContentMigration();
+  const { migrations: contentMigrations } = useContentMigration();
   const { uploads } = useUploads();
   const { imports } = useImports();
   const { clippingProgress } = useClipping();
@@ -181,16 +181,12 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           {visibleMenuItems.map(({ id }) => {
             const Icon = MENU_ICONS[id];
             const isActive = selectedMenu === id;
-            // Disable content navigation while a migration is moving files (paths are in flux);
-            // Settings stays enabled so the user can watch progress.
-            const isDisabled = isMigrating && id !== 'Settings';
 
             const buttonNode =
               id === 'Highlights' ? (
                 <Button
                   variant="nav"
                   className={`justify-between ${isActive ? 'text-primary' : ''}`}
-                  disabled={isDisabled}
                   onMouseDown={() => onSelectMenu(id)}
                 >
                   <span className="flex items-center gap-2">
@@ -221,7 +217,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
                 <Button
                   variant="nav"
                   className={isActive ? 'text-primary' : ''}
-                  disabled={isDisabled}
                   onMouseDown={() => onSelectMenu(id)}
                 >
                   <Icon className="w-5 h-5" />

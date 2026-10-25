@@ -1,14 +1,26 @@
-import type { ContentMigrationProgress } from '../Context/ContentMigrationContext';
+import { useState } from 'react';
+import { X } from 'lucide-react';
+import {
+  useContentMigration,
+  type ContentMigrationProgress,
+} from '../Context/ContentMigrationContext';
 
 interface ContentMigrationCardProps {
   migration: ContentMigrationProgress;
 }
 
 export default function ContentMigrationCard({ migration }: ContentMigrationCardProps) {
+  const { cancelMigration } = useContentMigration();
+  const [isCancelling, setIsCancelling] = useState(false);
+
   const getStatusText = () => {
     switch (migration.status) {
       case 'migrating':
-        return `Moving ${migration.currentFileIndex} of ${migration.totalFiles}`;
+        return isCancelling
+          ? 'Cancelling...'
+          : `Moving ${migration.currentFileIndex} of ${migration.totalFiles}`;
+      case 'cancelled':
+        return migration.message || 'Move Cancelled';
       case 'done':
         return migration.message || 'Move Complete';
       case 'error':
@@ -40,6 +52,11 @@ export default function ContentMigrationCard({ migration }: ContentMigrationCard
               </svg>
             </div>
           )}
+          {migration.status === 'cancelled' && (
+            <div className="w-5 h-5 rounded-full bg-gray-500 flex items-center justify-center">
+              <X className="w-3 h-3 text-white" strokeWidth={3} />
+            </div>
+          )}
           {migration.status === 'error' && (
             <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
               <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -52,8 +69,21 @@ export default function ContentMigrationCard({ migration }: ContentMigrationCard
             </div>
           )}
 
-          <div className="min-w-0 flex-1">
-            <div className="text-gray-200 text-sm font-medium truncate">{getStatusText()}</div>
+          <div className="min-w-0 flex-1 relative">
+            {migration.status === 'migrating' && (
+              <button
+                onClick={() => {
+                  setIsCancelling(true);
+                  cancelMigration();
+                }}
+                disabled={isCancelling}
+                className="absolute right-0 -top-px flex items-center h-5 px-1 transition-colors cursor-pointer disabled:opacity-50"
+                aria-label="Cancel move"
+              >
+                <X size={16} />
+              </button>
+            )}
+            <div className="text-gray-200 text-sm font-medium truncate pr-6">{getStatusText()}</div>
             {migration.fileName && (
               <div className="text-gray-400 text-xs truncate">{migration.fileName}</div>
             )}
@@ -64,7 +94,9 @@ export default function ContentMigrationCard({ migration }: ContentMigrationCard
                     ? 'bg-red-500'
                     : migration.status === 'done'
                       ? 'bg-green-500'
-                      : 'bg-primary'
+                      : migration.status === 'cancelled'
+                        ? 'bg-gray-500'
+                        : 'bg-primary'
                 }`}
                 style={{ width: `${getProgressPercentage()}%` }}
               ></div>

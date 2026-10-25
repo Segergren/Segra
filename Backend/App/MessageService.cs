@@ -363,6 +363,9 @@ namespace Segra.Backend.App
                             _ = Task.Run(ContentMigrationService.HandleMigrateContent);
                             Log.Information("MigrateContent command received.");
                             break;
+                        case "CancelContentMigration":
+                            ContentMigrationService.Cancel();
+                            break;
                         case "StorageWarningConfirm":
                             root.TryGetProperty("Parameters", out JsonElement storageWarningParameterElement);
                             _ = Task.Run(() => StorageWarningService.HandleStorageWarningConfirm(storageWarningParameterElement));

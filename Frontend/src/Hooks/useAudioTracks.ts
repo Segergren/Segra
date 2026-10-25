@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react
 import type { ISOFile } from 'mp4box';
 import { Content } from '../Models/types';
 import { attachNativeCaptureTap, type NativeAudioSink } from '../Services/nativeAudioSink';
+import { toggleTrackInMix } from '../Utils/AudioMixUtils';
 
 export interface AudioTrackInfo {
   index: number;
@@ -941,23 +942,8 @@ export function useAudioTracks(
 
   const toggleTrackMute = useCallback((index: number) => {
     setMutedTracks((prev) => {
-      const wasEnabled = !prev.has(index);
-      if (wasEnabled) {
-        const next = new Set(prev);
-        next.add(index);
-        return next;
-      }
-      if (index === 0) {
-        const next = new Set<number>();
-        for (const td of trackDataRef.current.values()) {
-          if (td.segraIndex !== 0) next.add(td.segraIndex);
-        }
-        return next;
-      }
-      const next = new Set(prev);
-      next.delete(index);
-      next.add(0);
-      return next;
+      const trackIndices = Array.from(trackDataRef.current.values(), (td) => td.segraIndex);
+      return new Set(toggleTrackInMix([...prev], index, trackIndices));
     });
   }, []);
 
