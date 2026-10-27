@@ -412,6 +412,8 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Container state
   const [containerWidth, setContainerWidth] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
+  const resumeAfterScrubRef = useRef(false);
+  const scrubCandidateRef = useRef<number | null>(null);
   const [showNoSegmentsIndicator, setShowNoSegmentsIndicator] = useState(false);
   const [clipOutputMode, setClipOutputMode] = useState<'combined' | 'separate'>(() => {
     const saved = localStorage.getItem('segra-clip-output-mode');
@@ -574,7 +576,9 @@ export default function VideoComponent({ video }: { video: Content }) {
     };
 
     const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
+    const onPause = () => {
+      if (!resumeAfterScrubRef.current) setIsPlaying(false);
+    };
     const onVolumeChange = () => {
       if (vid) {
         // When multi-track audio is active, the video is muted by the hook
@@ -636,13 +640,13 @@ export default function VideoComponent({ video }: { video: Content }) {
       // Arrow keys: seek 5s back/forward (allow holding)
       if ((e.key === 'ArrowLeft' || e.code === 'ArrowLeft') && !isTyping) {
         e.preventDefault();
-        showControlsTemporarily();
+        if (isFullscreen) showControlsTemporarily();
         skipTime(-5);
         return;
       }
       if ((e.key === 'ArrowRight' || e.code === 'ArrowRight') && !isTyping) {
         e.preventDefault();
-        showControlsTemporarily();
+        if (isFullscreen) showControlsTemporarily();
         skipTime(5);
         return;
       }
@@ -682,7 +686,7 @@ export default function VideoComponent({ video }: { video: Content }) {
         }
         if (key === 'j' || key === 'l') {
           e.preventDefault();
-          showControlsTemporarily();
+          if (isFullscreen) showControlsTemporarily();
           skipTime(key === 'j' ? -10 : 10);
           return;
         }
@@ -705,13 +709,13 @@ export default function VideoComponent({ video }: { video: Content }) {
         if (/^[0-9]$/.test(e.key) && vidEl && vidEl.duration) {
           e.preventDefault();
           skipTime(vidEl.duration * (Number(e.key) / 10) - vidEl.currentTime);
-          showControlsTemporarily();
+          if (isFullscreen) showControlsTemporarily();
           return;
         }
         if ((e.key === 'Home' || e.key === 'End') && vidEl && vidEl.duration) {
           e.preventDefault();
           skipTime(e.key === 'Home' ? -vidEl.currentTime : vidEl.duration);
-          showControlsTemporarily();
+          if (isFullscreen) showControlsTemporarily();
           return;
         }
       }
@@ -1266,6 +1270,11 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Handle timeline marker drag interactions
   const handleMarkerDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
+    const vid = videoRef.current;
+    if (vid && !vid.paused) {
+      resumeAfterScrubRef.current = true;
+      vid.pause();
+    }
     setIsDragging(true);
     setIsInteracting(true);
   };
@@ -1281,7 +1290,21 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
   };
 
+  // Start scrubbing from empty timeline space once the press moves past the threshold
+  const handleScrubCandidateMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const startX = scrubCandidateRef.current;
+    if (startX === null || Math.abs(e.clientX - startX) <= 3) return;
+    scrubCandidateRef.current = null;
+    handleTimelineClick(e);
+    handleMarkerDragStart(e);
+  };
+
   const handleMarkerDragEnd = () => {
+    scrubCandidateRef.current = null;
+    if (resumeAfterScrubRef.current) {
+      resumeAfterScrubRef.current = false;
+      void videoRef.current?.play();
+    }
     setIsDragging(false);
     setTimeout(() => setIsInteracting(false), 0);
   };
@@ -2013,7 +2036,7 @@ export default function VideoComponent({ video }: { video: Content }) {
           : [...starts].reverse().find((s) => s.start < vid.currentTime - 1);
       if (!target) return;
       seekToBookmark(target.bookmark);
-      showControlsTemporarily();
+      if (isFullscreen) showControlsTemporarily();
     };
   });
 
@@ -2156,7 +2179,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="flex w-full h-full overflow-hidden bg-base-200" ref={containerRef}>
-        <div className="flex flex-col flex-1 w-full h-full p-4 pb-2 overflow-hidden lg:w-3/4">
+        <div className="flex flex-col flex-1 w-full h-full p-4 pb-3 overflow-hidden lg:w-3/4">
           <TopInfoBar video={video} />
           <div
             className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative flex-1 min-h-0 mb-px overflow-hidden rounded-lg'}`}
@@ -2437,11 +2460,12 @@ export default function VideoComponent({ video }: { video: Content }) {
             </div>
           </div>
           <div
-            className="relative w-full mt-2 overflow-x-scroll overflow-y-hidden select-none shrink-0 timeline-wrapper"
+            className="relative w-full mt-1 overflow-x-scroll overflow-y-hidden select-none shrink-0 timeline-wrapper"
             ref={scrollContainerRef}
             onMouseMove={(e) => {
               handleSegmentDrag(e);
               handleSegmentResize(e);
+              handleScrubCandidateMove(e);
               handleMarkerDrag(e);
             }}
           >
@@ -2525,6 +2549,10 @@ export default function VideoComponent({ video }: { video: Content }) {
                 minWidth: '100%',
               }}
               onClick={handleTimelineClick}
+              onMouseDown={(e) => {
+                if (e.button !== 0 || e.target !== e.currentTarget) return;
+                scrubCandidateRef.current = e.clientX;
+              }}
             >
               {settings.showAudioWaveformInTimeline && (
                 <canvas
@@ -2567,7 +2595,8 @@ export default function VideoComponent({ video }: { video: Content }) {
 
                     {audioTracks.isMultiTrack &&
                       video.audioTrackNames &&
-                      video.audioTrackNames.length > 1 && (
+                      video.audioTrackNames.length > 1 &&
+                      width >= 36 && (
                         <button
                           className={`absolute top-[4px] right-[8px] flex items-center justify-center w-5 h-5 rounded-full z-10 pointer-events-auto cursor-pointer transition-[opacity,color,background-color] bg-black/60 backdrop-blur-sm hover:bg-black/80 ${audioMenuOpen || customMix ? 'text-accent' : 'text-white/80 hover:text-white'} ${hoveredSegmentId === seg.id || audioMenuOpen || customMix ? 'opacity-100' : 'opacity-0'}`}
                           aria-label="Segment audio"
@@ -2707,7 +2736,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     <Button
                       variant="primary"
                       size="sm"
-                      className="h-10 px-5 hover:text-accent"
+                      className="h-10 hover:text-accent"
                       onClick={handleUpload}
                       disabled={Object.values(uploads).some(
                         (upload) =>
@@ -2727,7 +2756,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   <Button
                     variant="primary"
                     size="sm"
-                    className="h-10 gap-1 hover:text-accent"
+                    className="h-10 hover:text-accent"
                     onClick={handleCreateClip}
                   >
                     <Clapperboard className="w-5 h-5" />
@@ -2743,7 +2772,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   <Button
                     variant="primary"
                     size="sm"
-                    className={`h-10 gap-1 hover:text-accent ${showNoSegmentsIndicator ? 'segment-hint-flash' : ''}`}
+                    className={`h-10 hover:text-accent ${showNoSegmentsIndicator ? 'segment-hint-flash' : ''}`}
                     onClick={handleAddSegment}
                   >
                     <SquarePlus className="w-5 h-5" />
@@ -2808,8 +2837,8 @@ export default function VideoComponent({ video }: { video: Content }) {
           </div>
         </div>
         {(video.type === 'Session' || video.type === 'Buffer') && (
-          <div className="flex flex-col h-full pt-4 pl-4 pr-1 border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
-            <div className="flex-1 p-1 overflow-y-scroll">
+          <div className="flex flex-col h-full border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
+            <div className="flex-1 pt-4 pl-4 pr-0.5 overflow-y-scroll">
               {segments.map((seg, index) => (
                 <SegmentCard
                   key={seg.id}
@@ -2838,7 +2867,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 </div>
               )}
             </div>
-            <div className="relative flex items-center gap-2 my-3 mr-3">
+            <div className="relative flex items-center gap-2 px-4 pt-2 pb-4">
               <Button
                 variant="primary"
                 size="sm"
@@ -2869,7 +2898,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 </Button>
                 <ul
                   tabIndex={0}
-                  className="dropdown-content menu bg-base-300 border border-base-400 rounded-lg z-[100] left-0! p-1.5 mb-2 shadow"
+                  className="dropdown-content menu bg-base-300 border border-base-400 rounded-lg z-[100] left-4! p-1.5 mb-2 shadow"
                 >
                   <li>
                     <label className="flex items-center gap-2 px-2! text-sm text-gray-300 hover:bg-transparent! active:bg-transparent!">

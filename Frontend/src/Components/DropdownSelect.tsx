@@ -141,7 +141,7 @@ export default function DropdownSelect({
 
       {/* Menu (DaisyUI v5 structure) */}
       <ul
-        tabIndex={0}
+        tabIndex={-1}
         className={computedMenuClassName}
         style={menuMaxHeight ? { maxHeight: `${menuMaxHeight}px`, overflowY: 'auto' } : undefined}
       >
