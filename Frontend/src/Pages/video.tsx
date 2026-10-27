@@ -919,7 +919,8 @@ export default function VideoComponent({ video }: { video: Content }) {
   };
 
   const handlePlayerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (pointerSettledRef.current) {
+    // Fullscreen has nothing to pass through to, and the resize fires a spurious mouseleave
+    if (pointerSettledRef.current || isFullscreen) {
       // Ignore small jitter while the controls are hidden
       if (!controlsVisibleRef.current) {
         const anchor = hiddenMouseAnchorRef.current;
