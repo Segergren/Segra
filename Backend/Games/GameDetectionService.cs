@@ -10,7 +10,6 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 #if WINDOWS
 using System.Security;
-using System.Management;
 #endif
 
 namespace Segra.Backend.Games
@@ -18,18 +17,14 @@ namespace Segra.Backend.Games
     public static class GameDetectionService
     {
         public static bool PreventRetryRecording { get; set; } = false;
-#if WINDOWS
-        private static ManagementEventWatcher? processStartWatcher;
-        private static ManagementEventWatcher? processStopWatcher;
-#endif
         private static readonly Dictionary<string, string> deviceToDrive = new();
         private static bool _running;
         private static System.Threading.Timer? _processCheckTimer;
-#if !WINDOWS
-        // Snapshot of PIDs seen on the previous /proc scan, to synthesize start/stop events.
+        // Snapshot of PIDs seen on the previous process scan, to synthesize start/stop events.
         private static HashSet<int> _knownPids = new();
         private static System.Threading.Timer? _procPollTimer;
         private static int _pollInProgress;
+#if !WINDOWS
         // Steam/Proton install dir of the game being recorded. Proton runs the game's Windows .exe under
         // Wine, so its Linux PIDs are volatile; every process in the session shares this path, so we track
         // it to detect when the game closes (instead of a single PID that may exit mid-session).
@@ -112,40 +107,71 @@ namespace Segra.Backend.Games
         }
 
 #if WINDOWS
+        [DllImport("psapi.dll", SetLastError = true)]
+        private static extern bool EnumProcesses([Out] int[] processIds, int size, out int bytesReturned);
+
+        private static int[] _pidBuffer = new int[1024];
+
         private static void Start()
         {
             Log.Information("Starting process monitoring...");
             InitializeDriveMappings();
 
-            processStartWatcher = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM __InstanceCreationEvent WITHIN 1 WHERE TargetInstance isa \"Win32_Process\""));
-            processStartWatcher.EventArrived += OnProcessStarted;
-            processStartWatcher.Start();
-
-            processStopWatcher = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM __InstanceDeletionEvent WITHIN 1 WHERE TargetInstance isa \"Win32_Process\""));
-            processStopWatcher.EventArrived += OnProcessStopped;
-            processStopWatcher.Start();
+            // Polled here because WMI process events make the WMI service enumerate every process each second
+            _knownPids = EnumerateProcessIds();
+            _procPollTimer = new System.Threading.Timer(_ => PollProcesses(), null, 1000, 1000);
 
             // Start periodic process scanning for games that might not trigger foreground events
             _processCheckTimer = new System.Threading.Timer(_ => CheckForGames(), null, 10000, 10000);
 
-            Log.Information("WMI watchers and process check timer are now active.");
+            Log.Information("Process poll timer and process check timer are now active.");
         }
 
-        private static void OnProcessStarted(object sender, EventArrivedEventArgs e)
+        private static void PollProcesses()
         {
+            if (Interlocked.Exchange(ref _pollInProgress, 1) == 1) return;
             try
             {
-                var processObj = e.NewEvent["TargetInstance"] as ManagementBaseObject;
-                if (processObj == null) return;
+                var current = EnumerateProcessIds();
+                // A failed snapshot must not look like every process exited
+                if (current.Count == 0) return;
 
-                int pid = Convert.ToInt32(processObj["Handle"]);
-                string exePath = ResolveProcessPath(pid);
+                foreach (int pid in current)
+                {
+                    if (!_knownPids.Contains(pid))
+                        HandleProcessStarted(pid, ResolveProcessPath(pid));
+                }
 
-                HandleProcessStarted(pid, exePath);
+                foreach (int pid in _knownPids)
+                {
+                    if (!current.Contains(pid))
+                        HandleProcessStopped(pid);
+                }
+
+                _knownPids = current;
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "[OnProcessStarted] Exception");
+                Log.Error($"[PollProcesses] Exception: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _pollInProgress, 0);
+            }
+        }
+
+        private static HashSet<int> EnumerateProcessIds()
+        {
+            while (true)
+            {
+                if (!EnumProcesses(_pidBuffer, _pidBuffer.Length * sizeof(int), out int bytes))
+                    return [];
+
+                // A full buffer may have cut the list short
+                if (bytes < _pidBuffer.Length * sizeof(int))
+                    return new HashSet<int>(new ArraySegment<int>(_pidBuffer, 0, bytes / sizeof(int)));
+
+                _pidBuffer = new int[_pidBuffer.Length * 2];
             }
         }
 #else
@@ -409,7 +435,7 @@ namespace Segra.Backend.Games
         }
 #endif
 
-        // Shared start-of-process handling, called from the WMI watcher (Windows) or /proc poll (Linux).
+        // Shared start-of-process handling, called from the process poll (Windows) or /proc poll (Linux).
         private static void HandleProcessStarted(int pid, string exePath)
         {
             try
@@ -440,16 +466,12 @@ namespace Segra.Backend.Games
         }
 
 #if WINDOWS
-        private static void OnProcessStopped(object sender, EventArrivedEventArgs e)
+        private static void HandleProcessStopped(int pid)
         {
             if (AppState.Instance.Recording == null && AppState.Instance.PreRecording == null) return;
 
             try
             {
-                var processObj = e.NewEvent["TargetInstance"] as ManagementBaseObject;
-                if (processObj == null) return;
-
-                int pid = Convert.ToInt32(processObj["Handle"]);
                 string exePath = ResolveProcessPath(pid);
 
                 if (IsIrrelevantProcessPath(exePath)) return;
