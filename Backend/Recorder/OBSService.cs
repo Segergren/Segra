@@ -143,6 +143,11 @@ namespace Segra.Backend.Recorder
         private static uint _currentOutputWidth;
         private static uint _currentOutputHeight;
 
+        // libobs renders a frame at this rate even while nothing records
+        private const uint IdleCanvasWidth = 64;
+        private const uint IdleCanvasHeight = 36;
+        private const uint IdleFps = 10;
+
         // HDR state for the current recording. Decided once at StartRecording from the captured
         // display's HDR mode, because the OBS canvas color space cannot change while an output is
         // active. Both the display-capture fallback and the game capture inherit this canvas.
@@ -737,8 +742,8 @@ namespace Segra.Backend.Recorder
                         .ForHeadlessOperation()
 #endif
                         .WithVideo(v => v
-                            .Resolution(1920, 1080)
-                            .Fps(60))
+                            .Resolution(IdleCanvasWidth, IdleCanvasHeight)
+                            .Fps(IdleFps))
                         .WithAudio(a => a
                             .WithSampleRate(44100)
                             .WithSpeakers(SpeakerLayout.Stereo))
@@ -1052,10 +1057,7 @@ namespace Segra.Backend.Recorder
             _currentOutputWidth = outputWidth;
             _currentOutputHeight = outputHeight;
 
-            // obs_reset_video drops queued graphics tasks, which is where destroyed display captures release their DXGI duplicator
-            // (https://github.com/obsproject/obs-studio/pull/14004)
-            if (Obs.WaitForDestroyQueue())
-                Obs.QueueTask(ObsTaskType.Graphics, () => { }, wait: true);
+            FlushGraphicsTasks();
 
             // Must be set on every reset: OBSKit reuses its settings object, so a prior HDR
             // recording would otherwise leave the next SDR one in P010/PQ.
@@ -1070,6 +1072,35 @@ namespace Segra.Backend.Recorder
                 else
                     v.Sdr();
             });
+        }
+
+        private static void ResetVideoToIdle()
+        {
+            // A reset on broken graphics can hang (issue 231)
+            if (!IsInitialized || _isExiting || RecorderHealthService.IsRecorderLost)
+                return;
+
+            try
+            {
+                FlushGraphicsTasks();
+                Obs.SetVideo(v => v
+                    .BaseResolution(IdleCanvasWidth, IdleCanvasHeight)
+                    .OutputResolution(IdleCanvasWidth, IdleCanvasHeight)
+                    .Fps(IdleFps)
+                    .Sdr());
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to reset video to idle: {ex.Message}");
+            }
+        }
+
+        // obs_reset_video drops queued graphics tasks, which is where destroyed display captures release their DXGI duplicator
+        // (https://github.com/obsproject/obs-studio/pull/14004)
+        private static void FlushGraphicsTasks()
+        {
+            if (Obs.WaitForDestroyQueue())
+                Obs.QueueTask(ObsTaskType.Graphics, () => { }, wait: true);
         }
 
         // Effective recording settings (global overlaid with per-game overrides) resolved at the start of
@@ -1097,6 +1128,12 @@ namespace Segra.Backend.Recorder
                 AppState.Instance.PreRecording = null;
                 GameDetectionService.PreventRetryRecording = true;
 
+                // A failed video reset means libobs's graphics are gone for this process; every later start would fail the same way.
+                // Marked before the cleanup so its idle video reset is skipped.
+                bool videoLost = ex is ObsKit.NET.Exceptions.ObsVideoResetException;
+                if (videoLost)
+                    RecorderHealthService.MarkRecorderLost(ex.Message);
+
                 try
                 {
                     DisposeRecording();
@@ -1106,12 +1143,7 @@ namespace Segra.Backend.Recorder
                     Log.Error(cleanupEx, "Cleanup after the failed start also failed");
                 }
 
-                // A failed video reset means libobs's graphics are gone for this process; every later start would fail the same way.
-                if (ex is ObsKit.NET.Exceptions.ObsVideoResetException)
-                {
-                    RecorderHealthService.MarkRecorderLost(ex.Message);
-                }
-                else
+                if (!videoLost)
                 {
                     Task.Run(() => ShowModal("Recording failed", "Failed to start recording. Check the log for more details.", "error"));
                     Task.Run(() => PlaySound("error"));
@@ -1389,6 +1421,25 @@ namespace Segra.Backend.Recorder
                 DisposeRecording();
                 return false;
             }
+
+#if WINDOWS
+            // The hook can report its real size after the window size was used, so redo the 4:3 check
+            if (Settings.Instance.Stretch4By3 && _captureBoundsType != ObsBoundsType.Stretch && GameCaptureSource?.IsHooked == true
+                && CapturedWindowWidth is uint hookedWidth && CapturedWindowHeight is uint hookedHeight && hookedHeight > 0
+                && Math.Abs((double)hookedWidth / hookedHeight - 4.0 / 3.0) < 0.1)
+            {
+                ResetVideoSettings(
+                    out bool hookedIs4by3,
+                    customFps: (uint)eff.FrameRate,
+                    customOutputWidth: hookedWidth,
+                    customOutputHeight: hookedHeight,
+                    customResolution: eff.Resolution,
+                    encoderId: GetActiveEncoderId(eff)
+                );
+                _captureBoundsType = hookedIs4by3 ? ObsBoundsType.Stretch : ObsBoundsType.ScaleInner;
+                ApplyCaptureBounds(_gameCaptureItem);
+            }
+#endif
 
             string encoderId = GetActiveEncoderId(eff)!;
             Log.Information($"Using encoder: {encoderId}{(_isHdrRecording ? " (HDR)" : "")}");
@@ -2415,6 +2466,7 @@ namespace Segra.Backend.Recorder
             _hookedExecutableFileName = null;
             CapturedWindowWidth = null;
             CapturedWindowHeight = null;
+            ResetVideoToIdle();
         }
 
         // Null when the failed start wasn't in HDR, otherwise whether the SDR retry started
