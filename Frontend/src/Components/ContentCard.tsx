@@ -183,7 +183,7 @@ export default function ContentCard({
         className={
           type === 'Highlight'
             ? 'card card-compact w-full relative highlight-card'
-            : 'card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b]'
+            : 'card card-compact bg-base-300 text-gray-300 w-full'
         }
       >
         {type === 'Highlight' && (
@@ -213,10 +213,10 @@ export default function ContentCard({
         {type !== 'Highlight' && (
           <>
             {/* Mirrors the loaded card's figure/body exactly so the skeleton is the same height. */}
-            <figure className="relative aspect-video bg-black">
+            <figure className="relative aspect-video border border-b-0 border-[#49515b] [background:linear-gradient(#000,#000)_padding-box,linear-gradient(#49515b,#49515b)_border-box]">
               <div className="skeleton w-full h-full rounded-none bg-base-200/75"></div>
             </figure>
-            <div className="card-body gap-1 pt-2">
+            <div className="card-body gap-1 pt-2 border border-t-0 border-[#49515b] rounded-b-[inherit]">
               <div className="flex justify-between items-center">
                 <h2 className="card-title !block w-3/4">
                   {/* Title Skeleton */}
@@ -551,7 +551,7 @@ export default function ContentCard({
     <div
       ref={cardRef}
       data-content-id={content!.id}
-      className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isHighlighted ? 'import-pulse' : ''} ${isBusy ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
+      className={`card card-compact bg-base-300 text-gray-300 w-full ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isHighlighted ? 'import-pulse' : ''} ${isBusy ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
       onClick={(e) => {
         if (isBusy) return;
         if (!isSelectionMode && !e.ctrlKey) markAsViewed();
@@ -559,7 +559,8 @@ export default function ContentCard({
       }}
       onContextMenu={openContextMenu}
     >
-      <figure className="relative aspect-video bg-black">
+      {/* Draws its own border over a border-colored underlay so the rounded thumbnail corners have no dark seam. */}
+      <figure className="relative aspect-video border border-b-0 border-[#49515b] [background:linear-gradient(#000,#000)_padding-box,linear-gradient(#49515b,#49515b)_border-box]">
         {/* Shimmer crossfades out as the image fades in, so the figure never flashes black. */}
         <div
           className={`absolute inset-0 rounded-none bg-base-200/75 transition-opacity duration-200 ${thumbnailLoaded ? 'opacity-0' : 'skeleton opacity-100'}`}
@@ -632,7 +633,7 @@ export default function ContentCard({
         )}
       </figure>
 
-      <div className="card-body gap-1 pt-2">
+      <div className="card-body gap-1 pt-2 border border-t-0 border-[#49515b] rounded-b-[inherit]">
         <div className="flex justify-between items-center">
           {isRenaming ? (
             <input
