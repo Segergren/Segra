@@ -13,8 +13,8 @@
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
     <GenerateAssemblyFileVersionAttribute>true</GenerateAssemblyFileVersionAttribute>
     <GenerateAssemblyInformationalVersionAttribute>true</GenerateAssemblyInformationalVersionAttribute>
-    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
-    <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+    <GenerateAssemblyProductAttribute>true</GenerateAssemblyProductAttribute>
+    <GenerateAssemblyTitleAttribute>true</GenerateAssemblyTitleAttribute>
     <GenerateAssemblyVersionAttribute>true</GenerateAssemblyVersionAttribute>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
@@ -23,6 +23,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageIcon>icon.png</PackageIcon>
     <AssemblyName>Segra</AssemblyName>
+    <AssemblyTitle>Segra</AssemblyTitle>
+    <Product>Segra</Product>
     <RootNamespace>Segra</RootNamespace>
     <!-- Needed so the Windows dev box can restore/build the net10.0-windows TFM. Harmless on Linux. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
