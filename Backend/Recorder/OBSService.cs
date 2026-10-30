@@ -146,7 +146,9 @@ namespace Segra.Backend.Recorder
         // libobs renders a frame at this rate even while nothing records
         private const uint IdleCanvasWidth = 64;
         private const uint IdleCanvasHeight = 36;
-        private const uint IdleFps = 10;
+        private const uint IdleFps = 2;
+        // On the idle canvas with nothing destroyed since its flush
+        private static bool _videoIdle = true;
 
         // HDR state for the current recording. Decided once at StartRecording from the captured
         // display's HDR mode, because the OBS canvas color space cannot change while an output is
@@ -1057,7 +1059,10 @@ namespace Segra.Backend.Recorder
             _currentOutputWidth = outputWidth;
             _currentOutputHeight = outputHeight;
 
-            FlushGraphicsTasks();
+            // Coming from a clean idle canvas there is nothing to flush, and the flush would wait out an idle frame
+            if (!_videoIdle)
+                FlushGraphicsTasks();
+            _videoIdle = false;
 
             // Must be set on every reset: OBSKit reuses its settings object, so a prior HDR
             // recording would otherwise leave the next SDR one in P010/PQ.
@@ -1088,6 +1093,7 @@ namespace Segra.Backend.Recorder
                     .OutputResolution(IdleCanvasWidth, IdleCanvasHeight)
                     .Fps(IdleFps)
                     .Sdr());
+                _videoIdle = true;
             }
             catch (Exception ex)
             {
@@ -3039,6 +3045,10 @@ namespace Segra.Backend.Recorder
 
         public static void DisposeSources()
         {
+            // Destroyed sources queue graphics tasks that the next video reset must flush
+            if (_mainScene != null)
+                _videoIdle = false;
+
             // Dispose these first, while the scene is still alive, so SceneItem.Remove() can run
             // (the helpers no-op once the item fields are null).
             DisposeDisplaySource();
