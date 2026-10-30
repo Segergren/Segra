@@ -796,7 +796,7 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Generates a thumbnail from a video at the midpoint, falling back to other positions when the frame is black
         /// </summary>
-        public static async Task CreateThumbnailFile(string inputFilePath, string outputFilePath, int width = 720, int quality = 9)
+        public static async Task CreateThumbnailFile(string inputFilePath, string outputFilePath, int width = 960, int quality = 6)
         {
             TimeSpan duration = await GetVideoDuration(inputFilePath);
 
