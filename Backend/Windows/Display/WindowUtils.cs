@@ -463,6 +463,15 @@ namespace Segra.Backend.Windows.Display
                 return false;
             }
 
+            // Must not be a console window, which reports the attached process as its owner
+            StringBuilder className = new(256);
+            GetClassName(hWnd, className, className.Capacity);
+            if (className.ToString() == "ConsoleWindowClass")
+            {
+                if (logReason) Log.Information($"  Rejected: console window");
+                return false;
+            }
+
             return true;
         }
 
