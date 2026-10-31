@@ -242,6 +242,7 @@ export interface GameIntegrations {
   valorant: GameIntegrationSettings;
   overwatch: GameIntegrationSettings;
   fortnite: GameIntegrationSettings;
+  theFinals: GameIntegrationSettings;
 }
 
 export type ClipEncoder = 'gpu' | 'cpu';
@@ -481,6 +482,7 @@ export const initialSettings: Settings = {
     valorant: { enabled: true },
     overwatch: { enabled: true },
     fortnite: { enabled: true },
+    theFinals: { enabled: true },
   },
 };
 

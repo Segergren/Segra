@@ -114,6 +114,7 @@
     <Compile Remove="Backend\Games\Battlefield6\Battlefield6Integration.cs" />
     <Compile Remove="Backend\Games\Valorant\ValorantIntegration.cs" />
     <Compile Remove="Backend\Games\Overwatch\OverwatchIntegration.cs" />
+    <Compile Remove="Backend\Games\TheFinals\TheFinalsIntegration.cs" />
     <Compile Remove="Backend\Platform\Windows\**\*.cs" />
     <Compile Remove="Backend\Windows\Input\HotkeyBroker\**\*.cs" />
   </ItemGroup>

@@ -1629,5 +1629,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("fortnite")]
         public GameIntegrationSettings Fortnite { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("theFinals")]
+        public GameIntegrationSettings TheFinals { get; set; } = new GameIntegrationSettings(true);
     }
 }

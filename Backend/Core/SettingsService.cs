@@ -566,6 +566,12 @@ namespace Segra.Backend.Core
                     current.Fortnite.Enabled = updated.Fortnite.Enabled;
                     hasChanges = true;
                 }
+                if (current.TheFinals.Enabled != updated.TheFinals.Enabled)
+                {
+                    Log.Information($"GameIntegrations.TheFinals.Enabled changed from '{current.TheFinals.Enabled}' to '{updated.TheFinals.Enabled}'");
+                    current.TheFinals.Enabled = updated.TheFinals.Enabled;
+                    hasChanges = true;
+                }
             }
 
             if (updatedSettings.Games != null)
