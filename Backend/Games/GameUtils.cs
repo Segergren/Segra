@@ -86,6 +86,14 @@ namespace Segra.Backend.Games
 
         public static string? GetGameNameFromExePath(string exePath) => ResolveEntryFromExePath(exePath)?.Name;
 
+        public static string? GetCanonicalGameNameFromExePath(string exePath)
+        {
+            var entry = ResolveEntryFromExePath(exePath);
+            if (entry?.Igdb?.Id is int id && GetIgdbIdToNameMap().TryGetValue(id, out var canonical))
+                return canonical;
+            return entry?.Name;
+        }
+
         public static int? GetIgdbIdFromExePath(string exePath) => ResolveEntryFromExePath(exePath)?.Igdb?.Id;
 
         public static string? GetIconFromExePath(string exePath) => ResolveEntryFromExePath(exePath)?.Icon;

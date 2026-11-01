@@ -1041,7 +1041,7 @@ namespace Segra.Backend.Games
             if (string.IsNullOrEmpty(exePath)) return "Unknown";
 
             // First check if it's in our games.json database
-            string? jsonGameName = GameUtils.GetGameNameFromExePath(exePath);
+            string? jsonGameName = GameUtils.GetCanonicalGameNameFromExePath(exePath);
             if (!string.IsNullOrEmpty(jsonGameName)) return jsonGameName;
 
             // Then try Steam lookup
