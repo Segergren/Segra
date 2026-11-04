@@ -9,6 +9,7 @@ export type AudioTrackType = 'mix' | 'input' | 'output';
 
 export type StartupWindowMode = 'Normal' | 'Minimized';
 export type CloseButtonAction = 'Minimize' | 'Exit';
+export type OriginalAfterClippingAction = 'Keep' | 'RecycleBin' | 'DeletePermanently';
 export type GpuPriority = 'High' | 'Realtime';
 
 export interface Content {
@@ -363,6 +364,7 @@ export interface Settings {
   clipQualityPreset: ClipQualityPreset;
   confirmBeforeDeleting: boolean;
   removeOriginalAfterCompression: boolean;
+  originalAfterClipping: OriginalAfterClippingAction;
   discardSessionsWithoutBookmarks: boolean;
   menuItems: MenuItemPreference[];
   defaultMenuItem: MenuItemId;
@@ -455,6 +457,7 @@ export const initialSettings: Settings = {
   clipQualityPreset: 'standard',
   confirmBeforeDeleting: false,
   removeOriginalAfterCompression: false,
+  originalAfterClipping: 'Keep',
   discardSessionsWithoutBookmarks: false,
   menuItems: DEFAULT_MENU_ITEMS,
   defaultMenuItem: 'Full Sessions',

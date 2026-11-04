@@ -107,6 +107,7 @@ namespace Segra.Backend.Core.Models
         private string _clipQualityPreset = "standard";
         private bool _confirmBeforeDeleting = false;
         private bool _removeOriginalAfterCompression = false;
+        private OriginalAfterClippingAction _originalAfterClipping = OriginalAfterClippingAction.Keep;
         private bool _discardSessionsWithoutBookmarks = false;
         private GameIntegrations _gameIntegrations = new GameIntegrations();
 
@@ -947,6 +948,16 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("originalAfterClipping")]
+        public OriginalAfterClippingAction OriginalAfterClipping
+        {
+            get => _originalAfterClipping;
+            set
+            {
+                _originalAfterClipping = value;
+            }
+        }
+
         [JsonPropertyName("discardSessionsWithoutBookmarks")]
         public bool DiscardSessionsWithoutBookmarks
         {
@@ -1393,6 +1404,14 @@ namespace Segra.Backend.Core.Models
         {
             return !string.IsNullOrEmpty(_jwt) && !string.IsNullOrEmpty(_refreshToken);
         }
+    }
+
+    [JsonConverter(typeof(JsonStringEnumConverter<OriginalAfterClippingAction>))]
+    public enum OriginalAfterClippingAction
+    {
+        Keep,
+        RecycleBin,
+        DeletePermanently
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter<RecordingMode>))]

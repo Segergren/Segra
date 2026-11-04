@@ -452,6 +452,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.OriginalAfterClipping != updatedSettings.OriginalAfterClipping)
+            {
+                Log.Information($"OriginalAfterClipping changed from '{settings.OriginalAfterClipping}' to '{updatedSettings.OriginalAfterClipping}'");
+                settings.OriginalAfterClipping = updatedSettings.OriginalAfterClipping;
+                hasChanges = true;
+            }
+
             if (settings.DiscardSessionsWithoutBookmarks != updatedSettings.DiscardSessionsWithoutBookmarks)
             {
                 Log.Information($"DiscardSessionsWithoutBookmarks changed from '{settings.DiscardSessionsWithoutBookmarks}' to '{updatedSettings.DiscardSessionsWithoutBookmarks}'");

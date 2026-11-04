@@ -553,7 +553,7 @@ namespace Segra.Backend.Media
             }
         }
 
-        public static async Task DeleteContent(string filePath, Content.ContentType type, string? id, bool sendToFrontend = true, bool reloadState = true)
+        public static async Task DeleteContent(string filePath, Content.ContentType type, string? id, bool sendToFrontend = true, bool reloadState = true, bool recycle = false)
         {
             try
             {
@@ -573,8 +573,31 @@ namespace Segra.Backend.Media
                     {
                         try
                         {
-                            File.Delete(normalizedFilePath);
-                            Log.Information($"Video file deleted: {normalizedFilePath}");
+                            if (recycle)
+                            {
+#if WINDOWS
+                                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(normalizedFilePath,
+                                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+#else
+                                var startInfo = new System.Diagnostics.ProcessStartInfo("gio") { UseShellExecute = false };
+                                if (Platform.Linux.FlatpakHost.IsFlatpak)
+                                {
+                                    startInfo.FileName = "flatpak-spawn";
+                                    foreach (string arg in new[] { "--host", Platform.Linux.FlatpakHost.DirectoryArg, "gio" })
+                                        startInfo.ArgumentList.Add(arg);
+                                }
+                                foreach (string arg in new[] { "trash", "--", normalizedFilePath })
+                                    startInfo.ArgumentList.Add(arg);
+                                using var process = System.Diagnostics.Process.Start(startInfo) ?? throw new IOException("Could not start trash command");
+                                await process.WaitForExitAsync();
+                                if (process.ExitCode != 0) throw new IOException("Could not move video to trash");
+#endif
+                            }
+                            else
+                            {
+                                File.Delete(normalizedFilePath);
+                            }
+                            Log.Information($"Video file {(recycle ? "recycled" : "deleted")}: {normalizedFilePath}");
                             break;
                         }
                         catch (IOException)

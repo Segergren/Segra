@@ -31,6 +31,7 @@ namespace Segra.Backend.Media
             List<List<string>?> extractedSegmentTrackNames = new List<List<string>?>();
             List<List<string>?> extractedSegmentTrackTypes = new List<List<string>?>();
             List<string> outputFilePaths = new List<string>();
+            bool clipsHaveMetadata = true;
             string? concatFilePath = null;
             string? outputFilePath = null;
 
@@ -183,6 +184,7 @@ namespace Segra.Backend.Media
                             ? extractedSegmentTrackTypes[i]
                             : null;
                         string? segmentClipId = await ContentService.CreateMetadataFile(segmentOutputFilePath, Content.ContentType.Clip, segment.Game ?? "Unknown", null, segment.Title, igdbId: segment.IgdbId, audioTrackNames: segmentAudioTrackNames, audioTrackTypes: segmentAudioTrackTypes, gameExePath: GetSourceGameExePath(segment));
+                        clipsHaveMetadata &= segmentClipId != null;
                         await ContentService.CreateThumbnail(segmentOutputFilePath, Content.ContentType.Clip, segmentClipId);
                         await ContentService.CreateWaveformFile(segmentOutputFilePath, Content.ContentType.Clip, segmentClipId);
                     }
@@ -263,11 +265,32 @@ namespace Segra.Backend.Media
                 if (!createSeparateClips)
                 {
                     string? clipId = await ContentService.CreateMetadataFile(outputFilePath!, Content.ContentType.Clip, firstSegment?.Game!, null, firstSegment?.Title, igdbId: firstSegment?.IgdbId, audioTrackNames: unionAudioLayout, audioTrackTypes: unionAudioTrackTypes, gameExePath: firstSegment != null ? GetSourceGameExePath(firstSegment) : null);
+                    clipsHaveMetadata = clipId != null;
                     await ContentService.CreateThumbnail(outputFilePath!, Content.ContentType.Clip, clipId);
                     await ContentService.CreateWaveformFile(outputFilePath!, Content.ContentType.Clip, clipId);
                 }
 
                 _ = MessageService.SendFrontendMessage("ClipProgress", new { id, progress = 99, segments });
+
+                var originalAction = Settings.Instance.OriginalAfterClipping;
+                if (originalAction is OriginalAfterClippingAction.RecycleBin or OriginalAfterClippingAction.DeletePermanently && clipsHaveMetadata &&
+                    extractedSegments.Count == segments.Count && !AppState.Instance.IsFinishingRecording)
+                {
+                    lock (ProcessLock)
+                    {
+                        if (CancelledClipIds.Contains(id)) throw new OperationCanceledException();
+                    }
+
+                    var sourcePaths = inputFilePaths.Select(PathUtils.Normalize).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var originals = AppState.Instance.Content.Where(c => sourcePaths.Contains(c.FilePath) &&
+                        !string.Equals(c.FilePath, AppState.Instance.Recording?.FilePath, StringComparison.OrdinalIgnoreCase))
+                        .DistinctBy(c => c.FilePath, StringComparer.OrdinalIgnoreCase).ToList();
+                    foreach (var original in originals)
+                    {
+                        await ContentService.DeleteContent(original.FilePath, original.Type, original.Id,
+                            sendToFrontend: false, reloadState: false, recycle: originalAction == OriginalAfterClippingAction.RecycleBin);
+                    }
+                }
 
                 // Load silently then await the state send before progress=100 removes the loading card,
                 // so the clip is on screen first (avoids a skeleton-removed-before-content flicker).
