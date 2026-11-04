@@ -236,7 +236,7 @@ namespace Segra.Backend.Recorder
         {
             _ = SendFrontendMessage("ReplayBufferSaveStarted", new { });
             _ = Task.Run(SaveReplayBuffer);
-            _ = Task.Run(() => PlatformServices.Sound.Play(Properties.Resources.bookmark, Settings.Instance.SoundEffectsVolume));
+            _ = Task.Run(() => PlaySound("bookmark"));
         }
 
         public static async Task<bool> SaveReplayBuffer()
@@ -4329,8 +4329,12 @@ namespace Segra.Backend.Recorder
 
         public static void PlaySound(string resourceName, int delay = 0)
         {
+            if (Settings.Instance.DisabledSoundEffects.Contains(resourceName)) return;
+
             Thread.Sleep(delay);
-            using var stream = Properties.Resources.ResourceManager.GetStream(resourceName);
+            using Stream? stream = resourceName == "bookmark"
+                ? new MemoryStream(Properties.Resources.bookmark)
+                : Properties.Resources.ResourceManager.GetStream(resourceName);
             if (stream == null)
                 throw new ArgumentException($"Resource '{resourceName}' not found or not a stream.");
 

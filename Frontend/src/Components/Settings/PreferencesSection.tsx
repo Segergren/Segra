@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { VolumeX, Volume2 } from 'lucide-react';
+import { ChevronDown, VolumeX, Volume2 } from 'lucide-react';
 import CloudBadge from '../CloudBadge';
 import DropdownSelect from '../DropdownSelect';
 import RangeSlider from '../RangeSlider';
@@ -11,9 +11,16 @@ interface PreferencesSectionProps {
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
 
+const SOUND_EFFECTS = [
+  { value: 'start', label: 'Recording Started' },
+  { value: 'error', label: 'Recording Error' },
+  { value: 'bookmark', label: 'Bookmark / Replay Buffer Saved' },
+];
+
 export default function PreferencesSection({ settings, updateSettings }: PreferencesSectionProps) {
   const appState = useAppState();
   const [draggingSoundVolume, setDraggingSoundVolume] = useState<number | null>(null);
+  const [showSoundEffects, setShowSoundEffects] = useState(false);
   const soundVolume = draggingSoundVolume ?? settings.soundEffectsVolume;
 
   const interfaceToggles: {
@@ -109,12 +116,20 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
           </div>
         </div>
 
-        <label className="label mt-4">
+        <button
+          type="button"
+          className="label mt-4 gap-2 cursor-pointer"
+          aria-expanded={showSoundEffects}
+          onClick={() => setShowSoundEffects(!showSoundEffects)}
+        >
           <span className="label-text text-base-content">
             Sound Effects Volume
             {draggingSoundVolume !== null && ` (${Math.round(draggingSoundVolume * 100)}%)`}
           </span>
-        </label>
+          <ChevronDown
+            className={`w-4 h-4 transition-transform ${showSoundEffects ? 'rotate-180' : ''}`}
+          />
+        </button>
         <div className="flex items-center gap-3">
           <VolumeX className="w-4 h-4 opacity-70 shrink-0" />
           <RangeSlider
@@ -141,6 +156,27 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
           />
           <Volume2 className="w-4 h-4 opacity-70 shrink-0" />
         </div>
+        {showSoundEffects && (
+          <div className="mt-3 flex flex-col gap-2">
+            {SOUND_EFFECTS.map(({ value, label }) => (
+              <label key={value} className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!settings.disabledSoundEffects.includes(value)}
+                  onChange={(e) =>
+                    updateSettings({
+                      disabledSoundEffects: e.target.checked
+                        ? settings.disabledSoundEffects.filter((sound) => sound !== value)
+                        : [...settings.disabledSoundEffects, value],
+                    })
+                  }
+                  className="checkbox checkbox-primary checkbox-sm"
+                />
+                <span className="text-sm">{label}</span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">

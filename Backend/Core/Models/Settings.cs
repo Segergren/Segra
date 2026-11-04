@@ -97,6 +97,7 @@ namespace Segra.Backend.Core.Models
         private bool _clipKeepSeparateAudioTracks = false;
         private List<int> _copyCompressSizesMb = new List<int> { 20, 50, 100, 500 };
         private float _soundEffectsVolume = 0.5f;
+        private List<string> _disabledSoundEffects = [];
         private bool _showNewBadgeOnVideos = false;
         private bool _showGameBackground = true;
         private bool _showAudioWaveformInTimeline = true;
@@ -815,6 +816,16 @@ namespace Segra.Backend.Core.Models
                 {
                     _soundEffectsVolume = value;
                 }
+            }
+        }
+
+        [JsonPropertyName("disabledSoundEffects")]
+        public List<string> DisabledSoundEffects
+        {
+            get => _disabledSoundEffects;
+            set
+            {
+                _disabledSoundEffects = value ?? [];
             }
         }
 

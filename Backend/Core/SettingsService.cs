@@ -373,6 +373,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (!settings.DisabledSoundEffects.SequenceEqual(updatedSettings.DisabledSoundEffects))
+            {
+                Log.Information("Disabled sound effects changed");
+                settings.DisabledSoundEffects = updatedSettings.DisabledSoundEffects;
+                hasChanges = true;
+            }
+
             if (settings.SoundEffectsVolume != updatedSettings.SoundEffectsVolume)
             {
                 Log.Information($"SoundEffectsVolume changed from '{settings.SoundEffectsVolume}' to '{updatedSettings.SoundEffectsVolume}'");
