@@ -41,6 +41,7 @@ namespace Segra.Backend.Core.Models
         }
 
         private string _contentFolder = DefaultContentFolder();
+        private bool _organizeRecordingsByGame = true;
         private string _cacheFolder = Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra"));
         private string _resolution = "1440p";
         private int _frameRate = 60;
@@ -201,6 +202,16 @@ namespace Segra.Backend.Core.Models
                         }
                     });
                 }
+            }
+        }
+
+        [JsonPropertyName("organizeRecordingsByGame")]
+        public bool OrganizeRecordingsByGame
+        {
+            get => _organizeRecordingsByGame;
+            set
+            {
+                _organizeRecordingsByGame = value;
             }
         }
 

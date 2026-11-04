@@ -1,4 +1,5 @@
 using Segra.Backend.Core.Models;
+using Segra.Backend.Windows.Storage;
 
 namespace Segra.Backend.Shared
 {
@@ -81,6 +82,14 @@ namespace Segra.Backend.Shared
         public static string GetVideoFolderPath(string contentFolder, Content.ContentType type)
         {
             return PathUtils.Combine(contentFolder, GetVideoFolderName(type));
+        }
+
+        public static string GetVideoFolderPath(string contentFolder, Content.ContentType type, string gameName)
+        {
+            string folder = GetVideoFolderPath(contentFolder, type);
+            return Settings.Instance.OrganizeRecordingsByGame
+                ? PathUtils.Combine(folder, StorageService.SanitizeGameNameForFolder(gameName))
+                : folder;
         }
 
         /// <summary>

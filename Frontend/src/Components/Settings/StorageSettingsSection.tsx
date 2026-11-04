@@ -299,6 +299,21 @@ export default function StorageSettingsSection({
         <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
           <input
             type="checkbox"
+            name="organizeRecordingsByGame"
+            checked={settings.organizeRecordingsByGame}
+            onChange={(e) => updateSettings({ organizeRecordingsByGame: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <div>
+            <div className="font-semibold">Organize Recordings by Game</div>
+            <div className="text-sm opacity-70 mt-0.5">
+              Save new videos in game subfolders. Existing videos stay where they are.
+            </div>
+          </div>
+        </label>
+        <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
+          <input
+            type="checkbox"
             name="removeOriginalAfterCompression"
             checked={settings.removeOriginalAfterCompression}
             onChange={(e) => updateSettings({ removeOriginalAfterCompression: e.target.checked })}

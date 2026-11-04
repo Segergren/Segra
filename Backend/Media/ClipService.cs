@@ -54,10 +54,8 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                // Use game from first segment for the output folder
                 var firstSegment = segments.FirstOrDefault();
-                string outputGameFolder = StorageService.SanitizeGameNameForFolder(firstSegment?.Game ?? "Unknown");
-                string outputFolder = PathUtils.Combine(videoFolder, FolderNames.Clips, outputGameFolder);
+                string outputFolder = FolderNames.GetVideoFolderPath(videoFolder, Content.ContentType.Clip, firstSegment?.Game ?? "Unknown");
                 Directory.CreateDirectory(outputFolder);
 
                 if (!FFmpegService.FFmpegExists())
@@ -168,8 +166,7 @@ namespace Segra.Backend.Media
                     for (int i = 0; i < tempClipFiles.Count; i++)
                     {
                         var segment = extractedSegments[i];
-                        string segmentGameFolder = StorageService.SanitizeGameNameForFolder(segment.Game ?? "Unknown");
-                        string segmentOutputFolder = PathUtils.Combine(videoFolder, FolderNames.Clips, segmentGameFolder);
+                        string segmentOutputFolder = FolderNames.GetVideoFolderPath(videoFolder, Content.ContentType.Clip, segment.Game ?? "Unknown");
                         Directory.CreateDirectory(segmentOutputFolder);
 
                         string outputFileName = $"{batchTimestamp}_segment-{i + 1:000}.mp4";
@@ -381,7 +378,7 @@ namespace Segra.Backend.Media
                 }
 
                 Content first = sessions[0];
-                string outputFolder = PathUtils.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions, StorageService.SanitizeGameNameForFolder(first.Game));
+                string outputFolder = FolderNames.GetVideoFolderPath(Settings.Instance.ContentFolder, Content.ContentType.Session, first.Game);
                 Directory.CreateDirectory(outputFolder);
                 outputFilePath = GetUniqueOutputFilePath(PathUtils.Combine(outputFolder, $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4"));
 

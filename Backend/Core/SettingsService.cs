@@ -594,6 +594,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.OrganizeRecordingsByGame != updatedSettings.OrganizeRecordingsByGame)
+            {
+                Log.Information($"OrganizeRecordingsByGame changed from '{settings.OrganizeRecordingsByGame}' to '{updatedSettings.OrganizeRecordingsByGame}'");
+                settings.OrganizeRecordingsByGame = updatedSettings.OrganizeRecordingsByGame;
+                hasChanges = true;
+            }
+
             bool rejectedFolder = false;
             if (settings.ContentFolder != updatedSettings.ContentFolder)
             {

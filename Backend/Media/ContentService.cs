@@ -289,7 +289,8 @@ namespace Segra.Backend.Media
                         string? currentDir = Path.GetDirectoryName(content.FilePath);
                         string? typeFolder = currentDir != null ? Path.GetDirectoryName(currentDir) : null;
 
-                        if (!string.IsNullOrEmpty(typeFolder))
+                        if (!string.IsNullOrEmpty(typeFolder) && !string.Equals(
+                            Path.GetFileName(currentDir), FolderNames.GetVideoFolderName(content.Type), StringComparison.OrdinalIgnoreCase))
                         {
                             string newDir = PathUtils.Combine(typeFolder, newSanitized);
                             string candidatePath = PathUtils.Combine(newDir, Path.GetFileName(content.FilePath));

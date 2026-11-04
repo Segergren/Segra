@@ -97,7 +97,6 @@ namespace Segra.Backend.Media
             int importId = Guid.NewGuid().GetHashCode();
 
             string contentFolder = Settings.Instance.ContentFolder;
-            string baseTypeFolder = PathUtils.Combine(contentFolder, FolderNames.GetVideoFolderName(contentType));
 
             int importedCount = 0;
             int failedCount = 0;
@@ -119,7 +118,7 @@ namespace Segra.Backend.Media
                 {
                     var embedded = await EmbeddedMetadataService.ReadAsync(sourceFile);
                     string game = !string.IsNullOrEmpty(embedded?.Game) ? embedded.Game : "Unknown";
-                    string targetFolder = PathUtils.Combine(baseTypeFolder, StorageService.SanitizeGameNameForFolder(game));
+                    string targetFolder = FolderNames.GetVideoFolderPath(contentFolder, contentType, game);
                     Directory.CreateDirectory(targetFolder);
 
                     double progressPercent = (double)i / selectedFiles.Length * 100;

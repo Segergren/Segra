@@ -1762,10 +1762,8 @@ namespace Segra.Backend.Recorder
                 _audioEncoders.Add(audioEncoder);
             }
 
-            // Paths for session recordings and buffer, organized by game
-            string sanitizedGameName = StorageService.SanitizeGameNameForFolder(name);
-            string sessionDir = PathUtils.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions, sanitizedGameName);
-            string bufferDir = PathUtils.Combine(Settings.Instance.ContentFolder, FolderNames.Buffers, sanitizedGameName);
+            string sessionDir = FolderNames.GetVideoFolderPath(Settings.Instance.ContentFolder, Content.ContentType.Session, name);
+            string bufferDir = FolderNames.GetVideoFolderPath(Settings.Instance.ContentFolder, Content.ContentType.Buffer, name);
             if (!Directory.Exists(sessionDir)) Directory.CreateDirectory(sessionDir);
             if (!Directory.Exists(bufferDir)) Directory.CreateDirectory(bufferDir);
 
@@ -2636,7 +2634,7 @@ namespace Segra.Backend.Recorder
                 s.Resolution, s.FrameRate, s.RateControl, s.Bitrate, s.MinBitrate, s.MaxBitrate, s.CrfValue, s.CqLevel,
                 s.Codec?.InternalEncoderId, s.EnableHdr, s.Stretch4By3, s.ReplayBufferDuration, s.ReplayBufferMaxSize,
                 s.InputDevices, s.OutputDevices, s.EnableSeparateAudioTracks,
-                s.SelectedDisplay?.DeviceId, s.ContentFolder, AppState.Instance.Displays
+                s.SelectedDisplay?.DeviceId, s.ContentFolder, s.OrganizeRecordingsByGame, AppState.Instance.Displays
             });
         }
 
