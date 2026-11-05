@@ -243,6 +243,7 @@ export interface GameIntegrations {
   overwatch: GameIntegrationSettings;
   fortnite: GameIntegrationSettings;
   theFinals: GameIntegrationSettings;
+  modernWarfare4: GameIntegrationSettings;
 }
 
 export type ClipEncoder = 'gpu' | 'cpu';
@@ -483,6 +484,7 @@ export const initialSettings: Settings = {
     overwatch: { enabled: true },
     fortnite: { enabled: true },
     theFinals: { enabled: true },
+    modernWarfare4: { enabled: true },
   },
 };
 

@@ -1632,5 +1632,8 @@ namespace Segra.Backend.Core.Models
 
         [JsonPropertyName("theFinals")]
         public GameIntegrationSettings TheFinals { get; set; } = new GameIntegrationSettings(true);
+
+        [JsonPropertyName("modernWarfare4")]
+        public GameIntegrationSettings ModernWarfare4 { get; set; } = new GameIntegrationSettings(true);
     }
 }

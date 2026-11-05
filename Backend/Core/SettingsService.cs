@@ -572,6 +572,12 @@ namespace Segra.Backend.Core
                     current.TheFinals.Enabled = updated.TheFinals.Enabled;
                     hasChanges = true;
                 }
+                if (current.ModernWarfare4.Enabled != updated.ModernWarfare4.Enabled)
+                {
+                    Log.Information($"GameIntegrations.ModernWarfare4.Enabled changed from '{current.ModernWarfare4.Enabled}' to '{updated.ModernWarfare4.Enabled}'");
+                    current.ModernWarfare4.Enabled = updated.ModernWarfare4.Enabled;
+                    hasChanges = true;
+                }
             }
 
             if (updatedSettings.Games != null)

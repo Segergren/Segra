@@ -19,6 +19,7 @@ using Segra.Backend.Games.Valorant;
 using Segra.Backend.Games.Overwatch;
 using Segra.Backend.Games.Fortnite;
 using Segra.Backend.Games.TheFinals;
+using Segra.Backend.Games.ModernWarfare4;
 #endif
 
 namespace Segra.Backend.Games
@@ -46,6 +47,7 @@ namespace Segra.Backend.Games
         private const int OVERWATCH_IGDB_ID = 125174;
         private const int FORTNITE_IGDB_ID = 1905;
         private const int THE_FINALS_IGDB_ID = 214417;
+        private const int MODERN_WARFARE_4_IGDB_ID = 403310;
 
         private static Integration? _gameIntegration;
         private static readonly SemaphoreSlim _lock = new(1, 1);
@@ -106,6 +108,8 @@ namespace Segra.Backend.Games
                     _gameIntegration = new FortniteIntegration();
                 else if ((igdbId == THE_FINALS_IGDB_ID || gameName?.Equals("THE FINALS", StringComparison.OrdinalIgnoreCase) == true) && integrations.TheFinals.Enabled)
                     _gameIntegration = new TheFinalsIntegration();
+                else if ((igdbId == MODERN_WARFARE_4_IGDB_ID || gameName?.Equals("Call of Duty: Modern Warfare 4", StringComparison.OrdinalIgnoreCase) == true || IsCallOfDutyHq(exePath)) && integrations.ModernWarfare4.Enabled)
+                    _gameIntegration = new ModernWarfare4Integration();
 #endif
 
                 if (_gameIntegration == null)
@@ -120,6 +124,10 @@ namespace Segra.Backend.Games
                 _lock.Release();
             }
         }
+
+        // The newest Call of Duty runs as the HQ launcher's own cod.exe with a generic window title, so it can't be told apart
+        private static bool IsCallOfDutyHq(string? exePath) =>
+            exePath != null && Path.GetFileName(exePath).Equals("cod.exe", StringComparison.OrdinalIgnoreCase);
 
         public static async Task Shutdown()
         {

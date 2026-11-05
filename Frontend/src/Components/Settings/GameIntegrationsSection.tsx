@@ -72,6 +72,12 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     backgroundImage: 'https://segra.tv/api/games/cover/cod6ev',
   },
   {
+    id: 'modern-warfare-4',
+    name: 'Call of Duty: Modern Warfare 4',
+    settingsKey: 'modernWarfare4',
+    backgroundImage: 'https://segra.tv/api/games/cover/coc4mu',
+  },
+  {
     id: 'gta',
     name: 'Grand Theft Auto',
     settingsKey: 'gta',
