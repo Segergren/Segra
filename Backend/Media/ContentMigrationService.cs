@@ -359,7 +359,181 @@ namespace Segra.Backend.Media
             TryRemoveEmptyDirectory(Path.GetDirectoryName(sourcePath));
 
             Log.Information("Migrated content {Old} -> {New}", sourcePath, destPath);
+
+            await TryMigrateWebcamAsync(content, contentFolder);
             return true;
+        }
+
+        // Best effort: on any problem the webcam stays where it is and the video migration still counts
+        private static async Task TryMigrateWebcamAsync(Content content, string contentFolder)
+        {
+            string? sourcePath = content.Webcam?.FilePath;
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+                return;
+
+            string destFolder = PathUtils.Combine(contentFolder, FolderNames.Webcam);
+            string destPath = PathUtils.Combine(destFolder, Path.GetFileName(sourcePath));
+            if (PathsEqual(sourcePath, destPath))
+                return;
+
+            string tempPath = destPath + TempSuffix;
+            try
+            {
+                Directory.CreateDirectory(destFolder);
+
+                if (File.Exists(destPath))
+                {
+                    Log.Warning("Left webcam file in place; a file already exists at the destination: {Dest}", destPath);
+                    return;
+                }
+
+                bool sameDrive = DrivesEqual(sourcePath, destPath);
+                if (sameDrive)
+                {
+                    File.Move(sourcePath, destPath);
+                }
+                else
+                {
+                    if (File.Exists(tempPath))
+                        File.Delete(tempPath);
+
+                    await using (var src = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, useAsync: true))
+                    await using (var dst = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true))
+                        await src.CopyToAsync(dst);
+
+                    if (new FileInfo(sourcePath).Length != new FileInfo(tempPath).Length)
+                        throw new IOException("Copy size mismatch");
+
+                    File.Move(tempPath, destPath);
+                }
+
+                string sidecar = FolderNames.GetMetadataFilePath(content.Type, content.Id);
+                var updated = await ContentService.UpdateMetadataFile(sidecar, c =>
+                {
+                    if (c.Webcam != null)
+                        c.Webcam.FilePath = destPath;
+                });
+
+                if (updated?.Webcam == null)
+                {
+                    if (sameDrive)
+                        TryMoveBack(destPath, sourcePath);
+                    else
+                        try { if (File.Exists(destPath)) File.Delete(destPath); } catch { /* best effort */ }
+                    Log.Warning("Left webcam file in place; could not update metadata for {File}", sourcePath);
+                    return;
+                }
+
+                if (!sameDrive)
+                    await TryDeleteSourceAsync(sourcePath);
+
+                content.Webcam!.FilePath = destPath;
+                TryRemoveEmptyDirectory(Path.GetDirectoryName(sourcePath));
+                Log.Information("Migrated webcam {Old} -> {New}", sourcePath, destPath);
+            }
+            catch (Exception ex)
+            {
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best effort */ }
+                Log.Warning("Left webcam file in place; could not move {File}: {Message}", sourcePath, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Deletes files in the webcam folder that no video's metadata points to. Reads the metadata
+        /// sidecars directly so a video on a missing drive still keeps its webcam.
+        /// </summary>
+        public static async Task CleanupOrphanedWebcamFilesAsync()
+        {
+            await MigrationService.WaitForMigrationsAsync();
+            await Task.Delay(LeftoverCleanupDelay);
+
+            string contentFolder = Settings.Instance.ContentFolder;
+            if (string.IsNullOrWhiteSpace(contentFolder))
+                return;
+
+            string webcamFolder = PathUtils.Combine(contentFolder, FolderNames.Webcam);
+            if (!Directory.Exists(webcamFolder))
+                return;
+
+            DateTime recentCutoff = DateTime.Now - LeftoverCleanupDelay;
+            int deleted = 0;
+            long deletedBytes = 0;
+
+            // Held so a running content migration can't move a webcam in between reading metadata and deleting
+            lock (_lock)
+            {
+                if (_isMigrating)
+                    return;
+
+                var referenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    foreach (var type in Enum.GetValues<Content.ContentType>())
+                    {
+                        string metadataFolder = FolderNames.GetMetadataFolderPath(type);
+                        if (!Directory.Exists(metadataFolder))
+                            continue;
+
+                        foreach (string file in Directory.EnumerateFiles(metadataFolder, "*.json", SearchOption.TopDirectoryOnly))
+                        {
+                            Content? metadata;
+                            try { metadata = System.Text.Json.JsonSerializer.Deserialize<Content>(File.ReadAllText(file)); }
+                            catch (System.Text.Json.JsonException) { continue; }
+
+                            if (!string.IsNullOrWhiteSpace(metadata?.Webcam?.FilePath))
+                                referenced.Add(FullPathOrSelf(metadata.Webcam.FilePath));
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("Skipped webcam cleanup; could not read metadata: {Message}", ex.Message);
+                    return;
+                }
+
+                string? recordingWebcam = AppState.Instance.Recording?.Webcam?.FilePath;
+                if (!string.IsNullOrWhiteSpace(recordingWebcam))
+                    referenced.Add(FullPathOrSelf(recordingWebcam));
+
+                IEnumerable<string> files;
+                try
+                {
+                    files = Directory.GetFiles(webcamFolder);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("Could not scan {Folder} for orphaned webcam files: {Message}", webcamFolder, ex.Message);
+                    return;
+                }
+
+                foreach (string file in files)
+                {
+                    try
+                    {
+                        var info = new FileInfo(file);
+                        if (referenced.Contains(FullPathOrSelf(file)) || info.LastWriteTime > recentCutoff || info.CreationTime > recentCutoff)
+                            continue;
+
+                        long size = info.Length;
+                        info.Delete();
+                        deleted++;
+                        deletedBytes += size;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning("Could not delete orphaned webcam file {File}: {Message}", file, ex.Message);
+                    }
+                }
+            }
+
+            if (deleted > 0)
+                Log.Information("Deleted {Count} orphaned webcam files ({Size:F1} MB)", deleted, deletedBytes / (1024.0 * 1024.0));
+        }
+
+        private static string FullPathOrSelf(string path)
+        {
+            try { return Path.GetFullPath(path); }
+            catch { return path; }
         }
 
         private static async Task CopyWithProgressAsync(string source, string dest, long movedBytesBefore, long totalBytes, string migrationId, string displayName, int index, int total, CancellationToken token)

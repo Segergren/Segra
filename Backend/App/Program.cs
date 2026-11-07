@@ -335,6 +335,7 @@ namespace Segra.Backend.App
 #endif
                 Task.Run(StorageService.EnsureStorageBelowLimit);
                 Task.Run(ContentMigrationService.CleanupInterruptedCopiesAsync);
+                Task.Run(ContentMigrationService.CleanupOrphanedWebcamFilesAsync);
 
                 // Check for updates
                 Task.Run(() => UpdateService.UpdateAppIfNecessary(forceCheck: true));
