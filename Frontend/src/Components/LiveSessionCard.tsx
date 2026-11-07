@@ -4,12 +4,23 @@ import { sendMessageToBackend } from '../Utils/MessageUtils';
 
 // The session being recorded; opening it plays a stream-copied snapshot of the file so far
 export default function LiveSessionCard({ recording }: { recording: Recording }) {
-  // One frame a few seconds behind the live edge, taken when the card appears
-  const [thumbnailTime] = useState(() =>
-    Math.max(0, Math.floor((Date.now() - new Date(recording.startTime).getTime()) / 1000 - 5)),
-  );
+  const startMs = new Date(recording.startTime).getTime();
+  const [thumbnailTime, setThumbnailTime] = useState<number | null>(null);
   const [thumbnailLoaded, setThumbnailLoaded] = useState(false);
+  const [thumbnailAttempt, setThumbnailAttempt] = useState(0);
   const [opening, setOpening] = useState(false);
+
+  // One frame, retried only until the file has enough data to read
+  useEffect(() => {
+    if (thumbnailLoaded) return;
+    const elapsed = (Date.now() - startMs) / 1000;
+    const delay = thumbnailAttempt === 0 ? Math.max(0, 10 - elapsed) * 1000 : 5000;
+    const id = setTimeout(
+      () => setThumbnailTime(Math.max(0, Math.floor((Date.now() - startMs) / 1000 - 5))),
+      delay,
+    );
+    return () => clearTimeout(id);
+  }, [thumbnailAttempt, thumbnailLoaded, startMs]);
 
   useEffect(() => {
     const handleMessage = (event: CustomEvent) => {
@@ -22,9 +33,10 @@ export default function LiveSessionCard({ recording }: { recording: Recording })
     return () => window.removeEventListener('websocket-message', handleMessage as EventListener);
   }, []);
 
-  const thumbnailUrl = recording.filePath
-    ? `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(recording.filePath)}&time=${thumbnailTime}`
-    : undefined;
+  const thumbnailUrl =
+    recording.filePath && thumbnailTime !== null
+      ? `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(recording.filePath)}&time=${thumbnailTime}`
+      : undefined;
 
   return (
     <div
@@ -48,7 +60,7 @@ export default function LiveSessionCard({ recording }: { recording: Recording })
             height={900}
             draggable={false}
             onLoad={() => setThumbnailLoaded(true)}
-            onError={() => setThumbnailLoaded(true)}
+            onError={() => setThumbnailAttempt((a) => a + 1)}
           />
         )}
         <span className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/75 text-white text-xs px-2 py-1 rounded">
