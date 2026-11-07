@@ -885,6 +885,14 @@ namespace Segra.Backend.App
             {
                 try { File.Delete(old); } catch { }
             }
+            string waveformDir = FolderNames.GetWaveformsFolderPath(Content.ContentType.Session);
+            if (Directory.Exists(waveformDir))
+            {
+                foreach (var old in Directory.GetFiles(waveformDir, "live-*.peaks.json"))
+                {
+                    try { File.Delete(old); } catch { }
+                }
+            }
 
             string output = PathUtils.Combine(dir, $"{Path.GetFileNameWithoutExtension(source)}_{DateTime.Now:HHmmss}.mp4");
             try
@@ -911,6 +919,10 @@ namespace Segra.Backend.App
                     AudioTrackTypes = recording.AudioTrackTypes,
                 };
                 await SendFrontendMessage("RecordingSnapshotReady", content);
+
+                // The video page refetches its waveform on WaveformCreated
+                if (Settings.Instance.ShowAudioWaveformInTimeline)
+                    _ = Task.Run(() => ContentService.CreateWaveformFile(output, Content.ContentType.Session, content.Id));
             }
             catch (Exception ex)
             {
