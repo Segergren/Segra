@@ -665,6 +665,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.ClearReplayBufferAfterSave != updatedSettings.ClearReplayBufferAfterSave)
+            {
+                Log.Information($"ClearReplayBufferAfterSave changed from '{settings.ClearReplayBufferAfterSave}' to '{updatedSettings.ClearReplayBufferAfterSave}'");
+                settings.ClearReplayBufferAfterSave = updatedSettings.ClearReplayBufferAfterSave;
+                hasChanges = true;
+            }
+
             if (settings.Resolution != updatedSettings.Resolution)
             {
                 Log.Information($"Resolution changed from '{settings.Resolution}' to '{updatedSettings.Resolution}'");

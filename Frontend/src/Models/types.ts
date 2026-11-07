@@ -335,6 +335,7 @@ export interface Settings {
   replayBufferDuration: number; // in seconds
   replayBufferMaxSize: number; // in MB
   alwaysOnReplayBuffer: boolean; // Keep a display replay buffer running while nothing records
+  clearReplayBufferAfterSave: boolean; // Restart the buffer after a save so saves never overlap
   highlightPaddingBefore: number; // Seconds before a highlight moment
   highlightPaddingAfter: number; // Seconds after a highlight moment
   clipClearSegmentsAfterCreatingClip: boolean;
@@ -430,6 +431,7 @@ export const initialSettings: Settings = {
   replayBufferDuration: 30,
   replayBufferMaxSize: 1000,
   alwaysOnReplayBuffer: false,
+  clearReplayBufferAfterSave: true,
   highlightPaddingBefore: 4,
   highlightPaddingAfter: 4,
   clipClearSegmentsAfterCreatingClip: false,

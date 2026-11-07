@@ -323,9 +323,9 @@ namespace Segra.Backend.Recorder
 
                 Log.Information("Replay buffer save process completed successfully");
 
-                // Restart replay buffer so subsequent saves only include new footage, unless a
-                // recording stop began while the save was completing.
-                if (!_isStoppingOrStopped)
+                // Restart replay buffer so subsequent saves only include new footage, unless the
+                // user turned clearing off or a recording stop began while the save was completing.
+                if (!_isStoppingOrStopped && Settings.Instance.ClearReplayBufferAfterSave)
                     await ResetReplayBuffer();
 
                 return true;

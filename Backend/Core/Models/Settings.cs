@@ -80,6 +80,7 @@ namespace Segra.Backend.Core.Models
         private int _replayBufferDuration = 30;
         private int _replayBufferMaxSize = 1000;
         private bool _alwaysOnReplayBuffer = false;
+        private bool _clearReplayBufferAfterSave = true;
         private List<Hotkey> _hotkeys;
         private List<GameSetting> _games = new List<GameSetting>();
         private bool _autoRecordGames = true;
@@ -627,6 +628,14 @@ namespace Segra.Backend.Core.Models
         {
             get => _alwaysOnReplayBuffer;
             set => _alwaysOnReplayBuffer = value;
+        }
+
+        // When false, saving a replay keeps the buffer, so saves can overlap.
+        [JsonPropertyName("clearReplayBufferAfterSave")]
+        public bool ClearReplayBufferAfterSave
+        {
+            get => _clearReplayBufferAfterSave;
+            set => _clearReplayBufferAfterSave = value;
         }
 
         // Legacy global flags, read only by the "per_device_input_options" migration, which copies them
