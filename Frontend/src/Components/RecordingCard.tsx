@@ -37,7 +37,6 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
   const [showShockwave, setShowShockwave] = useState(false);
   const [previewEnabled, setPreviewEnabled] = useState(false);
   const [hasPreviewFrame, setHasPreviewFrame] = useState(false);
-  const [openingSnapshot, setOpeningSnapshot] = useState(false);
   const { setSelectedVideo } = useSelectedVideo();
 
   const gameName = preRecording ? preRecording.game : recording?.game;
@@ -118,10 +117,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
     const handleMessage = (event: CustomEvent) => {
       const method = event.detail?.method;
       if (method === 'RecordingSnapshotReady') {
-        setOpeningSnapshot(false);
         setSelectedVideo(event.detail.content as Content);
-      } else if (method === 'RecordingSnapshotFailed') {
-        setOpeningSnapshot(false);
       } else if (method === 'BookmarkCreated' || method === 'ReplayBufferSaveStarted') {
         setShowShockwave(true);
         setTimeout(() => setShowShockwave(false), 600);
@@ -360,19 +356,6 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
             </span>
             <p className="truncate ml-2">{preRecording ? preRecording.game : recording?.game}</p>
           </div>
-          {recording?.filePath && (
-            <button
-              className="ml-auto shrink-0 rounded px-2 py-0.5 text-xs text-gray-300 hover:bg-white/10 disabled:opacity-50"
-              disabled={openingSnapshot}
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpeningSnapshot(true);
-                sendMessageToBackend('OpenRecordingSnapshot');
-              }}
-            >
-              {openingSnapshot ? 'Opening...' : 'Open'}
-            </button>
-          )}
         </div>
 
         {/* Live preview (toggled by hotkey while actively recording) */}
