@@ -85,7 +85,9 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
           if (previous !== backendVersion) {
             localStorage.setItem('loadedAppVersion', backendVersion);
             if (previous && /^\d+\.\d+/.test(previous)) {
-              openReleaseNotesModal(previous);
+              // Existing users get a celebration on their first run of 2.x
+              const major = (version: string) => parseInt(version, 10);
+              openReleaseNotesModal(previous, major(previous) < 2 && major(backendVersion) >= 2);
             }
           }
         }
@@ -125,10 +127,18 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     sendMessageToBackend('CheckForUpdates');
   };
 
-  const openReleaseNotesModal = (filterVersion: string | null = __APP_VERSION__) => {
-    openModal(<ReleaseNotesModal onClose={closeModal} filterVersion={filterVersion} />, {
-      size: 'xl',
-    });
+  const openReleaseNotesModal = (
+    filterVersion: string | null = __APP_VERSION__,
+    celebrate = false,
+  ) => {
+    openModal(
+      <ReleaseNotesModal
+        onClose={closeModal}
+        filterVersion={filterVersion}
+        celebrate={celebrate}
+      />,
+      { size: 'xl' },
+    );
   };
 
   return (

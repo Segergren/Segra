@@ -1,6 +1,7 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { gt } from 'semver';
 import Markdown from 'markdown-to-jsx';
+import confetti from 'canvas-confetti';
 import { CircleCheck, X, Calendar } from 'lucide-react';
 import { GithubIcon } from './icons/BrandIcons';
 import { ReleaseNote } from '../Models/WebSocketMessages';
@@ -104,6 +105,43 @@ const contentStyles = `
 interface ReleaseNotesModalProps {
   onClose: () => void;
   filterVersion: string | null;
+  celebrate?: boolean;
+}
+
+const CONFETTI_SECONDS = 7;
+
+// Cannons from both bottom corners for a while. The canvas goes inside the modal's <dialog>,
+// which renders in the browser's top layer above anything outside it.
+function startConfetti(host: Element): () => void {
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText =
+    'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483647';
+  host.appendChild(canvas);
+  const fire = confetti.create(canvas, { resize: true });
+
+  const burst = { particleCount: 160, spread: 80, startVelocity: 70, ticks: 350 };
+  fire({ ...burst, angle: 60, origin: { x: 0, y: 1 } });
+  fire({ ...burst, angle: 120, origin: { x: 1, y: 1 } });
+
+  const stream = { particleCount: 30, spread: 65, startVelocity: 62, ticks: 350 };
+  const end = Date.now() + CONFETTI_SECONDS * 1000;
+  const interval = setInterval(() => {
+    if (Date.now() > end) {
+      clearInterval(interval);
+      return;
+    }
+    fire({ ...stream, angle: 60, origin: { x: 0, y: 1 } });
+    fire({ ...stream, angle: 120, origin: { x: 1, y: 1 } });
+  }, 220);
+
+  // Let the last pieces fall before removing the canvas
+  const cleanup = setTimeout(() => canvas.remove(), (CONFETTI_SECONDS + 6) * 1000);
+  return () => {
+    clearInterval(interval);
+    clearTimeout(cleanup);
+    fire.reset();
+    canvas.remove();
+  };
 }
 
 const GITHUB_REPO_URL = 'https://github.com/Segergren/Segra';
@@ -244,7 +282,18 @@ function ReleaseSkeleton() {
   );
 }
 
-export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNotesModalProps) {
+export default function ReleaseNotesModal({
+  onClose,
+  filterVersion,
+  celebrate = false,
+}: ReleaseNotesModalProps) {
+  const headerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!celebrate) return;
+    const host = headerRef.current?.closest('dialog') ?? document.body;
+    return startConfetti(host);
+  }, [celebrate]);
+
   const [notes, setNotes] = useState<ReleaseNote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { releaseNotes } = useContext(ReleaseNotesContext);
@@ -274,9 +323,14 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
       <style dangerouslySetInnerHTML={{ __html: contentStyles }} />
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 pb-4 border-b border-base-400">
+      <div
+        ref={headerRef}
+        className="flex items-start justify-between gap-4 pb-4 border-b border-base-400"
+      >
         <div className="min-w-0">
-          <h2 className="font-bold text-2xl text-white leading-tight">What's New</h2>
+          <h2 className="font-bold text-2xl text-white leading-tight">
+            {celebrate ? 'Welcome to Segra 2.0' : "What's New"}
+          </h2>
           <p className="text-sm text-gray-400 mt-0.5">
             {filterVersion
               ? `Updates since v${filterVersion}`
