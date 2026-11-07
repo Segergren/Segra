@@ -410,6 +410,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.ShowVideoNavigation != updatedSettings.ShowVideoNavigation)
+            {
+                Log.Information($"ShowVideoNavigation changed from '{settings.ShowVideoNavigation}' to '{updatedSettings.ShowVideoNavigation}'");
+                settings.ShowVideoNavigation = updatedSettings.ShowVideoNavigation;
+                hasChanges = true;
+            }
+
             if (settings.EnableSeparateAudioTracks != updatedSettings.EnableSeparateAudioTracks)
             {
                 Log.Information($"EnableSeparateAudioTracks changed from '{settings.EnableSeparateAudioTracks}' to '{updatedSettings.EnableSeparateAudioTracks}'");

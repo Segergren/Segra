@@ -358,6 +358,7 @@ export interface Settings {
   showGameBackground: boolean; // Show game background while recording
   showAudioWaveformInTimeline: boolean; // Show audio waveform in video timeline
   showBookmarksInFullscreen: boolean;
+  showVideoNavigation: boolean;
   enableSeparateAudioTracks: boolean; // Advanced: per-source audio tracks
   audioOutputMode: AudioOutputMode;
   videoQualityPreset: VideoQualityPreset;
@@ -450,6 +451,7 @@ export const initialSettings: Settings = {
   showGameBackground: true,
   showAudioWaveformInTimeline: true,
   showBookmarksInFullscreen: true,
+  showVideoNavigation: true,
   enableSeparateAudioTracks: false,
   audioOutputMode: 'All',
   videoQualityPreset: 'high',

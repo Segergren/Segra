@@ -174,10 +174,6 @@ export default function ContentPage({
     localStorage.setItem(`${sectionId}-sort`, JSON.stringify(option));
   };
 
-  const handlePlay = (video: Content) => {
-    setSelectedVideo(video);
-  };
-
   const handleCardClick = useCallback(
     (video: Content, event?: React.MouseEvent) => {
       if (event?.ctrlKey || isCtrlPressed) {
@@ -192,13 +188,16 @@ export default function ContentPage({
         });
       } else {
         if (selectedItems.size === 0) {
-          handlePlay(video);
+          setSelectedVideo(
+            video,
+            filteredItems.map((item) => item.id),
+          );
         } else {
           setSelectedItems(new Set());
         }
       }
     },
-    [isCtrlPressed, selectedItems.size],
+    [isCtrlPressed, selectedItems.size, setSelectedVideo, filteredItems],
   );
 
   const handleDeleteSelected = useCallback(() => {

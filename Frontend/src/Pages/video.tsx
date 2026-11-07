@@ -29,6 +29,8 @@ import {
   RotateCw,
   Upload,
   ArrowLeft,
+  SkipBack,
+  SkipForward,
   Skull,
   Plus,
   Minus,
@@ -130,6 +132,7 @@ function getIconMapping(igdbId?: number): Record<BookmarkType, LucideIcon> {
 
 function TopInfoBar({ video }: { video: Content }) {
   const { setSelectedVideo } = useSelectedVideo();
+
   const created = new Date(video.createdAt);
   const isValidDate = !isNaN(created.getTime());
   const locale = Intl.DateTimeFormat().resolvedOptions().locale?.toLowerCase() || '';
@@ -200,7 +203,35 @@ export default function VideoComponent({ video }: { video: Content }) {
   const appState = useAppState();
   const updateSettings = useSettingsUpdater();
   const { uploads } = useUploads();
-  const { openModal, closeModal } = useModal();
+  const { openModal, closeModal, isModalOpen } = useModal();
+  const { setSelectedVideo, playlist } = useSelectedVideo();
+
+  // Skip items deleted since the list was opened
+  const siblings = useMemo(() => {
+    const byId = new Map(appState.content.map((c) => [c.id, c]));
+    return playlist.map((id) => byId.get(id)).filter((c): c is Content => !!c);
+  }, [playlist, appState.content]);
+  const index = siblings.findIndex((c) => c.id === video.id);
+  const prev = index > 0 ? siblings[index - 1] : null;
+  const next = index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
+  const hasPlaylist = settings.showVideoNavigation && siblings.length > 1 && index >= 0;
+
+  // Shift+P / Shift+N, like YouTube playlists
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+        return;
+      if (isModalOpen || !e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.repeat) return;
+      const key = e.key.toLowerCase();
+      const goTo = key === 'p' ? prev : key === 'n' ? next : null;
+      if (!goTo) return;
+      e.preventDefault();
+      setSelectedVideo(goTo);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [prev, next, isModalOpen, setSelectedVideo]);
   const confirmDelete = useDeleteConfirmation();
   const {
     segments,
@@ -1253,6 +1284,12 @@ export default function VideoComponent({ video }: { video: Content }) {
       el.style.overflow = '';
       body.style.overflow = '';
     };
+  }, [isFullscreen]);
+
+  // Leave OS fullscreen when switching videos while fullscreen
+  useEffect(() => {
+    if (!isFullscreen) return;
+    return () => sendMessageToBackend('ToggleFullscreen', { enabled: false });
   }, [isFullscreen]);
 
   // Handle clicks on the timeline to seek video
@@ -2710,6 +2747,16 @@ export default function VideoComponent({ video }: { video: Content }) {
           <div className="flex items-center justify-between gap-4 py-1 shrink-0">
             <div className="flex items-center gap-3">
               <div className="flex items-center border rounded-lg join bg-base-300 border-base-400">
+                {hasPlaylist && (
+                  <button
+                    onClick={() => prev && setSelectedVideo(prev)}
+                    disabled={!prev}
+                    className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
+                    aria-label="Previous video"
+                  >
+                    <SkipBack className="w-5 h-5" />
+                  </button>
+                )}
                 <button
                   onClick={() => skipTime(-5)}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
@@ -2730,6 +2777,16 @@ export default function VideoComponent({ video }: { video: Content }) {
                 >
                   <RotateCw className="w-5 h-5" />
                 </button>
+                {hasPlaylist && (
+                  <button
+                    onClick={() => next && setSelectedVideo(next)}
+                    disabled={!next}
+                    className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
+                    aria-label="Next video"
+                  >
+                    <SkipForward className="w-5 h-5" />
+                  </button>
+                )}
               </div>
               {(video.type === 'Clip' || video.type === 'Highlight') && !settings.airplaneMode && (
                 <Button

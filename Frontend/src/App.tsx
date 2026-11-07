@@ -102,7 +102,7 @@ function App() {
     if (selectedVideo) {
       return (
         <DndProvider backend={HTML5Backend}>
-          <Video video={selectedVideo} />
+          <Video key={selectedVideo.id} video={selectedVideo} />
         </DndProvider>
       );
     }

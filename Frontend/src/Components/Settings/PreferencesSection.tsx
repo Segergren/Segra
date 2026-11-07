@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { VolumeX, Volume2 } from 'lucide-react';
+import { VolumeX, Volume2, SkipBack, SkipForward } from 'lucide-react';
 import CloudBadge from '../CloudBadge';
 import DropdownSelect from '../DropdownSelect';
 import RangeSlider from '../RangeSlider';
@@ -21,10 +21,11 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
       | 'showGameBackground'
       | 'showAudioWaveformInTimeline'
       | 'showBookmarksInFullscreen'
+      | 'showVideoNavigation'
       | 'showNewBadgeOnVideos'
       | 'confirmBeforeDeleting';
     label: React.ReactNode;
-    description: string;
+    description: React.ReactNode;
   }[] = [
     {
       key: 'showGameBackground',
@@ -46,13 +47,25 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
       description: 'Shows bookmarks above the seek bar in the fullscreen video player.',
     },
     {
-      key: 'showNewBadgeOnVideos',
-      label: (
+      key: 'showVideoNavigation',
+      label: 'Show Previous and Next Video',
+      description: (
         <>
-          Show<span className="badge badge-primary badge-sm text-base-300 mx-1">NEW</span>Badge
+          Shows the <SkipBack className="inline w-3.5 h-3.5 align-[-2px]" aria-hidden="true" /> and{' '}
+          <SkipForward className="inline w-3.5 h-3.5 align-[-2px]" aria-hidden="true" /> buttons in
+          the video player to go to the previous or next video in the list.
         </>
       ),
-      description: "Marks sessions and replays from the last hour that you haven't opened yet.",
+    },
+    {
+      key: 'showNewBadgeOnVideos',
+      label: 'Show New Badge',
+      description: (
+        <>
+          Marks sessions and replays from the last hour that you haven't opened yet with a
+          <span className="badge badge-primary badge-xs text-base-300 mx-1">NEW</span>badge.
+        </>
+      ),
     },
     {
       key: 'confirmBeforeDeleting',

@@ -101,6 +101,7 @@ namespace Segra.Backend.Core.Models
         private bool _showGameBackground = true;
         private bool _showAudioWaveformInTimeline = true;
         private bool _showBookmarksInFullscreen = true;
+        private bool _showVideoNavigation = true;
         private bool _enableSeparateAudioTracks = false;
         private AudioOutputMode _audioOutputMode = AudioOutputMode.All;
         private string _videoQualityPreset = "high";
@@ -862,6 +863,13 @@ namespace Segra.Backend.Core.Models
                     _showBookmarksInFullscreen = value;
                 }
             }
+        }
+
+        [JsonPropertyName("showVideoNavigation")]
+        public bool ShowVideoNavigation
+        {
+            get => _showVideoNavigation;
+            set => _showVideoNavigation = value;
         }
 
         [JsonPropertyName("enableSeparateAudioTracks")]
