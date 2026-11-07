@@ -2,39 +2,14 @@ import { useEffect, useState } from 'react';
 import { Recording } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 
-const formatElapsed = (seconds: number) => {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  const mm = String(m).padStart(2, '0');
-  const ss = String(s).padStart(2, '0');
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
-};
-
 // The session being recorded; opening it plays a stream-copied snapshot of the file so far
 export default function LiveSessionCard({ recording }: { recording: Recording }) {
-  const startMs = new Date(recording.startTime).getTime();
-  const [elapsed, setElapsed] = useState(() => (Date.now() - startMs) / 1000);
-  const [thumbnailTime, setThumbnailTime] = useState<number | null>(null);
+  // One frame a few seconds behind the live edge, taken when the card appears
+  const [thumbnailTime] = useState(() =>
+    Math.max(0, Math.floor((Date.now() - new Date(recording.startTime).getTime()) / 1000 - 5)),
+  );
   const [thumbnailLoaded, setThumbnailLoaded] = useState(false);
   const [opening, setOpening] = useState(false);
-
-  useEffect(() => {
-    const tick = () => setElapsed((Date.now() - startMs) / 1000);
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [startMs]);
-
-  // A fresh frame every 30 s, a few seconds behind the live edge
-  useEffect(() => {
-    const update = () => {
-      const t = (Date.now() - startMs) / 1000 - 5;
-      if (t > 0) setThumbnailTime(Math.floor(t));
-    };
-    update();
-    const id = setInterval(update, 30000);
-    return () => clearInterval(id);
-  }, [startMs]);
 
   useEffect(() => {
     const handleMessage = (event: CustomEvent) => {
@@ -47,10 +22,9 @@ export default function LiveSessionCard({ recording }: { recording: Recording })
     return () => window.removeEventListener('websocket-message', handleMessage as EventListener);
   }, []);
 
-  const thumbnailUrl =
-    recording.filePath && thumbnailTime !== null
-      ? `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(recording.filePath)}&time=${thumbnailTime}`
-      : undefined;
+  const thumbnailUrl = recording.filePath
+    ? `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(recording.filePath)}&time=${thumbnailTime}`
+    : undefined;
 
   return (
     <div
@@ -78,11 +52,8 @@ export default function LiveSessionCard({ recording }: { recording: Recording })
           />
         )}
         <span className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/75 text-white text-xs px-2 py-1 rounded">
-          <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+          <span className="h-2 w-2 rounded-full bg-red-500" />
           REC
-        </span>
-        <span className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded tabular-nums">
-          {formatElapsed(elapsed)}
         </span>
         {opening && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center gap-2 text-sm text-white">
