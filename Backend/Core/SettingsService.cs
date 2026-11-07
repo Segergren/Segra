@@ -790,6 +790,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.ExcludeClipsFromStorageLimit != updatedSettings.ExcludeClipsFromStorageLimit)
+            {
+                Log.Information($"ExcludeClipsFromStorageLimit changed from '{settings.ExcludeClipsFromStorageLimit}' to '{updatedSettings.ExcludeClipsFromStorageLimit}'");
+                settings.ExcludeClipsFromStorageLimit = updatedSettings.ExcludeClipsFromStorageLimit;
+                hasChanges = true;
+            }
+
             if (!settings.InputDevices.SequenceEqual(updatedSettings.InputDevices, new DeviceSettingEqualityComparer()))
             {
                 static string Describe(DeviceSetting d) => $"{d.Name} (noiseSuppression={d.NoiseSuppression}, forceMono={d.ForceMono})";

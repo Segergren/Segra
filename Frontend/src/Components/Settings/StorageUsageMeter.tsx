@@ -22,6 +22,24 @@ const TYPE_ORDER: ContentType[] = ['Session', 'Buffer', 'Clip', 'Highlight'];
 
 const normalizePath = (path: string) => path.replace(/\\/g, '/').replace(/\/+$/, '');
 
+// Imported content can live outside the recording path and isn't counted against the limit
+export const sumExcludedGb = (content: Content[], contentFolder: string) => {
+  const root = normalizePath(contentFolder.trim()).toLowerCase();
+  if (!root) return 0;
+  return (
+    content
+      .filter(
+        (c) =>
+          (c.type === 'Clip' || c.type === 'Highlight') &&
+          normalizePath(c.filePath || '')
+            .toLowerCase()
+            .startsWith(root + '/'),
+      )
+      .reduce((sum, c) => sum + (c.fileSizeKb || 0), 0) /
+    (1024 * 1024)
+  );
+};
+
 const formatGb = (value: number) => {
   if (value >= 100) return value.toFixed(0);
   if (value >= 10) return value.toFixed(1);
@@ -46,6 +64,7 @@ interface StorageUsageMeterProps {
   contentFolder: string;
   storageLimitGb: number;
   unlimited: boolean;
+  excludeClips: boolean;
   usedGb: number;
   driveUsedGb: State['recordingDriveUsedGb'];
   driveFreeGb: State['recordingDriveFreeGb'];
@@ -56,6 +75,7 @@ export default function StorageUsageMeter({
   contentFolder,
   storageLimitGb,
   unlimited,
+  excludeClips,
   usedGb,
   driveUsedGb,
   driveFreeGb,
@@ -90,14 +110,24 @@ export default function StorageUsageMeter({
     );
   }, [content, contentFolder, usedGb]);
 
-  const isOverLimit = !unlimited && storageLimitGb > 0 && usedGb > storageLimitGb;
-  const usedPercent = storageLimitGb > 0 ? (usedGb / storageLimitGb) * 100 : 0;
+  // Clips and highlights stay in the legend but only count toward the limit when not excluded
+  const isExcluded = (key: string) => excludeClips && (key === 'Clip' || key === 'Highlight');
+  const excludedGb = segments.filter((s) => isExcluded(s.key)).reduce((sum, s) => sum + s.gb, 0);
+  const countedGb = usedGb - excludedGb;
+  const barSegments = segments.filter((s) => !isExcluded(s.key));
+
+  const isOverLimit = !unlimited && storageLimitGb > 0 && countedGb > storageLimitGb;
+  const usedPercent = storageLimitGb > 0 ? (countedGb / storageLimitGb) * 100 : 0;
 
   // Without a limit, recordings can grow into whatever is free on the drive
-  const freeGb = unlimited ? driveFreeGb : Math.max(0, storageLimitGb - usedGb);
+  const freeGb = unlimited ? driveFreeGb : Math.max(0, storageLimitGb - countedGb);
 
   // Over the limit the bar is full, so segments are scaled against usage instead.
-  const scaleGb = unlimited ? usedGb + (driveFreeGb ?? 0) : isOverLimit ? usedGb : storageLimitGb;
+  const scaleGb = unlimited
+    ? usedGb + (driveFreeGb ?? 0)
+    : isOverLimit
+      ? countedGb
+      : storageLimitGb;
 
   // Without a limit there is nothing to measure against until the drive's free space is known
   const showBar = !unlimited || driveFreeGb !== null;
@@ -113,7 +143,7 @@ export default function StorageUsageMeter({
           <span>
             {unlimited
               ? `${formatGb(usedGb)} GB used`
-              : `${formatGb(usedGb)} GB of ${formatGb(storageLimitGb)} GB limit`}
+              : `${formatGb(countedGb)} GB of ${formatGb(storageLimitGb)} GB limit`}
           </span>
           <span aria-hidden="true">·</span>
           <span className={`font-semibold ${isOverLimit ? 'text-error' : 'text-base-content/80'}`}>
@@ -132,10 +162,10 @@ export default function StorageUsageMeter({
           aria-label={
             unlimited
               ? `${formatGb(usedGb)} GB used, no storage limit`
-              : `${formatGb(usedGb)} GB used of a ${formatGb(storageLimitGb)} GB limit`
+              : `${formatGb(countedGb)} GB used of a ${formatGb(storageLimitGb)} GB limit`
           }
         >
-          {segments.map((s) => (
+          {barSegments.map((s) => (
             <div
               key={s.key}
               className="h-full"
@@ -157,7 +187,9 @@ export default function StorageUsageMeter({
                 style={{ backgroundColor: s.color }}
               />
               <span className="text-base-content/80">{s.label}</span>
-              <span className="tabular-nums text-base-content/50">{formatGb(s.gb)} GB</span>
+              <span className="tabular-nums text-base-content/50">
+                {formatGb(s.gb)} GB{isExcluded(s.key) ? ' (not counted)' : ''}
+              </span>
             </span>
           ))}
         </div>

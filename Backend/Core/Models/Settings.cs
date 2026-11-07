@@ -61,6 +61,7 @@ namespace Segra.Backend.Core.Models
         private bool _pendingOBSUpdate = false;
         private int _storageLimit = 100;
         private bool _unlimitedStorage = false;
+        private bool _excludeClipsFromStorageLimit = false;
         private List<DeviceSetting> _inputDevices = new List<DeviceSetting>();
         private List<DeviceSetting> _outputDevices = new List<DeviceSetting>();
         private Display? _selectedDisplay = null;
@@ -364,6 +365,16 @@ namespace Segra.Backend.Core.Models
             set
             {
                 _unlimitedStorage = value;
+            }
+        }
+
+        [JsonPropertyName("excludeClipsFromStorageLimit")]
+        public bool ExcludeClipsFromStorageLimit
+        {
+            get => _excludeClipsFromStorageLimit;
+            set
+            {
+                _excludeClipsFromStorageLimit = value;
             }
         }
 

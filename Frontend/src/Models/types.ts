@@ -315,6 +315,7 @@ export interface Settings {
   codec: Codec | null;
   storageLimit: number;
   unlimitedStorage: boolean; // Never deletes old recordings to stay under storageLimit
+  excludeClipsFromStorageLimit: boolean;
   contentFolder: string;
   cacheFolder: string;
   inputDevices: DeviceSetting[];
@@ -409,6 +410,7 @@ export const initialSettings: Settings = {
   codec: null,
   storageLimit: 100,
   unlimitedStorage: false,
+  excludeClipsFromStorageLimit: false,
   contentFolder: '',
   cacheFolder: '',
   inputDevices: [],

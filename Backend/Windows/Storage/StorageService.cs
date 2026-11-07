@@ -189,7 +189,7 @@ namespace Segra.Backend.Windows.Storage
                 return;
             }
 
-            long currentUsageBytes = CalculateFolderSize(contentFolder);
+            long currentUsageBytes = CalculateLimitedSize(contentFolder);
             double currentUsageGB = (double)currentUsageBytes / BYTES_PER_GB;
 
             Log.Information($"Current storage usage: {currentUsageGB:F2} GB, limit: {storageLimit} GB");
@@ -204,6 +204,22 @@ namespace Segra.Backend.Windows.Storage
             {
                 Log.Information("Storage usage is within limits, no cleanup needed");
             }
+        }
+
+        // The size the storage limit is measured against
+        internal static long CalculateLimitedSize(string contentFolder)
+        {
+            long size = CalculateFolderSize(contentFolder);
+            if (Settings.Instance.ExcludeClipsFromStorageLimit)
+            {
+                foreach (string name in new[] { FolderNames.Clips, FolderNames.Highlights })
+                {
+                    string folder = Path.Combine(contentFolder, name);
+                    if (Directory.Exists(folder))
+                        size -= CalculateFolderSize(folder);
+                }
+            }
+            return size;
         }
 
         internal static long CalculateFolderSize(string folderPath)

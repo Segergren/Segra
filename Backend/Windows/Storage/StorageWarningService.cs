@@ -109,7 +109,7 @@ namespace Segra.Backend.Windows.Storage
                     return true;
                 }
 
-                long newFolderSizeBytes = StorageService.CalculateFolderSize(newContentFolder);
+                long newFolderSizeBytes = StorageService.CalculateLimitedSize(newContentFolder);
                 double newFolderSizeGb = (double)newFolderSizeBytes / StorageService.BYTES_PER_GB;
                 int storageLimitGb = Settings.Instance.StorageLimit;
 
@@ -156,6 +156,9 @@ namespace Segra.Backend.Windows.Storage
                 if (Settings.Instance.UnlimitedStorage)
                     return true;
 
+                if (Settings.Instance.ExcludeClipsFromStorageLimit && contentType is Content.ContentType.Clip or Content.ContentType.Highlight)
+                    return true;
+
                 long totalImportSizeBytes = 0;
                 foreach (string file in selectedFiles)
                 {
@@ -166,7 +169,10 @@ namespace Segra.Backend.Windows.Storage
                 }
 
                 double totalImportSizeGb = (double)totalImportSizeBytes / StorageService.BYTES_PER_GB;
-                double currentFolderSizeGb = StorageService.GetCurrentFolderSizeGb();
+                string contentFolder = Settings.Instance.ContentFolder;
+                double currentFolderSizeGb = string.IsNullOrEmpty(contentFolder) || !Directory.Exists(contentFolder)
+                    ? 0
+                    : Math.Round((double)StorageService.CalculateLimitedSize(contentFolder) / StorageService.BYTES_PER_GB, 2);
                 double projectedSizeGb = currentFolderSizeGb + totalImportSizeGb;
                 int storageLimitGb = Settings.Instance.StorageLimit;
 
