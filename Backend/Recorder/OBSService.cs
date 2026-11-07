@@ -133,6 +133,7 @@ namespace Segra.Backend.Recorder
 
 #if WINDOWS
         private static int _obsCheckPending;
+        private static DateTime _gameCaptureAddedAt;
         private const int ObsCheckDelayMs = 2000;
 #endif
 
@@ -684,11 +685,16 @@ namespace Segra.Backend.Recorder
             {
                 Log.Error($"OBS installation failed: {ex.Message}");
 #if WINDOWS
+                // A running game keeps the previous graphics-hook loaded, so the update can't replace it
+                bool hookInUse = ex is UnauthorizedAccessException or IOException
+                    && ex.Message.Contains("graphics-hook", StringComparison.OrdinalIgnoreCase);
                 await MessageService.ShowModal(
                     "Recorder Error",
-                    "The recorder installation failed. Please check your internet connection and try again. If you have any games running, please close them and restart Segra.",
+                    hookInUse
+                        ? "The recorder could not be updated because a game is still using the old capture hook. Please close all games, then restart Segra."
+                        : "The recorder installation failed. Please check your internet connection and try again. If you have any games running, please close them and restart Segra.",
                     "error",
-                    "Could not install recorder"
+                    hookInUse ? "Close your game and restart Segra" : "Could not install recorder"
                 );
 #else
                 await MessageService.ShowModal(
@@ -3198,6 +3204,7 @@ namespace Segra.Backend.Recorder
             {
                 GameCaptureSource = new GameCapture("gameplay", GameCapture.CaptureMode.SpecificWindow);
                 GameCaptureSource.SetWindow(windowSpec);
+                _gameCaptureAddedAt = DateTime.Now;
 
                 // OBS can't auto-detect HDR game capture and defaults a 10-bit (R10G10B10A2)
                 // swapchain to sRGB, which looks washed out. Force Rec.2100 PQ.
@@ -3277,7 +3284,7 @@ namespace Segra.Backend.Recorder
                 if (_isStoppingOrStopped || _mainScene == null || _captureWindowSpec == null || AppState.Instance.Recording == null) return;
 
                 bool obsActive = ObsStudioOutput.IsStreamingOrRecording();
-                if (obsActive && GameCaptureSource != null)
+                if (GameCaptureSource != null && (obsActive || ObsStudioOutput.IsHookingGame(_captureWindowSpec.Split(':')[^1], _gameCaptureAddedAt)))
                     ReleaseGameCaptureToObs(gameWindow);
                 else if (!obsActive && GameCaptureSource == null && !IsGameHookTaken(_captureWindowSpec.Split(':')[^1]))
                     RetryGameCapture();
@@ -3294,7 +3301,7 @@ namespace Segra.Backend.Recorder
 
         private static void ReleaseGameCaptureToObs(IntPtr gameWindow)
         {
-            Log.Information("OBS Studio is streaming or recording, releasing game capture");
+            Log.Information("OBS Studio wants the game hook, releasing game capture");
 
             // A late hook would remove the fallbacks added below
             GameCaptureSource!.Hooked -= OnGameCaptureHookedEvent;
