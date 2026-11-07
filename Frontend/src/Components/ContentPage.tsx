@@ -1,5 +1,6 @@
 import { useAppState } from '../Context/AppStateContext';
 import ContentCard from './ContentCard';
+import LiveSessionCard from './LiveSessionCard';
 import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { Content, ContentType } from '../Models/types';
 import { useScroll } from '../Context/ScrollContext';
@@ -247,36 +248,6 @@ export default function ContentPage({
 
   // The session being recorded, opened through a stream-copied snapshot
   const liveRecording = isSessionPage && state.recording?.filePath ? state.recording : null;
-  const [openingLive, setOpeningLive] = useState(false);
-  useEffect(() => {
-    const handleMessage = (event: CustomEvent) => {
-      const method = event.detail?.method;
-      if (method === 'RecordingSnapshotReady' || method === 'RecordingSnapshotFailed') {
-        setOpeningLive(false);
-      }
-    };
-    window.addEventListener('websocket-message', handleMessage as EventListener);
-    return () => window.removeEventListener('websocket-message', handleMessage as EventListener);
-  }, []);
-  const liveCardElement = liveRecording && (
-    <div
-      className="card bg-base-300 border border-base-400 cursor-pointer hover:border-primary transition-colors"
-      onClick={() => {
-        if (openingLive) return;
-        setOpeningLive(true);
-        sendMessageToBackend('OpenRecordingSnapshot');
-      }}
-    >
-      <div className="aspect-video flex flex-col items-center justify-center gap-2 rounded-t-lg bg-base-200">
-        <span className="flex items-center gap-2 text-sm text-gray-300">
-          <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-          {openingLive ? 'Opening...' : 'Recording'}
-        </span>
-        <span className="text-xs text-gray-500">Click to watch the session so far</span>
-      </div>
-      <div className="px-3 py-2 text-sm text-gray-300 truncate">{liveRecording.game}</div>
-    </div>
-  );
   const mergeHint =
     selectedItems.size < 2
       ? 'Select at least two to merge'
@@ -637,7 +608,7 @@ export default function ContentPage({
 
       {contentItems.length > 0 || hasProgress || liveRecording ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 min-[90rem]:grid-cols-4 min-[112.5rem]:grid-cols-5 gap-4">
-          {liveCardElement}
+          {liveRecording && <LiveSessionCard recording={liveRecording} />}
           {isProgressVisible && progressCardElement}
 
           {filteredItems.map((video) => (
