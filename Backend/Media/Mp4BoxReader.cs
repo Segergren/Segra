@@ -27,7 +27,7 @@ namespace Segra.Backend.Media
                     filePath,
                     FileMode.Open,
                     FileAccess.Read,
-                    FileShare.Read,
+                    FileShare.ReadWrite,
                     bufferSize: 65536,
                     useAsync: true);
 
@@ -58,7 +58,7 @@ namespace Segra.Backend.Media
                     filePath,
                     FileMode.Open,
                     FileAccess.Read,
-                    FileShare.Read,
+                    FileShare.ReadWrite,
                     bufferSize: 65536,
                     useAsync: true);
 

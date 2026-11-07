@@ -1610,12 +1610,15 @@ export default function VideoComponent({ video }: { video: Content }) {
       return;
     }
 
+    // A live session's waveform is still being generated; WaveformCreated triggers the fetch
+    if (video.id.startsWith('live-') && waveformVersion === 0) return;
+
     let cancelled = false;
     const peaksUrl = getWaveformPath();
     fetch(peaksUrl)
-      .then((response) => response.json())
+      .then((response) => (response.ok ? response.json() : null))
       .then((peaksData) => {
-        if (cancelled) return;
+        if (cancelled || !peaksData) return;
         const data: number[] = Array.isArray(peaksData?.data) ? peaksData.data : [];
         peaksRef.current = data;
         let maxAbs = 0;
@@ -1637,7 +1640,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       cancelled = true;
       peaksRef.current = null;
     };
-  }, [settings.showAudioWaveformInTimeline, renderWaveformBuffer, waveformVersion]);
+  }, [settings.showAudioWaveformInTimeline, renderWaveformBuffer, waveformVersion, video.id]);
 
   // Session waveforms are generated after the recording finishes, so refetch once this one is ready
   useEffect(() => {
@@ -1776,7 +1779,9 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   // Get video source URL - use the filePath from metadata
   const getVideoPath = (): string => {
-    return `http://localhost:2222/api/content?input=${encodeURIComponent(video.filePath)}&type=${video.type.toLowerCase()}`;
+    // Each live open serves a different length, so it needs its own URL for the media cache
+    const live = video.id.startsWith('live-') ? `&live=${video.id}` : '';
+    return `http://localhost:2222/api/content?input=${encodeURIComponent(video.filePath)}&type=${video.type.toLowerCase()}${live}`;
   };
 
   // Get audio waveform URL - waveforms are stored in AppData

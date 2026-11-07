@@ -235,7 +235,12 @@ namespace Segra.Backend.Api
 
             if (fileName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
             {
-                await StreamVideoFile(fileName, context);
+                // The session being recorded is served through its rebuilt index
+                var live = LiveMp4.Find(fileName);
+                if (live != null && AppState.Instance.Recording?.FilePath is string recordingPath && LiveMp4.SamePath(recordingPath, fileName))
+                    await StreamLiveVideo(live, context);
+                else
+                    await StreamVideoFile(fileName, context);
             }
             else if (fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
             {
@@ -323,6 +328,51 @@ namespace Segra.Backend.Api
                     await response.OutputStream.WriteAsync(buffer, 0, bytesRead);
                     bytesRemaining -= bytesRead;
                 }
+            }
+        }
+
+        private static async Task StreamLiveVideo(LiveMp4 live, HttpListenerContext context)
+        {
+            var response = context.Response;
+            string rangeHeader = context.Request.Headers["Range"] ?? "";
+            long length = live.Length;
+            long start = 0;
+            long end = length - 1;
+
+            if (rangeHeader.StartsWith("bytes="))
+            {
+                string[] rangeParts = rangeHeader.Substring(6).Split('-');
+                if (rangeParts.Length > 0 && !string.IsNullOrEmpty(rangeParts[0]))
+                    long.TryParse(rangeParts[0], out start);
+                if (rangeParts.Length > 1 && !string.IsNullOrEmpty(rangeParts[1]))
+                    long.TryParse(rangeParts[1], out end);
+            }
+
+            if (start > end || start < 0 || end >= length)
+            {
+                response.StatusCode = (int)HttpStatusCode.RequestedRangeNotSatisfiable;
+                response.AddHeader("Content-Range", $"bytes */{length}");
+                return;
+            }
+
+            response.StatusCode = string.IsNullOrEmpty(rangeHeader) ? (int)HttpStatusCode.OK : (int)HttpStatusCode.PartialContent;
+            response.ContentType = "video/mp4";
+            response.AddHeader("Accept-Ranges", "bytes");
+            response.AddHeader("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges");
+            // Each open builds a new index with a new length, so nothing may be cached
+            response.AddHeader("Cache-Control", "no-store");
+            if (!string.IsNullOrEmpty(rangeHeader))
+                response.AddHeader("Content-Range", $"bytes {start}-{end}/{length}");
+            response.ContentLength64 = end - start + 1;
+
+            using var fs = new FileStream(live.SourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 262144);
+            byte[] buffer = new byte[262144];
+            for (long position = start; position <= end;)
+            {
+                int read = live.Read(fs, position, buffer, (int)Math.Min(buffer.Length, end - position + 1));
+                if (read == 0) break;
+                await response.OutputStream.WriteAsync(buffer.AsMemory(0, read));
+                position += read;
             }
         }
 

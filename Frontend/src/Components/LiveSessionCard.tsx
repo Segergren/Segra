@@ -5,6 +5,23 @@ import { sendMessageToBackend } from '../Utils/MessageUtils';
 // One frame per recording, kept across remounts so it is only generated once
 const thumbnailCache = new Map<string, string>();
 
+// True when no pixel is brighter than near-black, checked on a downscaled copy
+const isFullyBlack = async (blob: Blob) => {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 36;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return false;
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < data.length; i += 4) {
+    if (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2] > 20) return false;
+  }
+  return true;
+};
+
 // The session being recorded; opening it plays a stream-copied snapshot of the file so far
 export default function LiveSessionCard({
   recording,
@@ -27,22 +44,24 @@ export default function LiveSessionCard({
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     const attempt = async () => {
-      const time = Math.max(0, Math.floor((Date.now() - startMs) / 1000 - 5));
+      const time = Math.max(0, Math.floor((Date.now() - startMs) / 1000 - 1));
       try {
         const response = await fetch(
           `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(filePath)}&time=${time}&width=960`,
         );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const blob = await response.blob();
+        if (await isFullyBlack(blob)) throw new Error('Black frame');
         if (cancelled) return;
         const objectUrl = URL.createObjectURL(blob);
         thumbnailCache.set(filePath, objectUrl);
         setThumbnailUrl(objectUrl);
       } catch {
-        if (!cancelled) timer = setTimeout(attempt, 5000);
+        if (!cancelled) timer = setTimeout(attempt, 1000);
       }
     };
-    timer = setTimeout(attempt, Math.max(0, 10 - (Date.now() - startMs) / 1000) * 1000);
+    // OBS writes the first readable fragment about one keyframe interval (1 s) in
+    timer = setTimeout(attempt, Math.max(0, 1 - (Date.now() - startMs) / 1000) * 1000);
     return () => {
       cancelled = true;
       clearTimeout(timer);

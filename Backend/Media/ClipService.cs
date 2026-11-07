@@ -1116,12 +1116,16 @@ namespace Segra.Backend.Media
             return unionTypes;
         }
 
+        // Library content plus the session being recorded, when it was opened
+        private static IEnumerable<Content> SourceContent() =>
+            MessageService.LiveContent is Content live ? AppState.Instance.Content.Append(live) : AppState.Instance.Content;
+
         private static List<string>? GetSourceAudioTrackNames(Segment segment)
         {
             try
             {
                 var contentType = Enum.Parse<Content.ContentType>(segment.Type);
-                var source = AppState.Instance.Content.FirstOrDefault(c =>
+                var source = SourceContent().FirstOrDefault(c =>
                     c.Type == contentType &&
                     (!string.IsNullOrEmpty(segment.FilePath)
                         ? string.Equals(PathUtils.Normalize(c.FilePath), PathUtils.Normalize(segment.FilePath), StringComparison.OrdinalIgnoreCase)
@@ -1145,7 +1149,7 @@ namespace Segra.Backend.Media
             try
             {
                 var contentType = Enum.Parse<Content.ContentType>(segment.Type);
-                var source = AppState.Instance.Content.FirstOrDefault(c =>
+                var source = SourceContent().FirstOrDefault(c =>
                     c.Type == contentType &&
                     (!string.IsNullOrEmpty(segment.FilePath)
                         ? string.Equals(PathUtils.Normalize(c.FilePath), PathUtils.Normalize(segment.FilePath), StringComparison.OrdinalIgnoreCase)
@@ -1167,7 +1171,7 @@ namespace Segra.Backend.Media
             try
             {
                 var contentType = Enum.Parse<Content.ContentType>(segment.Type);
-                var source = AppState.Instance.Content.FirstOrDefault(c =>
+                var source = SourceContent().FirstOrDefault(c =>
                     c.Type == contentType &&
                     (!string.IsNullOrEmpty(segment.FilePath)
                         ? string.Equals(PathUtils.Normalize(c.FilePath), PathUtils.Normalize(segment.FilePath), StringComparison.OrdinalIgnoreCase)
@@ -1187,7 +1191,7 @@ namespace Segra.Backend.Media
             try
             {
                 var contentType = Enum.Parse<Content.ContentType>(segment.Type);
-                var webcam = AppState.Instance.Content.FirstOrDefault(c =>
+                var webcam = SourceContent().FirstOrDefault(c =>
                     c.Type == contentType &&
                     (!string.IsNullOrEmpty(segment.FilePath)
                         ? string.Equals(PathUtils.Normalize(c.FilePath), PathUtils.Normalize(segment.FilePath), StringComparison.OrdinalIgnoreCase)

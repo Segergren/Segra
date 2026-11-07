@@ -70,7 +70,10 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
       description: (
         <>
           Marks sessions and replays from the last hour that you haven't opened yet with a
-          <span className="badge badge-primary badge-xs text-base-300 mx-1">NEW</span>badge.
+          <span className="badge badge-primary badge-xs text-base-300 mx-1 align-middle relative -top-[1.5px]">
+            NEW
+          </span>
+          badge.
         </>
       ),
     },

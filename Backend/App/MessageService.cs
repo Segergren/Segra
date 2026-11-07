@@ -868,7 +868,10 @@ namespace Segra.Backend.App
             }
         }
 
-        // Stream-copies the in-progress Hybrid MP4 session so it can be watched and clipped while recording
+        // The session being recorded as last opened, so clips can be made from it
+        public static Content? LiveContent { get; private set; }
+
+        // Builds a normal MP4 index for the in-progress Hybrid MP4 session, served without copying the file
         private static async Task HandleOpenRecordingSnapshot()
         {
             var recording = AppState.Instance.Recording;
@@ -879,12 +882,6 @@ namespace Segra.Backend.App
                 return;
             }
 
-            string dir = PathUtils.Combine(FolderNames.CacheFolder, "live");
-            Directory.CreateDirectory(dir);
-            foreach (var old in Directory.GetFiles(dir, "*.mp4"))
-            {
-                try { File.Delete(old); } catch { }
-            }
             string waveformDir = FolderNames.GetWaveformsFolderPath(Content.ContentType.Session);
             if (Directory.Exists(waveformDir))
             {
@@ -894,53 +891,38 @@ namespace Segra.Backend.App
                 }
             }
 
-            string output = PathUtils.Combine(dir, $"{Path.GetFileNameWithoutExtension(source)}_{DateTime.Now:HHmmss}.mp4");
-
-            // The snapshot is a full copy, so it needs the session's size plus a margin
-            long needed = new FileInfo(source).Length + 1024L * 1024 * 1024;
-            long free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(dir))!).AvailableFreeSpace;
-            if (free < needed)
-            {
-                Log.Warning($"Not enough space for recording snapshot: need {needed / 1048576} MB, free {free / 1048576} MB");
-                await SendFrontendMessage("RecordingSnapshotFailed", new { message = "Not enough disk space." });
-                await ShowModal("Not enough disk space",
-                    $"Opening the session being recorded needs about {needed / 1073741824.0:F1} GB free on the cache drive, but only {free / 1073741824.0:F1} GB is free.",
-                    "error");
-                return;
-            }
-
             try
             {
                 var started = DateTime.Now;
-                await FFmpegService.RunSimple(["-y", "-i", source, "-map", "0", "-c", "copy", "-movflags", "+faststart", output]);
-                Log.Information($"Recording snapshot created in {(DateTime.Now - started).TotalMilliseconds:F0} ms");
+                var live = await Task.Run(() => LiveMp4.Build(source));
+                LiveMp4.Current = live;
+                Log.Information($"Live index built in {(DateTime.Now - started).TotalMilliseconds:F0} ms ({live.Duration}, {live.Header.Length / 1024} KB index)");
 
-                var file = new FileInfo(output);
                 var content = new Content
                 {
                     Id = $"live-{Guid.NewGuid()}",
                     Type = Content.ContentType.Session,
-                    Title = $"{recording.Game} (recording)",
                     Game = recording.Game,
                     Bookmarks = recording.Bookmarks.ToList(),
-                    FileName = Path.GetFileNameWithoutExtension(output),
-                    FilePath = output,
-                    FileSizeKb = file.Length / 1024,
-                    FileSize = $"{file.Length / 1048576.0:F0} MB",
-                    Duration = await FFmpegService.GetVideoDuration(output),
+                    FileName = Path.GetFileNameWithoutExtension(source),
+                    FilePath = source,
+                    FileSizeKb = live.DataLength / 1024,
+                    FileSize = $"{live.DataLength / 1048576.0:F0} MB",
+                    Duration = live.Duration,
                     CreatedAt = recording.StartTime,
                     AudioTrackNames = recording.AudioTrackNames,
                     AudioTrackTypes = recording.AudioTrackTypes,
                 };
+                LiveContent = content;
                 await SendFrontendMessage("RecordingSnapshotReady", content);
 
                 // The video page refetches its waveform on WaveformCreated
                 if (Settings.Instance.ShowAudioWaveformInTimeline)
-                    _ = Task.Run(() => ContentService.CreateWaveformFile(output, Content.ContentType.Session, content.Id));
+                    _ = Task.Run(() => ContentService.CreateWaveformFile(source, Content.ContentType.Session, content.Id));
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Failed to create recording snapshot");
+                Log.Error(ex, "Failed to open the session being recorded");
                 await SendFrontendMessage("RecordingSnapshotFailed", new { message = "Could not open the recording." });
                 await ShowModal("Could not open the recording", "The session being recorded could not be opened. Check the log for more details.", "error");
             }
@@ -965,7 +947,8 @@ namespace Segra.Backend.App
                         double startTime = startTimeElement.GetDouble();
                         double endTime = endTimeElement.GetDouble();
 
-                        Content? content = AppState.Instance.Content.FirstOrDefault(c => c.Id == contentId);
+                        Content? content = AppState.Instance.Content.FirstOrDefault(c => c.Id == contentId)
+                            ?? (LiveContent?.Id == contentId ? LiveContent : null);
 
                         if (content == null)
                         {

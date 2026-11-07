@@ -554,7 +554,8 @@ export function useAudioTracks(
         master.connect(ctx.destination);
       }
 
-      const url = `http://localhost:2222/api/content?input=${encodeURIComponent(video.filePath)}`;
+      const live = video.id.startsWith('live-') ? `&live=${video.id}` : '';
+      const url = `http://localhost:2222/api/content?input=${encodeURIComponent(video.filePath)}${live}`;
       fetchUrlRef.current = url;
 
       // Probe file size via a tiny ranged GET. ContentServer exposes Content-Range
