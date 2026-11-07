@@ -236,7 +236,7 @@ namespace Segra.Backend.Recorder
         {
             _ = SendFrontendMessage("ReplayBufferSaveStarted", new { });
             _ = Task.Run(SaveReplayBuffer);
-            _ = Task.Run(() => PlatformServices.Sound.Play(Properties.Resources.bookmark, Settings.Instance.SoundEffectsVolume));
+            _ = Task.Run(() => PlaySound("bookmark"));
         }
 
         public static async Task<bool> SaveReplayBuffer()
@@ -1762,10 +1762,8 @@ namespace Segra.Backend.Recorder
                 _audioEncoders.Add(audioEncoder);
             }
 
-            // Paths for session recordings and buffer, organized by game
-            string sanitizedGameName = StorageService.SanitizeGameNameForFolder(name);
-            string sessionDir = PathUtils.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions, sanitizedGameName);
-            string bufferDir = PathUtils.Combine(Settings.Instance.ContentFolder, FolderNames.Buffers, sanitizedGameName);
+            string sessionDir = FolderNames.GetVideoFolderPath(Settings.Instance.ContentFolder, Content.ContentType.Session, name);
+            string bufferDir = FolderNames.GetVideoFolderPath(Settings.Instance.ContentFolder, Content.ContentType.Buffer, name);
             if (!Directory.Exists(sessionDir)) Directory.CreateDirectory(sessionDir);
             if (!Directory.Exists(bufferDir)) Directory.CreateDirectory(bufferDir);
 
@@ -2636,7 +2634,7 @@ namespace Segra.Backend.Recorder
                 s.Resolution, s.FrameRate, s.RateControl, s.Bitrate, s.MinBitrate, s.MaxBitrate, s.CrfValue, s.CqLevel,
                 s.Codec?.InternalEncoderId, s.EnableHdr, s.Stretch4By3, s.ReplayBufferDuration, s.ReplayBufferMaxSize,
                 s.InputDevices, s.OutputDevices, s.EnableSeparateAudioTracks,
-                s.SelectedDisplay?.DeviceId, s.ContentFolder, AppState.Instance.Displays
+                s.SelectedDisplay?.DeviceId, s.ContentFolder, s.OrganizeRecordingsByGame, AppState.Instance.Displays
             });
         }
 
@@ -4331,8 +4329,12 @@ namespace Segra.Backend.Recorder
 
         public static void PlaySound(string resourceName, int delay = 0)
         {
+            if (Settings.Instance.DisabledSoundEffects.Contains(resourceName)) return;
+
             Thread.Sleep(delay);
-            using var stream = Properties.Resources.ResourceManager.GetStream(resourceName);
+            using Stream? stream = resourceName == "bookmark"
+                ? new MemoryStream(Properties.Resources.bookmark)
+                : Properties.Resources.ResourceManager.GetStream(resourceName);
             if (stream == null)
                 throw new ArgumentException($"Resource '{resourceName}' not found or not a stream.");
 

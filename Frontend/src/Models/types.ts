@@ -9,6 +9,7 @@ export type AudioTrackType = 'mix' | 'input' | 'output';
 
 export type StartupWindowMode = 'Normal' | 'Minimized';
 export type CloseButtonAction = 'Minimize' | 'Exit';
+export type OriginalAfterClippingAction = 'Keep' | 'RecycleBin' | 'DeletePermanently';
 export type GpuPriority = 'High' | 'Realtime';
 
 export interface Content {
@@ -316,6 +317,7 @@ export interface Settings {
   storageLimit: number;
   unlimitedStorage: boolean; // Never deletes old recordings to stay under storageLimit
   contentFolder: string;
+  organizeRecordingsByGame: boolean;
   cacheFolder: string;
   inputDevices: DeviceSetting[];
   outputDevices: DeviceSetting[];
@@ -353,6 +355,7 @@ export interface Settings {
   autoRecordGames: boolean; // When false, don't auto-start recording when a game launches
   gameIntegrations: GameIntegrations;
   soundEffectsVolume: number; // Volume for UI sound effects (0.0 to 1.0)
+  disabledSoundEffects: string[];
   showNewBadgeOnVideos: boolean;
   showGameBackground: boolean; // Show game background while recording
   showAudioWaveformInTimeline: boolean; // Show audio waveform in video timeline
@@ -363,6 +366,7 @@ export interface Settings {
   clipQualityPreset: ClipQualityPreset;
   confirmBeforeDeleting: boolean;
   removeOriginalAfterCompression: boolean;
+  originalAfterClipping: OriginalAfterClippingAction;
   discardSessionsWithoutBookmarks: boolean;
   menuItems: MenuItemPreference[];
   defaultMenuItem: MenuItemId;
@@ -411,6 +415,7 @@ export const initialSettings: Settings = {
   storageLimit: 100,
   unlimitedStorage: false,
   contentFolder: '',
+  organizeRecordingsByGame: true,
   cacheFolder: '',
   inputDevices: [],
   outputDevices: [],
@@ -444,6 +449,7 @@ export const initialSettings: Settings = {
   clipKeepSeparateAudioTracks: false,
   copyCompressSizesMb: [20, 50, 100, 500],
   soundEffectsVolume: 1,
+  disabledSoundEffects: [],
   showNewBadgeOnVideos: false,
   showGameBackground: true,
   showAudioWaveformInTimeline: true,
@@ -454,6 +460,7 @@ export const initialSettings: Settings = {
   clipQualityPreset: 'standard',
   confirmBeforeDeleting: false,
   removeOriginalAfterCompression: false,
+  originalAfterClipping: 'Keep',
   discardSessionsWithoutBookmarks: false,
   menuItems: DEFAULT_MENU_ITEMS,
   defaultMenuItem: 'Full Sessions',

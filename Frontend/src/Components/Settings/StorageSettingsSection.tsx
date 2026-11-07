@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, KeyboardEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderInput } from 'lucide-react';
-import { Settings as SettingsType } from '../../Models/types';
+import { OriginalAfterClippingAction, Settings as SettingsType } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { clampInt } from '../../Utils/NumberUtils';
 import { useModal } from '../../Context/ModalContext';
 import ConfirmationModal from '../ConfirmationModal';
 import Button from '../Button';
+import DropdownSelect from '../DropdownSelect';
 import MigrationFlow from '../MigrationFlow';
 import { useAppState } from '../../Context/AppStateContext';
 import { useContentMigration } from '../../Context/ContentMigrationContext';
@@ -295,7 +296,20 @@ export default function StorageSettingsSection({
         />
       </div>
 
-      <div className="mt-4 flex flex-col gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
+          <input
+            type="checkbox"
+            name="organizeRecordingsByGame"
+            checked={settings.organizeRecordingsByGame}
+            onChange={(e) => updateSettings({ organizeRecordingsByGame: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <div>
+            <div className="font-semibold">Organize Recordings by Game</div>
+            <div className="text-sm opacity-70 mt-0.5">Save new videos in game subfolders.</div>
+          </div>
+        </label>
         <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
           <input
             type="checkbox"
@@ -311,6 +325,28 @@ export default function StorageSettingsSection({
             </div>
           </div>
         </label>
+        <div className="flex items-center justify-between gap-3 p-3 bg-base-200 rounded-lg border border-base-400">
+          <div className="min-w-0">
+            <div className="font-semibold">Original Video After Clipping</div>
+            <div className="text-sm opacity-70 mt-0.5">
+              What to do with source videos after the clips are saved.
+            </div>
+          </div>
+          <div className="w-48 shrink-0">
+            <DropdownSelect
+              size="sm"
+              items={[
+                { value: 'Keep', label: 'Keep Original' },
+                { value: 'RecycleBin', label: 'Move to Recycle Bin' },
+                { value: 'DeletePermanently', label: 'Delete Permanently' },
+              ]}
+              value={settings.originalAfterClipping}
+              onChange={(value) =>
+                updateSettings({ originalAfterClipping: value as OriginalAfterClippingAction })
+              }
+            />
+          </div>
+        </div>
         <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
           <input
             type="checkbox"

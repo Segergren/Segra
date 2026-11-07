@@ -41,6 +41,7 @@ namespace Segra.Backend.Core.Models
         }
 
         private string _contentFolder = DefaultContentFolder();
+        private bool _organizeRecordingsByGame = true;
         private string _cacheFolder = Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Segra"));
         private string _resolution = "1440p";
         private int _frameRate = 60;
@@ -96,6 +97,7 @@ namespace Segra.Backend.Core.Models
         private bool _clipKeepSeparateAudioTracks = false;
         private List<int> _copyCompressSizesMb = new List<int> { 20, 50, 100, 500 };
         private float _soundEffectsVolume = 0.5f;
+        private List<string> _disabledSoundEffects = [];
         private bool _showNewBadgeOnVideos = false;
         private bool _showGameBackground = true;
         private bool _showAudioWaveformInTimeline = true;
@@ -106,6 +108,7 @@ namespace Segra.Backend.Core.Models
         private string _clipQualityPreset = "standard";
         private bool _confirmBeforeDeleting = false;
         private bool _removeOriginalAfterCompression = false;
+        private OriginalAfterClippingAction _originalAfterClipping = OriginalAfterClippingAction.Keep;
         private bool _discardSessionsWithoutBookmarks = false;
         private GameIntegrations _gameIntegrations = new GameIntegrations();
 
@@ -201,6 +204,16 @@ namespace Segra.Backend.Core.Models
                         }
                     });
                 }
+            }
+        }
+
+        [JsonPropertyName("organizeRecordingsByGame")]
+        public bool OrganizeRecordingsByGame
+        {
+            get => _organizeRecordingsByGame;
+            set
+            {
+                _organizeRecordingsByGame = value;
             }
         }
 
@@ -806,6 +819,16 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("disabledSoundEffects")]
+        public List<string> DisabledSoundEffects
+        {
+            get => _disabledSoundEffects;
+            set
+            {
+                _disabledSoundEffects = value ?? [];
+            }
+        }
+
         [JsonPropertyName("showNewBadgeOnVideos")]
         public bool ShowNewBadgeOnVideos
         {
@@ -933,6 +956,16 @@ namespace Segra.Backend.Core.Models
                 {
                     _removeOriginalAfterCompression = value;
                 }
+            }
+        }
+
+        [JsonPropertyName("originalAfterClipping")]
+        public OriginalAfterClippingAction OriginalAfterClipping
+        {
+            get => _originalAfterClipping;
+            set
+            {
+                _originalAfterClipping = value;
             }
         }
 
@@ -1382,6 +1415,14 @@ namespace Segra.Backend.Core.Models
         {
             return !string.IsNullOrEmpty(_jwt) && !string.IsNullOrEmpty(_refreshToken);
         }
+    }
+
+    [JsonConverter(typeof(JsonStringEnumConverter<OriginalAfterClippingAction>))]
+    public enum OriginalAfterClippingAction
+    {
+        Keep,
+        RecycleBin,
+        DeletePermanently
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter<RecordingMode>))]

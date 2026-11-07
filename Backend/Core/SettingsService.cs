@@ -373,6 +373,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (!settings.DisabledSoundEffects.SequenceEqual(updatedSettings.DisabledSoundEffects))
+            {
+                Log.Information("Disabled sound effects changed");
+                settings.DisabledSoundEffects = updatedSettings.DisabledSoundEffects;
+                hasChanges = true;
+            }
+
             if (settings.SoundEffectsVolume != updatedSettings.SoundEffectsVolume)
             {
                 Log.Information($"SoundEffectsVolume changed from '{settings.SoundEffectsVolume}' to '{updatedSettings.SoundEffectsVolume}'");
@@ -449,6 +456,13 @@ namespace Segra.Backend.Core
             {
                 Log.Information($"RemoveOriginalAfterCompression changed from '{settings.RemoveOriginalAfterCompression}' to '{updatedSettings.RemoveOriginalAfterCompression}'");
                 settings.RemoveOriginalAfterCompression = updatedSettings.RemoveOriginalAfterCompression;
+                hasChanges = true;
+            }
+
+            if (settings.OriginalAfterClipping != updatedSettings.OriginalAfterClipping)
+            {
+                Log.Information($"OriginalAfterClipping changed from '{settings.OriginalAfterClipping}' to '{updatedSettings.OriginalAfterClipping}'");
+                settings.OriginalAfterClipping = updatedSettings.OriginalAfterClipping;
                 hasChanges = true;
             }
 
@@ -597,6 +611,13 @@ namespace Segra.Backend.Core
             {
                 Log.Information($"AutoRecordGames changed from '{settings.AutoRecordGames}' to '{updatedSettings.AutoRecordGames}'");
                 settings.AutoRecordGames = updatedSettings.AutoRecordGames;
+                hasChanges = true;
+            }
+
+            if (settings.OrganizeRecordingsByGame != updatedSettings.OrganizeRecordingsByGame)
+            {
+                Log.Information($"OrganizeRecordingsByGame changed from '{settings.OrganizeRecordingsByGame}' to '{updatedSettings.OrganizeRecordingsByGame}'");
+                settings.OrganizeRecordingsByGame = updatedSettings.OrganizeRecordingsByGame;
                 hasChanges = true;
             }
 

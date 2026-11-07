@@ -400,7 +400,7 @@ namespace Segra.Backend.Windows.Input
 
         private static void PlayBookmarkSound()
         {
-            PlatformServices.Sound.Play(Properties.Resources.bookmark, Settings.Instance.SoundEffectsVolume);
+            OBSService.PlaySound("bookmark");
         }
     }
 }
