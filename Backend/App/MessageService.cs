@@ -895,6 +895,20 @@ namespace Segra.Backend.App
             }
 
             string output = PathUtils.Combine(dir, $"{Path.GetFileNameWithoutExtension(source)}_{DateTime.Now:HHmmss}.mp4");
+
+            // The snapshot is a full copy, so it needs the session's size plus a margin
+            long needed = new FileInfo(source).Length + 1024L * 1024 * 1024;
+            long free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(dir))!).AvailableFreeSpace;
+            if (free < needed)
+            {
+                Log.Warning($"Not enough space for recording snapshot: need {needed / 1048576} MB, free {free / 1048576} MB");
+                await SendFrontendMessage("RecordingSnapshotFailed", new { message = "Not enough disk space." });
+                await ShowModal("Not enough disk space",
+                    $"Opening the session being recorded needs about {needed / 1073741824.0:F1} GB free on the cache drive, but only {free / 1073741824.0:F1} GB is free.",
+                    "error");
+                return;
+            }
+
             try
             {
                 var started = DateTime.Now;
@@ -927,7 +941,8 @@ namespace Segra.Backend.App
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to create recording snapshot");
-                await SendFrontendMessage("RecordingSnapshotFailed", new { message = "Could not open the recording. Sessions need OBS 31 or newer." });
+                await SendFrontendMessage("RecordingSnapshotFailed", new { message = "Could not open the recording." });
+                await ShowModal("Could not open the recording", "The session being recorded could not be opened. Check the log for more details.", "error");
             }
         }
 
