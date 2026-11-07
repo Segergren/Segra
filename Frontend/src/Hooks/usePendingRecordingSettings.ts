@@ -29,6 +29,7 @@ export const RECORDING_SETTING_GROUPS = {
     'applicationAudioCaptures',
   ],
   gameIntegrations: ['gameIntegrations'],
+  webcam: ['webcamEnabled', 'webcamDeviceId'],
 } satisfies Record<string, (keyof Settings)[]>;
 
 const ALL_RECORDING_SETTINGS = Object.values(RECORDING_SETTING_GROUPS).flat();

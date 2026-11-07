@@ -189,7 +189,8 @@ namespace Segra.Backend.Media
                     // Delete first so the compressed file can take over the original name and its
                     // thumbnail/waveform/metadata aren't removed right after being written.
                     await Task.Delay(500);
-                    await ContentService.DeleteContent(filePath, contentType, originalContent.Id, false);
+                    // The compressed video takes over the webcam layer
+                    await ContentService.DeleteContent(filePath, contentType, originalContent.Id, false, keepWebcam: true);
                 }
 
                 string finalPath = GetAvailablePath(directory, fileName, extension);
@@ -198,7 +199,7 @@ namespace Segra.Backend.Media
                     ? $"Replaced original with compressed file: {finalPath}"
                     : $"Saved compressed file as: {finalPath}");
 
-                string? compressedId = await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId, originalContent.IsImported, audioTrackNames, originalContent.AudioTrackTypes, compressed: true, gameExePath: originalContent.GameExePath);
+                string? compressedId = await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent.Bookmarks, originalContent.Title, originalContent.CreatedAt, originalContent.IgdbId, originalContent.IsImported, audioTrackNames, originalContent.AudioTrackTypes, compressed: true, gameExePath: originalContent.GameExePath, webcam: removeOriginal ? originalContent.Webcam : null);
                 await ContentService.CreateThumbnail(finalPath, contentType, compressedId);
                 await ContentService.CreateWaveformFile(finalPath, contentType, compressedId);
 

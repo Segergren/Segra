@@ -51,6 +51,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Button from '../Components/Button';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 import HevcExtensionWarning from '../Components/HevcExtensionWarning';
+import WebcamOverlay from '../Components/WebcamOverlay';
+import WebcamToggle from '../Components/WebcamToggle';
 
 const Crosshair2Dot = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
   <Icon {...props} ref={ref} iconNode={crosshair2Dot} />
@@ -467,6 +469,8 @@ export default function VideoComponent({ video }: { video: Content }) {
     return saved ? parseFloat(saved) : 1;
   });
   const [controlsVisible, setControlsVisible] = useState(false);
+  // The player controls get out of the way while the webcam is dragged or resized
+  const [webcamDragging, setWebcamDragging] = useState(false);
   const controlsVisibleRef = useRef(false);
   const cursorHiddenRef = useRef(false);
   const controlsHideTimeoutRef = useRef<number | null>(null);
@@ -2255,13 +2259,32 @@ export default function VideoComponent({ video }: { video: Content }) {
                   cursor: videoScale > 1 ? (isPanning ? 'grabbing' : 'grab') : undefined,
                 }}
               />
+              {video.webcam && !videoUndecodable && (
+                <WebcamOverlay
+                  videoRef={videoRef}
+                  videoId={video.id}
+                  onDraggingChange={setWebcamDragging}
+                  // One global layout for every video, the same one clips use
+                  layer={{
+                    ...video.webcam,
+                    x: settings.webcamX,
+                    y: settings.webcamY,
+                    size: settings.webcamSize,
+                  }}
+                  transform={`translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`}
+                  scale={videoScale}
+                  onChange={(x, y, size) =>
+                    updateSettings({ webcamX: x, webcamY: y, webcamSize: size })
+                  }
+                />
+              )}
               {videoUndecodable && (
                 <HevcExtensionWarning variant="player" className="absolute inset-0 z-10 p-4" />
               )}
             </div>
 
             <div
-              className={`absolute inset-x-0 bottom-0 isolate flex flex-col px-3 pb-2 select-none transition-opacity duration-200 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+              className={`absolute inset-x-0 bottom-0 isolate flex flex-col px-3 pb-2 select-none transition-opacity duration-200 ${controlsVisible && !webcamDragging ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
               onMouseEnter={handleControlsMouseEnter}
               onMouseLeave={handleControlsMouseLeave}
             >
@@ -2383,6 +2406,13 @@ export default function VideoComponent({ video }: { video: Content }) {
                         })}
                       </div>
                     )}
+                  {video.webcam && (
+                    <WebcamToggle
+                      videoId={video.id}
+                      savedHidden={video.webcam.hidden}
+                      className={PLAYER_BUTTON_CLASS}
+                    />
+                  )}
                   {audioTracks.isMultiTrack && (
                     <div ref={audioTracksDropdownRef}>
                       <button

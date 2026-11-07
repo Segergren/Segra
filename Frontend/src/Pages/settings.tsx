@@ -8,6 +8,7 @@ import VideoSettingsSection from '../Components/Settings/VideoSettingsSection';
 import StorageSettingsSection from '../Components/Settings/StorageSettingsSection';
 import ClipSettingsSection from '../Components/Settings/ClipSettingsSection';
 import AudioDevicesSection from '../Components/Settings/AudioDevicesSection';
+import WebcamSection from '../Components/Settings/WebcamSection';
 import HotkeysSection from '../Components/Settings/HotkeysSection';
 import PendingRecordingSettingsBanner from '../Components/Settings/PendingRecordingSettingsBanner';
 import HotkeyBrokerWarning from '../Components/Settings/HotkeyBrokerWarning';
@@ -173,6 +174,7 @@ export default function Settings() {
         <InputGroupWarning />
         <VideoSettingsSection settings={settings} updateSettings={updateSettings} />
         <AudioDevicesSection settings={settings} updateSettings={updateSettings} />
+        <WebcamSection settings={settings} updateSettings={updateSettings} />
 
         {/* CLIPS */}
         <SectionHeader id="clips">Clips</SectionHeader>

@@ -921,6 +921,23 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("webcamEnabled")]
+        public bool WebcamEnabled { get; set; } = false;
+
+        [JsonPropertyName("webcamDeviceId")]
+        public string? WebcamDeviceId { get; set; } = null;
+
+        // Top-left of the overlay in percent of the canvas; default is the bottom-right corner
+        [JsonPropertyName("webcamX")]
+        public double WebcamX { get; set; } = 80;
+
+        [JsonPropertyName("webcamY")]
+        public double WebcamY { get; set; } = 80;
+
+        // Percent of the canvas width
+        [JsonPropertyName("webcamSize")]
+        public double WebcamSize { get; set; } = 20;
+
         [JsonPropertyName("videoQualityPreset")]
         public string VideoQualityPreset
         {
@@ -1249,6 +1266,10 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("startSettings")]
         public JsonObject? StartSettings { get; set; }
 
+        // Webcam layout at start, with the session's webcam file when there is one
+        [JsonIgnore]
+        public WebcamLayer? Webcam { get; set; }
+
         // Lets saved replays pick up bookmarks that integrations add after the save
         public event Action<Bookmark>? BookmarkAdded;
 
@@ -1364,6 +1385,33 @@ namespace Segra.Backend.Core.Models
         public bool IsImported { get; set; } = false;
 
         public bool Compressed { get; set; } = false;
+
+        public WebcamLayer? Webcam { get; set; }
+    }
+
+    // A webcam recorded next to the video, shown on top of it in the editor and in clips
+    public class WebcamLayer
+    {
+        private string _filePath = string.Empty;
+        public string FilePath
+        {
+            get => _filePath;
+            set => _filePath = Segra.Backend.Shared.PathUtils.Normalize(value ?? string.Empty);
+        }
+
+        // Seconds into the video where the webcam video starts
+        public double Offset { get; set; }
+
+        // Top-left in percent of the video, size in percent of its width (16:9 box)
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Size { get; set; }
+
+        public bool Hidden { get; set; }
+
+        // The session's webcam output stopped on its own during the recording
+        [JsonIgnore]
+        public bool Failed { get; set; }
     }
 
     internal class AudioDevice : IEquatable<AudioDevice>

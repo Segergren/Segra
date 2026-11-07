@@ -291,11 +291,14 @@ namespace Segra.Backend.Recorder
                     Log.Warning($"Failed to save replay buffer: {ex.Message}");
                     return false;
                 }
+                Task<string?>? webcamSave = BeginWebcamReplaySave();
 
                 string? savedPath = await WaitForReplaySavedAsync(request);
+                string? webcamPath = await EndWebcamReplaySave(webcamSave);
 
                 if (string.IsNullOrEmpty(savedPath))
                 {
+                    ContentService.DeleteWebcamFile(webcamPath);
                     string reason = request.FailureReason ?? "OBS did not confirm the replay was written. See the logs for details.";
                     Log.Error($"Replay buffer save failed: {reason}");
                     await MessageService.ShowModal("Replay Save Failed", reason, "error");
@@ -310,9 +313,12 @@ namespace Segra.Backend.Recorder
 
                 // Ensure file is fully written to disk/network before thumbnail generation
                 await EnsureFileReady(savedPath);
+                WebcamLayer? webcam = await FinishWebcamLayer(recording?.Webcam, webcamPath, savedPath);
 
                 // Create metadata for the buffer recording
-                string? bufferId = await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, request.Game, igdbId: request.IgdbId, audioTrackNames: request.AudioTrackNames, audioTrackTypes: request.AudioTrackTypes, gameExePath: request.ExePath);
+                string? bufferId = await ContentService.CreateMetadataFile(savedPath, Content.ContentType.Buffer, request.Game, igdbId: request.IgdbId, audioTrackNames: request.AudioTrackNames, audioTrackTypes: request.AudioTrackTypes, gameExePath: request.ExePath, webcam: webcam);
+                if (bufferId == null)
+                    ContentService.DeleteWebcamFile(webcam?.FilePath);
                 await ContentService.CreateThumbnail(savedPath, Content.ContentType.Buffer, bufferId);
                 await ContentService.CreateWaveformFile(savedPath, Content.ContentType.Buffer, bufferId);
 
@@ -525,6 +531,7 @@ namespace Segra.Backend.Recorder
                 Log.Information("Resetting replay buffer...");
 
                 bool started = await buffer.ResetAsync(TimeSpan.FromSeconds(30));
+                await ResetWebcamReplayBuffer();
 
                 if (!started)
                 {
@@ -1551,6 +1558,8 @@ namespace Segra.Backend.Recorder
                 _videoEncoder = new VideoEncoder(encoderId, "Segra Recorder", videoEncoderSettings);
             }
 
+            AddWebcam(encoderId, eff);
+
             // Without a microphone, Linux's default input is a speaker monitor, which would record the desktop audio twice
             bool skipDefaultInput = false;
 #if !WINDOWS
@@ -1861,6 +1870,8 @@ namespace Segra.Backend.Recorder
                 _output.Stopped += OnOutputStopped;
             }
 
+            WebcamLayer? webcamLayer = CreateWebcamOutputs(_bufferOutput != null, _output != null, videoOutputPath, eff);
+
             // Overwrite the file name with the hooked executable name if using game hook
             fileName = _hookedExecutableFileName ?? fileName;
 
@@ -1921,6 +1932,8 @@ namespace Segra.Backend.Recorder
                 Log.Information("Replay buffer started successfully");
             }
 
+            StartWebcamOutputs(webcamLayer);
+
             // The always-on buffer is not a recording: no card, tray state, priority boost or integrations
             if (alwaysOn)
             {
@@ -1931,7 +1944,8 @@ namespace Segra.Backend.Recorder
                     FileName = fileName,
                     ExePath = exePath,
                     AudioTrackNames = actualAudioTrackNames,
-                    AudioTrackTypes = actualAudioTrackTypes
+                    AudioTrackTypes = actualAudioTrackTypes,
+                    Webcam = webcamLayer
                 };
                 AppState.Instance.AlwaysOnBufferActive = true;
                 return true;
@@ -1950,7 +1964,8 @@ namespace Segra.Backend.Recorder
                 CoverImageId = GameUtils.GetCoverImageIdFromExePath(exePath),
                 AudioTrackNames = actualAudioTrackNames,
                 AudioTrackTypes = actualAudioTrackTypes,
-                StartSettings = startSettings
+                StartSettings = startSettings,
+                Webcam = webcamLayer
             };
             AppState.Instance.PreRecording = null;
             _ = MessageService.SendStateToFrontend("OBS Start recording");
@@ -2374,7 +2389,9 @@ namespace Segra.Backend.Recorder
                             await WaitForInFlightReplaySaveAsync();
                             StopOutput(_bufferOutput, "replay buffer");
                         }
+                        BeginStopWebcamRecording();
                         StopOutput(_output, "recording");
+                        StopWebcamOutputs();
                     }
                     catch (Exception ex)
                     {
@@ -2433,6 +2450,7 @@ namespace Segra.Backend.Recorder
                         {
                             Log.Warning($"Failed to delete discarded session file: {ex.Message}");
                         }
+                        ContentService.DeleteWebcamFile(session.Webcam?.FilePath);
                     }
                     else
                     {
@@ -2442,7 +2460,10 @@ namespace Segra.Backend.Recorder
                         int? igdbId = !string.IsNullOrEmpty(session.ExePath)
                             ? GameUtils.GetIgdbIdFromExePath(session.ExePath)
                             : null;
-                        sessionContentId = await ContentService.CreateMetadataFile(filePath, Content.ContentType.Session, session.Game, session.Bookmarks, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes, gameExePath: session.ExePath);
+                        WebcamLayer? webcam = await FinishWebcamLayer(session.Webcam, session.Webcam?.FilePath, filePath);
+                        sessionContentId = await ContentService.CreateMetadataFile(filePath, Content.ContentType.Session, session.Game, session.Bookmarks, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes, gameExePath: session.ExePath, webcam: webcam);
+                        if (sessionContentId == null)
+                            ContentService.DeleteWebcamFile(webcam?.FilePath);
                         await ContentService.CreateThumbnail(filePath, Content.ContentType.Session, sessionContentId);
                         // Decoding a long session's audio takes seconds, so it doesn't hold up the finishing state
                         var waveformWork = BackgroundWork.Begin();
@@ -2616,6 +2637,7 @@ namespace Segra.Backend.Recorder
                 WaitForInFlightReplaySaveAsync().GetAwaiter().GetResult();
                 if (_bufferOutput?.Stop(waitForCompletion: true, timeoutMs: 30000) == false)
                     _bufferOutput.ForceStop();
+                StopWebcamOutputs();
             }
             finally
             {
@@ -2669,7 +2691,8 @@ namespace Segra.Backend.Recorder
                 s.Resolution, s.FrameRate, s.RateControl, s.Bitrate, s.MinBitrate, s.MaxBitrate, s.CrfValue, s.CqLevel,
                 s.Codec?.InternalEncoderId, s.EnableHdr, s.Stretch4By3, s.ReplayBufferDuration, s.ReplayBufferMaxSize,
                 s.InputDevices, s.OutputDevices, s.EnableSeparateAudioTracks,
-                s.SelectedDisplay?.DeviceId, s.ContentFolder, AppState.Instance.Displays
+                s.SelectedDisplay?.DeviceId, s.ContentFolder, AppState.Instance.Displays,
+                s.WebcamEnabled, s.WebcamDeviceId
             });
         }
 
@@ -2724,6 +2747,7 @@ namespace Segra.Backend.Recorder
                         _bufferOutput!.ForceStop();
                     if (outputActive)
                         _output!.ForceStop();
+                    ForceStopWebcamOutputs();
 
                     StopAlwaysOnBufferCore();
                     recording = AppState.Instance.Recording != null;
@@ -3105,6 +3129,7 @@ namespace Segra.Backend.Recorder
             DisposeDisplaySource();
             DisposeWindowCaptureSource();
             DisposeGameCaptureSource();
+            DisposeWebcamSource();
             _captureWindowSpec = null;
 
             if (_mainScene != null)
@@ -4088,6 +4113,8 @@ namespace Segra.Backend.Recorder
 
             try { _bufferOutput?.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing buffer output: {ex.Message}"); }
             _bufferOutput = null;
+
+            DisposeWebcamOutputs();
         }
 
 #if WINDOWS

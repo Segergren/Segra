@@ -24,6 +24,7 @@ namespace Segra.Backend.Core.Models
         private List<AudioDevice> _inputDevices = [];
         private List<AudioDevice> _outputDevices = [];
         private List<Display> _displays = [];
+        private List<Webcam> _webcams = [];
         private List<Codec> _codecs = [];
         private List<OBSVersion> _availableOBSVersions = [];
         private bool _isCheckingForUpdates = false;
@@ -51,6 +52,7 @@ namespace Segra.Backend.Core.Models
 
             UpdateAudioDevices();
             UpdateDisplays();
+            _ = Task.Run(UpdateWebcams);
         }
 
         [JsonPropertyName("gpuVendor")]
@@ -195,6 +197,29 @@ namespace Segra.Backend.Core.Models
                     SendToFrontend("State update: Displays");
                 }
             }
+        }
+
+        [JsonPropertyName("webcams")]
+        public List<Webcam> Webcams => _webcams;
+
+        public void UpdateWebcams()
+        {
+#if WINDOWS
+            try
+            {
+                var webcams = ObsKit.NET.Sources.WebcamCapture.ListDevices()
+                    .Select(d => new Webcam(d.Name, d.DeviceId))
+                    .ToList();
+                if (webcams.SequenceEqual(_webcams)) return;
+                _webcams = webcams;
+                Log.Information($"Webcams: {string.Join(", ", webcams.Select(w => w.Name))}");
+                SendToFrontend("State update: Webcams");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to list webcams: {ex.Message}");
+            }
+#endif
         }
 
         [JsonPropertyName("maxDisplayHeight")]
@@ -451,7 +476,7 @@ namespace Segra.Backend.Core.Models
             _audioDeviceDebounceTimer = new System.Threading.Timer(
                 _ =>
                 {
-                    try { UpdateAudioDevices(); }
+                    try { UpdateAudioDevices(); UpdateWebcams(); }
                     catch (Exception ex) { Log.Error(ex, "Failed to update audio devices"); }
                 },
                 null,

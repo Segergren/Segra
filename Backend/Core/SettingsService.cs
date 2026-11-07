@@ -438,6 +438,35 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.WebcamEnabled != updatedSettings.WebcamEnabled)
+            {
+                Log.Information($"WebcamEnabled changed from '{settings.WebcamEnabled}' to '{updatedSettings.WebcamEnabled}'");
+                settings.WebcamEnabled = updatedSettings.WebcamEnabled;
+                hasChanges = true;
+            }
+
+            if (settings.WebcamDeviceId != updatedSettings.WebcamDeviceId)
+            {
+                Log.Information($"WebcamDeviceId changed from '{settings.WebcamDeviceId}' to '{updatedSettings.WebcamDeviceId}'");
+                settings.WebcamDeviceId = updatedSettings.WebcamDeviceId;
+                hasChanges = true;
+            }
+
+            if (settings.WebcamX != updatedSettings.WebcamX || settings.WebcamY != updatedSettings.WebcamY)
+            {
+                Log.Information($"Webcam position changed from '{settings.WebcamX}, {settings.WebcamY}' to '{updatedSettings.WebcamX}, {updatedSettings.WebcamY}'");
+                settings.WebcamX = updatedSettings.WebcamX;
+                settings.WebcamY = updatedSettings.WebcamY;
+                hasChanges = true;
+            }
+
+            if (settings.WebcamSize != updatedSettings.WebcamSize)
+            {
+                Log.Information($"WebcamSize changed from '{settings.WebcamSize}' to '{updatedSettings.WebcamSize}'");
+                settings.WebcamSize = updatedSettings.WebcamSize;
+                hasChanges = true;
+            }
+
             if (settings.VideoQualityPreset != updatedSettings.VideoQualityPreset)
             {
                 Log.Information($"VideoQualityPreset changed from '{settings.VideoQualityPreset}' to '{updatedSettings.VideoQualityPreset}'");

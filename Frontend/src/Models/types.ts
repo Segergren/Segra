@@ -30,6 +30,17 @@ export interface Content {
   compressed: boolean;
   audioTrackNames?: string[];
   audioTrackTypes?: AudioTrackType[];
+  webcam?: WebcamLayer;
+}
+
+// A webcam recorded next to the video, drawn on top of it in the editor and in clips
+export interface WebcamLayer {
+  filePath: string;
+  offset: number; // Seconds into the video where the webcam video starts
+  x: number; // Top-left in percent of the video
+  y: number;
+  size: number; // Percent of the video width, 16:9 box
+  hidden: boolean;
 }
 
 export interface OBSVersion {
@@ -58,6 +69,7 @@ export interface State {
   inputDevices: AudioDevice[];
   outputDevices: AudioDevice[];
   displays: Display[];
+  webcams: Webcam[];
   codecs: Codec[];
   availableOBSVersions: OBSVersion[];
   isCheckingForUpdates: boolean;
@@ -146,6 +158,11 @@ export interface DeviceSetting {
   // Input devices only
   noiseSuppression?: boolean;
   forceMono?: boolean;
+}
+
+export interface Webcam {
+  name: string;
+  deviceId: string;
 }
 
 export interface Display {
@@ -376,6 +393,11 @@ export interface Settings {
   enableSeparateAudioTracks: boolean; // Advanced: per-source audio tracks
   audioOutputMode: AudioOutputMode;
   applicationAudioCaptures: AppAudioCapture[]; // Apps captured as separate app audio
+  webcamEnabled: boolean;
+  webcamDeviceId: string | null;
+  webcamX: number; // Top-left of the overlay in percent of the canvas
+  webcamY: number;
+  webcamSize: number; // Percent of the canvas width
   videoQualityPreset: VideoQualityPreset;
   clipQualityPreset: ClipQualityPreset;
   confirmBeforeDeleting: boolean;
@@ -396,6 +418,7 @@ export const initialState: State = {
   inputDevices: [],
   outputDevices: [],
   displays: [],
+  webcams: [],
   codecs: [],
   availableOBSVersions: [],
   isCheckingForUpdates: false,
@@ -471,6 +494,11 @@ export const initialSettings: Settings = {
   enableSeparateAudioTracks: false,
   audioOutputMode: 'All',
   applicationAudioCaptures: [],
+  webcamEnabled: false,
+  webcamDeviceId: null,
+  webcamX: 80,
+  webcamY: 80,
+  webcamSize: 20,
   videoQualityPreset: 'high',
   clipQualityPreset: 'standard',
   confirmBeforeDeleting: false,

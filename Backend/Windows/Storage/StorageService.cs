@@ -326,9 +326,15 @@ namespace Segra.Backend.Windows.Storage
                     }
                     Content.ContentType contentType = detectedType.Value;
 
-                    string? contentId = AppState.Instance.Content.FirstOrDefault(c =>
+                    var content = AppState.Instance.Content.FirstOrDefault(c =>
                         c.Type == contentType &&
-                        string.Equals(PathUtils.Normalize(c.FilePath), fileFullName, StringComparison.OrdinalIgnoreCase))?.Id;
+                        string.Equals(PathUtils.Normalize(c.FilePath), fileFullName, StringComparison.OrdinalIgnoreCase));
+                    string? contentId = content?.Id;
+
+                    // Deleting the video also deletes its webcam file
+                    string? webcamPath = content?.Webcam?.FilePath;
+                    if (!string.IsNullOrEmpty(webcamPath) && File.Exists(webcamPath))
+                        fileSize += new FileInfo(webcamPath).Length;
 
                     Log.Information($"Deleting {contentType} file: {fileFullName} ({fileSizeMB:F2} MB)");
                     await ContentService.DeleteContent(fileFullName, contentType, contentId);

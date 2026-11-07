@@ -404,8 +404,10 @@ namespace Segra.Backend.Api
         private static bool IsTrackedContentFile(string canonical)
         {
             return AppState.Instance.Content.Any(c =>
-                !string.IsNullOrEmpty(c.FilePath) &&
-                string.Equals(TryGetFullPath(c.FilePath), canonical, StringComparison.OrdinalIgnoreCase));
+                (!string.IsNullOrEmpty(c.FilePath) &&
+                 string.Equals(TryGetFullPath(c.FilePath), canonical, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(c.Webcam?.FilePath) &&
+                 string.Equals(TryGetFullPath(c.Webcam.FilePath), canonical, StringComparison.OrdinalIgnoreCase)));
         }
 
         private static string? TryGetFullPath(string path)

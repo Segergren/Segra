@@ -278,6 +278,9 @@ namespace Segra.Backend.App
                         case "StopRecording":
                             _ = Task.Run(() => OBSService.StopRecording(userRequested: true));
                             break;
+                        case "RefreshWebcams":
+                            _ = Task.Run(AppState.Instance.UpdateWebcams);
+                            break;
                         case "RefreshStorageStats":
                             StorageService.UpdateRecordingDriveSpaceInState();
                             break;
@@ -356,6 +359,10 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement renameContentParameterElement);
                             await ContentService.HandleRenameContent(renameContentParameterElement);
                             Log.Information("RenameContent command received.");
+                            break;
+                        case "SetWebcamLayer":
+                            root.TryGetProperty("Parameters", out JsonElement webcamLayerParameterElement);
+                            _ = Task.Run(() => ContentService.HandleSetWebcamLayer(webcamLayerParameterElement));
                             break;
                         case "ImportFile":
                             root.TryGetProperty("Parameters", out JsonElement importParameterElement);
@@ -722,7 +729,8 @@ namespace Segra.Backend.App
             "recordingMode", "resolution", "frameRate", "rateControl", "bitrate", "minBitrate", "maxBitrate",
             "crfValue", "cqLevel", "encoder", "codec", "stretch4By3", "enableHdr", "replayBufferDuration",
             "replayBufferMaxSize", "inputDevices", "outputDevices", "forceMonoInputSources", "inputNoiseSuppression",
-            "enableSeparateAudioTracks", "audioOutputMode", "applicationAudioCaptures", "gameIntegrations"
+            "enableSeparateAudioTracks", "audioOutputMode", "applicationAudioCaptures", "gameIntegrations",
+            "webcamEnabled", "webcamDeviceId"
         ];
 
         // Serialized exactly like the Settings message so the frontend can compare values directly

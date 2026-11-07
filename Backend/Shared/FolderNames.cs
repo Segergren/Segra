@@ -13,6 +13,7 @@ namespace Segra.Backend.Shared
         public const string Buffers = "Replay Buffers";
         public const string Clips = "Clips";
         public const string Highlights = "Highlights";
+        public const string Webcam = "Webcam";
 
         // Legacy folder names (for migration purposes)
         public const string LegacySessions = "sessions";
