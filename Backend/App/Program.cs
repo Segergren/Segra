@@ -838,6 +838,11 @@ namespace Segra.Backend.App
             // Photino.NET path so existing logins and localStorage survive the upgrade.
             windowBuilder = windowBuilder.SetUserDataFolder(
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Photino"));
+
+            windowBuilder = windowBuilder
+                .SetBrowserAcceleratorKeysEnabled(Settings.Instance.EnableFrontendDebugShortcuts)
+                .SetGeneralAutofillEnabled(false)
+                .SetReputationCheckingRequired(false);
 #endif
             windowBuilder = windowBuilder
                 .SetUseOsDefaultSize(false)

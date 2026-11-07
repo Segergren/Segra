@@ -885,6 +885,10 @@ namespace Segra.Backend.Core.Models
             set => _showVideoNavigation = value;
         }
 
+        // Only set by editing settings.json: enables browser shortcuts such as F12 (DevTools) and F5 (reload)
+        [JsonPropertyName("enableFrontendDebugShortcuts")]
+        public bool EnableFrontendDebugShortcuts { get; set; } = false;
+
         [JsonPropertyName("showLiveSessionCard")]
         public bool ShowLiveSessionCard
         {
