@@ -288,8 +288,12 @@ namespace Segra.Backend.Media
                     {
                         string? currentDir = Path.GetDirectoryName(content.FilePath);
                         string? typeFolder = currentDir != null ? Path.GetDirectoryName(currentDir) : null;
+                        string typeFolderName = FolderNames.GetVideoFolderName(content.Type);
 
-                        if (!string.IsNullOrEmpty(typeFolder))
+                        // Files saved without a game subfolder stay where they are
+                        if (!string.IsNullOrEmpty(typeFolder) &&
+                            string.Equals(Path.GetFileName(typeFolder), typeFolderName, StringComparison.OrdinalIgnoreCase) &&
+                            !string.Equals(Path.GetFileName(currentDir), typeFolderName, StringComparison.OrdinalIgnoreCase))
                         {
                             string newDir = PathUtils.Combine(typeFolder, newSanitized);
                             string candidatePath = PathUtils.Combine(newDir, Path.GetFileName(content.FilePath));
@@ -343,6 +347,111 @@ namespace Segra.Backend.Media
             }
 
             return changedCount;
+        }
+
+        private static readonly SemaphoreSlim _gameFolderMoveLock = new(1, 1);
+
+        /// <summary>
+        /// Moves videos in the recording folder into or out of game subfolders to match the setting.
+        /// </summary>
+        public static async Task ApplyGameSubfoldersAsync()
+        {
+            using var work = BackgroundWork.Begin();
+            await _gameFolderMoveLock.WaitAsync();
+            try
+            {
+                if (MigrationService.IsRunning)
+                    await MigrationService.WaitForMigrationsAsync();
+
+                bool useGameFolders = Settings.Instance.GameSubfolders;
+                string root = Settings.Instance.ContentFolder;
+                int moved = 0;
+                int failed = 0;
+
+                foreach (var content in AppState.Instance.Content.ToList())
+                {
+                    try
+                    {
+                        if (string.IsNullOrEmpty(content.FilePath) || !File.Exists(content.FilePath)) continue;
+
+                        string typeFolder = Path.GetFullPath(PathUtils.Combine(root, FolderNames.GetVideoFolderName(content.Type)));
+                        string currentDir = Path.GetFullPath(Path.GetDirectoryName(content.FilePath)!);
+                        bool isFlat = string.Equals(currentDir, typeFolder, StringComparison.OrdinalIgnoreCase);
+                        bool isInGameFolder = string.Equals(Path.GetDirectoryName(currentDir), typeFolder, StringComparison.OrdinalIgnoreCase);
+
+                        // Imported videos outside the recording folder are left alone
+                        if (useGameFolders ? !isFlat : !isInGameFolder) continue;
+
+                        string destDir = useGameFolders
+                            ? PathUtils.Combine(typeFolder, StorageService.SanitizeGameNameForFolder(content.Game ?? "Unknown"))
+                            : typeFolder;
+                        string destPath = PathUtils.Combine(destDir, Path.GetFileName(content.FilePath));
+
+                        if (File.Exists(destPath))
+                        {
+                            Log.Warning("Skipping move for {File}: destination already exists at {Dest}", content.FilePath, destPath);
+                            failed++;
+                            continue;
+                        }
+
+                        string sourcePath = content.FilePath;
+                        Directory.CreateDirectory(destDir);
+
+                        bool ok = await EmbeddedMetadataService.RunExclusiveAsync(async () =>
+                        {
+                            File.Move(sourcePath, destPath);
+
+                            string sidecar = FolderNames.GetMetadataFilePath(content.Type, content.Id);
+                            if (await UpdateMetadataFile(sidecar, c => c.FilePath = destPath) == null)
+                            {
+                                try
+                                {
+                                    File.Move(destPath, sourcePath);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Error("Could not move {Dest} back to {Source} after a metadata error: {Message}", destPath, sourcePath, ex.Message);
+                                }
+                                return false;
+                            }
+
+                            content.FilePath = destPath;
+                            return true;
+                        });
+
+                        if (!ok)
+                        {
+                            failed++;
+                            continue;
+                        }
+                        moved++;
+
+                        try
+                        {
+                            if (!useGameFolders && !Directory.EnumerateFileSystemEntries(currentDir).Any())
+                                Directory.Delete(currentDir);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning("Could not delete empty game folder {Dir}: {Message}", currentDir, ex.Message);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        failed++;
+                        Log.Warning("Could not move {File}: {Message}", content.FilePath, ex.Message);
+                    }
+                }
+
+                Log.Information("Moved {Moved} videos {Direction} game folders ({Failed} skipped)", moved, useGameFolders ? "into" : "out of", failed);
+                // Reload from the sidecars, a library reload during the run may have dropped moved videos
+                if (moved > 0)
+                    await SettingsService.LoadContentFromFolderIntoState();
+            }
+            finally
+            {
+                _gameFolderMoveLock.Release();
+            }
         }
 
         public static async Task CreateThumbnail(string filePath, Content.ContentType type, string? id)

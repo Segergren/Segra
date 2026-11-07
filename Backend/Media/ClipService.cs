@@ -56,8 +56,7 @@ namespace Segra.Backend.Media
 
                 // Use game from first segment for the output folder
                 var firstSegment = segments.FirstOrDefault();
-                string outputGameFolder = StorageService.SanitizeGameNameForFolder(firstSegment?.Game ?? "Unknown");
-                string outputFolder = PathUtils.Combine(videoFolder, FolderNames.Clips, outputGameFolder);
+                string outputFolder = StorageService.GetOutputFolder(PathUtils.Combine(videoFolder, FolderNames.Clips), firstSegment?.Game);
                 Directory.CreateDirectory(outputFolder);
 
                 if (!FFmpegService.FFmpegExists())
@@ -168,8 +167,7 @@ namespace Segra.Backend.Media
                     for (int i = 0; i < tempClipFiles.Count; i++)
                     {
                         var segment = extractedSegments[i];
-                        string segmentGameFolder = StorageService.SanitizeGameNameForFolder(segment.Game ?? "Unknown");
-                        string segmentOutputFolder = PathUtils.Combine(videoFolder, FolderNames.Clips, segmentGameFolder);
+                        string segmentOutputFolder = StorageService.GetOutputFolder(PathUtils.Combine(videoFolder, FolderNames.Clips), segment.Game);
                         Directory.CreateDirectory(segmentOutputFolder);
 
                         string outputFileName = $"{batchTimestamp}_segment-{i + 1:000}.mp4";
@@ -381,7 +379,7 @@ namespace Segra.Backend.Media
                 }
 
                 Content first = sessions[0];
-                string outputFolder = PathUtils.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions, StorageService.SanitizeGameNameForFolder(first.Game));
+                string outputFolder = StorageService.GetOutputFolder(PathUtils.Combine(Settings.Instance.ContentFolder, FolderNames.Sessions), first.Game);
                 Directory.CreateDirectory(outputFolder);
                 outputFilePath = GetUniqueOutputFilePath(PathUtils.Combine(outputFolder, $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4"));
 

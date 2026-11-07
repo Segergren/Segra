@@ -811,6 +811,14 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.GameSubfolders != updatedSettings.GameSubfolders)
+            {
+                Log.Information($"GameSubfolders changed from '{settings.GameSubfolders}' to '{updatedSettings.GameSubfolders}'");
+                settings.GameSubfolders = updatedSettings.GameSubfolders;
+                hasChanges = true;
+                _ = Task.Run(ContentService.ApplyGameSubfoldersAsync);
+            }
+
             if (!settings.InputDevices.SequenceEqual(updatedSettings.InputDevices, new DeviceSettingEqualityComparer()))
             {
                 static string Describe(DeviceSetting d) => $"{d.Name} (noiseSuppression={d.NoiseSuppression}, forceMono={d.ForceMono})";

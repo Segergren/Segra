@@ -28,6 +28,11 @@ namespace Segra.Backend.Windows.Storage
             return string.IsNullOrWhiteSpace(sanitized) ? "Unknown" : sanitized;
         }
 
+        public static string GetOutputFolder(string typeFolder, string? gameName) =>
+            Settings.Instance.GameSubfolders
+                ? PathUtils.Combine(typeFolder, SanitizeGameNameForFolder(gameName ?? "Unknown"))
+                : typeFolder;
+
         public static double GetCurrentFolderSizeGb()
         {
             string contentFolder = Settings.Instance.ContentFolder;

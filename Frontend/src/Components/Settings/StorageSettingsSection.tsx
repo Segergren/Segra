@@ -320,6 +320,22 @@ export default function StorageSettingsSection({
         <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
           <input
             type="checkbox"
+            name="gameSubfolders"
+            checked={settings.gameSubfolders}
+            onChange={(e) => updateSettings({ gameSubfolders: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <div>
+            <div className="font-semibold">Save Recordings in Game Folders</div>
+            <div className="text-sm opacity-70 mt-0.5">
+              Puts each recording in a folder named after the game. Changing this moves your
+              existing recordings.
+            </div>
+          </div>
+        </label>
+        <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
+          <input
+            type="checkbox"
             name="excludeClipsFromStorageLimit"
             checked={settings.excludeClipsFromStorageLimit}
             onChange={(e) => handleExcludeClipsChange(e.target.checked)}

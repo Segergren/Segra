@@ -297,8 +297,7 @@ namespace Segra.Backend.Media
                 return false;
             }
 
-            string gameFolder = StorageService.SanitizeGameNameForFolder(content.Game);
-            string destFolder = PathUtils.Combine(FolderNames.GetVideoFolderPath(contentFolder, content.Type), gameFolder);
+            string destFolder = StorageService.GetOutputFolder(FolderNames.GetVideoFolderPath(contentFolder, content.Type), content.Game);
             string destPath = PathUtils.Combine(destFolder, Path.GetFileName(sourcePath));
 
             if (PathsEqual(destPath, sourcePath))

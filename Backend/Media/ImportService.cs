@@ -119,7 +119,7 @@ namespace Segra.Backend.Media
                 {
                     var embedded = await EmbeddedMetadataService.ReadAsync(sourceFile);
                     string game = !string.IsNullOrEmpty(embedded?.Game) ? embedded.Game : "Unknown";
-                    string targetFolder = PathUtils.Combine(baseTypeFolder, StorageService.SanitizeGameNameForFolder(game));
+                    string targetFolder = StorageService.GetOutputFolder(baseTypeFolder, game);
                     Directory.CreateDirectory(targetFolder);
 
                     double progressPercent = (double)i / selectedFiles.Length * 100;

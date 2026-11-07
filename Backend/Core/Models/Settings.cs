@@ -62,6 +62,7 @@ namespace Segra.Backend.Core.Models
         private int _storageLimit = 100;
         private bool _unlimitedStorage = false;
         private bool _excludeClipsFromStorageLimit = false;
+        private bool _gameSubfolders = true;
         private List<DeviceSetting> _inputDevices = new List<DeviceSetting>();
         private List<DeviceSetting> _outputDevices = new List<DeviceSetting>();
         private Display? _selectedDisplay = null;
@@ -377,6 +378,16 @@ namespace Segra.Backend.Core.Models
             set
             {
                 _excludeClipsFromStorageLimit = value;
+            }
+        }
+
+        [JsonPropertyName("gameSubfolders")]
+        public bool GameSubfolders
+        {
+            get => _gameSubfolders;
+            set
+            {
+                _gameSubfolders = value;
             }
         }
 

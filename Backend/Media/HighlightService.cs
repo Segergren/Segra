@@ -69,9 +69,7 @@ namespace Segra.Backend.Media
                     return;
                 }
 
-                // Output highlights are organized by game
-                string outputGameFolder = StorageService.SanitizeGameNameForFolder(content.Game ?? "Unknown");
-                string outputFolder = PathUtils.Combine(videoFolder, FolderNames.Highlights, outputGameFolder);
+                string outputFolder = StorageService.GetOutputFolder(PathUtils.Combine(videoFolder, FolderNames.Highlights), content.Game);
                 Directory.CreateDirectory(outputFolder);
 
                 string outputFileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";

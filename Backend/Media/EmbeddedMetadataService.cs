@@ -106,6 +106,20 @@ namespace Segra.Backend.Media
             }
         }
 
+        // Keeps a video from being moved while its metadata is being written
+        public static async Task<T> RunExclusiveAsync<T>(Func<Task<T>> action)
+        {
+            await _writeLock.WaitAsync();
+            try
+            {
+                return await action();
+            }
+            finally
+            {
+                _writeLock.Release();
+            }
+        }
+
         /// <summary>
         /// Returns the metadata Segra embedded in the file, or null when it has none.
         /// </summary>
