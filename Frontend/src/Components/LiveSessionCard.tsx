@@ -67,7 +67,7 @@ export default function LiveSessionCard({ recording }: { recording: Recording })
         <div className="flex justify-between items-center min-h-8">
           <h2 className="card-title !block truncate">{recording.game}</h2>
         </div>
-        <div className="text-sm text-gray-200">Recording now &bull; click to watch</div>
+        <div className="text-sm text-gray-200">Recording now</div>
       </div>
     </div>
   );
