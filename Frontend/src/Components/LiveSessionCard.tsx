@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Recording } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 
+// One frame per recording, kept across remounts so it is only generated once
+const thumbnailCache = new Map<string, string>();
+
 // The session being recorded; opening it plays a stream-copied snapshot of the file so far
 export default function LiveSessionCard({
   recording,
@@ -11,22 +14,40 @@ export default function LiveSessionCard({
   isFinishing?: boolean;
 }) {
   const startMs = new Date(recording.startTime).getTime();
-  const [thumbnailTime, setThumbnailTime] = useState<number | null>(null);
-  const [thumbnailLoaded, setThumbnailLoaded] = useState(false);
-  const [thumbnailAttempt, setThumbnailAttempt] = useState(0);
+  const filePath = recording.filePath;
+  const [thumbnailUrl, setThumbnailUrl] = useState(() =>
+    filePath ? thumbnailCache.get(filePath) : undefined,
+  );
+  const [thumbnailLoaded, setThumbnailLoaded] = useState(() => !!thumbnailUrl);
   const [opening, setOpening] = useState(false);
 
-  // One frame, retried only until the file has enough data to read
+  // Retried only until the file has enough data to read
   useEffect(() => {
-    if (thumbnailLoaded) return;
-    const elapsed = (Date.now() - startMs) / 1000;
-    const delay = thumbnailAttempt === 0 ? Math.max(0, 10 - elapsed) * 1000 : 5000;
-    const id = setTimeout(
-      () => setThumbnailTime(Math.max(0, Math.floor((Date.now() - startMs) / 1000 - 5))),
-      delay,
-    );
-    return () => clearTimeout(id);
-  }, [thumbnailAttempt, thumbnailLoaded, startMs]);
+    if (thumbnailUrl || !filePath) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const attempt = async () => {
+      const time = Math.max(0, Math.floor((Date.now() - startMs) / 1000 - 5));
+      try {
+        const response = await fetch(
+          `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(filePath)}&time=${time}&width=960`,
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        if (cancelled) return;
+        const objectUrl = URL.createObjectURL(blob);
+        thumbnailCache.set(filePath, objectUrl);
+        setThumbnailUrl(objectUrl);
+      } catch {
+        if (!cancelled) timer = setTimeout(attempt, 5000);
+      }
+    };
+    timer = setTimeout(attempt, Math.max(0, 10 - (Date.now() - startMs) / 1000) * 1000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [thumbnailUrl, filePath, startMs]);
 
   useEffect(() => {
     const handleMessage = (event: CustomEvent) => {
@@ -38,11 +59,6 @@ export default function LiveSessionCard({
     window.addEventListener('websocket-message', handleMessage as EventListener);
     return () => window.removeEventListener('websocket-message', handleMessage as EventListener);
   }, []);
-
-  const thumbnailUrl =
-    recording.filePath && thumbnailTime !== null
-      ? `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(recording.filePath)}&time=${thumbnailTime}&width=960`
-      : undefined;
 
   return (
     <div
@@ -66,7 +82,6 @@ export default function LiveSessionCard({
             height={900}
             draggable={false}
             onLoad={() => setThumbnailLoaded(true)}
-            onError={() => setThumbnailAttempt((a) => a + 1)}
           />
         )}
         {!isFinishing && (
