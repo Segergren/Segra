@@ -770,7 +770,7 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Generates a thumbnail from a video at a specific timestamp
         /// </summary>
-        public static async Task<byte[]> GenerateThumbnail(string inputFilePath, double timeSeconds, int width = 320)
+        public static async Task<byte[]> GenerateThumbnail(string inputFilePath, double timeSeconds, int width = 320, int quality = 20)
         {
             string timeString = timeSeconds.ToString(CultureInfo.InvariantCulture);
             bool isHdr = await IsHdrVideo(inputFilePath);
@@ -783,7 +783,7 @@ namespace Segra.Backend.Media
                 "-vf", BuildThumbnailVideoFilter(width, isHdr),
                 "-f", "image2pipe",
                 "-vcodec", "mjpeg",
-                "-q:v", "20",
+                "-q:v", quality.ToString(CultureInfo.InvariantCulture),
                 "pipe:1"
             };
             return await RunAndCaptureOutput(args);

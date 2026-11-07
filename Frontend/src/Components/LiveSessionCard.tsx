@@ -35,7 +35,7 @@ export default function LiveSessionCard({ recording }: { recording: Recording })
 
   const thumbnailUrl =
     recording.filePath && thumbnailTime !== null
-      ? `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(recording.filePath)}&time=${thumbnailTime}`
+      ? `http://localhost:2222/api/thumbnail?input=${encodeURIComponent(recording.filePath)}&time=${thumbnailTime}&width=960`
       : undefined;
 
   return (

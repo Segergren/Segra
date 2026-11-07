@@ -186,7 +186,10 @@ namespace Segra.Backend.Api
                     return;
                 }
 
-                byte[] jpegBytes = await FFmpegService.GenerateThumbnail(input, timeSeconds);
+                // Card-sized frames ask for a width and get card quality; timeline frames stay small
+                byte[] jpegBytes = int.TryParse(query["width"], out int width)
+                    ? await FFmpegService.GenerateThumbnail(input, timeSeconds, Math.Clamp(width, 160, 1920), quality: 6)
+                    : await FFmpegService.GenerateThumbnail(input, timeSeconds);
 
                 if (jpegBytes != null && jpegBytes.Length > 0)
                 {
