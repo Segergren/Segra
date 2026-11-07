@@ -121,23 +121,6 @@ export default function AdvancedSection({
             <span className="inline-block">View Release Notes</span>
           </Button>
         </div>
-        {canSelfUpdate && (
-          <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 mt-4">
-            <input
-              type="checkbox"
-              name="autoInstallUpdates"
-              checked={settings.autoInstallUpdates}
-              onChange={(e) => updateSettings({ autoInstallUpdates: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <div>
-              <div className="font-semibold">Install Updates Automatically</div>
-              <div className="text-sm opacity-70 mt-0.5">
-                Installs when nothing is recording and the window is closed.
-              </div>
-            </div>
-          </label>
-        )}
       </div>
 
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">

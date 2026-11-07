@@ -74,7 +74,6 @@ namespace Segra.Backend.Core.Models
         // Linux has no tray, so closing to it left the app running with no visible way to quit
         private CloseButtonAction _closeButtonAction = OperatingSystem.IsWindows() ? CloseButtonAction.Minimize : CloseButtonAction.Exit;
         private bool _receiveBetaUpdates = false;
-        private bool _autoInstallUpdates = true;
         private bool _airplaneMode = false;
         private RecordingMode _recordingMode = RecordingMode.Hybrid;
         private int _replayBufferDuration = 30;
@@ -521,19 +520,6 @@ namespace Segra.Backend.Core.Models
                 if (_receiveBetaUpdates != value)
                 {
                     _receiveBetaUpdates = value;
-                }
-            }
-        }
-
-        [JsonPropertyName("autoInstallUpdates")]
-        public bool AutoInstallUpdates
-        {
-            get => _autoInstallUpdates;
-            set
-            {
-                if (_autoInstallUpdates != value)
-                {
-                    _autoInstallUpdates = value;
                 }
             }
         }

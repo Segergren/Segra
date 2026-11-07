@@ -449,7 +449,6 @@ namespace Segra.Backend.App
             lines.Add($"Auto generate highlights: {s.AutoGenerateHighlights}");
             lines.Add($"Run on startup: {s.RunOnStartup}");
             lines.Add($"Receive beta updates: {s.ReceiveBetaUpdates}");
-            lines.Add($"Auto install updates: {s.AutoInstallUpdates}");
             lines.Add($"Confirm before deleting: {s.ConfirmBeforeDeleting}");
             lines.Add($"Remove original after compression: {s.RemoveOriginalAfterCompression}");
             lines.Add($"Discard sessions without bookmarks: {s.DiscardSessionsWithoutBookmarks}");

@@ -878,13 +878,6 @@ namespace Segra.Backend.Core
                 _ = Task.Run(() => UpdateService.GetReleaseNotes(forceCheck: true));
             }
 
-            if (settings.AutoInstallUpdates != updatedSettings.AutoInstallUpdates)
-            {
-                Log.Information($"AutoInstallUpdates changed from '{settings.AutoInstallUpdates}' to '{updatedSettings.AutoInstallUpdates}'");
-                settings.AutoInstallUpdates = updatedSettings.AutoInstallUpdates;
-                hasChanges = true;
-            }
-
             if (settings.RunOnStartup != updatedSettings.RunOnStartup)
             {
                 Log.Information($"RunOnStartup changed from '{settings.RunOnStartup}' to '{updatedSettings.RunOnStartup}'");

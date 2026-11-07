@@ -57,7 +57,7 @@ namespace Segra.Backend.App
         // Passed on restart after an automatic install so the app comes back in the tray.
         public const string RestartMinimizedArg = "--restart-minimized";
 
-        // Polls for an idle moment to install a downloaded update when AutoInstallUpdates is on.
+        // Polls for an idle moment to install a downloaded update.
         private static readonly TimeSpan AutoInstallPollInterval = TimeSpan.FromMinutes(1);
         private static System.Threading.Timer? _autoInstallTimer;
         private static int _autoInstallStarted;
@@ -218,7 +218,7 @@ namespace Segra.Backend.App
         {
             try
             {
-                if (!Core.Models.Settings.Instance.AutoInstallUpdates || LatestUpdateInfo == null)
+                if (LatestUpdateInfo == null)
                     return;
 
                 bool idle = Core.Models.AppState.Instance.Recording == null
