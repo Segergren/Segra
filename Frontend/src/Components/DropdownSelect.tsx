@@ -22,6 +22,8 @@ interface DropdownSelectProps {
   buttonContent?: React.ReactNode;
   // Override the automatic open direction (default: auto based on available space).
   forceDirection?: 'up' | 'down';
+  onOpen?: () => void;
+  hideChevron?: boolean;
 }
 
 export default function DropdownSelect({
@@ -37,6 +39,8 @@ export default function DropdownSelect({
   size = 'md',
   buttonContent,
   forceDirection,
+  onOpen,
+  hideChevron = false,
 }: DropdownSelectProps) {
   const selected = items.find((i) => i.value === value);
   const [isOpen, setIsOpen] = useState(false);
@@ -95,9 +99,10 @@ export default function DropdownSelect({
   }, []);
 
   const sizeBtn = size === 'sm' ? 'btn-sm' : size === 'lg' ? 'btn-lg' : '';
-  const computedMenuClassName =
-    menuClassName ??
-    `dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[999] w-full p-2 ${openDirection === 'up' ? 'mb-1' : 'mt-1'} shadow flex-nowrap`;
+  const directionMargin = openDirection === 'up' ? 'mb-1' : 'mt-1';
+  const computedMenuClassName = menuClassName
+    ? `${menuClassName} ${directionMargin}`
+    : `dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[999] w-full p-2 ${directionMargin} shadow flex-nowrap`;
 
   return (
     <div
@@ -117,6 +122,7 @@ export default function DropdownSelect({
           if (!isOpen) {
             computeMenuFit();
             setIsOpen(true);
+            onOpen?.();
           } else {
             setIsOpen(false);
           }
@@ -129,14 +135,16 @@ export default function DropdownSelect({
             {selected ? selected.label : placeholder}
           </span>
         )}
-        <motion.span
-          aria-hidden
-          className={`inline-flex items-center ${buttonContent !== undefined && buttonContent !== null ? 'ml-2' : ''}`}
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        >
-          <ChevronDown size={20} />
-        </motion.span>
+        {!hideChevron && (
+          <motion.span
+            aria-hidden
+            className={`inline-flex items-center ${buttonContent !== undefined && buttonContent !== null ? 'ml-2' : ''}`}
+            animate={{ rotate: isOpen ? 180 : 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          >
+            <ChevronDown size={20} />
+          </motion.span>
+        )}
       </button>
 
       {/* Menu (DaisyUI v5 structure) */}

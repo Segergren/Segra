@@ -770,7 +770,7 @@ namespace Segra.Backend.Games
         }
 
 #if WINDOWS
-        private static string ResolvePathViaQueryFullProcessImageName(int pid)
+        internal static string ResolvePathViaQueryFullProcessImageName(int pid)
         {
             IntPtr hProcess = IntPtr.Zero;
             try

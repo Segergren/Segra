@@ -173,6 +173,9 @@ namespace Segra.Backend.App
                         case "RestartApp":
                             _ = Task.Run(() => Program.Restart("requested by the user", minimized: false));
                             break;
+                        case "GetRunningApps":
+                            _ = Task.Run(SendRunningApps);
+                            break;
 #endif
                         case "DeleteContent":
                             root.TryGetProperty("Parameters", out JsonElement deleteContentParameterElement);
@@ -719,7 +722,7 @@ namespace Segra.Backend.App
             "recordingMode", "resolution", "frameRate", "rateControl", "bitrate", "minBitrate", "maxBitrate",
             "crfValue", "cqLevel", "encoder", "codec", "stretch4By3", "enableHdr", "replayBufferDuration",
             "replayBufferMaxSize", "inputDevices", "outputDevices", "forceMonoInputSources", "inputNoiseSuppression",
-            "enableSeparateAudioTracks", "audioOutputMode", "gameIntegrations"
+            "enableSeparateAudioTracks", "audioOutputMode", "applicationAudioCaptures", "gameIntegrations"
         ];
 
         // Serialized exactly like the Settings message so the frontend can compare values directly
@@ -802,6 +805,26 @@ namespace Segra.Backend.App
                 await SendFrontendMessage("GameList", new List<object>());
             }
         }
+
+#if WINDOWS
+        private static async Task SendRunningApps()
+        {
+            try
+            {
+                var apps = Windows.Display.WindowUtils.GetRunningApps();
+                // Icons for saved apps, so they still show one when not running
+                var savedIcons = Settings.Instance.ApplicationAudioCaptures
+                    .Where(a => !string.IsNullOrEmpty(a.Path))
+                    .DistinctBy(a => a.Exe, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(a => a.Exe, a => IconUtils.GetExeIconDataUrl(a.Path!), StringComparer.OrdinalIgnoreCase);
+                await SendFrontendMessage("RunningApps", new { apps, savedIcons });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to list running apps");
+            }
+        }
+#endif
 
         private static async Task HandleCreateAiClip(JsonElement message)
         {

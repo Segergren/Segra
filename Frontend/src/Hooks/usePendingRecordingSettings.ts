@@ -21,7 +21,13 @@ export const RECORDING_SETTING_GROUPS = {
     'replayBufferDuration',
     'replayBufferMaxSize',
   ],
-  audio: ['inputDevices', 'outputDevices', 'enableSeparateAudioTracks', 'audioOutputMode'],
+  audio: [
+    'inputDevices',
+    'outputDevices',
+    'enableSeparateAudioTracks',
+    'audioOutputMode',
+    'applicationAudioCaptures',
+  ],
   gameIntegrations: ['gameIntegrations'],
 } satisfies Record<string, (keyof Settings)[]>;
 

@@ -1,6 +1,8 @@
 using Serilog;
 using System.Text;
 using Segra.Backend.Core;
+using Segra.Backend.Games;
+using Segra.Backend.Shared;
 using System.Diagnostics;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
@@ -43,7 +45,12 @@ namespace Segra.Backend.Windows.Display
         [DllImport("user32.dll")]
         private static extern bool IsIconic(IntPtr hWnd);
 
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        private const int DWMWA_CLOAKED = 14;
 
         private const int QUNS_RUNNING_D3D_FULL_SCREEN = 3;
 
@@ -98,6 +105,67 @@ namespace Segra.Backend.Windows.Display
                 Log.Warning($"Failed to check window state for {exeFileName}: {ex.Message}");
             }
             return false;
+        }
+
+        public record RunningApp(string Exe, string Name, string Path, string? Icon);
+
+        /// <summary>
+        /// Apps with a visible top-level window, one per exe, sorted by name. Excludes Segra and Windows components.
+        /// </summary>
+        public static List<RunningApp> GetRunningApps()
+        {
+            var windows = new List<(uint Pid, string Title)>();
+            EnumWindows((hWnd, lParam) =>
+            {
+                if (!IsWindowVisible(hWnd) || GetWindow(hWnd, GW_OWNER) != IntPtr.Zero)
+                    return true;
+
+                int exStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
+                if ((exStyle & (int)WS_EX_TOOLWINDOW) != 0 && (exStyle & (int)WS_EX_APPWINDOW) == 0)
+                    return true;
+
+                // Suspended UWP apps and windows on other virtual desktops are cloaked
+                if (DwmGetWindowAttribute(hWnd, DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 && cloaked != 0)
+                    return true;
+
+                int titleLength = GetWindowTextLength(hWnd);
+                if (titleLength == 0)
+                    return true;
+
+                var title = new StringBuilder(titleLength + 1);
+                GetWindowText(hWnd, title, title.Capacity);
+                GetWindowThreadProcessId(hWnd, out uint pid);
+                windows.Add((pid, title.ToString()));
+                return true;
+            }, IntPtr.Zero);
+
+            string windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            var apps = new Dictionary<string, RunningApp>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (pid, title) in windows)
+            {
+                if (pid == Environment.ProcessId)
+                    continue;
+
+                string path = GameDetectionService.ResolvePathViaQueryFullProcessImageName((int)pid);
+                if (string.IsNullOrEmpty(path) || path.StartsWith(windowsDir + "\\", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string exe = System.IO.Path.GetFileName(path);
+                if (apps.ContainsKey(exe))
+                    continue;
+
+                string? description = null;
+                try
+                {
+                    description = FileVersionInfo.GetVersionInfo(path).FileDescription?.Trim();
+                }
+                catch { }
+
+                string name = !string.IsNullOrEmpty(description) ? description : title;
+                apps[exe] = new RunningApp(exe, name, PathUtils.Normalize(path), IconUtils.GetExeIconDataUrl(path));
+            }
+
+            return apps.Values.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         }
 
         public static bool GetWindowDimensionsByPreRecordingExeOrPid(out uint width, out uint height, CancellationToken cancel)

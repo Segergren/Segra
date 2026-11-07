@@ -87,6 +87,7 @@ namespace Segra.Backend.Recorder
         private static readonly List<AudioInputCapture> _micSources = [];
         private static readonly List<AudioOutputCapture> _desktopSources = [];
         private static readonly List<(string Name, string Window, Source Source)> _voiceChatSources = [];
+        private static readonly List<(string Name, Source Source)> _appAudioSources = [];
 
         // Mixer mask of the shared "Voice Chat" track, so sources created mid-recording land on the same track
         private static uint _voiceChatMixerMask = 1u << 0;
@@ -1647,6 +1648,24 @@ namespace Segra.Backend.Recorder
                 }
             }
 
+#if WINDOWS
+            // Desktop audio already contains these apps, so they are only added on top of game audio
+            if (useGameAudio)
+            {
+                // Skip apps already captured by the game audio or voice chat sources
+                var capturedExes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { _captureWindowSpec!.Split(':')[^1] };
+                if (audioOutputMode == AudioOutputMode.GameAndDiscord)
+                    capturedExes.UnionWith(VoiceChatApps.Select(a => a.Window.Split(':')[^1]));
+
+                foreach (var app in Settings.Instance.ApplicationAudioCaptures
+                    .Where(a => !string.IsNullOrWhiteSpace(a.Exe) && !capturedExes.Contains(a.Exe))
+                    .DistinctBy(a => a.Exe, StringComparer.OrdinalIgnoreCase))
+                {
+                    TryAddApplicationAudioSource(app.Exe, app.Name);
+                }
+            }
+#endif
+
             // Configure mixers and audio encoders based on setting.
             // If enabled: Track 1 = Full Mix, Tracks 2..6 = per-group isolated (up to 5 groups)
             // If disabled: Track 1 only (Full Mix)
@@ -1683,6 +1702,12 @@ namespace Segra.Backend.Recorder
                 }
             }
 
+            foreach (var (_, appSource) in _appAudioSources)
+            {
+                trackGroups.Add([appSource]);
+                trackGroupTypes.Add("output");
+            }
+
             // Build list of device names for encoder naming
             var audioDeviceNames = new List<string>();
             if (Settings.Instance.InputDevices != null)
@@ -1707,9 +1732,12 @@ namespace Segra.Backend.Recorder
                 audioDeviceNames.Add("Game Audio");
                 if (audioOutputMode == AudioOutputMode.GameAndDiscord)
                 {
-                    audioDeviceNames.Add("Voice Chat");
+                    // Named after the voice chat app running at start, if there is just one kind
+                    var voiceApps = _voiceChatSources.Select(v => v.Name.StartsWith("Discord") ? "Discord" : "TeamSpeak").Distinct().ToList();
+                    audioDeviceNames.Add(voiceApps.Count == 1 ? voiceApps[0] : "Voice Chat");
                 }
             }
+            audioDeviceNames.AddRange(_appAudioSources.Select(a => a.Name));
 
             bool separateTracks = Settings.Instance.EnableSeparateAudioTracks;
             int maxTracks = ObsAudioTrackLimit.Value;
@@ -2990,6 +3018,24 @@ namespace Segra.Backend.Recorder
             }
         }
 
+        private static void TryAddApplicationAudioSource(string exe, string? displayName)
+        {
+            string exeName = Path.GetFileNameWithoutExtension(exe);
+            string name = string.IsNullOrWhiteSpace(displayName) ? exeName : displayName;
+            try
+            {
+                var source = new ApplicationAudioCapture($"{exeName} Audio")
+                    .SetWindow($"*:*:{exe}", ApplicationAudioCapture.WindowPriority.Executable);
+                _mainScene!.AddSource(source);
+                _appAudioSources.Add((name, source));
+                Log.Information($"Added application audio capture source for {exe}");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to create application audio capture source for {exe}: {ex.Message}");
+            }
+        }
+
         /// <summary>
         /// Called by GameDetectionService's process watcher. Starts capturing a voice chat app
         /// that launches while a GameAndDiscord-mode recording is active.
@@ -3145,6 +3191,19 @@ namespace Segra.Backend.Recorder
                 }
             }
             _voiceChatSources.Clear();
+
+            foreach (var (appName, appSource) in _appAudioSources)
+            {
+                try
+                {
+                    appSource.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Failed to dispose {appName} audio source: {ex.Message}");
+                }
+            }
+            _appAudioSources.Clear();
         }
 
         public static void DisposeGameCaptureSource()

@@ -299,6 +299,19 @@ export const menuItemHasContent = (id: MenuItemId, content: Content[]): boolean 
   return content.some((c) => types.includes(c.type));
 };
 
+export interface AppAudioCapture {
+  exe: string;
+  name: string;
+  path?: string;
+}
+
+export interface RunningApp {
+  exe: string;
+  name: string;
+  path: string;
+  icon: string | null; // PNG data URL
+}
+
 export interface Settings {
   resolution: '720p' | '1080p' | '1440p' | '4K';
   frameRate: number;
@@ -362,6 +375,7 @@ export interface Settings {
   showVideoNavigation: boolean;
   enableSeparateAudioTracks: boolean; // Advanced: per-source audio tracks
   audioOutputMode: AudioOutputMode;
+  applicationAudioCaptures: AppAudioCapture[]; // Apps captured as separate app audio
   videoQualityPreset: VideoQualityPreset;
   clipQualityPreset: ClipQualityPreset;
   confirmBeforeDeleting: boolean;
@@ -456,6 +470,7 @@ export const initialSettings: Settings = {
   showVideoNavigation: true,
   enableSeparateAudioTracks: false,
   audioOutputMode: 'All',
+  applicationAudioCaptures: [],
   videoQualityPreset: 'high',
   clipQualityPreset: 'standard',
   confirmBeforeDeleting: false,

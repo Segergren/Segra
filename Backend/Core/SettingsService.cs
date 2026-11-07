@@ -431,6 +431,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (!settings.ApplicationAudioCaptures.SequenceEqual(updatedSettings.ApplicationAudioCaptures))
+            {
+                Log.Information($"ApplicationAudioCaptures changed from '[{string.Join(", ", settings.ApplicationAudioCaptures.Select(a => a.Exe))}]' to '[{string.Join(", ", updatedSettings.ApplicationAudioCaptures.Select(a => a.Exe))}]'");
+                settings.ApplicationAudioCaptures = updatedSettings.ApplicationAudioCaptures;
+                hasChanges = true;
+            }
+
             if (settings.VideoQualityPreset != updatedSettings.VideoQualityPreset)
             {
                 Log.Information($"VideoQualityPreset changed from '{settings.VideoQualityPreset}' to '{updatedSettings.VideoQualityPreset}'");

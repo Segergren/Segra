@@ -105,6 +105,7 @@ namespace Segra.Backend.Core.Models
         private bool _showVideoNavigation = true;
         private bool _enableSeparateAudioTracks = false;
         private AudioOutputMode _audioOutputMode = AudioOutputMode.All;
+        private List<AppAudioCapture> _applicationAudioCaptures = new List<AppAudioCapture>();
         private string _videoQualityPreset = "high";
         private string _clipQualityPreset = "standard";
         private bool _confirmBeforeDeleting = false;
@@ -909,6 +910,17 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        // Apps captured as separate application audio sources
+        [JsonPropertyName("applicationAudioCaptures")]
+        public List<AppAudioCapture> ApplicationAudioCaptures
+        {
+            get => _applicationAudioCaptures;
+            set
+            {
+                _applicationAudioCaptures = value ?? new List<AppAudioCapture>();
+            }
+        }
+
         [JsonPropertyName("videoQualityPreset")]
         public string VideoQualityPreset
         {
@@ -1131,6 +1143,19 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("forceMono")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public bool ForceMono { get; set; }
+    }
+
+    public record AppAudioCapture
+    {
+        [JsonPropertyName("exe")]
+        public required string Exe { get; init; }
+
+        [JsonPropertyName("name")]
+        public required string Name { get; init; }
+
+        // Full exe path, used to show the icon when the app is not running
+        [JsonPropertyName("path")]
+        public string? Path { get; init; }
     }
 
     // Equality comparer for DeviceSetting based on Id and Name

@@ -8,16 +8,21 @@ import {
   Gamepad2,
   AudioWaveform,
   Merge,
+  AppWindow,
+  Plus,
 } from 'lucide-react';
 import { DiscordIcon, TeamSpeakIcon } from '../icons/BrandIcons';
 import Button from '../Button';
 import RangeSlider from '../RangeSlider';
+import DropdownSelect from '../DropdownSelect';
 import {
   Settings as SettingsType,
   AudioDevice,
   AudioOutputMode,
   DeviceSetting,
+  RunningApp,
 } from '../../Models/types';
+import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { useAppState } from '../../Context/AppStateContext';
 import {
   usePendingRecordingSettings,
@@ -28,6 +33,15 @@ interface AudioDevicesSectionProps {
   settings: SettingsType;
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
+
+const VOICE_CHAT_EXES = [
+  'discord.exe',
+  'discordcanary.exe',
+  'discordptb.exe',
+  'teamspeak.exe',
+  'ts3client_win64.exe',
+  'ts3client_win32.exe',
+];
 
 export default function AudioDevicesSection({
   settings,
@@ -59,7 +73,55 @@ export default function AudioDevicesSection({
     audioOutputMode === 'GameAndDiscord' ? 2 : audioOutputMode === 'GameOnly' ? 1 : 0;
   const selectedOutputIds = settings.outputDevices.map((d) => d.id);
   const combinedSelectedIds = [...selectedInputIds, ...selectedOutputIds];
-  const totalSourceCount = combinedSelectedIds.length + implicitOutputCount;
+  const showAppAudio = appState.platform !== 'linux' && audioOutputMode !== 'All';
+  const appAudioCaptures = showAppAudio ? settings.applicationAudioCaptures : [];
+  const totalSourceCount =
+    combinedSelectedIds.length + implicitOutputCount + appAudioCaptures.length;
+  const [runningApps, setRunningApps] = useState<RunningApp[] | null>(null);
+  const [savedAppIcons, setSavedAppIcons] = useState<Record<string, string | null>>({});
+  const isSameExe = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  // Game and Voice Chat already records these
+  const isVoiceChatApp = (exe: string) =>
+    settings.audioOutputMode === 'GameAndDiscord' && VOICE_CHAT_EXES.includes(exe.toLowerCase());
+  const availableApps = (runningApps ?? []).filter(
+    (app) => !appAudioCaptures.some((c) => isSameExe(c.exe, app.exe)) && !isVoiceChatApp(app.exe),
+  );
+
+  useEffect(() => {
+    if (appState.platform === 'linux') return;
+    const handleRunningApps = (event: CustomEvent<{ method: string; content: any }>) => {
+      if (event.detail.method !== 'RunningApps') return;
+      const { apps, savedIcons } = event.detail.content as {
+        apps: RunningApp[];
+        savedIcons: Record<string, string | null>;
+      };
+      setRunningApps(apps);
+      setSavedAppIcons(savedIcons);
+    };
+    window.addEventListener('websocket-message', handleRunningApps as EventListener);
+    // Also fetches icons for the saved apps
+    sendMessageToBackend('GetRunningApps');
+    return () =>
+      window.removeEventListener('websocket-message', handleRunningApps as EventListener);
+  }, [appState.platform]);
+
+  const addAppAudioCapture = (exe: string) => {
+    const app = runningApps?.find((a) => a.exe === exe);
+    if (!app || appAudioCaptures.some((c) => isSameExe(c.exe, exe))) return;
+    updateSettings({
+      applicationAudioCaptures: [
+        ...appAudioCaptures,
+        { exe: app.exe, name: app.name, path: app.path },
+      ],
+    });
+  };
+
+  const renderAppIcon = (icon: string | null | undefined, sizeClass = 'h-4 w-4') =>
+    icon ? (
+      <img src={icon} alt="" className={`${sizeClass} shrink-0`} />
+    ) : (
+      <AppWindow className={`${sizeClass} shrink-0 opacity-70`} />
+    );
   const maxIsolatedTracks = Math.max(1, appState.maxAudioTracks - 1);
   const hasOverTrackLimit =
     settings.enableSeparateAudioTracks && totalSourceCount > maxIsolatedTracks;
@@ -413,13 +475,13 @@ export default function AudioDevicesSection({
           {
             value: 'GameOnly' as AudioOutputMode,
             label: 'Game Only',
-            description: "Only the game's own sound. Music and voice chat are left out.",
+            description: "Only the game's own sound.",
             icons: <Gamepad2 className="h-4 w-4" />,
           },
           {
             value: 'GameAndDiscord' as AudioOutputMode,
             label: 'Game and Voice Chat',
-            description: 'The game plus Discord and TeamSpeak. Music and other apps are left out.',
+            description: 'The game plus Discord and TeamSpeak.',
             icons: (
               <span className="flex items-center gap-1.5">
                 <Gamepad2 className="h-4 w-4" />
@@ -447,6 +509,82 @@ export default function AudioDevicesSection({
             <span className="text-sm opacity-70">{option.description}</span>
           </label>
         ))}
+      </div>
+
+      <div className={showAppAudio ? '' : 'hidden'}>
+        <label className="label mt-4">
+          <span className="label-text text-base-content">App Audio</span>
+        </label>
+        <div className="text-sm opacity-70 mb-2">
+          Records these apps together with the game's audio, each on its own track when Separate
+          Audio Tracks is on. Display recordings already include all desktop audio, so apps are not
+          added there.
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {appAudioCaptures.map((app) => (
+            <span
+              key={app.exe}
+              className="flex items-center gap-2 bg-base-200 border border-base-400 rounded-lg pl-2.5 pr-1 h-[calc(var(--size-field)*8)] text-sm"
+            >
+              {renderAppIcon(
+                runningApps?.find((a) => isSameExe(a.exe, app.exe))?.icon ?? savedAppIcons[app.exe],
+                'h-5 w-5',
+              )}
+              {app.name}
+              <Button
+                variant="ghost"
+                size="xs"
+                aria-label={`Remove ${app.name}`}
+                onClick={() =>
+                  updateSettings({
+                    applicationAudioCaptures: appAudioCaptures.filter((c) => c.exe !== app.exe),
+                  })
+                }
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </span>
+          ))}
+          <div className="w-fit">
+            <DropdownSelect
+              size="sm"
+              align="start"
+              value={undefined}
+              onOpen={() => sendMessageToBackend('GetRunningApps')}
+              hideChevron
+              buttonContent={
+                <span className="flex items-center gap-1.5">
+                  <Plus className="h-4 w-4" />
+                  Add App
+                </span>
+              }
+              menuClassName="dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[999] w-80 p-2 shadow flex-nowrap"
+              items={
+                availableApps.length > 0
+                  ? availableApps.map((app) => ({
+                      value: app.exe,
+                      label: (
+                        <span className="flex items-center gap-2 min-w-0">
+                          {renderAppIcon(app.icon)}
+                          <span className="truncate">{app.name}</span>
+                        </span>
+                      ),
+                    }))
+                  : [
+                      {
+                        value: '',
+                        label: (
+                          <span className="opacity-60">
+                            {runningApps ? 'No other apps running' : 'Loading...'}
+                          </span>
+                        ),
+                      },
+                    ]
+              }
+              onChange={addAppAudioCapture}
+            />
+          </div>
+        </div>
       </div>
 
       <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 mt-4">

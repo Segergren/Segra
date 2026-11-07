@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Drawing;
 using System.Drawing.Imaging;
 using Serilog;
@@ -6,6 +7,17 @@ namespace Segra.Backend.Shared
 {
     public static class IconUtils
     {
+        private static readonly ConcurrentDictionary<string, string?> dataUrlCache = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// The executable's icon as a PNG data URL, cached by path. Null if it cannot be read.
+        /// </summary>
+        public static string? GetExeIconDataUrl(string exePath)
+        {
+            return dataUrlCache.GetOrAdd(exePath, path =>
+                ExtractExeIconBase64(path) is string base64 ? $"data:image/png;base64,{base64}" : null);
+        }
+
         /// <summary>
         /// Extracts the executable's icon as a base64-encoded PNG, or null if it cannot be read.
         /// Used to give custom (non-catalog) games an icon in the UI.
