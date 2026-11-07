@@ -164,16 +164,6 @@ function TopInfoBar({ video }: { video: Content }) {
       >
         <ArrowLeft className="w-4 h-4" />
       </Button>
-      {video.id.startsWith('live-') && (
-        <Button
-          variant="ghost"
-          size="xs"
-          className="h-6 min-h-0 px-2"
-          onClick={() => sendMessageToBackend('OpenRecordingSnapshot')}
-        >
-          Refresh to now
-        </Button>
-      )}
       <div className="flex items-center gap-2 overflow-hidden">
         <span className="whitespace-nowrap">
           Created: {createdDateStr}
