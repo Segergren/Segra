@@ -84,8 +84,10 @@ export default function LiveSessionCard({
       </figure>
 
       <div className="card-body gap-1 pt-2 border border-t-0 border-[#49515b] rounded-b-[inherit]">
-        <div className="flex justify-between items-center min-h-8">
+        <div className="flex justify-between items-center">
           <h2 className="card-title !block truncate">{recording.game}</h2>
+          {/* Same size as the menu button on other cards so the rows line up */}
+          <span className="btn btn-ghost btn-sm btn-circle invisible" aria-hidden="true" />
         </div>
         <div className="text-sm text-gray-200">
           Started{' '}
