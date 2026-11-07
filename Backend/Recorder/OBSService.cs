@@ -137,6 +137,7 @@ namespace Segra.Backend.Recorder
         private const int ObsCheckDelayMs = 2000;
 #endif
 
+        private static int _freeingDiskSpace;
         private static bool _isStoppingOrStopped = false;
         private static ObsBoundsType _captureBoundsType = ObsBoundsType.ScaleInner;
         private static uint _currentBaseWidth;
@@ -3851,6 +3852,55 @@ namespace Segra.Backend.Recorder
                 if (freeBytes == null || freeBytes.Value >= GetRecordingFreeSpaceThresholdBytes())
                     return;
 
+                if (Settings.Instance.UnlimitedStorage)
+                {
+                    StopForLowDiskSpace(freeBytes.Value);
+                    return;
+                }
+
+                // A cleanup can outlast the next tick
+                if (Interlocked.CompareExchange(ref _freeingDiskSpace, 1, 0) != 0)
+                    return;
+
+                string? recordingPath = AppState.Instance.Recording?.FilePath;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        long threshold = GetRecordingFreeSpaceThresholdBytes();
+                        // Enough headroom that the next checks don't delete one file at a time
+                        long target = threshold + EstimateRecordingBytesPerSecond() * 600;
+                        if (await StorageService.TryFreeSpaceForRecording(threshold, target, recordingPath))
+                            return;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Failed to free disk space during recording: {ex.Message}");
+                    }
+                    finally
+                    {
+                        Interlocked.Exchange(ref _freeingDiskSpace, 0);
+                    }
+
+                    // The cleanup can outlast the recording it was started for
+                    if (AppState.Instance.Recording?.FilePath != recordingPath)
+                        return;
+
+                    long? currentFree = StorageService.GetContentDriveFreeBytes();
+                    if (currentFree != null && currentFree.Value < GetRecordingFreeSpaceThresholdBytes())
+                        StopForLowDiskSpace(currentFree.Value);
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Disk space monitor check failed: {ex.Message}");
+            }
+        }
+
+        private static void StopForLowDiskSpace(long freeBytes)
+        {
+            try
+            {
                 // Only act once, and not if a failure stop (e.g. OBS output stop) is already being handled.
                 if (Interlocked.CompareExchange(ref _unexpectedStopHandled, 1, 0) != 0)
                     return;
@@ -3862,7 +3912,7 @@ namespace Segra.Backend.Recorder
                 // loop from immediately retrying until the user switches foreground window.
                 GameDetectionService.PreventRetryRecording = true;
 
-                double freeMb = freeBytes.Value / (1024.0 * 1024.0);
+                double freeMb = freeBytes / (1024.0 * 1024.0);
                 long thresholdMb = GetRecordingFreeSpaceThresholdBytes() / (1024 * 1024);
                 Log.Warning($"Recording drive low on space ({freeMb:F0} MB free, threshold {thresholdMb} MB). Stopping recording to finalize the file safely.");
 
