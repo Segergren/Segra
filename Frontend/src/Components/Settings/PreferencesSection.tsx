@@ -22,6 +22,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
       | 'showAudioWaveformInTimeline'
       | 'showBookmarksInFullscreen'
       | 'showVideoNavigation'
+      | 'showLiveSessionCard'
       | 'showNewBadgeOnVideos'
       | 'confirmBeforeDeleting';
     label: React.ReactNode;
@@ -56,6 +57,12 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
           the video player to go to the previous or next video in the list.
         </>
       ),
+    },
+    {
+      key: 'showLiveSessionCard',
+      label: 'Show Session Being Recorded',
+      description:
+        'Shows the session being recorded first in Full Sessions so you can watch and clip it before the recording stops.',
     },
     {
       key: 'showNewBadgeOnVideos',

@@ -1,6 +1,5 @@
 import { useAppState } from '../Context/AppStateContext';
 import ContentCard from './ContentCard';
-import LiveSessionCard from './LiveSessionCard';
 import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { Content, ContentType } from '../Models/types';
 import { useScroll } from '../Context/ScrollContext';
@@ -245,9 +244,6 @@ export default function ContentPage({
   // Re-encoding hours of video takes far too long, so sessions only merge when they can be copied
   const isSessionPage = contentType === 'Session';
   const isMergeDisabled = selectedItems.size < 2 || (isSessionPage && mergeIsFast !== true);
-
-  // The session being recorded, opened through a stream-copied snapshot
-  const liveRecording = isSessionPage && state.recording?.filePath ? state.recording : null;
   const mergeHint =
     selectedItems.size < 2
       ? 'Select at least two to merge'
@@ -606,9 +602,8 @@ export default function ContentPage({
         </div>
       </div>
 
-      {contentItems.length > 0 || hasProgress || liveRecording ? (
+      {contentItems.length > 0 || hasProgress ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 min-[90rem]:grid-cols-4 min-[112.5rem]:grid-cols-5 gap-4">
-          {liveRecording && <LiveSessionCard recording={liveRecording} />}
           {isProgressVisible && progressCardElement}
 
           {filteredItems.map((video) => (

@@ -103,6 +103,7 @@ namespace Segra.Backend.Core.Models
         private bool _showAudioWaveformInTimeline = true;
         private bool _showBookmarksInFullscreen = true;
         private bool _showVideoNavigation = true;
+        private bool _showLiveSessionCard = true;
         private bool _enableSeparateAudioTracks = false;
         private AudioOutputMode _audioOutputMode = AudioOutputMode.All;
         private List<AppAudioCapture> _applicationAudioCaptures = new List<AppAudioCapture>();
@@ -882,6 +883,13 @@ namespace Segra.Backend.Core.Models
         {
             get => _showVideoNavigation;
             set => _showVideoNavigation = value;
+        }
+
+        [JsonPropertyName("showLiveSessionCard")]
+        public bool ShowLiveSessionCard
+        {
+            get => _showLiveSessionCard;
+            set => _showLiveSessionCard = value;
         }
 
         [JsonPropertyName("enableSeparateAudioTracks")]

@@ -391,6 +391,7 @@ export interface Settings {
   showAudioWaveformInTimeline: boolean; // Show audio waveform in video timeline
   showBookmarksInFullscreen: boolean;
   showVideoNavigation: boolean;
+  showLiveSessionCard: boolean;
   enableSeparateAudioTracks: boolean; // Advanced: per-source audio tracks
   audioOutputMode: AudioOutputMode;
   applicationAudioCaptures: AppAudioCapture[]; // Apps captured as separate app audio
@@ -492,6 +493,7 @@ export const initialSettings: Settings = {
   showAudioWaveformInTimeline: true,
   showBookmarksInFullscreen: true,
   showVideoNavigation: true,
+  showLiveSessionCard: true,
   enableSeparateAudioTracks: false,
   audioOutputMode: 'All',
   applicationAudioCaptures: [],

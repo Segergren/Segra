@@ -417,6 +417,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.ShowLiveSessionCard != updatedSettings.ShowLiveSessionCard)
+            {
+                Log.Information($"ShowLiveSessionCard changed from '{settings.ShowLiveSessionCard}' to '{updatedSettings.ShowLiveSessionCard}'");
+                settings.ShowLiveSessionCard = updatedSettings.ShowLiveSessionCard;
+                hasChanges = true;
+            }
+
             if (settings.EnableSeparateAudioTracks != updatedSettings.EnableSeparateAudioTracks)
             {
                 Log.Information($"EnableSeparateAudioTracks changed from '{settings.EnableSeparateAudioTracks}' to '{updatedSettings.EnableSeparateAudioTracks}'");

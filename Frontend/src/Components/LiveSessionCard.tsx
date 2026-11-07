@@ -3,7 +3,13 @@ import { Recording } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 
 // The session being recorded; opening it plays a stream-copied snapshot of the file so far
-export default function LiveSessionCard({ recording }: { recording: Recording }) {
+export default function LiveSessionCard({
+  recording,
+  isFinishing = false,
+}: {
+  recording: Recording;
+  isFinishing?: boolean;
+}) {
   const startMs = new Date(recording.startTime).getTime();
   const [thumbnailTime, setThumbnailTime] = useState<number | null>(null);
   const [thumbnailLoaded, setThumbnailLoaded] = useState(false);
@@ -40,9 +46,9 @@ export default function LiveSessionCard({ recording }: { recording: Recording })
 
   return (
     <div
-      className={`card card-compact bg-base-300 text-gray-300 w-full ${opening ? 'cursor-default' : 'cursor-pointer'}`}
+      className={`card card-compact bg-base-300 text-gray-300 w-full ${opening || isFinishing ? 'cursor-default' : 'cursor-pointer'}`}
       onClick={() => {
-        if (opening) return;
+        if (opening || isFinishing) return;
         setOpening(true);
         sendMessageToBackend('OpenRecordingSnapshot');
       }}
@@ -63,14 +69,16 @@ export default function LiveSessionCard({ recording }: { recording: Recording })
             onError={() => setThumbnailAttempt((a) => a + 1)}
           />
         )}
-        <span className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/75 text-white text-xs px-2 py-1 rounded">
-          <span className="h-2 w-2 rounded-full bg-red-500" />
-          REC
-        </span>
-        {opening && (
+        {!isFinishing && (
+          <span className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/75 text-white text-xs px-2 py-1 rounded">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            REC
+          </span>
+        )}
+        {(opening || isFinishing) && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center gap-2 text-sm text-white">
             <span className="loading loading-spinner loading-xs" />
-            Opening...
+            {isFinishing ? 'Finishing...' : 'Opening...'}
           </div>
         )}
       </figure>
