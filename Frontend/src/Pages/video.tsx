@@ -2731,56 +2731,48 @@ export default function VideoComponent({ video }: { video: Content }) {
                   <RotateCw className="w-5 h-5" />
                 </button>
               </div>
-              {(video.type === 'Clip' || video.type === 'Highlight') && (
-                <>
-                  {!settings.airplaneMode && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="h-10 hover:text-accent"
-                      onClick={handleUpload}
-                      disabled={Object.values(uploads).some(
-                        (upload) =>
-                          upload.fileName === video.fileName + '.mp4' &&
-                          (upload.status === 'uploading' || upload.status === 'processing'),
-                      )}
-                    >
-                      <Upload className="w-5 h-5" />
-                      <span>Upload</span>
-                    </Button>
+              {(video.type === 'Clip' || video.type === 'Highlight') && !settings.airplaneMode && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="h-10 hover:text-accent"
+                  onClick={handleUpload}
+                  disabled={Object.values(uploads).some(
+                    (upload) =>
+                      upload.fileName === video.fileName + '.mp4' &&
+                      (upload.status === 'uploading' || upload.status === 'processing'),
                   )}
-                  {copyButtons}
-                </>
+                >
+                  <Upload className="w-5 h-5" />
+                  <span>Upload</span>
+                </Button>
               )}
-              {(video.type === 'Session' || video.type === 'Buffer') && (
-                <>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="h-10 hover:text-accent"
-                    onClick={handleCreateClip}
-                  >
-                    <Clapperboard className="w-5 h-5" />
-                    <span className="grid justify-items-start">
-                      <span className="col-start-1 row-start-1 invisible" aria-hidden="true">
-                        Create Clips
-                      </span>
-                      <span className="col-start-1 row-start-1">
-                        {clipOutputMode === 'separate' ? 'Create Clips' : 'Create Clip'}
-                      </span>
-                    </span>
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className={`h-10 hover:text-accent ${showNoSegmentsIndicator ? 'segment-hint-flash' : ''}`}
-                    onClick={handleAddSegment}
-                  >
-                    <SquarePlus className="w-5 h-5" />
-                    <span>Add Segment</span>
-                  </Button>
-                </>
-              )}
+              {(video.type === 'Clip' || video.type === 'Highlight') && copyButtons}
+              <Button
+                variant="primary"
+                size="sm"
+                className="h-10 hover:text-accent"
+                onClick={handleCreateClip}
+              >
+                <Clapperboard className="w-5 h-5" />
+                <span className="grid justify-items-start">
+                  <span className="col-start-1 row-start-1 invisible" aria-hidden="true">
+                    Create Clips
+                  </span>
+                  <span className="col-start-1 row-start-1">
+                    {clipOutputMode === 'separate' ? 'Create Clips' : 'Create Clip'}
+                  </span>
+                </span>
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className={`h-10 hover:text-accent ${showNoSegmentsIndicator ? 'segment-hint-flash' : ''}`}
+                onClick={handleAddSegment}
+              >
+                <SquarePlus className="w-5 h-5" />
+                <span>Add Segment</span>
+              </Button>
               {video.type === 'Buffer' && copyButtons}
             </div>
 
@@ -2837,104 +2829,102 @@ export default function VideoComponent({ video }: { video: Content }) {
             </div>
           </div>
         </div>
-        {(video.type === 'Session' || video.type === 'Buffer') && (
-          <div className="flex flex-col h-full border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
-            <div className="flex-1 pt-4 pl-4 pr-0.5 overflow-y-scroll">
-              {segments.map((seg, index) => (
-                <SegmentCard
-                  key={seg.id}
-                  segment={seg}
-                  index={index}
-                  moveCard={moveCard}
-                  formatTime={formatTime}
-                  isHovered={hoveredSegmentId === seg.id}
-                  segmentHover={segmentHover}
-                  removeSegment={removeSegment}
-                  audioTrackNames={video.audioTrackNames}
-                  audioTrackTypes={video.audioTrackTypes}
-                  onAudioMixChange={(id, mix) =>
-                    updateSegment({ ...segments.find((s) => s.id === id)!, ...mix })
-                  }
-                />
-              ))}
-              {clipOutputMode === 'combined' && segments.length > 0 && (
-                <div className="flex items-center justify-center pb-1">
-                  <span
-                    className="text-sm font-medium text-gray-300 opacity-50 tabular-nums"
-                    title="Total length of all segments"
-                  >
-                    {formatTime(totalSegmentsDuration)}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="relative flex items-center gap-2 px-4 pt-2 pb-4">
+        <div className="flex flex-col h-full border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
+          <div className="flex-1 pt-4 pl-4 pr-0.5 overflow-y-scroll">
+            {segments.map((seg, index) => (
+              <SegmentCard
+                key={seg.id}
+                segment={seg}
+                index={index}
+                moveCard={moveCard}
+                formatTime={formatTime}
+                isHovered={hoveredSegmentId === seg.id}
+                segmentHover={segmentHover}
+                removeSegment={removeSegment}
+                audioTrackNames={video.audioTrackNames}
+                audioTrackTypes={video.audioTrackTypes}
+                onAudioMixChange={(id, mix) =>
+                  updateSegment({ ...segments.find((s) => s.id === id)!, ...mix })
+                }
+              />
+            ))}
+            {clipOutputMode === 'combined' && segments.length > 0 && (
+              <div className="flex items-center justify-center pb-1">
+                <span
+                  className="text-sm font-medium text-gray-300 opacity-50 tabular-nums"
+                  title="Total length of all segments"
+                >
+                  {formatTime(totalSegmentsDuration)}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="relative flex items-center gap-2 px-4 pt-2 pb-4">
+            <Button
+              variant="primary"
+              size="sm"
+              className="flex-1 h-10 py-0 hover:text-accent transition-[color,background-color,border-color,opacity] duration-300"
+              onClick={handleClearSegments}
+              disabled={segments.length === 0}
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Clear</span>
+            </Button>
+            <div
+              ref={segmentOptionsRef}
+              className={`dropdown dropdown-top dropdown-end static! ${segmentOptionsOpen ? 'dropdown-open' : ''}`}
+            >
               <Button
                 variant="primary"
                 size="sm"
-                className="flex-1 h-10 py-0 hover:text-accent transition-[color,background-color,border-color,opacity] duration-300"
-                onClick={handleClearSegments}
-                disabled={segments.length === 0}
+                className="h-10 px-2.5 hover:text-accent"
+                aria-label="Segment options"
+                aria-expanded={segmentOptionsOpen}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  if (segmentOptionsOpen) closeSegmentOptions();
+                  else setSegmentOptionsOpen(true);
+                }}
               >
-                <Trash2 className="w-4 h-4" />
-                <span>Clear</span>
+                <Settings className="w-4 h-4" />
               </Button>
-              <div
-                ref={segmentOptionsRef}
-                className={`dropdown dropdown-top dropdown-end static! ${segmentOptionsOpen ? 'dropdown-open' : ''}`}
+              <ul
+                tabIndex={0}
+                className="dropdown-content menu bg-base-300 border border-base-400 rounded-lg z-[100] left-4! p-1.5 mb-2 shadow"
               >
-                <Button
-                  variant="primary"
-                  size="sm"
-                  className="h-10 px-2.5 hover:text-accent"
-                  aria-label="Segment options"
-                  aria-expanded={segmentOptionsOpen}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    if (segmentOptionsOpen) closeSegmentOptions();
-                    else setSegmentOptionsOpen(true);
-                  }}
-                >
-                  <Settings className="w-4 h-4" />
-                </Button>
-                <ul
-                  tabIndex={0}
-                  className="dropdown-content menu bg-base-300 border border-base-400 rounded-lg z-[100] left-4! p-1.5 mb-2 shadow"
-                >
-                  <li>
+                <li>
+                  <label className="flex items-center gap-2 px-2! text-sm text-gray-300 hover:bg-transparent! active:bg-transparent!">
+                    <input
+                      type="checkbox"
+                      name="clipClearSegmentsAfterCreatingClip"
+                      checked={settings.clipClearSegmentsAfterCreatingClip}
+                      onChange={(e) =>
+                        updateSettings({ clipClearSegmentsAfterCreatingClip: e.target.checked })
+                      }
+                      className="checkbox checkbox-sm checkbox-accent"
+                    />
+                    Clear segments after clipping
+                  </label>
+                </li>
+                <li className="menu-title px-2 pt-2 pb-1 text-xs">Clip output</li>
+                {(['combined', 'separate'] as const).map((mode) => (
+                  <li key={mode}>
                     <label className="flex items-center gap-2 px-2! text-sm text-gray-300 hover:bg-transparent! active:bg-transparent!">
                       <input
-                        type="checkbox"
-                        name="clipClearSegmentsAfterCreatingClip"
-                        checked={settings.clipClearSegmentsAfterCreatingClip}
-                        onChange={(e) =>
-                          updateSettings({ clipClearSegmentsAfterCreatingClip: e.target.checked })
-                        }
-                        className="checkbox checkbox-sm checkbox-accent"
+                        type="radio"
+                        name="clipOutputMode"
+                        checked={clipOutputMode === mode}
+                        onChange={() => setClipOutputMode(mode)}
+                        className="radio radio-sm radio-accent"
                       />
-                      Clear segments after clipping
+                      {mode === 'combined' ? 'Combined' : 'Separate'}
                     </label>
                   </li>
-                  <li className="menu-title px-2 pt-2 pb-1 text-xs">Clip output</li>
-                  {(['combined', 'separate'] as const).map((mode) => (
-                    <li key={mode}>
-                      <label className="flex items-center gap-2 px-2! text-sm text-gray-300 hover:bg-transparent! active:bg-transparent!">
-                        <input
-                          type="radio"
-                          name="clipOutputMode"
-                          checked={clipOutputMode === mode}
-                          onChange={() => setClipOutputMode(mode)}
-                          className="radio radio-sm radio-accent"
-                        />
-                        {mode === 'combined' ? 'Combined' : 'Separate'}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                ))}
+              </ul>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </DndProvider>
   );
