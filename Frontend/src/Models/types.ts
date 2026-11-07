@@ -133,6 +133,7 @@ export interface Recording {
   startTime: Date;
   endTime: Date;
   game: string;
+  filePath?: string;
   isUsingGameHook: boolean;
   isUsingWindowCapture: boolean;
   coverImageId?: string;

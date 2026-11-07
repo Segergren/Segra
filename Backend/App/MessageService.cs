@@ -140,6 +140,9 @@ namespace Segra.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement clipParameterElement);
                             _ = Task.Run(() => HandleCreateClip(clipParameterElement));
                             break;
+                        case "OpenRecordingSnapshot":
+                            _ = Task.Run(HandleOpenRecordingSnapshot);
+                            break;
                         case "MergeContent":
                             root.TryGetProperty("Parameters", out JsonElement mergeParameterElement);
                             _ = Task.Run(() => HandleMergeContent(mergeParameterElement));
@@ -862,6 +865,57 @@ namespace Segra.Backend.App
             else
             {
                 Log.Error("Id property not found in CompressVideo message.");
+            }
+        }
+
+        // Stream-copies the in-progress Hybrid MP4 session so it can be watched and clipped while recording
+        private static async Task HandleOpenRecordingSnapshot()
+        {
+            var recording = AppState.Instance.Recording;
+            string? source = recording?.FilePath;
+            if (recording == null || string.IsNullOrEmpty(source) || !File.Exists(source))
+            {
+                await SendFrontendMessage("RecordingSnapshotFailed", new { message = "No session recording is in progress." });
+                return;
+            }
+
+            string dir = PathUtils.Combine(FolderNames.CacheFolder, "live");
+            Directory.CreateDirectory(dir);
+            foreach (var old in Directory.GetFiles(dir, "*.mp4"))
+            {
+                try { File.Delete(old); } catch { }
+            }
+
+            string output = PathUtils.Combine(dir, $"{Path.GetFileNameWithoutExtension(source)}_{DateTime.Now:HHmmss}.mp4");
+            try
+            {
+                var started = DateTime.Now;
+                await FFmpegService.RunSimple(["-y", "-i", source, "-map", "0", "-c", "copy", "-movflags", "+faststart", output]);
+                Log.Information($"Recording snapshot created in {(DateTime.Now - started).TotalMilliseconds:F0} ms");
+
+                var file = new FileInfo(output);
+                var content = new Content
+                {
+                    Id = $"live-{Guid.NewGuid()}",
+                    Type = Content.ContentType.Session,
+                    Title = $"{recording.Game} (recording)",
+                    Game = recording.Game,
+                    Bookmarks = recording.Bookmarks.ToList(),
+                    FileName = Path.GetFileNameWithoutExtension(output),
+                    FilePath = output,
+                    FileSizeKb = file.Length / 1024,
+                    FileSize = $"{file.Length / 1048576.0:F0} MB",
+                    Duration = await FFmpegService.GetVideoDuration(output),
+                    CreatedAt = recording.StartTime,
+                    AudioTrackNames = recording.AudioTrackNames,
+                    AudioTrackTypes = recording.AudioTrackTypes,
+                };
+                await SendFrontendMessage("RecordingSnapshotReady", content);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to create recording snapshot");
+                await SendFrontendMessage("RecordingSnapshotFailed", new { message = "Could not open the recording. Sessions need OBS 31 or newer." });
             }
         }
 
