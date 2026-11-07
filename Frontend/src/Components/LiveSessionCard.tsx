@@ -79,6 +79,11 @@ export default function LiveSessionCard({ recording }: { recording: Recording })
         <div className="flex justify-between items-center min-h-8">
           <h2 className="card-title !block truncate">{recording.game}</h2>
         </div>
+        <div className="text-sm text-gray-200">
+          Started{' '}
+          {new Date(startMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}{' '}
+          &bull; {new Date(startMs).toLocaleDateString()}
+        </div>
       </div>
     </div>
   );
