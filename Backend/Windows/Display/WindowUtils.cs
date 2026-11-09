@@ -4,6 +4,8 @@ using Segra.Backend.Core;
 using Segra.Backend.Games;
 using Segra.Backend.Shared;
 using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
 using System.Runtime.InteropServices;
@@ -26,6 +28,12 @@ namespace Segra.Backend.Windows.Display
 
         [DllImport("user32.dll")]
         private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
+
+        private const uint PW_CLIENTONLY = 0x1;
+        private const uint PW_RENDERFULLCONTENT = 0x2;
 
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -605,6 +613,76 @@ namespace Segra.Backend.Windows.Display
             return false;
         }
 
+        private const int StillWindowMaxChecks = 150;
+        private const int RequiredMotionTicks = 3;
+
+        // Client area pixels (BGRA), or null when the window can't be read or is a single flat color
+        private static byte[]? CaptureWindowPixels(IntPtr windowHandle, int width, int height)
+        {
+            try
+            {
+                using var bitmap = new Bitmap(width, height, PixelFormat.Format32bppRgb);
+                using (var graphics = Graphics.FromImage(bitmap))
+                {
+                    IntPtr hdc = graphics.GetHdc();
+                    bool printed = PrintWindow(windowHandle, hdc, PW_CLIENTONLY | PW_RENDERFULLCONTENT);
+                    graphics.ReleaseHdc(hdc);
+                    if (!printed) return null;
+                }
+
+                var data = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+                byte[] pixels = new byte[data.Stride * height];
+                Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+                bitmap.UnlockBits(data);
+
+                for (int i = 4; i < pixels.Length; i += 4)
+                {
+                    if (pixels[i] != pixels[0] || pixels[i + 1] != pixels[1] || pixels[i + 2] != pixels[2])
+                        return pixels;
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to capture window pixels: {ex.Message}");
+                return null;
+            }
+        }
+
+        // Splits the frame into an 8x8 grid and reports motion only when a quarter of the cells changed,
+        // so a spinner, progress bar or rotating tip on a splash screen still counts as a still image
+        private static bool FramesDiffer(byte[] previous, byte[] current, int width, int height)
+        {
+            const int grid = 8;
+            const int channelTolerance = 16;
+            int cellWidth = width / grid;
+            int cellHeight = height / grid;
+            if (cellWidth == 0 || cellHeight == 0) return true;
+
+            int changedCells = 0;
+            for (int cellY = 0; cellY < grid; cellY++)
+            {
+                for (int cellX = 0; cellX < grid; cellX++)
+                {
+                    int changedPixels = 0;
+                    for (int y = cellY * cellHeight; y < (cellY + 1) * cellHeight; y++)
+                    {
+                        int i = (y * width + cellX * cellWidth) * 4;
+                        for (int x = 0; x < cellWidth; x++, i += 4)
+                        {
+                            if (Math.Abs(current[i] - previous[i]) > channelTolerance
+                                || Math.Abs(current[i + 1] - previous[i + 1]) > channelTolerance
+                                || Math.Abs(current[i + 2] - previous[i + 2]) > channelTolerance)
+                                changedPixels++;
+                        }
+                    }
+                    if (changedPixels > cellWidth * cellHeight / 20)
+                        changedCells++;
+                }
+            }
+            return changedCells >= grid * grid / 4;
+        }
+
         private static bool GetWindowDimensionsByWindowHandle(IntPtr windowHandle, string? executableFileName, int windowHandleAttempts, CancellationToken cancel, out uint width, out uint height)
         {
             width = 0;
@@ -615,6 +693,9 @@ namespace Segra.Backend.Windows.Display
             uint? lastHeight = null;
             int stabilityChecks = 0;
             int requiredStabilityChecks = 0;
+            byte[]? lastFrame = null;
+            int motionTicks = 0;
+            bool stillWaitLogged = false;
 
             // If the owning process has been running for a while, the window is unlikely to still be
             // resizing (loading splashes, intro cinematics, etc) so we can confirm with far fewer
@@ -706,6 +787,11 @@ namespace Segra.Backend.Windows.Display
 
                 // Skip waiting on a standard aspect ratio unless the process just started (splash screen risk).
                 bool isStandardAspectRatio = IsStandardAspectRatio(width, height);
+
+                // A small odd-shaped window that never animates is treated as a splash screen and waited out
+                bool checkForStillImage = !isStandardAspectRatio && !processStartedLongAgo
+                    && width < monitorWidth / 2 && height < monitorHeight / 2;
+
                 if (isStandardAspectRatio && stableWindowDimensionsAttempt == 1 && windowHandleAttempts == 1
                     && (processStartedLongAgo || isFullscreen))
                 {
@@ -722,6 +808,28 @@ namespace Segra.Backend.Windows.Display
                             // Dimensions are stable, increment stability counter
                             stabilityChecks++;
 
+                            // A failed capture counts as motion so the window is accepted as before
+                            bool looksStill = false;
+                            if (checkForStillImage && motionTicks < RequiredMotionTicks)
+                            {
+                                byte[]? frame = CaptureWindowPixels(windowHandle, (int)width, (int)height);
+                                if (frame == null || lastFrame == null || frame.Length != lastFrame.Length)
+                                    motionTicks = RequiredMotionTicks;
+                                else if (FramesDiffer(lastFrame, frame, (int)width, (int)height))
+                                    motionTicks++;
+                                lastFrame = frame;
+                                looksStill = motionTicks < RequiredMotionTicks && stabilityChecks < StillWindowMaxChecks;
+                            }
+
+                            if (stabilityChecks >= requiredStabilityChecks && looksStill)
+                            {
+                                if (!stillWaitLogged)
+                                    Log.Information($"Window at {width}x{height} shows a still image (likely a splash screen), waiting for it to change...");
+                                stillWaitLogged = true;
+                                cancel.WaitHandle.WaitOne(1000);
+                                continue;
+                            }
+
                             if (stabilityChecks >= requiredStabilityChecks)
                             {
                                 Log.Information($"Retrieved stable window dimensions: {width}x{height} after {stabilityChecks} checks");
@@ -737,6 +845,9 @@ namespace Segra.Backend.Windows.Display
                             Log.Information($"Window dimensions changed from {lastWidth}x{lastHeight} to {width}x{height}, resetting stability timer...");
                             lastWidth = width;
                             lastHeight = height;
+                            lastFrame = checkForStillImage ? CaptureWindowPixels(windowHandle, (int)width, (int)height) : null;
+                            motionTicks = 0;
+                            stillWaitLogged = false;
 
                             // Low-res windows (height <= 480) need more checks - they often
                             // briefly match a standard ratio while still loading/resizing
@@ -744,6 +855,7 @@ namespace Segra.Backend.Windows.Display
                             requiredStabilityChecks = (isFullscreen || processStartedLongAgo)
                                 ? 5
                                 : isStandardAspectRatio ? standardRatioChecks : 30;
+                            maxStableWindowDimensionsAttempts = Math.Clamp(stableWindowDimensionsAttempt + (checkForStillImage ? StillWindowMaxChecks : requiredStabilityChecks) + 1, maxStableWindowDimensionsAttempts, 300);
                             stabilityChecks = 0;
 
                             cancel.WaitHandle.WaitOne(1000);
@@ -758,6 +870,7 @@ namespace Segra.Backend.Windows.Display
                         requiredStabilityChecks = (isFullscreen || processStartedLongAgo)
                             ? 5
                             : isStandardAspectRatio ? standardRatioChecks : 30;
+                        maxStableWindowDimensionsAttempts = Math.Clamp(stableWindowDimensionsAttempt + (checkForStillImage ? StillWindowMaxChecks : requiredStabilityChecks) + 1, maxStableWindowDimensionsAttempts, 300);
                         stabilityChecks = 0;
 
                         string aspectRatioNote = isStandardAspectRatio ? "standard aspect ratio" : "non-standard aspect ratio";
@@ -766,6 +879,9 @@ namespace Segra.Backend.Windows.Display
 
                         lastWidth = width;
                         lastHeight = height;
+                        lastFrame = checkForStillImage ? CaptureWindowPixels(windowHandle, (int)width, (int)height) : null;
+                        motionTicks = 0;
+                        stillWaitLogged = false;
                         cancel.WaitHandle.WaitOne(1000);
                     }
                 }
