@@ -931,11 +931,11 @@ namespace Segra.Backend.App
             // OS display scale (e.g. 150% on 4K monitors) and clamp it to the usable screen area
             double displayScale = GetDpiForSystem() / 96.0;
             return new Size(
-                Math.Min((int)(1440 * displayScale), GetSystemMetrics(SM_CXFULLSCREEN)),
-                Math.Min((int)(810 * displayScale), GetSystemMetrics(SM_CYFULLSCREEN)));
+                Math.Min((int)(1360 * displayScale), GetSystemMetrics(SM_CXFULLSCREEN)),
+                Math.Min((int)(765 * displayScale), GetSystemMetrics(SM_CYFULLSCREEN)));
 #else
             // WebKitGTK handles DPI scaling itself; use a sensible default size.
-            return new Size(1440, 810);
+            return new Size(1360, 765);
 #endif
         }
 
