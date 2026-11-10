@@ -2788,7 +2788,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   <button
                     onClick={() => prev && setSelectedVideo(prev)}
                     disabled={!prev}
-                    className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
+                    className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none! disabled:text-gray-300/50"
                     aria-label="Previous video"
                   >
                     <SkipBack className="w-5 h-5" />
@@ -2818,7 +2818,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   <button
                     onClick={() => next && setSelectedVideo(next)}
                     disabled={!next}
-                    className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
+                    className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none! disabled:text-gray-300/50"
                     aria-label="Next video"
                   >
                     <SkipForward className="w-5 h-5" />

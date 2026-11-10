@@ -89,6 +89,14 @@
   }
 }
 
+@layer utilities {
+  /* daisyUI drops a disabled join item's end border and overlap, shrinking it by 1px */
+  .join .join-item:is(:disabled, [disabled], .btn-disabled) {
+    border-inline-end-width: var(--border, 1px);
+    margin-inline-start: var(--join-ml, 0);
+  }
+}
+
 /* Desktop-app cursor: arrow over plain text, inputs keep their own text cursor */
 body {
   cursor: default;
