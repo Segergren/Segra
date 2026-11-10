@@ -2230,312 +2230,319 @@ export default function VideoComponent({ video }: { video: Content }) {
       <div className="flex w-full h-full overflow-hidden bg-base-200" ref={containerRef}>
         <div className="flex flex-col flex-1 w-full h-full p-4 pb-3 overflow-hidden lg:w-3/4">
           <TopInfoBar video={video} />
-          <div
-            className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative flex-1 min-h-0 mb-px overflow-hidden rounded-lg'}`}
-            ref={playerContainerRef}
-            onMouseMove={handlePlayerMouseMove}
-            onMouseDown={settlePointer}
-            onMouseLeave={handlePlayerMouseLeave}
-          >
-            <div className={videoWrapperClassName}>
-              <video
-                autoPlay
-                crossOrigin="anonymous"
-                className="w-full h-full object-contain"
-                src={getVideoPath()}
-                ref={videoRef}
-                onError={(e) =>
-                  setVideoUndecodable(
-                    e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED,
-                  )
-                }
-                onLoadedMetadata={(e) => setVideoUndecodable(e.currentTarget.videoWidth === 0)}
-                onPlay={(e) => videoUndecodable && e.currentTarget.pause()}
-                onClick={onVideoClick}
-                onDoubleClick={toggleFullscreen}
-                onPointerDown={onVideoPointerDown}
-                onPointerMove={onVideoPointerMove}
-                onPointerUp={onVideoPointerUp}
-                onWheel={onVideoWheel}
-                style={{
-                  backgroundColor: 'black',
-                  objectFit: 'contain' as const,
-                  transform: `translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`,
-                  transformOrigin: '0 0',
-                  touchAction: videoScale > 1 ? 'none' : undefined,
-                  cursor: videoScale > 1 ? (isPanning ? 'grabbing' : 'grab') : undefined,
-                }}
-              />
-              {video.webcam && !videoUndecodable && (
-                <WebcamOverlay
-                  videoRef={videoRef}
-                  videoId={video.id}
-                  onDraggingChange={setWebcamDragging}
-                  // One global layout for every video, the same one clips use
-                  layer={{
-                    ...video.webcam,
-                    x: settings.webcamX,
-                    y: settings.webcamY,
-                    size: settings.webcamSize,
-                  }}
-                  transform={`translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`}
-                  scale={videoScale}
-                  onChange={(x, y, size) =>
-                    updateSettings({ webcamX: x, webcamY: y, webcamSize: size })
-                  }
-                />
-              )}
-              {videoUndecodable && (
-                <HevcExtensionWarning variant="player" className="absolute inset-0 z-10 p-4" />
-              )}
-            </div>
-
+          <div className="flex justify-center w-full mb-px aspect-video shrink min-h-0">
             <div
-              className={`absolute inset-x-0 bottom-0 isolate flex flex-col px-3 pb-2 select-none transition-opacity duration-200 ${controlsVisible && !webcamDragging ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-              onMouseEnter={handleControlsMouseEnter}
-              onMouseLeave={handleControlsMouseLeave}
+              className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative h-full max-w-full aspect-video overflow-hidden rounded-lg'}`}
+              ref={playerContainerRef}
+              onMouseMove={handlePlayerMouseMove}
+              onMouseDown={settlePointer}
+              onMouseLeave={handlePlayerMouseLeave}
             >
-              <div
-                className={`absolute inset-x-0 bottom-0 h-28 -z-10 pointer-events-none bg-linear-to-t from-black/80 via-black/35 to-transparent ${isFullscreen ? '' : 'rounded-b-lg'}`}
-              />
-              <div className="relative">
-                <input
-                  type="range"
-                  min={0}
-                  max={Math.max(0.01, duration)}
-                  step={0.01}
-                  value={Math.min(currentTime, duration)}
-                  onChange={(e) => {
-                    const t = parseFloat(e.target.value);
-                    setCurrentTime(t);
-                    if (videoRef.current) videoRef.current.currentTime = t;
-                  }}
-                  onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                  onMouseUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                  onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                  className="player-seek relative z-10 w-full h-4 bg-center bg-no-repeat bg-[length:100%_3px] hover:bg-[length:100%_5px] transition-[background-size] duration-150 cursor-pointer"
+              <div className={videoWrapperClassName}>
+                <video
+                  autoPlay
+                  crossOrigin="anonymous"
+                  className="w-full h-full object-contain"
+                  src={getVideoPath()}
+                  ref={videoRef}
+                  onError={(e) =>
+                    setVideoUndecodable(
+                      e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED,
+                    )
+                  }
+                  onLoadedMetadata={(e) => setVideoUndecodable(e.currentTarget.videoWidth === 0)}
+                  onPlay={(e) => videoUndecodable && e.currentTarget.pause()}
+                  onClick={onVideoClick}
+                  onDoubleClick={toggleFullscreen}
+                  onPointerDown={onVideoPointerDown}
+                  onPointerMove={onVideoPointerMove}
+                  onPointerUp={onVideoPointerUp}
+                  onWheel={onVideoWheel}
                   style={{
-                    backgroundImage: `linear-gradient(to right, var(--color-accent) calc(6px + ${Math.min(currentTime, duration) / Math.max(0.01, duration)} * (100% - 12px)), rgb(255 255 255 / 0.3) 0)`,
+                    backgroundColor: 'black',
+                    objectFit: 'contain' as const,
+                    transform: `translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`,
+                    transformOrigin: '0 0',
+                    touchAction: videoScale > 1 ? 'none' : undefined,
+                    cursor: videoScale > 1 ? (isPanning ? 'grabbing' : 'grab') : undefined,
                   }}
                 />
-                <AnimatePresence initial={false}>
-                  {seekBarBookmarks.map(({ bookmark, fraction }) => (
-                    <motion.div
-                      key={bookmark.id}
-                      initial={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.5 }}
-                      transition={{ duration: 0.1 }}
-                      className="absolute bottom-[calc(50%+2px)] flex flex-col items-center -translate-x-1/2 pointer-events-none will-change-transform"
-                      style={{ left: `calc(6px + ${fraction} * (100% - 12px))` }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => seekToBookmark(bookmark)}
-                        className="flex items-center justify-center w-[22px] h-[22px] rounded-full bg-[#EFAF2B] text-[#25272e] cursor-pointer pointer-events-auto"
-                        aria-label={`${bookmark.type} at ${bookmark.time}`}
-                      >
-                        {React.createElement(getIconMapping(video.igdbId)[bookmark.type] || Skull, {
-                          size: 16,
-                          strokeWidth: 2.5,
-                        })}
-                      </button>
-                      <div className="w-[2px] h-[9px] bg-[#EFAF2B]" />
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                {video.webcam && !videoUndecodable && (
+                  <WebcamOverlay
+                    videoRef={videoRef}
+                    videoId={video.id}
+                    onDraggingChange={setWebcamDragging}
+                    // One global layout for every video, the same one clips use
+                    layer={{
+                      ...video.webcam,
+                      x: settings.webcamX,
+                      y: settings.webcamY,
+                      size: settings.webcamSize,
+                    }}
+                    transform={`translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`}
+                    scale={videoScale}
+                    onChange={(x, y, size) =>
+                      updateSettings({ webcamX: x, webcamY: y, webcamSize: size })
+                    }
+                  />
+                )}
+                {videoUndecodable && (
+                  <HevcExtensionWarning variant="player" className="absolute inset-0 z-10 p-4" />
+                )}
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={handlePlayPause}
-                    className={PLAYER_BUTTON_CLASS}
-                    aria-label={isPlaying ? 'Pause' : 'Play'}
-                  >
-                    {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                  </button>
+              <div
+                className={`absolute inset-x-0 bottom-0 isolate flex flex-col px-3 pb-2 select-none transition-opacity duration-200 ${controlsVisible && !webcamDragging ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onMouseEnter={handleControlsMouseEnter}
+                onMouseLeave={handleControlsMouseLeave}
+              >
+                <div
+                  className={`absolute inset-x-0 bottom-0 h-28 -z-10 pointer-events-none bg-linear-to-t from-black/80 via-black/35 to-transparent ${isFullscreen ? '' : 'rounded-b-lg'}`}
+                />
+                <div className="relative">
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(0.01, duration)}
+                    step={0.01}
+                    value={Math.min(currentTime, duration)}
+                    onChange={(e) => {
+                      const t = parseFloat(e.target.value);
+                      setCurrentTime(t);
+                      if (videoRef.current) videoRef.current.currentTime = t;
+                    }}
+                    onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                    onMouseUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                    onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                    className="player-seek relative z-10 w-full h-4 bg-center bg-no-repeat bg-[length:100%_3px] hover:bg-[length:100%_5px] transition-[background-size] duration-150 cursor-pointer"
+                    style={{
+                      backgroundImage: `linear-gradient(to right, var(--color-accent) calc(6px + ${Math.min(currentTime, duration) / Math.max(0.01, duration)} * (100% - 12px)), rgb(255 255 255 / 0.3) 0)`,
+                    }}
+                  />
+                  <AnimatePresence initial={false}>
+                    {seekBarBookmarks.map(({ bookmark, fraction }) => (
+                      <motion.div
+                        key={bookmark.id}
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        transition={{ duration: 0.1 }}
+                        className="absolute bottom-[calc(50%+2px)] flex flex-col items-center -translate-x-1/2 pointer-events-none will-change-transform"
+                        style={{ left: `calc(6px + ${fraction} * (100% - 12px))` }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => seekToBookmark(bookmark)}
+                          className="flex items-center justify-center w-[22px] h-[22px] rounded-full bg-[#EFAF2B] text-[#25272e] cursor-pointer pointer-events-auto"
+                          aria-label={`${bookmark.type} at ${bookmark.time}`}
+                        >
+                          {React.createElement(
+                            getIconMapping(video.igdbId)[bookmark.type] || Skull,
+                            {
+                              size: 16,
+                              strokeWidth: 2.5,
+                            },
+                          )}
+                        </button>
+                        <div className="w-[2px] h-[9px] bg-[#EFAF2B]" />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
 
-                  <div className="flex items-center group">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
                     <button
-                      onClick={toggleMute}
+                      onClick={handlePlayPause}
                       className={PLAYER_BUTTON_CLASS}
-                      aria-label={isMuted ? 'Unmute' : 'Mute'}
+                      aria-label={isPlaying ? 'Pause' : 'Play'}
+                    >
+                      {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                    </button>
+
+                    <div className="flex items-center group">
+                      <button
+                        onClick={toggleMute}
+                        className={PLAYER_BUTTON_CLASS}
+                        aria-label={isMuted ? 'Unmute' : 'Mute'}
+                      >
+                        <MorphIcon
+                          icon={
+                            isMuted || volume === 0 ? VolumeX : volume < 0.3 ? Volume1 : Volume2
+                          }
+                          size={20}
+                          spring="snappy"
+                        />
+                      </button>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.02"
+                        value={volume}
+                        onChange={handleVolumeChange}
+                        onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                        onMouseUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                        onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                        className="w-0 ml-0 opacity-0 group-hover:w-20 group-hover:ml-2 group-hover:opacity-100 group-focus-within:w-20 group-focus-within:ml-2 group-focus-within:opacity-100 h-1 rounded-lg appearance-none cursor-pointer transition-all duration-200 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0"
+                        style={{
+                          backgroundImage: `linear-gradient(to right, var(--color-accent) ${(isMuted ? 0 : volume) * 100}%, #4b5563 ${(isMuted ? 0 : volume) * 100}%)`,
+                        }}
+                      />
+                    </div>
+
+                    <span className="ml-2 text-xs tabular-nums text-white/90">
+                      {formatTime(currentTime)} / {formatTime(duration)}
+                    </span>
+                  </div>
+
+                  <div className="relative flex items-center gap-1">
+                    {isFullscreen &&
+                      settings.showBookmarksInFullscreen &&
+                      availableBookmarkTypes.length > 0 && (
+                        <div className="flex items-center pr-1 mr-1 border-r border-white/15">
+                          {availableBookmarkTypes.map((type) => {
+                            const isShown = selectedBookmarkTypes.has(type);
+                            return (
+                              <button
+                                key={type}
+                                onClick={() => toggleBookmarkType(type)}
+                                className={`flex items-center justify-center p-1.5 rounded-full cursor-pointer transition-colors hover:bg-white/15 ${isShown ? 'text-accent' : 'text-white/40 hover:text-white/70'}`}
+                                aria-label={`${type} bookmarks`}
+                                aria-pressed={isShown}
+                              >
+                                {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
+                                  className: 'w-5 h-5',
+                                })}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    {video.webcam && (
+                      <WebcamToggle
+                        videoId={video.id}
+                        savedHidden={video.webcam.hidden}
+                        className={PLAYER_BUTTON_CLASS}
+                      />
+                    )}
+                    {audioTracks.isMultiTrack && (
+                      <div ref={audioTracksDropdownRef}>
+                        <button
+                          onClick={() => setShowAudioTracks(!showAudioTracks)}
+                          className={`${PLAYER_BUTTON_CLASS} ${showAudioTracks ? 'text-white bg-white/15' : ''}`}
+                          aria-label="Audio tracks"
+                        >
+                          <Headphones className="w-5 h-5" />
+                        </button>
+                        <div
+                          className={`absolute bottom-full right-0 mb-7 z-50 transition-all duration-200 origin-bottom-right ${AUDIO_TRACK_MENU_CLASS} ${showAudioTracks ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
+                        >
+                          <AudioTrackMixer
+                            tracks={audioTracks.tracks.map((track) => ({
+                              ...track,
+                              type: video.audioTrackTypes?.[track.index],
+                            }))}
+                            mutedTracks={audioTracks.mutedTracks}
+                            volumes={audioTracks.volumes}
+                            onToggleMute={audioTracks.toggleTrackMute}
+                            onVolumeChange={(index, volume, unmute) => {
+                              audioTracks.setTrackVolume(index, volume);
+                              if (unmute) audioTracks.toggleTrackMute(index);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        const current = videoScaleRef.current || 1;
+                        applyVideoScale(current - 0.5);
+                      }}
+                      disabled={videoScale <= 1}
+                      className={PLAYER_BUTTON_CLASS}
+                      aria-label="Zoom out"
+                    >
+                      <ZoomOut className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        const current = videoScaleRef.current || 1;
+                        applyVideoScale(current + 0.5);
+                      }}
+                      disabled={videoScale >= 4}
+                      className={PLAYER_BUTTON_CLASS}
+                      aria-label="Zoom in"
+                    >
+                      <ZoomIn className="w-5 h-5" />
+                    </button>
+                    <div className="relative" ref={speedDropdownRef}>
+                      <button
+                        ref={speedButtonRef}
+                        type="button"
+                        className="flex items-center justify-center w-8 h-8 text-[13px] font-semibold tracking-tight whitespace-nowrap rounded-full text-white/90 cursor-pointer transition-colors hover:text-white hover:bg-white/15"
+                        aria-label="Change playback speed"
+                        aria-haspopup="menu"
+                        aria-expanded={showSpeedMenu}
+                        onClick={() => {
+                          if (showSpeedMenu) {
+                            setShowSpeedMenu(false);
+                            speedButtonRef.current?.blur();
+                          } else {
+                            setShowSpeedMenu(true);
+                          }
+                        }}
+                      >
+                        <span>{formatPlaybackRateLabel(playbackRate)}</span>
+                      </button>
+                      <div
+                        className={`absolute right-0 bottom-full z-50 mb-2 p-1.5 rounded-xl border border-white/10 bg-black/80 backdrop-blur-md shadow-xl transition-all duration-200 ${showSpeedMenu ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
+                      >
+                        <div className="flex flex-col">
+                          {PLAYBACK_SPEEDS.map((speed) => {
+                            const isActive = speed === playbackRate;
+                            return (
+                              <button
+                                key={speed}
+                                role="menuitemradio"
+                                aria-checked={isActive}
+                                onClick={() => {
+                                  setPlaybackRateForPlayer(speed);
+                                  setShowSpeedMenu(false);
+                                  speedButtonRef.current?.blur();
+                                }}
+                                className={`flex w-full items-center justify-center px-4 py-1 rounded-lg cursor-pointer text-sm transition-colors ${isActive ? 'text-white font-semibold bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+                              >
+                                <span>{formatPlaybackRateLabel(speed)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={toggleFullscreen}
+                      onPointerUp={(e) => e.currentTarget.blur()}
+                      onMouseUp={(e) => e.currentTarget.blur()}
+                      onTouchEnd={(e) => e.currentTarget.blur()}
+                      className={PLAYER_BUTTON_CLASS}
+                      aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
                     >
                       <MorphIcon
-                        icon={isMuted || volume === 0 ? VolumeX : volume < 0.3 ? Volume1 : Volume2}
+                        icon={isFullscreen ? Minimize : Maximize}
                         size={20}
                         spring="snappy"
                       />
                     </button>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.02"
-                      value={volume}
-                      onChange={handleVolumeChange}
-                      onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                      onMouseUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                      onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                      className="w-0 ml-0 opacity-0 group-hover:w-20 group-hover:ml-2 group-hover:opacity-100 group-focus-within:w-20 group-focus-within:ml-2 group-focus-within:opacity-100 h-1 rounded-lg appearance-none cursor-pointer transition-all duration-200 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0"
-                      style={{
-                        backgroundImage: `linear-gradient(to right, var(--color-accent) ${(isMuted ? 0 : volume) * 100}%, #4b5563 ${(isMuted ? 0 : volume) * 100}%)`,
-                      }}
-                    />
                   </div>
-
-                  <span className="ml-2 text-xs tabular-nums text-white/90">
-                    {formatTime(currentTime)} / {formatTime(duration)}
-                  </span>
-                </div>
-
-                <div className="relative flex items-center gap-1">
-                  {isFullscreen &&
-                    settings.showBookmarksInFullscreen &&
-                    availableBookmarkTypes.length > 0 && (
-                      <div className="flex items-center pr-1 mr-1 border-r border-white/15">
-                        {availableBookmarkTypes.map((type) => {
-                          const isShown = selectedBookmarkTypes.has(type);
-                          return (
-                            <button
-                              key={type}
-                              onClick={() => toggleBookmarkType(type)}
-                              className={`flex items-center justify-center p-1.5 rounded-full cursor-pointer transition-colors hover:bg-white/15 ${isShown ? 'text-accent' : 'text-white/40 hover:text-white/70'}`}
-                              aria-label={`${type} bookmarks`}
-                              aria-pressed={isShown}
-                            >
-                              {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
-                                className: 'w-5 h-5',
-                              })}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  {video.webcam && (
-                    <WebcamToggle
-                      videoId={video.id}
-                      savedHidden={video.webcam.hidden}
-                      className={PLAYER_BUTTON_CLASS}
-                    />
-                  )}
-                  {audioTracks.isMultiTrack && (
-                    <div ref={audioTracksDropdownRef}>
-                      <button
-                        onClick={() => setShowAudioTracks(!showAudioTracks)}
-                        className={`${PLAYER_BUTTON_CLASS} ${showAudioTracks ? 'text-white bg-white/15' : ''}`}
-                        aria-label="Audio tracks"
-                      >
-                        <Headphones className="w-5 h-5" />
-                      </button>
-                      <div
-                        className={`absolute bottom-full right-0 mb-7 z-50 transition-all duration-200 origin-bottom-right ${AUDIO_TRACK_MENU_CLASS} ${showAudioTracks ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
-                      >
-                        <AudioTrackMixer
-                          tracks={audioTracks.tracks.map((track) => ({
-                            ...track,
-                            type: video.audioTrackTypes?.[track.index],
-                          }))}
-                          mutedTracks={audioTracks.mutedTracks}
-                          volumes={audioTracks.volumes}
-                          onToggleMute={audioTracks.toggleTrackMute}
-                          onVolumeChange={(index, volume, unmute) => {
-                            audioTracks.setTrackVolume(index, volume);
-                            if (unmute) audioTracks.toggleTrackMute(index);
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      const current = videoScaleRef.current || 1;
-                      applyVideoScale(current - 0.5);
-                    }}
-                    disabled={videoScale <= 1}
-                    className={PLAYER_BUTTON_CLASS}
-                    aria-label="Zoom out"
-                  >
-                    <ZoomOut className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      const current = videoScaleRef.current || 1;
-                      applyVideoScale(current + 0.5);
-                    }}
-                    disabled={videoScale >= 4}
-                    className={PLAYER_BUTTON_CLASS}
-                    aria-label="Zoom in"
-                  >
-                    <ZoomIn className="w-5 h-5" />
-                  </button>
-                  <div className="relative" ref={speedDropdownRef}>
-                    <button
-                      ref={speedButtonRef}
-                      type="button"
-                      className="flex items-center justify-center w-8 h-8 text-[13px] font-semibold tracking-tight whitespace-nowrap rounded-full text-white/90 cursor-pointer transition-colors hover:text-white hover:bg-white/15"
-                      aria-label="Change playback speed"
-                      aria-haspopup="menu"
-                      aria-expanded={showSpeedMenu}
-                      onClick={() => {
-                        if (showSpeedMenu) {
-                          setShowSpeedMenu(false);
-                          speedButtonRef.current?.blur();
-                        } else {
-                          setShowSpeedMenu(true);
-                        }
-                      }}
-                    >
-                      <span>{formatPlaybackRateLabel(playbackRate)}</span>
-                    </button>
-                    <div
-                      className={`absolute right-0 bottom-full z-50 mb-2 p-1.5 rounded-xl border border-white/10 bg-black/80 backdrop-blur-md shadow-xl transition-all duration-200 ${showSpeedMenu ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
-                    >
-                      <div className="flex flex-col">
-                        {PLAYBACK_SPEEDS.map((speed) => {
-                          const isActive = speed === playbackRate;
-                          return (
-                            <button
-                              key={speed}
-                              role="menuitemradio"
-                              aria-checked={isActive}
-                              onClick={() => {
-                                setPlaybackRateForPlayer(speed);
-                                setShowSpeedMenu(false);
-                                speedButtonRef.current?.blur();
-                              }}
-                              className={`flex w-full items-center justify-center px-4 py-1 rounded-lg cursor-pointer text-sm transition-colors ${isActive ? 'text-white font-semibold bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
-                            >
-                              <span>{formatPlaybackRateLabel(speed)}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={toggleFullscreen}
-                    onPointerUp={(e) => e.currentTarget.blur()}
-                    onMouseUp={(e) => e.currentTarget.blur()}
-                    onTouchEnd={(e) => e.currentTarget.blur()}
-                    className={PLAYER_BUTTON_CLASS}
-                    aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-                  >
-                    <MorphIcon
-                      icon={isFullscreen ? Minimize : Maximize}
-                      size={20}
-                      spring="snappy"
-                    />
-                  </button>
                 </div>
               </div>
             </div>
           </div>
           <div
-            className="relative w-full mt-1 overflow-x-scroll overflow-y-hidden select-none shrink-0 timeline-wrapper"
+            className="relative w-full mt-auto pt-1 overflow-x-scroll overflow-y-hidden select-none shrink-0 timeline-wrapper"
             ref={scrollContainerRef}
             onMouseMove={(e) => {
               handleSegmentDrag(e);
@@ -2883,7 +2890,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                         <button
                           key={type}
                           onClick={() => toggleBookmarkType(type)}
-                          className={`btn btn-sm btn-secondary border-none transition-colors join-item px-2 ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
+                          className={`btn btn-sm h-full btn-secondary border-none transition-colors join-item px-2 ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
                         >
                           {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
                             className: 'w-5 h-5',
@@ -2908,7 +2915,7 @@ export default function VideoComponent({ video }: { video: Content }) {
               <div className="flex items-center h-10 gap-1 px-0 border rounded-lg bg-base-300 border-base-400">
                 <button
                   onClick={() => handleZoomChange(false)}
-                  className="btn btn-sm btn-secondary disabled:opacity-100 disabled:bg-base-300"
+                  className="btn btn-sm h-full btn-secondary disabled:opacity-100 disabled:bg-base-300"
                   disabled={zoom <= 1}
                 >
                   <Minus className="w-4 h-4" />
@@ -2918,7 +2925,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 </span>
                 <button
                   onClick={() => handleZoomChange(true)}
-                  className="btn btn-sm btn-secondary"
+                  className="btn btn-sm h-full btn-secondary"
                   disabled={zoom >= 1000}
                 >
                   <Plus className="w-4 h-4" />
