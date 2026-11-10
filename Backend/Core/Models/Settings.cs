@@ -590,7 +590,7 @@ namespace Segra.Backend.Core.Models
         }
 
         // When false, Segra won't automatically start recording when a game launches.
-        // Explicit per-game entries (Record == true) still record, and manual recording still works.
+        // Per-game entries with Record == true still record, and manual recording still works.
         [JsonPropertyName("autoRecordGames")]
         public bool AutoRecordGames
         {
@@ -1566,7 +1566,8 @@ namespace Segra.Backend.Core.Models
     }
 
     // A single entry in the unified per-game settings list. Replaces the old whitelist/blacklist:
-    // Record == true means "always record this game" (old whitelist), false means "never record" (old blacklist).
+    // Record == true means "always record this game" (old whitelist), false means "never record" (old blacklist),
+    // null follows AutoRecordGames (played games are added this way).
     // Each override is null when the game inherits the corresponding global setting.
     public class GameSetting
     {
@@ -1591,7 +1592,7 @@ namespace Segra.Backend.Core.Models
         public string? CustomIcon { get; set; }
 
         [JsonPropertyName("record")]
-        public bool Record { get; set; } = true;
+        public bool? Record { get; set; } = true;
 
         [JsonPropertyName("qualityOverride")]
         public GameQualityOverride? QualityOverride { get; set; }

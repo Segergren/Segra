@@ -1,5 +1,6 @@
 using Segra.Backend.Core;
 using Segra.Backend.Core.Models;
+using Segra.Backend.Shared;
 
 namespace Segra.Backend.Games
 {
@@ -57,6 +58,51 @@ namespace Segra.Backend.Games
             return pathless.FirstOrDefault(game => game.IgdbId.HasValue
                 ? game.IgdbId == entry.Igdb?.Id
                 : string.Equals(game.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Adds a played game to the per-game list with Record = null (follows auto-record) and no overrides,
+        /// unless it already has an entry. Returns true when an entry was added. Does not save.
+        /// </summary>
+        private static readonly object _addLock = new();
+
+        public static bool AddPlayedGame(string name, string? exePath, int? igdbId)
+        {
+            if (string.IsNullOrWhiteSpace(name) || name == "Manual Recording") return false;
+            if (exePath == "Unknown") exePath = null;
+
+            lock (_addLock)
+                return AddPlayedGameLocked(name, exePath, igdbId);
+        }
+
+        private static bool AddPlayedGameLocked(string name, string? exePath, int? igdbId)
+        {
+            var games = Settings.Instance.Games;
+            if (exePath != null && FindForExePath(exePath) != null) return false;
+
+            var exeEntry = exePath != null ? GameUtils.ResolveEntryFromExePath(exePath) : null;
+            var entry = exeEntry ?? GameUtils.FindEntry(igdbId, name);
+            igdbId = entry?.Igdb?.Id ?? igdbId;
+            name = entry?.Name ?? name;
+
+            if (games.Any(g => (igdbId != null && g.IgdbId == igdbId) || string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase)))
+                return false;
+
+            // Catalog games are matched through the catalog, so only an exe it doesn't recognize is stored
+            List<string> paths = exePath != null && exeEntry == null ? [exePath] : [];
+            if (paths.Count == 0 && entry == null && igdbId == null) return false;
+
+            // A new list, since detection and the catalog sync may be reading the old one
+            Settings.Instance.Games = [.. games, new GameSetting
+            {
+                Name = name,
+                Paths = paths,
+                IgdbId = igdbId,
+                Icon = entry?.Icon,
+                CustomIcon = entry == null && exePath != null ? IconUtils.ExtractExeIconBase64(exePath) : null,
+                Record = null
+            }];
+            return true;
         }
 
         /// <summary>

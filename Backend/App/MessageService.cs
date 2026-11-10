@@ -269,6 +269,14 @@ namespace Segra.Backend.App
                         case "SelectGameExecutable":
                             await HandleSelectGameExecutable();
                             break;
+                        case "SelectRunningGameExecutable":
+                            if (root.TryGetProperty("Parameters", out JsonElement runningExeParams) &&
+                                runningExeParams.TryGetProperty("Path", out JsonElement runningExePath) &&
+                                runningExePath.ValueKind == JsonValueKind.String)
+                            {
+                                await HandleSelectGameExecutable(runningExePath.GetString());
+                            }
+                            break;
                         case "StartRecording":
                             if (AppState.Instance.Recording != null || AppState.Instance.PreRecording != null)
                             {
@@ -1148,11 +1156,12 @@ namespace Segra.Backend.App
             }
         }
 
-        private static async Task HandleSelectGameExecutable()
+        // Without a path the file picker is shown; with one (a running app) it is used as the pick
+        private static async Task HandleSelectGameExecutable(string? path = null)
         {
             try
             {
-                string? pickedFile = await PlatformServices.Dialogs.PickFileAsync("Select Game Executable", "Executable Files (*.exe)", "exe");
+                string? pickedFile = path ?? await PlatformServices.Dialogs.PickFileAsync("Select Game Executable", "Executable Files (*.exe)", "exe");
 
                 if (pickedFile != null)
                 {

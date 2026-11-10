@@ -4,6 +4,7 @@ using Segra.Backend.Core;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
 using Segra.Backend.Core.Models;
+using Segra.Backend.Games;
 using Segra.Backend.Windows.Storage;
 
 namespace Segra.Backend.App;
@@ -232,8 +233,43 @@ internal static class MigrationService
             new("0018_embed_metadata_in_videos", Apply_0018_EmbedMetadataInVideos),
             new("0019_index_first_in_clips", Apply_0019_IndexFirstInClips),
             new("0020_remove_legacy_nvenc_presets", Apply_0020_RemoveLegacyNvencPresets),
-            new("0021_non_deprecated_nvenc_ids", Apply_0021_NonDeprecatedNvencIds)
+            new("0021_non_deprecated_nvenc_ids", Apply_0021_NonDeprecatedNvencIds),
+            new("0022_backfill_played_games", Apply_0022_BackfillPlayedGames)
         ];
+    }
+
+    // Migration 0022: Every game in the library gets a per-game entry that follows auto-record.
+    private static void Apply_0022_BackfillPlayedGames()
+    {
+        try
+        {
+            // Without the catalog every game would be stored by exe path
+            try
+            {
+                GameUtils.InitializeAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Game catalog unavailable, backfilling played games without it");
+            }
+
+            int added = 0;
+            ForEachVideo("0022", _ => true, c =>
+            {
+                if (GameSettingsService.AddPlayedGame(c.Game, c.GameExePath, c.IgdbId)) added++;
+            });
+
+            if (added == 0) return;
+
+            SettingsService.SaveSettings();
+            GameUtils.ReconcileGameSettingsWithCatalog();
+            _ = MessageService.SendSettingsToFrontend("Backfilled played games");
+            Log.Information("Added {Count} played games to the per-game settings", added);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to backfill played games");
+        }
     }
 
     // Migration 0021: The jim_* NVENC ids are deprecated aliases of the obs_nvenc_*_tex encoders, which Segra now uses.
@@ -627,7 +663,7 @@ internal static class MigrationService
                         existing.Paths.Add(path);
                 }
                 // Whitelist (record == true) wins over blacklist when the same name is in both.
-                existing.Record = existing.Record || record;
+                existing.Record = existing.Record == true || record;
                 existing.CustomIcon ??= ExtractCustomIcon(paths);
             }
             else

@@ -582,12 +582,11 @@ namespace Segra.Backend.Games
             if (string.IsNullOrEmpty(exePath) || AppState.Instance.Recording != null || AppState.Instance.PreRecording != null) return false;
 
             // 1. Check the unified per-game settings list (replaces whitelist/blacklist).
-            // An explicit per-game entry always wins over auto-detection: Record == true forces recording,
-            // Record == false prevents it.
+            // Record == true forces recording, Record == false prevents it, null falls through to auto-record.
             var gameSetting = GameSettingsService.FindForExePath(exePath);
-            if (gameSetting != null)
+            if (gameSetting?.Record != null)
             {
-                if (gameSetting.Record)
+                if (gameSetting.Record == true)
                 {
                     Log.Information($"Game {gameSetting.Name} has custom game settings (recording enabled), will record");
                     return true;

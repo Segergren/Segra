@@ -1970,6 +1970,12 @@ namespace Segra.Backend.Recorder
             AppState.Instance.PreRecording = null;
             _ = MessageService.SendStateToFrontend("OBS Start recording");
 
+            if (GameSettingsService.AddPlayedGame(name, exePath, null))
+            {
+                SettingsService.SaveSettings();
+                _ = MessageService.SendSettingsToFrontend("Added played game");
+            }
+
             RecordingPreviewService.OnRecordingStarted((uint)eff.FrameRate);
 
             PlatformServices.Tray.SetRecording(true);

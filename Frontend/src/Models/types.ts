@@ -191,6 +191,7 @@ export interface GameListEntry {
   executables: string[];
   icon?: string; // CDN icon id (https://segra.tv/api/games/icon/{icon})
   igdbId?: number;
+  coverImageId?: string; // CDN cover id (https://segra.tv/api/games/cover/{coverImageId})
 }
 
 // Per-game recording quality override. When preset is a named preset (low/standard/high) the
@@ -224,7 +225,7 @@ export interface GameSetting {
   igdbId: number | null; // catalog link; keeps name/icon in sync on startup
   icon?: string; // CDN icon id resolved from the catalog (known games)
   customIcon: string | null; // base64 PNG extracted from the exe (custom games)
-  record: boolean;
+  record: boolean | null; // null follows autoRecordGames
   qualityOverride: GameQualityOverride | null;
   recordingModeOverride: GameRecordingModeOverride | null;
   discardSessionsWithoutBookmarksOverride: boolean | null;

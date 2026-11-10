@@ -98,7 +98,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
           ...settings.games,
           {
             name: gameListEntry.name,
-            paths: gameListEntry.executables,
+            paths: [],
             igdbId: gameListEntry.igdbId ?? null,
             icon: gameListEntry.icon,
             customIcon: null,
@@ -106,6 +106,9 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
             qualityOverride: null,
             recordingModeOverride: null,
             discardSessionsWithoutBookmarksOverride: null,
+            enableHdrOverride: null,
+            volumeOverride: null,
+            highlightPaddingOverride: null,
           } as GameSetting,
         ];
     updateSettings({ games });

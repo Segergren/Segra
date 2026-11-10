@@ -21,11 +21,18 @@ namespace Segra.Backend.Games
         private static BlacklistEntry _blacklist = new();
         private static readonly ConcurrentDictionary<string, Regex> _wildcardRegexCache = new();
         private static bool _isInitialized = false;
+        private static Task? _initTask;
+        private static readonly object _initLock = new();
 
-        public static async Task InitializeAsync()
+        // Shared by game detection and migrations, so the catalog is only loaded once
+        public static Task InitializeAsync()
         {
-            if (_isInitialized) return;
+            lock (_initLock)
+                return _initTask ??= InitializeCoreAsync();
+        }
 
+        private static async Task InitializeCoreAsync()
+        {
             await DownloadGamesJsonIfNeededAsync();
             LoadGamesFromJson();
             await DownloadBlacklistJsonIfNeededAsync();
@@ -62,9 +69,13 @@ namespace Segra.Backend.Games
         }
 
         // Exe pattern match first, then Steam app id (install-folder granularity, as a fallback).
-        public static GameEntry? ResolveEntryFromExePath(string exePath)
+        public static GameEntry? ResolveEntryFromExePath(string exePath) =>
+            _isInitialized ? ResolveEntryCore(exePath) : null;
+
+        // Also used while the catalog is loading, before _isInitialized is set
+        private static GameEntry? ResolveEntryCore(string exePath)
         {
-            if (!_isInitialized || string.IsNullOrEmpty(exePath))
+            if (string.IsNullOrEmpty(exePath))
                 return null;
 
             string normalizedPath = exePath.Replace("\\", "/");
@@ -82,6 +93,14 @@ namespace Segra.Backend.Games
                 return steamEntry;
 
             return null;
+        }
+
+        public static GameEntry? FindEntry(int? igdbId, string name)
+        {
+            if (!_isInitialized) return null;
+            if (igdbId != null && _gamesList.FirstOrDefault(e => e.Igdb?.Id == igdbId) is { } byId)
+                return byId;
+            return _gamesList.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
         }
 
         public static string? GetGameNameFromExePath(string exePath) => ResolveEntryFromExePath(exePath)?.Name;
@@ -170,7 +189,8 @@ namespace Segra.Backend.Games
                 Executables = game.Executables.Select(exe => exe.Replace("/", "\\")).ToList(),
                 Icon = game.Icon,
                 IgdbId = game.Igdb?.Id,
-                SteamId = game.SteamId
+                SteamId = game.SteamId,
+                CoverImageId = game.SteamId?.ToString() ?? game.Igdb?.CoverImageId
             }).ToList();
         }
 
@@ -189,6 +209,7 @@ namespace Segra.Backend.Games
                     GameEntry? entry = gameSetting.IgdbId.HasValue
                         ? _gamesList.FirstOrDefault(e => e.Igdb?.Id == gameSetting.IgdbId.Value)
                         : _gamesList.FirstOrDefault(e => string.Equals(e.Name, gameSetting.Name, StringComparison.OrdinalIgnoreCase));
+                    entry ??= gameSetting.Paths.Select(ResolveEntryCore).FirstOrDefault(e => e != null);
 
                     if (entry == null) continue;
 
@@ -207,6 +228,19 @@ namespace Segra.Backend.Games
                         gameSetting.Icon = entry.Icon;
                         changed = true;
                     }
+                    if (entry.Icon != null && gameSetting.CustomIcon != null)
+                    {
+                        gameSetting.CustomIcon = null;
+                        changed = true;
+                    }
+                    // Paths the catalog already matches are dropped, the entry is matched through the catalog.
+                    // A new list, since detection may be reading the old one.
+                    var paths = gameSetting.Paths.Where(path => !IsCatalogPathOf(entry, path)).ToList();
+                    if (paths.Count != gameSetting.Paths.Count)
+                    {
+                        gameSetting.Paths = paths;
+                        changed = true;
+                    }
                 }
 
                 if (changed)
@@ -220,6 +254,17 @@ namespace Segra.Backend.Games
             {
                 Log.Warning(ex, "Failed to reconcile game settings with catalog");
             }
+        }
+
+        // Runs while the catalog loads, so it can't use ResolveEntryFromExePath (not initialized yet)
+        private static bool IsCatalogPathOf(GameEntry entry, string path)
+        {
+            string normalized = path.Replace("\\", "/");
+            if (entry.Executables.Any(exe => string.Equals(exe.Replace("\\", "/"), normalized, StringComparison.OrdinalIgnoreCase)
+                    || MatchesExePattern(path, exe)))
+                return true;
+            return entry.Executables.Count == 0 && entry.SteamId is int steamId
+                && SteamUtils.GetAppInfoFromExePath(path)?.AppId == steamId;
         }
 
         public static IReadOnlyDictionary<int, string> GetIgdbIdToNameMap()
@@ -532,6 +577,10 @@ namespace Segra.Backend.Games
             // file itself uses the nested `igdb` object above.
             [JsonPropertyName("igdbId")]
             public int? IgdbId { get; set; }
+
+            // Cover id for https://segra.tv/api/games/cover/{id}, only populated for the frontend game list
+            [JsonPropertyName("coverImageId")]
+            public string? CoverImageId { get; set; }
         }
 
         public class IgdbInfo
