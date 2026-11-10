@@ -5,6 +5,7 @@ using Segra.Backend.App;
 using Segra.Backend.Platform;
 using Segra.Backend.Recorder;
 using Segra.Backend.Core.Models;
+using Segra.Backend.Games;
 using ObsKit.NET.Native.Types;
 using ObsKeys = ObsKit.NET.Core.ObsKeys;
 #if WINDOWS
@@ -383,8 +384,12 @@ namespace Segra.Backend.Windows.Input
                     }
                     else
                     {
-                        Log.Information("Hotkey: starting display recording");
-                        Task.Run(() => OBSService.StartRecording(startManually: true));
+                        Task.Run(() =>
+                        {
+                            if (GameDetectionService.TryStartForegroundGameRecording()) return;
+                            Log.Information("Hotkey: starting display recording");
+                            OBSService.StartRecording(startManually: true);
+                        });
                     }
                     break;
 

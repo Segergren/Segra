@@ -70,7 +70,7 @@ const getActionLabel = (action: HotkeyAction): string => {
 const getActionHint = (action: HotkeyAction): string | null => {
   switch (action) {
     case HotkeyAction.ToggleRecording:
-      return 'Records your display, or stops any active recording.';
+      return 'Records the focused game, or your display if no game is focused. Stops any active recording.';
     default:
       return null;
   }

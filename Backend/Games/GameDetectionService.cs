@@ -530,6 +530,32 @@ namespace Segra.Backend.Games
 #endif
         }
 
+        // Starts a game recording for the focused window if it is a game, so a manual start gets the game's integrations.
+        public static bool TryStartForegroundGameRecording()
+        {
+#if WINDOWS
+            try
+            {
+                _ = GetWindowThreadProcessId(GetForegroundWindow(), out uint pid);
+                if (pid == 0 || pid == Environment.ProcessId) return false;
+
+                string exePath = ResolveProcessPath((int)pid);
+                if (string.IsNullOrEmpty(exePath) || IsIrrelevantProcessPath(exePath)) return false;
+
+                if (GameSettingsService.FindForExePath(exePath) == null && !IsDetectedGame(exePath)) return false;
+
+                Log.Information($"[ManualStart] Focused window is a game: PID {pid}, Path: {exePath}");
+                StartGameRecording((int)pid, exePath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[ManualStart] Could not check the focused window");
+            }
+#endif
+            return false;
+        }
+
 #if WINDOWS
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
@@ -555,9 +581,6 @@ namespace Segra.Backend.Games
         {
             if (string.IsNullOrEmpty(exePath) || AppState.Instance.Recording != null || AppState.Instance.PreRecording != null) return false;
 
-            // Normalize path for consistent comparison
-            string normalizedExePath = exePath.Replace("\\", "/");
-
             // 1. Check the unified per-game settings list (replaces whitelist/blacklist).
             // An explicit per-game entry always wins over auto-detection: Record == true forces recording,
             // Record == false prevents it.
@@ -580,6 +603,13 @@ namespace Segra.Backend.Games
             {
                 return false;
             }
+
+            return IsDetectedGame(exePath, fileDescription);
+        }
+
+        private static bool IsDetectedGame(string exePath, string? fileDescription = null)
+        {
+            string normalizedExePath = exePath.Replace("\\", "/");
 
             // 3. Check if the game is in the games.json list by exe pattern.
             bool isKnownGame = GameUtils.IsGameExePath(exePath);
