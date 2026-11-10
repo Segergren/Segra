@@ -11,6 +11,7 @@ import MigrationFlow from '../MigrationFlow';
 import { useAppState } from '../../Context/AppStateContext';
 import { useContentMigration } from '../../Context/ContentMigrationContext';
 import StorageUsageMeter, { sumExcludedGb } from './StorageUsageMeter';
+import { AutoDeleteClipsToggle, AutoDeleteField } from './AutoDeleteSettings';
 
 const normalizePath = (path: string) => path.replace(/\\/g, '/').replace(/\/+$/, '');
 
@@ -301,6 +302,12 @@ export default function StorageSettingsSection({
               : 'Older sessions and replay buffers are deleted to stay under the limit.'}
           </div>
         </div>
+
+        <AutoDeleteField
+          settings={settings}
+          content={appState.content}
+          updateSettings={updateSettings}
+        />
       </div>
 
       <div className="mt-4">
@@ -349,6 +356,11 @@ export default function StorageSettingsSection({
             </div>
           </div>
         </label>
+        <AutoDeleteClipsToggle
+          settings={settings}
+          content={appState.content}
+          updateSettings={updateSettings}
+        />
         <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
           <input
             type="checkbox"

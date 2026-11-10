@@ -383,6 +383,15 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("autoDeleteOldContent")]
+        public bool AutoDeleteOldContent { get; set; } = false;
+
+        [JsonPropertyName("autoDeleteAfterDays")]
+        public int AutoDeleteAfterDays { get; set; } = 180;
+
+        [JsonPropertyName("autoDeleteClipsAndHighlights")]
+        public bool AutoDeleteClipsAndHighlights { get; set; } = false;
+
         [JsonPropertyName("gameSubfolders")]
         public bool GameSubfolders
         {

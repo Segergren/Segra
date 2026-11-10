@@ -348,6 +348,9 @@ export interface Settings {
   storageLimit: number;
   unlimitedStorage: boolean; // Never deletes old recordings to stay under storageLimit
   excludeClipsFromStorageLimit: boolean;
+  autoDeleteOldContent: boolean;
+  autoDeleteAfterDays: number;
+  autoDeleteClipsAndHighlights: boolean;
   gameSubfolders: boolean;
   contentFolder: string;
   cacheFolder: string;
@@ -454,6 +457,9 @@ export const initialSettings: Settings = {
   storageLimit: 100,
   unlimitedStorage: false,
   excludeClipsFromStorageLimit: false,
+  autoDeleteOldContent: false,
+  autoDeleteAfterDays: 180,
+  autoDeleteClipsAndHighlights: false,
   gameSubfolders: true,
   contentFolder: '',
   cacheFolder: '',

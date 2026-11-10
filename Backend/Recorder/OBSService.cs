@@ -2490,6 +2490,7 @@ namespace Segra.Backend.Recorder
 
                 await SettingsService.LoadContentFromFolderIntoState(false);
                 await StorageService.EnsureStorageBelowLimit();
+                await StorageService.DeleteExpiredContent();
 
                 // If the recording is not a replay buffer recording, AI is enabled and auto generate highlights is enabled -> analyze the video!
                 if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && sessionContentId != null && session!.Bookmarks.Any(b => b.Type.IncludeInHighlight()))

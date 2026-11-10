@@ -1,5 +1,6 @@
 using Serilog;
 using System.Diagnostics;
+using Segra.Backend.Core;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
 using Segra.Backend.Core.Models;
@@ -208,6 +209,57 @@ namespace Segra.Backend.Windows.Storage
             else
             {
                 Log.Information("Storage usage is within limits, no cleanup needed");
+            }
+        }
+
+        private static readonly SemaphoreSlim _autoDeleteLock = new(1, 1);
+        private static System.Threading.Timer? _autoDeleteTimer;
+
+        public static void StartAutoDeleteTimer()
+        {
+            _autoDeleteTimer ??= new System.Threading.Timer(_ => _ = DeleteExpiredContent(), null, TimeSpan.FromMinutes(1), TimeSpan.FromHours(1));
+        }
+
+        // Deletes videos older than the auto-delete age. Imported videos are kept.
+        public static async Task DeleteExpiredContent()
+        {
+            var settings = Settings.Instance;
+            if (!settings.AutoDeleteOldContent)
+                return;
+
+            if (!await _autoDeleteLock.WaitAsync(0))
+                return;
+
+            try
+            {
+                DateTime cutoff = DateTime.Now.AddDays(-Math.Max(1, settings.AutoDeleteAfterDays));
+                DateTime oneHourAgo = DateTime.Now.AddHours(-1);
+                bool includeClips = settings.AutoDeleteClipsAndHighlights;
+                // Skips files written in the last hour since they are likely still in use
+                List<Content> expired = AppState.Instance.Content.ToList()
+                    .Where(c => (includeClips || c.Type is Content.ContentType.Session or Content.ContentType.Buffer) && !c.IsImported && c.CreatedAt != default && c.CreatedAt < cutoff
+                        && File.GetLastWriteTime(c.FilePath) < oneHourAgo)
+                    .ToList();
+
+                if (expired.Count == 0)
+                    return;
+
+                Log.Information($"Auto-deleting {expired.Count} videos older than {settings.AutoDeleteAfterDays} days");
+                foreach (Content content in expired)
+                {
+                    await ContentService.DeleteContent(content.FilePath, content.Type, content.Id, sendToFrontend: false, reloadState: false);
+                }
+
+                await SettingsService.LoadContentFromFolderIntoState(true);
+                UpdateFolderSizeInState();
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Auto-delete of old videos failed: {ex.Message}");
+            }
+            finally
+            {
+                _autoDeleteLock.Release();
             }
         }
 

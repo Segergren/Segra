@@ -334,6 +334,7 @@ namespace Segra.Backend.App
                 Task.Run(AudioStreamServer.StartAsync);
 #endif
                 Task.Run(StorageService.EnsureStorageBelowLimit);
+                StorageService.StartAutoDeleteTimer();
                 Task.Run(ContentMigrationService.CleanupInterruptedCopiesAsync);
                 Task.Run(ContentMigrationService.CleanupOrphanedWebcamFilesAsync);
 

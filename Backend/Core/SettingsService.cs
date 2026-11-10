@@ -854,6 +854,34 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            bool autoDeleteChanged = false;
+            if (settings.AutoDeleteOldContent != updatedSettings.AutoDeleteOldContent)
+            {
+                Log.Information($"AutoDeleteOldContent changed from '{settings.AutoDeleteOldContent}' to '{updatedSettings.AutoDeleteOldContent}'");
+                settings.AutoDeleteOldContent = updatedSettings.AutoDeleteOldContent;
+                autoDeleteChanged = true;
+            }
+
+            if (settings.AutoDeleteAfterDays != updatedSettings.AutoDeleteAfterDays)
+            {
+                Log.Information($"AutoDeleteAfterDays changed from '{settings.AutoDeleteAfterDays}' to '{updatedSettings.AutoDeleteAfterDays}'");
+                settings.AutoDeleteAfterDays = Math.Max(1, updatedSettings.AutoDeleteAfterDays);
+                autoDeleteChanged = true;
+            }
+
+            if (settings.AutoDeleteClipsAndHighlights != updatedSettings.AutoDeleteClipsAndHighlights)
+            {
+                Log.Information($"AutoDeleteClipsAndHighlights changed from '{settings.AutoDeleteClipsAndHighlights}' to '{updatedSettings.AutoDeleteClipsAndHighlights}'");
+                settings.AutoDeleteClipsAndHighlights = updatedSettings.AutoDeleteClipsAndHighlights;
+                autoDeleteChanged = true;
+            }
+
+            if (autoDeleteChanged)
+            {
+                hasChanges = true;
+                _ = Task.Run(StorageService.DeleteExpiredContent);
+            }
+
             if (settings.GameSubfolders != updatedSettings.GameSubfolders)
             {
                 Log.Information($"GameSubfolders changed from '{settings.GameSubfolders}' to '{updatedSettings.GameSubfolders}'");
