@@ -794,6 +794,7 @@ namespace Segra.Backend.Core
             {
                 Log.Information($"Encoder changed from '{settings.Encoder}' to '{updatedSettings.Encoder}'");
                 settings.Encoder = updatedSettings.Encoder;
+                settings.UnavailableCodec = null;
 
                 // When encoder changes, automatically select an appropriate codec
                 var newCodec = OBSService.SelectDefaultCodec(settings.Encoder, AppState.Instance.Codecs);
@@ -836,6 +837,7 @@ namespace Segra.Backend.Core
                 {
                     Log.Information($"Codec changed from '{settings.Codec.FriendlyName}' to '{updatedSettings.Codec.FriendlyName}'");
                     settings.Codec = updatedSettings.Codec;
+                    settings.UnavailableCodec = null;
                     hasChanges = true;
                 }
             }

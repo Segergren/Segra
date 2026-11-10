@@ -352,6 +352,10 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        // Codec replaced by the startup fallback, restored once it is available again
+        [JsonPropertyName("unavailableCodec")]
+        public Codec? UnavailableCodec { get; set; }
+
         [JsonPropertyName("storageLimit")]
         public int StorageLimit
         {

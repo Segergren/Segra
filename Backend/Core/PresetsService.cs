@@ -110,6 +110,7 @@ namespace Segra.Backend.Core
                         if (settings.Encoder != values.Encoder)
                         {
                             settings.Encoder = values.Encoder;
+                            settings.UnavailableCodec = null;
                             var codec = Recorder.OBSService.SelectDefaultCodec(settings.Encoder, AppState.Instance.Codecs);
                             if (codec != null)
                                 settings.Codec = codec;

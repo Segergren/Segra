@@ -4573,16 +4573,31 @@ namespace Segra.Backend.Recorder
             // A pending migration can still rename the saved codec id
             await MigrationService.WaitForMigrationsAsync();
 
+            static bool IsAvailable(Codec? c) =>
+                c != null && AppState.Instance.Codecs.Any(a => a.InternalEncoderId.Equals(c.InternalEncoderId, StringComparison.OrdinalIgnoreCase));
+
             var codec = Settings.Instance.Codec;
-            if (codec == null || !AppState.Instance.Codecs.Any(c => c.InternalEncoderId.Equals(codec.InternalEncoderId, StringComparison.OrdinalIgnoreCase)))
+            var unavailable = Settings.Instance.UnavailableCodec;
+            if (unavailable != null && IsAvailable(unavailable))
+            {
+                Log.Information($"Codec '{unavailable.FriendlyName}' is available again, switched back from '{codec?.FriendlyName}'");
+                Settings.Instance.Codec = unavailable;
+                Settings.Instance.UnavailableCodec = null;
+                SettingsService.SaveSettings();
+                _ = MessageService.SendSettingsToFrontend("Codec restored");
+                return;
+            }
+
+            if (!IsAvailable(codec))
             {
                 Settings.Instance.Codec = SelectDefaultCodec(Settings.Instance.Encoder, AppState.Instance.Codecs);
                 if (codec != null)
                 {
+                    Settings.Instance.UnavailableCodec ??= codec;
                     Log.Information($"Codec '{codec.FriendlyName}' is no longer available, switched to '{Settings.Instance.Codec?.FriendlyName}'");
                     _ = Task.Run(() => MessageService.ShowModal(
                         "Codec changed",
-                        $"The codec {codec.FriendlyName} is no longer available on this system, likely because the GPU was changed. Segra will use {Settings.Instance.Codec?.FriendlyName} instead. You can change it in Settings.",
+                        $"The codec {codec.FriendlyName} is no longer available on this system, likely because the GPU was changed or disabled. Segra will use {Settings.Instance.Codec?.FriendlyName} until it is available again.",
                         "warning"));
                     SettingsService.SaveSettings();
                     _ = MessageService.SendSettingsToFrontend("Codec fallback");
