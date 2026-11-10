@@ -894,6 +894,9 @@ namespace Segra.Backend.Core.Models
             set => _showVideoNavigation = value;
         }
 
+        [JsonPropertyName("showClipToolsOnClips")]
+        public bool ShowClipToolsOnClips { get; set; } = false;
+
         // Only set by editing settings.json: enables browser shortcuts such as F12 (DevTools) and F5 (reload)
         [JsonPropertyName("enableFrontendDebugShortcuts")]
         public bool EnableFrontendDebugShortcuts { get; set; } = false;

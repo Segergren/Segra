@@ -417,6 +417,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.ShowClipToolsOnClips != updatedSettings.ShowClipToolsOnClips)
+            {
+                Log.Information($"ShowClipToolsOnClips changed from '{settings.ShowClipToolsOnClips}' to '{updatedSettings.ShowClipToolsOnClips}'");
+                settings.ShowClipToolsOnClips = updatedSettings.ShowClipToolsOnClips;
+                hasChanges = true;
+            }
+
             if (settings.ShowLiveSessionCard != updatedSettings.ShowLiveSessionCard)
             {
                 Log.Information($"ShowLiveSessionCard changed from '{settings.ShowLiveSessionCard}' to '{updatedSettings.ShowLiveSessionCard}'");

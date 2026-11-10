@@ -217,6 +217,8 @@ export default function VideoComponent({ video }: { video: Content }) {
   const prev = index > 0 ? siblings[index - 1] : null;
   const next = index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
   const hasPlaylist = settings.showVideoNavigation && siblings.length > 1 && index >= 0;
+  const showClipTools =
+    settings.showClipToolsOnClips || (video.type !== 'Clip' && video.type !== 'Highlight');
 
   // Shift+P / Shift+N, like YouTube playlists
   useEffect(() => {
@@ -2840,31 +2842,35 @@ export default function VideoComponent({ video }: { video: Content }) {
                 </Button>
               )}
               {(video.type === 'Clip' || video.type === 'Highlight') && copyButtons}
-              <Button
-                variant="primary"
-                size="sm"
-                className="h-10 hover:text-accent"
-                onClick={handleCreateClip}
-              >
-                <Clapperboard className="w-5 h-5" />
-                <span className="grid justify-items-start">
-                  <span className="col-start-1 row-start-1 invisible" aria-hidden="true">
-                    Create Clips
-                  </span>
-                  <span className="col-start-1 row-start-1">
-                    {clipOutputMode === 'separate' ? 'Create Clips' : 'Create Clip'}
-                  </span>
-                </span>
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                className={`h-10 hover:text-accent ${showNoSegmentsIndicator ? 'segment-hint-flash' : ''}`}
-                onClick={handleAddSegment}
-              >
-                <SquarePlus className="w-5 h-5" />
-                <span>Add Segment</span>
-              </Button>
+              {showClipTools && (
+                <>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="h-10 hover:text-accent"
+                    onClick={handleCreateClip}
+                  >
+                    <Clapperboard className="w-5 h-5" />
+                    <span className="grid justify-items-start">
+                      <span className="col-start-1 row-start-1 invisible" aria-hidden="true">
+                        Create Clips
+                      </span>
+                      <span className="col-start-1 row-start-1">
+                        {clipOutputMode === 'separate' ? 'Create Clips' : 'Create Clip'}
+                      </span>
+                    </span>
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className={`h-10 hover:text-accent ${showNoSegmentsIndicator ? 'segment-hint-flash' : ''}`}
+                    onClick={handleAddSegment}
+                  >
+                    <SquarePlus className="w-5 h-5" />
+                    <span>Add Segment</span>
+                  </Button>
+                </>
+              )}
               {video.type === 'Buffer' && copyButtons}
             </div>
 

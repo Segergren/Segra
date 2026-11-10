@@ -19,12 +19,13 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
   const interfaceToggles: {
     key:
       | 'showGameBackground'
-      | 'showAudioWaveformInTimeline'
-      | 'showBookmarksInFullscreen'
-      | 'showVideoNavigation'
       | 'showLiveSessionCard'
       | 'showNewBadgeOnVideos'
-      | 'confirmBeforeDeleting';
+      | 'confirmBeforeDeleting'
+      | 'showAudioWaveformInTimeline'
+      | 'showClipToolsOnClips'
+      | 'showVideoNavigation'
+      | 'showBookmarksInFullscreen';
     label: React.ReactNode;
     description: React.ReactNode;
   }[] = [
@@ -36,27 +37,6 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
         </>
       ),
       description: 'Shows cover art on the recording card and the game integration cards.',
-    },
-    {
-      key: 'showAudioWaveformInTimeline',
-      label: 'Show Audio Waveform',
-      description: 'Draws the audio waveform along the video editor timeline.',
-    },
-    {
-      key: 'showBookmarksInFullscreen',
-      label: 'Show Bookmarks in Fullscreen',
-      description: 'Shows bookmarks above the seek bar in the fullscreen video player.',
-    },
-    {
-      key: 'showVideoNavigation',
-      label: 'Show Previous and Next Video',
-      description: (
-        <>
-          Shows the <SkipBack className="inline w-3.5 h-3.5 align-[-2px]" aria-hidden="true" /> and{' '}
-          <SkipForward className="inline w-3.5 h-3.5 align-[-2px]" aria-hidden="true" /> buttons in
-          the video player to go to the previous or next video in the list.
-        </>
-      ),
     },
     {
       key: 'showLiveSessionCard',
@@ -81,6 +61,33 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
       key: 'confirmBeforeDeleting',
       label: 'Confirm Before Deleting',
       description: 'Asks before videos, recovered recordings or game paths are deleted.',
+    },
+    {
+      key: 'showAudioWaveformInTimeline',
+      label: 'Show Audio Waveform',
+      description: 'Draws the audio waveform along the video editor timeline.',
+    },
+    {
+      key: 'showClipToolsOnClips',
+      label: 'Show Clip Tools on Clips and Highlights',
+      description:
+        'Shows the Create Clip and Add Segment buttons when watching a clip or highlight.',
+    },
+    {
+      key: 'showVideoNavigation',
+      label: 'Show Previous and Next Video',
+      description: (
+        <>
+          Shows the <SkipBack className="inline w-3.5 h-3.5 align-[-2px]" aria-hidden="true" /> and{' '}
+          <SkipForward className="inline w-3.5 h-3.5 align-[-2px]" aria-hidden="true" /> buttons in
+          the video player to go to the previous or next video in the list.
+        </>
+      ),
+    },
+    {
+      key: 'showBookmarksInFullscreen',
+      label: 'Show Bookmarks in Fullscreen',
+      description: 'Shows bookmarks above the seek bar in the fullscreen video player.',
     },
   ];
 
@@ -168,7 +175,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
 
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
         <h2 className="text-xl font-semibold mb-4">Interface</h2>
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {interfaceToggles.map(({ key, label, description }) => (
             <label
               key={key}

@@ -395,6 +395,7 @@ export interface Settings {
   showAudioWaveformInTimeline: boolean; // Show audio waveform in video timeline
   showBookmarksInFullscreen: boolean;
   showVideoNavigation: boolean;
+  showClipToolsOnClips: boolean;
   showLiveSessionCard: boolean;
   enableSeparateAudioTracks: boolean; // Advanced: per-source audio tracks
   audioOutputMode: AudioOutputMode;
@@ -500,6 +501,7 @@ export const initialSettings: Settings = {
   showAudioWaveformInTimeline: true,
   showBookmarksInFullscreen: true,
   showVideoNavigation: true,
+  showClipToolsOnClips: false,
   showLiveSessionCard: true,
   enableSeparateAudioTracks: false,
   audioOutputMode: 'All',
