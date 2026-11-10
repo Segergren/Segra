@@ -4165,9 +4165,9 @@ namespace Segra.Backend.Recorder
                     }
                 }
 
-#if DEBUG
-                // Dev builds skip the compatibility filter so every version is selectable for testing.
-                Log.Information($"Debug build: showing all OBS versions: {string.Join(", ", (response ?? []).Select(v => v.Version))}");
+#if DEBUG || LOCAL_BUILD
+                // Dev and local builds skip the compatibility filter so every version is selectable for testing.
+                Log.Information($"Debug or local build: showing all OBS versions: {string.Join(", ", (response ?? []).Select(v => v.Version))}");
 #else
                 // Filter versions based on current Segra version compatibility
                 if (response != null && response.Count > 0)
@@ -4313,7 +4313,7 @@ namespace Segra.Backend.Recorder
             {
                 versionToDownload = AppState.Instance.AvailableOBSVersions
                     .Where(v => !v.IsBeta)
-                    .OrderByDescending(v => v.Version)
+                    .OrderByDescending(v => System.Version.TryParse(v.Version, out var parsed) ? parsed : new System.Version(0, 0))
                     .FirstOrDefault();
 
                 Log.Information($"Using latest stable OBS version: {versionToDownload?.Version}");
