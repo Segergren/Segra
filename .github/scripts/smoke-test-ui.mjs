@@ -19,7 +19,7 @@ let appExit = null;
 const app = spawn(exe, [], {
   env: {
     ...process.env,
-    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}`,
+    SEGRA_DEVTOOLS_PORT: String(port),
     SEGRA_SKIP_OBS: '1',
   },
   stdio: 'ignore',
@@ -77,15 +77,18 @@ function connect(wsUrl) {
 
 let cdp;
 try {
+  let lastLookup = 'no response';
   const page = await waitFor(async () => {
     try {
       const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
+      lastLookup = `targets: ${JSON.stringify(targets.map((t) => ({ type: t.type, url: t.url })))}`;
       return targets.find((t) => t.type === 'page' && t.url.includes('localhost:440'));
-    } catch {
+    } catch (err) {
+      lastLookup = `${err.message}${err.cause ? ` (${err.cause.code ?? err.cause.message})` : ''}`;
       return null;
     }
   }, 120_000);
-  if (!page) throw new Error('WebView2 page never appeared');
+  if (!page) throw new Error(`WebView2 page never appeared, last DevTools lookup: ${lastLookup}`);
   console.log(`Attached to ${page.url}`);
 
   cdp = await connect(page.webSocketDebuggerUrl);

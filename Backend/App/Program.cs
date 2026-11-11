@@ -833,6 +833,12 @@ namespace Segra.Backend.App
             {
                 browserArgs += " --no-proxy-server";
             }
+
+            // Set by the CI UI smoke test, since WebView2 ignores WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS there
+            if (int.TryParse(Environment.GetEnvironmentVariable("SEGRA_DEVTOOLS_PORT"), out int devToolsPort))
+            {
+                browserArgs += $" --remote-debugging-port={devToolsPort}";
+            }
             windowBuilder = windowBuilder.SetBrowserControlInitParameters(browserArgs);
 
             // PhotinoX defaults the WebView2 profile to %LOCALAPPDATA%\PhotinoX; keep using the
