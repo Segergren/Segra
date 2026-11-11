@@ -116,6 +116,15 @@ jobs:
         run: dotnet publish HotkeyBroker/Segra.Hotkeys/Segra.Hotkeys.csproj -c Release -f net10.0-windows10.0.19041.0 -r win-x64 -o publish --no-restore
         shell: pwsh
 
+      # Runs from a copy since signing writes the signed binaries back into ./publish while it runs
+      - name: Start UI smoke test in the background
+        shell: pwsh
+        run: |
+          Copy-Item ./publish ./smoke -Recurse
+          $cmd = 'node ./.github/scripts/smoke-test-ui.mjs ./smoke/Segra.exe ./smoke-test.png *> smoke-test.log; Set-Content smoke-test.exit $LASTEXITCODE'
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
+          Start-Process pwsh -ArgumentList "-NoProfile -EncodedCommand $encoded" -WorkingDirectory $PWD -WindowStyle Hidden
+
       - name: Upload Segra binaries for signing (Pass 1)
         id: upload_unsigned_exe
         uses: actions/upload-artifact@v7
@@ -243,6 +252,28 @@ jobs:
             $winJson | ConvertTo-Json -Depth 10 -Compress | Set-Content -Path $winJsonPath -NoNewline -Encoding utf8
             Write-Host "Rewrote releases.win.json"
           }
+
+      - name: Wait for UI smoke test
+        shell: pwsh
+        run: |
+          $deadline = (Get-Date).AddMinutes(5)
+          while (-not (Test-Path smoke-test.exit) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
+          if (Test-Path smoke-test.log) { Get-Content smoke-test.log }
+          Copy-Item "$env:APPDATA/Segra/logs.log" ./segra.log -ErrorAction SilentlyContinue
+          if (-not (Test-Path smoke-test.exit)) { throw "UI smoke test did not finish within 5 minutes" }
+          exit [int](Get-Content smoke-test.exit)
+
+      - name: Upload UI smoke test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-smoke-test
+          path: |
+            ./smoke-test.png
+            ./smoke-test.log
+            ./segra.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Create Final Git Tag
         id: create_final_tag

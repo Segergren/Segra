@@ -686,6 +686,14 @@ namespace Segra.Backend.Recorder
             if (IsInitialized)
                 return;
 
+            // Set by the CI UI smoke test, whose runner has no GPU
+            if (Environment.GetEnvironmentVariable("SEGRA_SKIP_OBS") == "1")
+            {
+                Log.Information("SEGRA_SKIP_OBS is set, skipping OBS");
+                AppState.Instance.HasLoadedObs = true;
+                return;
+            }
+
             try
             {
                 await CheckIfExistsOrDownloadAsync();
