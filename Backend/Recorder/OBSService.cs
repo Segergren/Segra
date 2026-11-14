@@ -2820,6 +2820,9 @@ namespace Segra.Backend.Recorder
                     AppState.Instance.Recording.IsUsingGameHook = true;
                     AppState.Instance.Recording.IsUsingWindowCapture = false;
                     _ = MessageService.SendStateToFrontend("Updated game hook");
+#if WINDOWS
+                    UpdateBoundsForLateHook();
+#endif
                 }
             }
             catch (Exception ex)
@@ -3294,6 +3297,25 @@ namespace Segra.Backend.Recorder
 
         private static void ApplyCaptureBounds(SceneItem? item) =>
             item?.SetBounds(_captureBoundsType, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
+
+#if WINDOWS
+        // The canvas can't be resized while recording, so a 4:3 hook on a 16:9 canvas is stretched by its bounds instead
+        private static void UpdateBoundsForLateHook()
+        {
+            if (!Settings.Instance.Stretch4By3 || _currentBaseHeight == 0
+                || Math.Abs((double)_currentBaseWidth / _currentBaseHeight - 16.0 / 9.0) > 0.1
+                || CapturedWindowWidth is not uint width || CapturedWindowHeight is not uint height || height == 0)
+                return;
+
+            var boundsType = Math.Abs((double)width / height - 4.0 / 3.0) < 0.1 ? ObsBoundsType.Stretch : ObsBoundsType.ScaleInner;
+            if (boundsType == _captureBoundsType)
+                return;
+
+            _captureBoundsType = boundsType;
+            ApplyCaptureBounds(_gameCaptureItem);
+            Log.Information($"Game hooked at {width}x{height} while recording, capture bounds set to {boundsType}");
+        }
+#endif
 
 #if WINDOWS
         private static void AddGameCapture(string windowSpec, bool withHookTimeout)
