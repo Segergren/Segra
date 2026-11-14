@@ -50,6 +50,9 @@ interface AudioTrackData {
 const LOOKAHEAD_SECONDS = 2;
 const CHUNK_SIZE = 2 * 1024 * 1024;
 const SAMPLES_PER_BATCH = 100;
+// Runs closer than this share one range request; each request is capped so the first lands fast.
+const MERGE_GAP_BYTES = 512 * 1024;
+const MAX_RANGE_BYTES = 2 * 1024 * 1024;
 // AAC frames overlap their predecessor, so the first frame after a jump decodes wrong
 // unless the decoder is fed a couple of earlier frames first.
 const PREROLL_FRAMES = 2;
@@ -87,6 +90,13 @@ interface SampleTables {
   offsets: Float64Array;
   sizes: Uint32Array;
   cts: Float64Array;
+}
+
+// One HTTP range request, shared by every run whose bytes it covers (inclusive end).
+interface FetchRange {
+  start: number;
+  end: number;
+  fetch?: Promise<ArrayBuffer>;
 }
 
 type StblBoxes = {
@@ -170,10 +180,15 @@ function tablesFromSamples(
   return { offsets, sizes, cts };
 }
 
-// Feeds samples [start, end) to the decoder; `ab` holds their contiguous bytes.
-function decodeRun(td: AudioTrackData, start: number, end: number, ab: ArrayBuffer): void {
+// Feeds samples [start, end) to the decoder; `ab` holds the file bytes from `rangeStart`.
+function decodeRun(
+  td: AudioTrackData,
+  start: number,
+  end: number,
+  ab: ArrayBuffer,
+  rangeStart: number,
+): void {
   const view = new Uint8Array(ab);
-  const rangeStart = td.offsets[start];
   for (let i = start; i < end; i++) {
     const localOffset = td.offsets[i] - rangeStart;
     const sliceBytes = view.subarray(localOffset, localOffset + td.sizes[i]);
@@ -245,6 +260,8 @@ export function useAudioTracks(
   const fetchUrlRef = useRef<string>('');
   const pumpingRef = useRef<boolean>(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Aborted on every resync so the old position's range requests don't hold up the new ones.
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   const audioStartCtxTimeRef = useRef<number>(0);
   const playbackRateRef = useRef<number>(1);
@@ -399,6 +416,7 @@ export function useAudioTracks(
       let startGen = generationRef.current;
       while (!signal.aborted && !vid.paused) {
         if (generationRef.current !== startGen) startGen = generationRef.current;
+        const fetchSignal = fetchAbortRef.current?.signal ?? signal;
 
         const playhead = vid.currentTime;
         const rate = playbackRateRef.current || 1;
@@ -418,7 +436,7 @@ export function useAudioTracks(
         // Split each batch into contiguous byte runs so ranges skip the interleaved
         // video and other tracks (hybrid MP4 stores ~1 s per track per fragment).
         const plans = needy.map(({ td }) => {
-          const runs: { start: number; end: number; fetch?: Promise<ArrayBuffer> }[] = [];
+          const runs: { start: number; end: number; range?: FetchRange }[] = [];
           const maxEnd = Math.min(td.cursor + SAMPLES_PER_BATCH, td.sampleCount);
           let start = td.cursor;
           for (let i = start + 1; i <= maxEnd; i++) {
@@ -430,18 +448,34 @@ export function useAudioTracks(
           return { td, runs };
         });
 
+        // Runs that sit close together in the file (any track) share one range request.
+        const byOffset = plans
+          .flatMap(({ td, runs }) => runs.map((run) => ({ td, run })))
+          .sort((a, b) => a.td.offsets[a.run.start] - b.td.offsets[b.run.start]);
+        let range: FetchRange | null = null;
+        for (const { td, run } of byOffset) {
+          const start = td.offsets[run.start];
+          const end = td.offsets[run.end - 1] + td.sizes[run.end - 1] - 1;
+          if (
+            range &&
+            start - range.end <= MERGE_GAP_BYTES &&
+            end - range.start < MAX_RANGE_BYTES
+          ) {
+            range.end = Math.max(range.end, end);
+          } else {
+            range = { start, end };
+          }
+          run.range = range;
+        }
+
         // Request every track's first run before anyone's second, all in parallel.
         const maxRuns = Math.max(...plans.map((p) => p.runs.length));
         for (let r = 0; r < maxRuns; r++) {
-          for (const { td, runs } of plans) {
-            const run = runs[r];
-            if (!run) continue;
-            run.fetch = rangeFetch(
-              td.offsets[run.start],
-              td.offsets[run.end - 1] + td.sizes[run.end - 1] - 1,
-              signal,
-            );
-            run.fetch.catch(() => {});
+          for (const { runs } of plans) {
+            const target = runs[r]?.range;
+            if (!target || target.fetch) continue;
+            target.fetch = rangeFetch(target.start, target.end, fetchSignal);
+            target.fetch.catch(() => {});
           }
         }
 
@@ -449,14 +483,17 @@ export function useAudioTracks(
           await Promise.all(
             plans.map(async ({ td, runs }) => {
               for (const run of runs) {
-                const ab = await run.fetch!;
+                const ab = await run.range!.fetch!;
                 if (signal.aborted || generationRef.current !== startGen) return;
-                decodeRun(td, run.start, run.end, ab);
+                decodeRun(td, run.start, run.end, ab, run.range!.start);
                 td.cursor = run.end;
               }
             }),
           );
         } catch (err) {
+          if (signal.aborted) return;
+          // A resync aborted this batch; plan the next one from the new position.
+          if (generationRef.current !== startGen) continue;
           if ((err as { name?: string }).name === 'AbortError') return;
           console.warn('[useAudioTracks] pump fetch failed', err);
           return;
@@ -474,6 +511,8 @@ export function useAudioTracks(
       if (!ctx) return;
 
       generationRef.current += 1;
+      fetchAbortRef.current?.abort();
+      fetchAbortRef.current = new AbortController();
       stopAllSources();
 
       for (const td of trackDataRef.current.values()) {
@@ -508,6 +547,7 @@ export function useAudioTracks(
 
     const abortController = new AbortController();
     abortRef.current = abortController;
+    fetchAbortRef.current = new AbortController();
     let cancelled = false;
 
     (async () => {
@@ -787,6 +827,7 @@ export function useAudioTracks(
     return () => {
       cancelled = true;
       abortController.abort();
+      fetchAbortRef.current?.abort();
       generationRef.current += 1;
 
       stopAllSources();
@@ -891,6 +932,8 @@ export function useAudioTracks(
           // ignore
         }
       }
+      // Playing mid-seek (e.g. releasing a timeline scrub): 'seeked' resyncs and starts the sink.
+      if (vid.seeking) return;
       nativeFlush();
       resyncTo(vid.currentTime, vid.playbackRate);
       nativeStart();
