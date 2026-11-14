@@ -17,6 +17,14 @@ const normalizePath = (path: string) => path.replace(/\\/g, '/').replace(/\/+$/,
 
 const TYPE_FOLDERS = ['Full Sessions', 'Replay Buffers', 'Clips', 'Highlights'];
 
+// IGDB ids of the games whose integrations track matches
+const MATCH_GAMES = [
+  { igdbId: 242408, name: 'Counter-Strike 2' },
+  { igdbId: 2963, name: 'Dota 2' },
+  { igdbId: 115, name: 'League of Legends' },
+  { igdbId: 7360, name: 'Rainbow Six Siege' },
+];
+
 // The recording-path root a file currently lives under (the part before its content-type folder).
 const deriveSourceRoot = (filePath: string) => {
   const p = normalizePath(filePath);
@@ -404,8 +412,24 @@ export default function StorageSettingsSection({
             <div className="font-semibold">Split Sessions Into Matches</div>
             <div className="text-sm opacity-70 mt-0.5">
               Saves each match as its own session when a recording ends and deletes the time in
-              menus between matches. Works in Counter-Strike 2, Dota 2, League of Legends and
-              Rainbow Six Siege.
+              menus between matches.
+            </div>
+            <div className="flex items-center gap-1.5 mt-1.5">
+              {MATCH_GAMES.map(({ igdbId, name }) => {
+                const icon = appState.gameList.find((g) => g.igdbId === igdbId)?.icon;
+                return icon && !settings.airplaneMode ? (
+                  <img
+                    key={igdbId}
+                    src={`https://segra.tv/api/games/icon/${icon}`}
+                    alt={name}
+                    className="w-5 h-5 rounded object-cover"
+                  />
+                ) : (
+                  <span key={igdbId} className="text-xs opacity-70">
+                    {name}
+                  </span>
+                );
+              })}
             </div>
           </div>
         </label>

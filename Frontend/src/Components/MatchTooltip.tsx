@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Match } from '../Models/types';
-import { formatMatchKda } from '../Utils/MatchUtils';
+import { formatMatchKda, type MatchImage } from '../Utils/MatchUtils';
 
 const IMAGE_WIDTH = 208;
 const SHOW_DELAY_MS = 400;
@@ -11,13 +11,13 @@ const SHOW_DELAY_MS = 400;
 // thumbnails, which clip their content, don't cut it off.
 export default function MatchTooltip({
   match,
-  mapImage,
+  image,
   className,
   onClick,
   children,
 }: {
   match: Match;
-  mapImage?: string;
+  image?: MatchImage;
   className?: string;
   onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   children: ReactNode;
@@ -31,10 +31,12 @@ export default function MatchTooltip({
   const kda = formatMatchKda(match);
   const details = [
     match.mode,
-    match.character,
+    // A square image is the character's avatar
+    !image?.square && match.character,
     kda && `${match.assists != null ? 'K/D/A' : 'K/D'} ${kda}`,
   ].filter(Boolean);
-  const hasContent = !!mapImage || !!match.map || details.length > 0;
+  const hasContent = !!image || !!match.map || details.length > 0;
+  const wideImage = image && !image.square;
 
   // Kept inside the window; the text-only tooltip is narrower but this is a safe bound
   const center = anchor
@@ -72,7 +74,7 @@ export default function MatchTooltip({
               style={{
                 left: center,
                 top: anchor.top - 6,
-                width: mapImage ? IMAGE_WIDTH : undefined,
+                width: wideImage ? IMAGE_WIDTH : undefined,
               }}
             >
               <motion.div
@@ -82,8 +84,16 @@ export default function MatchTooltip({
                 transition={{ duration: 0.12 }}
                 className="p-1 border rounded-lg shadow-lg bg-base-300 border-base-400 text-center"
               >
-                {mapImage && (
-                  <img src={mapImage} alt="" className="w-full rounded aspect-video object-cover" />
+                {image && (
+                  <img
+                    src={image.src}
+                    alt=""
+                    className={
+                      image.square
+                        ? 'mx-auto mt-1 w-10 h-10 rounded'
+                        : 'w-full rounded aspect-video object-cover'
+                    }
+                  />
                 )}
                 <div className="px-2 pt-1.5 pb-1 whitespace-nowrap">
                   {match.map && <div className="text-xs font-semibold text-white">{match.map}</div>}

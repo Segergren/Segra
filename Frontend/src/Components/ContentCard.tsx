@@ -27,9 +27,9 @@ import Button from './Button';
 import MatchTooltip from './MatchTooltip';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 import {
-  formatMatchRecord,
-  formatMatchScore,
-  getMatchMapImage,
+  getMatchRecord,
+  formatMatchStat,
+  getMatchImage,
   matchResultTextClass,
 } from '../Utils/MatchUtils';
 
@@ -273,11 +273,9 @@ export default function ContentCard({
     content?.bookmarks?.filter((b) => b.type === BookmarkType.Manual).length ?? 0;
   const matches = content?.matches ?? [];
   const singleMatch = matches.length === 1 ? matches[0] : null;
-  const singleMatchMapImage = singleMatch
-    ? getMatchMapImage(content?.igdbId, singleMatch)
-    : undefined;
-  const singleMatchScore = singleMatch ? formatMatchScore(singleMatch) : '';
-  const matchRecord = formatMatchRecord(matches);
+  const singleMatchImage = singleMatch ? getMatchImage(content?.igdbId, singleMatch) : undefined;
+  const singleMatchScore = singleMatch ? formatMatchStat(singleMatch) : '';
+  const matchRecord = getMatchRecord(matches);
 
   // Check if content was created within the last hour and hasn't been viewed yet
   const isRecent = useMemo((): boolean => {
@@ -594,17 +592,17 @@ export default function ContentCard({
         <span className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
           {formattedDuration}
         </span>
-        {singleMatch && (!!singleMatch.result || !!singleMatchScore || !!singleMatchMapImage) && (
+        {singleMatch && (!!singleMatch.result || !!singleMatchScore || !!singleMatchImage) && (
           <MatchTooltip
             match={singleMatch}
-            mapImage={singleMatchMapImage}
-            className={`absolute bottom-2 left-2 flex items-center gap-1.5 max-w-[calc(100%-6rem)] bg-black/75 text-white text-xs ${singleMatchMapImage ? 'pl-1' : 'pl-2'} pr-2 py-1 rounded`}
+            image={singleMatchImage}
+            className={`absolute bottom-2 left-2 flex items-center gap-1.5 max-w-[calc(100%-6rem)] bg-black/75 text-white text-xs ${singleMatchImage ? 'pl-0.5 py-0.5' : 'pl-2 py-1'} pr-2 rounded`}
           >
-            {singleMatchMapImage && (
+            {singleMatchImage && (
               <img
-                src={singleMatchMapImage}
+                src={singleMatchImage.src}
                 alt=""
-                className="h-4 w-7 shrink-0 rounded-sm object-cover"
+                className={`h-5 ${singleMatchImage.square ? 'w-5' : 'w-9'} shrink-0 rounded-sm object-cover`}
                 draggable={false}
               />
             )}
@@ -614,14 +612,26 @@ export default function ContentCard({
                   {singleMatch.result}
                 </span>
               )}
-              {singleMatch.result && singleMatchScore && ' '}
-              {singleMatchScore}
+              {singleMatchScore && (
+                <span className={singleMatch.result ? 'ml-1.5' : undefined}>
+                  {singleMatchScore}
+                </span>
+              )}
             </span>
           </MatchTooltip>
         )}
         {matches.length > 1 && (
           <span className="absolute bottom-2 left-2 max-w-[calc(100%-6rem)] truncate bg-black/75 text-white text-xs px-2 py-1 rounded">
-            {`${matches.length} matches${matchRecord ? ` · ${matchRecord}` : ''}`}
+            {matchRecord.length > 0
+              ? matchRecord.map(({ result, text }, i) => (
+                  <span
+                    key={result}
+                    className={`font-semibold ${matchResultTextClass[result]} ${i > 0 ? 'ml-1.5' : ''}`}
+                  >
+                    {text}
+                  </span>
+                ))
+              : `${matches.length} matches`}
           </span>
         )}
         {manualBookmarkCount > 0 && (

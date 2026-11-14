@@ -54,7 +54,7 @@ import HevcExtensionWarning from '../Components/HevcExtensionWarning';
 import WebcamOverlay from '../Components/WebcamOverlay';
 import WebcamToggle from '../Components/WebcamToggle';
 import MatchTooltip from '../Components/MatchTooltip';
-import { formatMatchScore, getMatchMapImage, matchResultTextClass } from '../Utils/MatchUtils';
+import { formatMatchStat, getMatchImage, matchResultTextClass } from '../Utils/MatchUtils';
 
 const Crosshair2Dot = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
   <Icon {...props} ref={ref} iconNode={crosshair2Dot} />
@@ -2085,10 +2085,8 @@ export default function VideoComponent({ video }: { video: Content }) {
         end: Math.min(duration, timeStringToSeconds(match.endTime)),
       }))
       .filter((range) => range.end > range.start);
-    // A video that is just the match (a split session) already shows it on its card
-    const [only] = ranges;
-    if (ranges.length === 1 && only.start <= 30 && only.end >= duration - 30) return [];
-    return ranges;
+    // A single match already shows on the video's card
+    return ranges.length > 1 ? ranges : [];
   }, [video.matches, duration]);
 
   const seekToTime = (time: number) => {
@@ -2781,12 +2779,12 @@ export default function VideoComponent({ video }: { video: Content }) {
                         : match.result === 'Loss'
                           ? 'bg-error/[0.03] border-error/60'
                           : 'bg-white/[0.02] border-white/25';
-                    const score = formatMatchScore(match);
+                    const score = formatMatchStat(match);
                     // Without a result the match is named by its position instead
                     const lead = match.result
                       ? score
                       : [`Match ${index + 1}`, score].filter(Boolean).join(' ');
-                    const mapImage = getMatchMapImage(video.igdbId, match);
+                    const matchImage = getMatchImage(video.igdbId, match);
                     return (
                       <div
                         key={`match-${index}`}
@@ -2796,18 +2794,18 @@ export default function VideoComponent({ video }: { video: Content }) {
                         {width >= 40 && (
                           <MatchTooltip
                             match={match}
-                            mapImage={mapImage}
-                            className={`absolute top-1 left-1 flex items-center gap-1.5 h-5 max-w-[calc(100%-8px)] ${mapImage ? 'pl-0.5' : 'pl-1.5'} pr-1.5 rounded-sm bg-base-300/85 text-[10px] leading-none text-white/85 cursor-pointer pointer-events-auto hover:text-white`}
+                            image={matchImage}
+                            className={`absolute top-1 left-1 flex items-center gap-1.5 h-5 max-w-[calc(100%-8px)] ${matchImage ? 'pl-0.5' : 'pl-1.5'} pr-1.5 rounded-sm bg-base-300/85 text-[10px] leading-none text-white/85 cursor-pointer pointer-events-auto hover:text-white`}
                             onClick={(e) => {
                               e.stopPropagation();
                               seekToTime(start);
                             }}
                           >
-                            {mapImage && (
+                            {matchImage && (
                               <img
-                                src={mapImage}
+                                src={matchImage.src}
                                 alt=""
-                                className="h-4 w-7 shrink-0 rounded-[2px] object-cover"
+                                className={`h-4 ${matchImage.square ? 'w-4' : 'w-7'} shrink-0 rounded-[2px] object-cover`}
                                 draggable={false}
                               />
                             )}
@@ -2819,8 +2817,9 @@ export default function VideoComponent({ video }: { video: Content }) {
                                   {match.result}
                                 </span>
                               )}
-                              {match.result && lead && ' '}
-                              {lead}
+                              {lead && (
+                                <span className={match.result ? 'ml-1.5' : undefined}>{lead}</span>
+                              )}
                             </span>
                           </MatchTooltip>
                         )}
