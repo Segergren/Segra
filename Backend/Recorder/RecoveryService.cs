@@ -278,7 +278,8 @@ namespace Segra.Backend.Recorder
                     audioTrackNames: embedded?.AudioTrackNames,
                     audioTrackTypes: embedded?.AudioTrackTypes,
                     compressed: embedded?.Compressed ?? false,
-                    gameExePath: sameGame ? embedded!.GameExePath : null
+                    gameExePath: sameGame ? embedded!.GameExePath : null,
+                    matches: embedded?.Matches
                 );
 
                 await SendProgress(92, "importing");

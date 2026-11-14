@@ -2436,13 +2436,18 @@ namespace Segra.Backend.Recorder
         }
 
         // Runs outside the recorder lock so a new recording can start meanwhile
+        // The stopped session while it is being saved, so its card can still open it
+        internal static Recording? FinishingSession { get; private set; }
+
         private static async Task FinishStoppedRecording(Recording? session, bool discardSession)
         {
             using var work = BackgroundWork.Begin();
             await _finishLock.WaitAsync();
+            FinishingSession = session;
             try
             {
-                string? sessionContentId = null;
+                // Saved sessions with their bookmarks, for auto highlights
+                var savedSessions = new List<(string Id, List<Bookmark> Bookmarks)>();
                 if (session != null)
                 {
                     string filePath = session.FilePath!;
@@ -2452,19 +2457,7 @@ namespace Segra.Backend.Recorder
                     if (discardSession && !hasManualBookmarks)
                     {
                         Log.Information("Discarding session recording without manual bookmarks");
-                        try
-                        {
-                            if (File.Exists(filePath))
-                            {
-                                File.Delete(filePath);
-                                Log.Information($"Deleted video file: {filePath}");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.Warning($"Failed to delete discarded session file: {ex.Message}");
-                        }
-                        ContentService.DeleteWebcamFile(session.Webcam?.FilePath);
+                        MatchSplitService.DeleteOriginal(filePath, session.Webcam?.FilePath);
                     }
                     else
                     {
@@ -2475,18 +2468,30 @@ namespace Segra.Backend.Recorder
                             ? GameUtils.GetIgdbIdFromExePath(session.ExePath)
                             : null;
                         WebcamLayer? webcam = await FinishWebcamLayer(session.Webcam, session.Webcam?.FilePath, filePath);
-                        sessionContentId = await ContentService.CreateMetadataFile(filePath, Content.ContentType.Session, session.Game, session.Bookmarks, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes, gameExePath: session.ExePath, webcam: webcam);
-                        if (sessionContentId == null)
-                            ContentService.DeleteWebcamFile(webcam?.FilePath);
-                        await ContentService.CreateThumbnail(filePath, Content.ContentType.Session, sessionContentId);
-                        // Decoding a long session's audio takes seconds, so it doesn't hold up the finishing state
-                        var waveformWork = BackgroundWork.Begin();
-                        string? waveformId = sessionContentId;
-                        _ = Task.Run(async () =>
+                        var matchSessions = Settings.Instance.SplitSessionsIntoMatches
+                            ? await MatchSplitService.SplitAsync(session, filePath, webcam, igdbId, keepOnlyBookmarked: discardSession)
+                            : null;
+                        if (matchSessions != null)
                         {
-                            using (waveformWork)
-                                await ContentService.CreateWaveformFile(filePath, Content.ContentType.Session, waveformId);
-                        });
+                            savedSessions.AddRange(matchSessions.Select(m => (m.Id, m.Bookmarks)));
+                        }
+                        else
+                        {
+                            string? sessionContentId = await ContentService.CreateMetadataFile(filePath, Content.ContentType.Session, session.Game, session.Bookmarks, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes, gameExePath: session.ExePath, webcam: webcam, matches: session.GetMatches());
+                            if (sessionContentId == null)
+                                ContentService.DeleteWebcamFile(webcam?.FilePath);
+                            else
+                                savedSessions.Add((sessionContentId, session.Bookmarks));
+                            await ContentService.CreateThumbnail(filePath, Content.ContentType.Session, sessionContentId);
+                            // Decoding a long session's audio takes seconds, so it doesn't hold up the finishing state
+                            var waveformWork = BackgroundWork.Begin();
+                            string? waveformId = sessionContentId;
+                            _ = Task.Run(async () =>
+                            {
+                                using (waveformWork)
+                                    await ContentService.CreateWaveformFile(filePath, Content.ContentType.Session, waveformId);
+                            });
+                        }
 
                         Log.Information($"Recording details:");
                         Log.Information($"Start Time: {session.StartTime}");
@@ -2501,13 +2506,17 @@ namespace Segra.Backend.Recorder
                 await StorageService.DeleteExpiredContent();
 
                 // If the recording is not a replay buffer recording, AI is enabled and auto generate highlights is enabled -> analyze the video!
-                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights && sessionContentId != null && session!.Bookmarks.Any(b => b.Type.IncludeInHighlight()))
+                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights)
                 {
-                    _ = AiService.CreateHighlight(sessionContentId);
+                    foreach (var saved in savedSessions.Where(saved => saved.Bookmarks.Any(b => b.Type.IncludeInHighlight())))
+                    {
+                        _ = AiService.CreateHighlight(saved.Id);
+                    }
                 }
             }
             finally
             {
+                FinishingSession = null;
                 _finishLock.Release();
             }
         }

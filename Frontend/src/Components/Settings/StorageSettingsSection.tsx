@@ -392,6 +392,23 @@ export default function StorageSettingsSection({
             </div>
           </div>
         </label>
+        <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
+          <input
+            type="checkbox"
+            name="splitSessionsIntoMatches"
+            checked={settings.splitSessionsIntoMatches}
+            onChange={(e) => updateSettings({ splitSessionsIntoMatches: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <div>
+            <div className="font-semibold">Split Sessions Into Matches</div>
+            <div className="text-sm opacity-70 mt-0.5">
+              Saves each match as its own session when a recording ends and deletes the time in
+              menus between matches. Works in Counter-Strike 2, Dota 2, League of Legends and
+              Rainbow Six Siege.
+            </div>
+          </div>
+        </label>
       </div>
 
       {/* Migrate content stored outside the recording path */}

@@ -16,6 +16,55 @@ namespace Segra.Backend.Games.RainbowSixSiege
         private readonly HashSet<string> processedFiles = [];
         private string? replayFolder;
         private DateTime startedAt;
+        private readonly MatchTracker matches = new();
+        // Each match has its own replay folder
+        private string? matchFolder;
+        private int matchRound = -1;
+        private int matchKills;
+        private int matchDeaths;
+
+        // r6-dissect's worldid table, plus reworked maps identified from recordings
+        private static readonly Dictionary<ulong, string> MapNames = new()
+        {
+            [837214085] = "Clubhouse",
+            [1378191338] = "Kafe Dostoyevsky",
+            [1460220617] = "Kanal",
+            [1767965020] = "Yacht",
+            [2609218856] = "Presidential Plane",
+            [2609221242] = "Consulate",
+            [2697268122] = "Bartlett University",
+            [42090092951] = "Coastline",
+            [53627213396] = "Tower",
+            [88107330328] = "Villa",
+            [126196841359] = "Fortress",
+            [127951053400] = "Hereford Base",
+            [199824623654] = "Theme Park",
+            [231702797556] = "Oregon",
+            [237873412352] = "House",
+            [259816839773] = "Chalet",
+            [276279025182] = "Skyscraper",
+            [305979357167] = "Border",
+            [329867321446] = "Favela",
+            [355496559878] = "Bank",
+            [362605108559] = "Outback",
+            [365284490964] = "Emerald Plains",
+            [270063334510] = "Stadium Bravo",
+            [378595635123] = "Nighthaven Labs",
+            [379218689149] = "Consulate",
+            [388073319671] = "Lair",
+            [405306299908] = "Stadium",
+            [413779563590] = "Bank",
+            [407987100456] = "Border",
+            [407558616688] = "Chalet",
+            [407193663917] = "Clubhouse",
+            [413845419788] = "Kafe Dostoyevsky",
+            [417890697769] = "Lair",
+            [418119057546] = "Nighthaven Labs",
+            [418126004176] = "Consulate",
+            [434715462383] = "Oregon",
+            [441825219764] = "Outback",
+            [398899676157] = "Fortress",
+        };
 
         public RainbowSixSiegeIntegration()
         {
@@ -89,10 +138,12 @@ namespace Segra.Backend.Games.RainbowSixSiege
         {
             Log.Information("Stopping Rainbow Six Siege replay integration.");
             checkTimer.Stop();
+            // The last round's replay lands about 10 s after the match, often just as the game is closed
+            TimerTick(final: true);
             return Task.CompletedTask;
         }
 
-        private void TimerTick()
+        private void TimerTick(bool final = false)
         {
             lock (processedFiles)
             {
@@ -113,7 +164,7 @@ namespace Segra.Backend.Games.RainbowSixSiege
                             continue;
                         }
 
-                        if (DateTime.Now - info.LastWriteTime < TimeSpan.FromSeconds(3))
+                        if (!final && DateTime.Now - info.LastWriteTime < TimeSpan.FromSeconds(3))
                             continue;
 
                         processedFiles.Add(file);
@@ -157,6 +208,8 @@ namespace Segra.Backend.Games.RainbowSixSiege
             var actionStart = round.Timestamp.AddSeconds(PrepPhaseSeconds);
             DateTime? planted = null;
             var added = 0;
+            var kills = 0;
+            var deaths = 0;
 
             foreach (var update in round.Events)
             {
@@ -169,17 +222,95 @@ namespace Segra.Backend.Games.RainbowSixSiege
                         planted = time;
                         break;
                     case ReplayEventType.Kill when update.Username == me && update.Target != me:
+                        kills++;
                         added += AddBookmark(recording, BookmarkType.Kill, update.Headshot ? BookmarkSubtype.Headshot : null, time);
                         break;
                     case ReplayEventType.Kill when update.Target == me:
                     case ReplayEventType.Death when update.Username == me:
+                        deaths++;
                         added += AddBookmark(recording, BookmarkType.Death, null, time);
                         break;
                 }
             }
 
             Log.Information($"Rainbow Six Siege round {round.RoundNumber + 1}: added {added} bookmarks");
+            TrackMatch(file, round, me, kills, deaths);
         }
+
+        private void TrackMatch(string file, ReplayRound round, string me, int kills, int deaths)
+        {
+            string? folder = Path.GetDirectoryName(file);
+            if (folder != matchFolder)
+            {
+                matches.Close();
+                matchFolder = folder;
+                matchRound = -1;
+                matchKills = 0;
+                matchDeaths = 0;
+                if (!MapNames.ContainsKey(round.WorldId))
+                    Log.Information($"Rainbow Six Siege map {round.WorldId} has no name yet");
+                // The header time is when the round's prep phase started
+                matches.Start(m =>
+                {
+                    m.Map = MapNames.GetValueOrDefault(round.WorldId);
+                    m.Mode = FormatMatchType(round.MatchType);
+                }, DateTime.Now - round.Timestamp);
+            }
+
+            matchKills += kills;
+            matchDeaths += deaths;
+            // Rounds are read in order, but a late file must not take the score back
+            if (round.RoundNumber < matchRound)
+                return;
+            matchRound = round.RoundNumber;
+
+            int? team = round.Players.FirstOrDefault(p => p.Username == me)?.Team;
+            int? score = team is 0 or 1 ? round.TeamScores[team.Value] : null;
+            int? opponentScore = team is 0 or 1 ? round.TeamScores[1 - team.Value] : null;
+            void Apply(GameMatch m)
+            {
+                m.Score = score;
+                m.OpponentScore = opponentScore;
+                m.Kills = matchKills;
+                m.Deaths = matchDeaths;
+            }
+
+            if (score != null && opponentScore != null && IsMatchOver(round))
+            {
+                matches.End(m =>
+                {
+                    Apply(m);
+                    m.Result = score > opponentScore ? MatchResult.Win : MatchResult.Loss;
+                });
+            }
+            else
+            {
+                matches.Update(Apply);
+            }
+        }
+
+        // First to half the rounds plus one; at a tie on half each, overtime adds half the overtime rounds
+        private static bool IsMatchOver(ReplayRound round)
+        {
+            int half = round.RoundsPerMatch / 2;
+            if (half <= 0)
+                return false;
+
+            int a = round.TeamScores[0];
+            int b = round.TeamScores[1];
+            int target = a >= half && b >= half ? half + 1 + round.RoundsPerMatchOvertime / 2 : half + 1;
+            return Math.Max(a, b) >= target;
+        }
+
+        private static string? FormatMatchType(int matchType) => matchType switch
+        {
+            1 => "Quick Match",
+            2 => "Ranked",
+            3 or 4 => "Custom",
+            8 => "Standard",
+            9 => "Unranked",
+            _ => null,
+        };
 
         private static int AddBookmark(Recording recording, BookmarkType type, BookmarkSubtype? subtype, DateTime time)
         {

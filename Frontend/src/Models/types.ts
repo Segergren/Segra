@@ -17,6 +17,7 @@ export interface Content {
   title: string;
   game: string;
   bookmarks: Bookmark[];
+  matches?: Match[];
   fileName: string;
   filePath: string;
   fileSize: string;
@@ -31,6 +32,23 @@ export interface Content {
   audioTrackNames?: string[];
   audioTrackTypes?: AudioTrackType[];
   webcam?: WebcamLayer;
+}
+
+export type MatchResult = 'Win' | 'Loss' | 'Draw';
+
+// A match inside a video; times are "HH:MM:SS.fffffff" from the start of the video
+export interface Match {
+  startTime: string;
+  endTime: string;
+  result?: MatchResult;
+  score?: number;
+  opponentScore?: number;
+  map?: string;
+  mode?: string;
+  character?: string;
+  kills?: number;
+  deaths?: number;
+  assists?: number;
 }
 
 // A webcam recorded next to the video, drawn on top of it in the editor and in clips
@@ -410,6 +428,7 @@ export interface Settings {
   confirmBeforeDeleting: boolean;
   removeOriginalAfterCompression: boolean;
   discardSessionsWithoutBookmarks: boolean;
+  splitSessionsIntoMatches: boolean;
   menuItems: MenuItemPreference[];
   defaultMenuItem: MenuItemId;
 }
@@ -516,6 +535,7 @@ export const initialSettings: Settings = {
   confirmBeforeDeleting: false,
   removeOriginalAfterCompression: false,
   discardSessionsWithoutBookmarks: false,
+  splitSessionsIntoMatches: false,
   menuItems: DEFAULT_MENU_ITEMS,
   defaultMenuItem: 'Full Sessions',
   keybindings: [

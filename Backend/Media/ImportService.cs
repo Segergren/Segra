@@ -229,7 +229,7 @@ namespace Segra.Backend.Media
                     string title = embedded != null ? embedded.Title ?? string.Empty : originalFileName.Replace("_", " ");
                     DateTime? createdAt = embedded?.CreatedAt ?? (recordingDate != DateTime.MinValue ? recordingDate : null);
                     string? importedId = await ContentService.CreateMetadataFile(targetFilePath, contentType, game, embedded?.Bookmarks, title, createdAt, embedded?.IgdbId, isImported: true,
-                        audioTrackNames: embedded?.AudioTrackNames ?? audioTrackNames, audioTrackTypes: embedded?.AudioTrackTypes, compressed: embedded?.Compressed ?? false, gameExePath: embedded?.GameExePath);
+                        audioTrackNames: embedded?.AudioTrackNames ?? audioTrackNames, audioTrackTypes: embedded?.AudioTrackTypes, compressed: embedded?.Compressed ?? false, gameExePath: embedded?.GameExePath, matches: embedded?.Matches);
 
                     // Ensure file is fully written to disk/network before thumbnail generation
                     await GeneralUtils.EnsureFileReady(targetFilePath);

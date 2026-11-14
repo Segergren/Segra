@@ -12,6 +12,9 @@ namespace Segra.Backend.Games.LeagueOfLegends
         private PlayerStats _stats;
         private bool _isGameInProgress = false;
         private bool _initialStatsCaptured = false;
+        private bool _matchStarted = false;
+        private readonly MatchTracker _matches = new();
+        private readonly object _matchLock = new();
         private readonly string _liveClientDataUrl = "https://127.0.0.1:2999/liveclientdata";
 
         public LeagueOfLegendsIntegration()
@@ -68,6 +71,7 @@ namespace Segra.Backend.Games.LeagueOfLegends
                     Log.Information("League of Legends game detected and started");
                     _isGameInProgress = true;
                     _initialStatsCaptured = false;
+                    _matchStarted = false;
                 }
 
                 string summonerName = GetSummonerName(root);
@@ -83,6 +87,11 @@ namespace Segra.Backend.Games.LeagueOfLegends
                 }
 
                 ProcessPlayerStats(currentPlayer);
+                // Polls can overlap when a response is slow
+                lock (_matchLock)
+                {
+                    TrackMatch(root, currentPlayer);
+                }
             }
             catch (HttpRequestException)
             {
@@ -99,22 +108,105 @@ namespace Segra.Backend.Games.LeagueOfLegends
             }
         }
 
-        private bool IsGameStarted(JsonElement root)
+        private bool IsGameStarted(JsonElement root) => FindEvent(root, "GameStart") != null;
+
+        private static JsonElement? FindEvent(JsonElement root, string name)
         {
-            if (!root.TryGetProperty("events", out JsonElement eventList))
+            if (!root.TryGetProperty("events", out JsonElement eventList) ||
+                !eventList.TryGetProperty("Events", out JsonElement events) ||
+                events.ValueKind != JsonValueKind.Array)
             {
-                return false;
+                return null;
             }
 
-            if (!eventList.TryGetProperty("Events", out JsonElement events))
+            foreach (JsonElement element in events.EnumerateArray())
             {
-                return false;
+                if (element.TryGetProperty("EventName", out JsonElement propertyValue) &&
+                    propertyValue.ValueKind == JsonValueKind.String &&
+                    propertyValue.GetString() == name)
+                {
+                    return element;
+                }
             }
-
-            return events.EnumerateArray().Any(
-                element => element.TryGetProperty("EventName", out JsonElement propertyValue) &&
-                propertyValue.GetString() == "GameStart");
+            return null;
         }
+
+        private void TrackMatch(JsonElement root, JsonElement currentPlayer)
+        {
+            root.TryGetProperty("gameData", out JsonElement gameData);
+
+            if (!_matchStarted)
+            {
+                _matchStarted = true;
+                // The game clock starts at GameStart, so it tells how long ago the match began
+                double gameTime = gameData.ValueKind == JsonValueKind.Object &&
+                    gameData.TryGetProperty("gameTime", out JsonElement time) && time.ValueKind == JsonValueKind.Number
+                    ? time.GetDouble()
+                    : 0;
+                _matches.Start(startedAgo: TimeSpan.FromSeconds(Math.Max(0, gameTime)));
+            }
+
+            void Apply(GameMatch m)
+            {
+                if (gameData.ValueKind == JsonValueKind.Object)
+                {
+                    if (gameData.TryGetProperty("mapNumber", out JsonElement mapNumber) && mapNumber.ValueKind == JsonValueKind.Number)
+                        m.Map = FormatMap(mapNumber.GetInt32());
+                    if (gameData.TryGetProperty("gameMode", out JsonElement mode) && mode.ValueKind == JsonValueKind.String)
+                        m.Mode = FormatMode(mode.GetString());
+                }
+                if (currentPlayer.TryGetProperty("championName", out JsonElement champion) && champion.ValueKind == JsonValueKind.String)
+                    m.Character = champion.GetString();
+                if (currentPlayer.TryGetProperty("scores", out JsonElement scores))
+                {
+                    if (scores.TryGetProperty("kills", out JsonElement kills)) m.Kills = kills.GetInt32();
+                    if (scores.TryGetProperty("deaths", out JsonElement deaths)) m.Deaths = deaths.GetInt32();
+                    if (scores.TryGetProperty("assists", out JsonElement assists)) m.Assists = assists.GetInt32();
+                }
+            }
+
+            if (FindEvent(root, "GameEnd") is { } gameEnd)
+            {
+                _matches.End(m =>
+                {
+                    Apply(m);
+                    string? result = gameEnd.TryGetProperty("Result", out JsonElement r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null;
+                    m.Result = result switch
+                    {
+                        "Win" => MatchResult.Win,
+                        "Lose" => MatchResult.Loss,
+                        _ => null,
+                    };
+                });
+            }
+            else if (_matches.IsRunning)
+            {
+                _matches.Update(Apply);
+            }
+        }
+
+        private static string? FormatMap(int mapNumber) => mapNumber switch
+        {
+            11 => "Summoner's Rift",
+            12 => "Howling Abyss",
+            21 => "Nexus Blitz",
+            30 => "Rings of Wrath",
+            _ => null,
+        };
+
+        private static string? FormatMode(string? mode) => mode switch
+        {
+            null or "" or "CLASSIC" => null,
+            "ARAM" or "URF" or "ARURF" => mode,
+            "CHERRY" => "Arena",
+            "ONEFORALL" => "One for All",
+            "NEXUSBLITZ" => "Nexus Blitz",
+            "PRACTICETOOL" => "Practice Tool",
+            "TUTORIAL" => "Tutorial",
+            "ULTBOOK" => "Ultimate Spellbook",
+            "STRAWBERRY" => "Swarm",
+            _ => System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(mode.ToLowerInvariant()),
+        };
 
         private string GetSummonerName(JsonElement root)
         {

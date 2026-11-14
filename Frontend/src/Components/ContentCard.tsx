@@ -24,7 +24,14 @@ import { useAiHighlights } from '../Context/AiHighlightsContext';
 import { useCompression } from '../Context/CompressionContext';
 import { useContentMigration } from '../Context/ContentMigrationContext';
 import Button from './Button';
+import MatchTooltip from './MatchTooltip';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
+import {
+  formatMatchRecord,
+  formatMatchScore,
+  getMatchMapImage,
+  matchResultTextClass,
+} from '../Utils/MatchUtils';
 
 type VideoType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
 
@@ -264,6 +271,13 @@ export default function ContentCard({
   const formattedDuration = formatDuration(content!.duration);
   const manualBookmarkCount =
     content?.bookmarks?.filter((b) => b.type === BookmarkType.Manual).length ?? 0;
+  const matches = content?.matches ?? [];
+  const singleMatch = matches.length === 1 ? matches[0] : null;
+  const singleMatchMapImage = singleMatch
+    ? getMatchMapImage(content?.igdbId, singleMatch)
+    : undefined;
+  const singleMatchScore = singleMatch ? formatMatchScore(singleMatch) : '';
+  const matchRecord = formatMatchRecord(matches);
 
   // Check if content was created within the last hour and hasn't been viewed yet
   const isRecent = useMemo((): boolean => {
@@ -580,6 +594,36 @@ export default function ContentCard({
         <span className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
           {formattedDuration}
         </span>
+        {singleMatch && (!!singleMatch.result || !!singleMatchScore || !!singleMatchMapImage) && (
+          <MatchTooltip
+            match={singleMatch}
+            mapImage={singleMatchMapImage}
+            className={`absolute bottom-2 left-2 flex items-center gap-1.5 max-w-[calc(100%-6rem)] bg-black/75 text-white text-xs ${singleMatchMapImage ? 'pl-1' : 'pl-2'} pr-2 py-1 rounded`}
+          >
+            {singleMatchMapImage && (
+              <img
+                src={singleMatchMapImage}
+                alt=""
+                className="h-4 w-7 shrink-0 rounded-sm object-cover"
+                draggable={false}
+              />
+            )}
+            <span className="truncate">
+              {singleMatch.result && (
+                <span className={`font-semibold ${matchResultTextClass[singleMatch.result]}`}>
+                  {singleMatch.result}
+                </span>
+              )}
+              {singleMatch.result && singleMatchScore && ' '}
+              {singleMatchScore}
+            </span>
+          </MatchTooltip>
+        )}
+        {matches.length > 1 && (
+          <span className="absolute bottom-2 left-2 max-w-[calc(100%-6rem)] truncate bg-black/75 text-white text-xs px-2 py-1 rounded">
+            {`${matches.length} matches${matchRecord ? ` · ${matchRecord}` : ''}`}
+          </span>
+        )}
         {manualBookmarkCount > 0 && (
           <span className="absolute top-2 right-2 bg-black/75 text-yellow-400 text-xs px-2 py-1 rounded">
             <Bookmark size={12} fill="currentColor" className="inline align-middle mr-1" />

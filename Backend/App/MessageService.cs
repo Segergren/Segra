@@ -76,12 +76,16 @@ namespace Segra.Backend.App
                 return;
             }
 
-            Log.Information("Websocket message received: " + GeneralUtils.RedactSensitiveInfo(message));
-
             try
             {
                 var jsonDoc = JsonDocument.Parse(message);
                 var root = jsonDoc.RootElement;
+                string? loggedMethod = root.TryGetProperty("Method", out JsonElement loggedMethodElement) && loggedMethodElement.ValueKind == JsonValueKind.String
+                    ? loggedMethodElement.GetString()
+                    : null;
+                // Sent on every player open and close
+                if (loggedMethod != "VideoViewState")
+                    Log.Information("Websocket message received: " + GeneralUtils.RedactSensitiveInfo(message));
 
                 if (root.TryGetProperty("Method", out JsonElement methodElement))
                 {
@@ -142,6 +146,14 @@ namespace Segra.Backend.App
                             break;
                         case "OpenRecordingSnapshot":
                             _ = Task.Run(HandleOpenRecordingSnapshot);
+                            break;
+                        case "VideoViewState":
+                            if (root.TryGetProperty("Parameters", out JsonElement videoViewElement) &&
+                                videoViewElement.TryGetProperty("FilePath", out JsonElement videoViewPathElement) &&
+                                videoViewElement.TryGetProperty("Open", out JsonElement videoViewOpenElement))
+                            {
+                                HandleVideoViewState(videoViewPathElement.GetString(), videoViewOpenElement.GetBoolean());
+                            }
                             break;
                         case "MergeContent":
                             root.TryGetProperty("Parameters", out JsonElement mergeParameterElement);
@@ -297,6 +309,10 @@ namespace Segra.Backend.App
                             break;
                         case "NewConnection":
                             Log.Information("NewConnection command received.");
+                            // A reloaded frontend has no open views
+                            lock (_viewCounts)
+                                _viewCounts.Clear();
+                            MatchSplitService.DeletePendingOriginal();
 
                             // Sent over Photino's channel when the socket opens, so it can arrive before the socket is registered
                             await WaitForConnectionAsync(ConnectGraceMs);
@@ -879,10 +895,46 @@ namespace Segra.Backend.App
         // The session being recorded as last opened, so clips can be made from it
         public static Content? LiveContent { get; private set; }
 
-        // Builds a normal MP4 index for the in-progress Hybrid MP4 session, served without copying the file
+        // Open views per file. Messages are handled concurrently, so a count stays right in any order.
+        private static readonly Dictionary<string, int> _viewCounts = new(StringComparer.OrdinalIgnoreCase);
+        // A snapshot sent to the player that hasn't reported its view yet
+        private static string? _openingFilePath;
+
+        public static bool IsViewing(string filePath)
+        {
+            string key = PathUtils.Normalize(filePath);
+            lock (_viewCounts)
+                return _viewCounts.GetValueOrDefault(key) > 0 || (_openingFilePath != null && string.Equals(_openingFilePath, key, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static void HandleVideoViewState(string? filePath, bool open)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                return;
+            string key = PathUtils.Normalize(filePath);
+            lock (_viewCounts)
+            {
+                if (string.Equals(_openingFilePath, key, StringComparison.OrdinalIgnoreCase))
+                    _openingFilePath = null;
+                int count = _viewCounts.GetValueOrDefault(key) + (open ? 1 : -1);
+                if (count == 0)
+                    _viewCounts.Remove(key);
+                else
+                    _viewCounts[key] = count;
+            }
+            if (!open)
+            {
+                // Waits out a remount of the same view before deleting
+                _ = Task.Delay(2000).ContinueWith(_ => MatchSplitService.DeletePendingOriginal());
+            }
+        }
+
+        // Builds a normal MP4 index for the in-progress Hybrid MP4 session, served without copying the file.
+        // A session that is still being saved is complete on disk and served as is.
         private static async Task HandleOpenRecordingSnapshot()
         {
-            var recording = AppState.Instance.Recording;
+            var recording = AppState.Instance.Recording ?? OBSService.FinishingSession;
+            bool finished = AppState.Instance.Recording == null;
             string? source = recording?.FilePath;
             if (recording == null || string.IsNullOrEmpty(source) || !File.Exists(source))
             {
@@ -901,27 +953,42 @@ namespace Segra.Backend.App
 
             try
             {
-                var started = DateTime.Now;
-                var live = await Task.Run(() => LiveMp4.Build(source));
-                LiveMp4.Current = live;
-                Log.Information($"Live index built in {(DateTime.Now - started).TotalMilliseconds:F0} ms ({live.Duration}, {live.Header.Length / 1024} KB index)");
+                long dataLength;
+                TimeSpan duration;
+                if (finished)
+                {
+                    dataLength = new FileInfo(source).Length;
+                    duration = await FFmpegService.GetVideoDuration(source);
+                }
+                else
+                {
+                    var started = DateTime.Now;
+                    var live = await Task.Run(() => LiveMp4.Build(source));
+                    LiveMp4.Current = live;
+                    Log.Information($"Live index built in {(DateTime.Now - started).TotalMilliseconds:F0} ms ({live.Duration}, {live.Header.Length / 1024} KB index)");
+                    dataLength = live.DataLength;
+                    duration = live.Duration;
+                }
 
                 var content = new Content
                 {
                     Id = $"live-{Guid.NewGuid()}",
                     Type = Content.ContentType.Session,
-                    Game = recording.Game,
+                    Game = recording!.Game,
                     Bookmarks = recording.Bookmarks.ToList(),
+                    Matches = recording.GetMatches() is { Count: > 0 } matches ? matches : null,
                     FileName = Path.GetFileNameWithoutExtension(source),
                     FilePath = source,
-                    FileSizeKb = live.DataLength / 1024,
-                    FileSize = $"{live.DataLength / 1048576.0:F0} MB",
-                    Duration = live.Duration,
+                    FileSizeKb = dataLength / 1024,
+                    FileSize = $"{dataLength / 1048576.0:F0} MB",
+                    Duration = duration,
                     CreatedAt = recording.StartTime,
                     AudioTrackNames = recording.AudioTrackNames,
                     AudioTrackTypes = recording.AudioTrackTypes,
                 };
                 LiveContent = content;
+                lock (_viewCounts)
+                    _openingFilePath = PathUtils.Normalize(source);
                 await SendFrontendMessage("RecordingSnapshotReady", content);
 
                 // The video page refetches its waveform on WaveformCreated

@@ -81,9 +81,9 @@ export default function LiveSessionCard({
 
   return (
     <div
-      className={`card card-compact bg-base-300 text-gray-300 w-full ${opening || isFinishing ? 'cursor-default' : 'cursor-pointer'}`}
+      className={`card card-compact bg-base-300 text-gray-300 w-full ${opening ? 'cursor-default' : 'cursor-pointer'}`}
       onClick={() => {
-        if (opening || isFinishing) return;
+        if (opening) return;
         setOpening(true);
         sendMessageToBackend('OpenRecordingSnapshot');
       }}
@@ -109,10 +109,10 @@ export default function LiveSessionCard({
             REC
           </span>
         )}
-        {(opening || isFinishing) && (
+        {opening && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center gap-2 text-sm text-white">
             <span className="loading loading-spinner loading-xs" />
-            {isFinishing ? 'Finishing...' : 'Opening...'}
+            Opening...
           </div>
         )}
       </figure>

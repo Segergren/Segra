@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Segra.Backend.App;
 using Segra.Backend.Core.Models;
 using Segra.Backend.Shared;
@@ -88,6 +89,7 @@ namespace Segra.Backend.Media
                 AudioTrackTypes = content.AudioTrackTypes,
                 Compressed = content.Compressed,
                 Bookmarks = content.Bookmarks?.OrderBy(b => b.Time).ToList() ?? [],
+                Matches = content.Matches is { Count: > 0 } ? content.Matches : null,
             };
 
             using var work = BackgroundWork.Begin();
@@ -834,5 +836,8 @@ namespace Segra.Backend.Media
         public List<string>? AudioTrackTypes { get; init; }
         public bool Compressed { get; init; }
         public List<Bookmark> Bookmarks { get; init; } = [];
+        // Left out when empty so metadata written before matches existed stays identical
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<GameMatch>? Matches { get; init; }
     }
 }

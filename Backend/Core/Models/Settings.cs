@@ -1031,6 +1031,9 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("splitSessionsIntoMatches")]
+        public bool SplitSessionsIntoMatches { get; set; } = false;
+
         [JsonPropertyName("selectedOBSVersion")]
         public string? SelectedOBSVersion
         {
@@ -1245,6 +1248,8 @@ namespace Segra.Backend.Core.Models
     internal class Recording
     {
         private readonly object _bookmarksLock = new();
+        private readonly object _matchesLock = new();
+        private readonly List<GameMatch> _matches = [];
 
         [JsonPropertyName("startTime")]
         public DateTime StartTime { get; set; }
@@ -1319,6 +1324,30 @@ namespace Segra.Backend.Core.Models
             }
         }
 
+        public void AddMatch(GameMatch match)
+        {
+            lock (_matchesLock)
+            {
+                _matches.Add(match);
+            }
+        }
+
+        public void UpdateMatch(GameMatch match, Action<GameMatch> update)
+        {
+            lock (_matchesLock)
+            {
+                update(match);
+            }
+        }
+
+        public List<GameMatch> GetMatches()
+        {
+            lock (_matchesLock)
+            {
+                return _matches.Select(m => m.Clone()).ToList();
+            }
+        }
+
         [JsonPropertyName("duration")]
         public TimeSpan? Duration
         {
@@ -1359,6 +1388,7 @@ namespace Segra.Backend.Core.Models
 
         public string Game { get; set; } = string.Empty;
         public List<Bookmark> Bookmarks { get; set; } = new List<Bookmark>();
+        public List<GameMatch>? Matches { get; set; }
 
         public void AddBookmark(Bookmark bookmark)
         {

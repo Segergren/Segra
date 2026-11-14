@@ -1,4 +1,5 @@
 using Serilog;
+using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -14,6 +15,13 @@ namespace Segra.Backend.Games.CounterStrike2
         private int _lastValidKills = 0;
         private int _lastValidDeaths = 0;
         private bool _initialStatsCaptured = false;
+        private readonly object _stateLock = new();
+        private readonly MatchTracker _matches = new();
+        private string? _matchMap;
+        private string? _team;
+
+        // Modes where the team with more rounds wins
+        private static readonly HashSet<string> RoundModes = ["competitive", "premier", "casual", "scrimcomp2v2"];
 
         private class GameState
         {
@@ -32,6 +40,9 @@ namespace Segra.Backend.Games.CounterStrike2
             [System.Text.Json.Serialization.JsonPropertyName("steamid")]
             public string? SteamId { get; set; }
 
+            [System.Text.Json.Serialization.JsonPropertyName("team")]
+            public string? Team { get; set; }
+
             [System.Text.Json.Serialization.JsonPropertyName("match_stats")]
             public MatchStats? MatchStats { get; set; }
         }
@@ -46,6 +57,24 @@ namespace Segra.Backend.Games.CounterStrike2
         {
             [System.Text.Json.Serialization.JsonPropertyName("phase")]
             public string? Phase { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("name")]
+            public string? Name { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("mode")]
+            public string? Mode { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("team_ct")]
+            public TeamState? TeamCt { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("team_t")]
+            public TeamState? TeamT { get; set; }
+        }
+
+        private class TeamState
+        {
+            [System.Text.Json.Serialization.JsonPropertyName("score")]
+            public int? Score { get; set; }
         }
 
         private class MatchStats
@@ -55,6 +84,9 @@ namespace Segra.Backend.Games.CounterStrike2
 
             [System.Text.Json.Serialization.JsonPropertyName("deaths")]
             public int? Deaths { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("assists")]
+            public int? Assists { get; set; }
         }
 
         public override async Task Start()
@@ -180,12 +212,17 @@ namespace Segra.Backend.Games.CounterStrike2
         {
             try
             {
-                if (!IsValidState(gameState))
+                lock (_stateLock)
                 {
-                    return;
-                }
+                    TrackMatch(gameState);
 
-                ProcessStatChanges(gameState);
+                    if (!IsValidState(gameState))
+                    {
+                        return;
+                    }
+
+                    ProcessStatChanges(gameState);
+                }
             }
             catch (Exception ex)
             {
@@ -240,6 +277,115 @@ namespace Segra.Backend.Games.CounterStrike2
             _lastValidKills = currentKills;
             _lastValidDeaths = currentDeaths;
         }
+
+        private void TrackMatch(GameState state)
+        {
+            var map = state.Map;
+            string? phase = map?.Phase;
+            bool live = phase is "live" or "intermission";
+
+            // Left the map, back in warmup, on another map, or a new match after the last one ended
+            if (_matchMap != null && (map == null || map.Name != _matchMap || phase == "warmup" || (live && !_matches.IsRunning)))
+            {
+                _matches.End();
+                _matchMap = null;
+                _team = null;
+            }
+
+            if (map == null)
+            {
+                return;
+            }
+
+            bool isSelf = state.Player?.SteamId != null && state.Player.SteamId == state.Provider?.SteamId;
+            string? selfTeam = isSelf && state.Player!.Team is "CT" or "T" ? state.Player!.Team : null;
+
+            // Only matches we play in, not demos or matches we spectate
+            if (_matchMap == null && live && selfTeam != null)
+            {
+                _matches.Start(m =>
+                {
+                    m.Map = FormatMap(map.Name);
+                    m.Mode = FormatMode(map.Mode);
+                });
+                _matchMap = map.Name;
+            }
+
+            if (_matchMap == null)
+            {
+                return;
+            }
+
+            if (selfTeam != null)
+            {
+                _team = selfTeam;
+            }
+
+            bool roundMode = map.Mode != null && RoundModes.Contains(map.Mode);
+            int? ctScore = map.TeamCt?.Score;
+            int? tScore = map.TeamT?.Score;
+            void Apply(GameMatch m)
+            {
+                if (roundMode && _team != null && ctScore != null && tScore != null)
+                {
+                    m.Score = _team == "CT" ? ctScore : tScore;
+                    m.OpponentScore = _team == "CT" ? tScore : ctScore;
+                }
+                if (isSelf && state.Player!.MatchStats is { } stats)
+                {
+                    m.Kills = stats.Kills;
+                    m.Deaths = stats.Deaths;
+                    m.Assists = stats.Assists;
+                }
+            }
+
+            if (phase == "gameover")
+            {
+                void ApplyResult(GameMatch m)
+                {
+                    Apply(m);
+                    if (m.Score != null && m.OpponentScore != null)
+                    {
+                        m.Result = m.Score > m.OpponentScore ? MatchResult.Win
+                            : m.Score < m.OpponentScore ? MatchResult.Loss
+                            : MatchResult.Draw;
+                    }
+                }
+
+                // Later gameover updates only refresh the result in case the final score arrived late
+                if (_matches.IsRunning)
+                    _matches.End(ApplyResult);
+                else
+                    _matches.Update(ApplyResult);
+            }
+            else
+            {
+                _matches.Update(Apply);
+            }
+        }
+
+        // de_dust2 -> Dust II, workshop/123/de_foo_bar -> Foo Bar
+        private static string? FormatMap(string? name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return null;
+
+            string map = name[(name.LastIndexOf('/') + 1)..];
+            int prefix = map.IndexOf('_');
+            if (prefix is > 0 and <= 3)
+                map = map[(prefix + 1)..];
+            if (map == "dust2")
+                return "Dust II";
+            return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(map.Replace('_', ' '));
+        }
+
+        private static string? FormatMode(string? mode) => mode switch
+        {
+            null or "" => null,
+            "scrimcomp2v2" => "Wingman",
+            "gungameprogressive" => "Arms Race",
+            _ => CultureInfo.InvariantCulture.TextInfo.ToTitleCase(mode),
+        };
 
         private static bool IsValidState(GameState gameState)
         {

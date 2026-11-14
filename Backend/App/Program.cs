@@ -654,6 +654,7 @@ namespace Segra.Backend.App
                 Log.Information("Active recording detected during shutdown; stopping it before exit.");
                 OBSService.TryStopRecording(TimeSpan.FromSeconds(15));
             }
+            MatchSplitService.DeletePendingOriginal();
 
             // Shutdown OBS if it was initialized
             OBSService.TryShutdown(TimeSpan.FromSeconds(recorderLost ? 5 : 10));

@@ -18,6 +18,7 @@ namespace Segra.Backend.Games.RainbowSixSiege
         public string Username { get; set; } = "";
         public ulong Id { get; set; }
         public string? ProfileId { get; set; }
+        public int? Team { get; set; }
     }
 
     internal record ReplayEvent(ReplayEventType Type, string? Username, string? Target, bool Headshot, double TimeInSeconds);
@@ -30,6 +31,12 @@ namespace Segra.Backend.Games.RainbowSixSiege
         public int RoundNumber { get; set; }
         public ulong RecordingPlayerId { get; set; }
         public string? RecordingProfileId { get; set; }
+        public ulong WorldId { get; set; }
+        public int MatchType { get; set; }
+        public int RoundsPerMatch { get; set; }
+        public int RoundsPerMatchOvertime { get; set; }
+        // Score of team 0 and team 1 after this round
+        public int[] TeamScores { get; } = new int[2];
         public List<ReplayPlayer> Players { get; } = [];
         public List<ReplayEvent> Events { get; } = [];
     }
@@ -109,6 +116,9 @@ namespace Segra.Backend.Games.RainbowSixSiege
                     case "playername" when player != null:
                         player.Username = value;
                         break;
+                    case "team" when player != null && int.TryParse(value, CultureInfo.InvariantCulture, out int team):
+                        player.Team = team;
+                        break;
                     case "playlistcategory" or "id":
                         player = null;
                         break;
@@ -128,7 +138,16 @@ namespace Segra.Backend.Games.RainbowSixSiege
             round.RoundNumber = int.Parse(props["roundnumber"], CultureInfo.InvariantCulture);
             round.RecordingPlayerId = ulong.Parse(props["recordingplayerid"], CultureInfo.InvariantCulture);
             round.RecordingProfileId = props.GetValueOrDefault("recordingprofileid");
+            round.WorldId = ulong.TryParse(props.GetValueOrDefault("worldid"), CultureInfo.InvariantCulture, out ulong worldId) ? worldId : 0;
+            round.MatchType = ParseInt(props, "matchtype");
+            round.RoundsPerMatch = ParseInt(props, "roundspermatch");
+            round.RoundsPerMatchOvertime = ParseInt(props, "roundspermatchovertime");
+            round.TeamScores[0] = ParseInt(props, "teamscore0");
+            round.TeamScores[1] = ParseInt(props, "teamscore1");
         }
+
+        private static int ParseInt(Dictionary<string, string> props, string key) =>
+            int.TryParse(props.GetValueOrDefault(key), CultureInfo.InvariantCulture, out int value) ? value : 0;
 
         private string HeaderString()
         {

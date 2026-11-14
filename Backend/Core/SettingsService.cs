@@ -516,6 +516,13 @@ namespace Segra.Backend.Core
                 hasChanges = true;
             }
 
+            if (settings.SplitSessionsIntoMatches != updatedSettings.SplitSessionsIntoMatches)
+            {
+                Log.Information($"SplitSessionsIntoMatches changed from '{settings.SplitSessionsIntoMatches}' to '{updatedSettings.SplitSessionsIntoMatches}'");
+                settings.SplitSessionsIntoMatches = updatedSettings.SplitSessionsIntoMatches;
+                hasChanges = true;
+            }
+
             if (updatedSettings.GameIntegrations != null)
             {
                 var current = settings.GameIntegrations;

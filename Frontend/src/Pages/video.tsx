@@ -53,6 +53,8 @@ import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 import HevcExtensionWarning from '../Components/HevcExtensionWarning';
 import WebcamOverlay from '../Components/WebcamOverlay';
 import WebcamToggle from '../Components/WebcamToggle';
+import MatchTooltip from '../Components/MatchTooltip';
+import { formatMatchScore, getMatchMapImage, matchResultTextClass } from '../Utils/MatchUtils';
 
 const Crosshair2Dot = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
   <Icon {...props} ref={ref} iconNode={crosshair2Dot} />
@@ -2069,6 +2071,31 @@ export default function VideoComponent({ video }: { video: Content }) {
     if (videoRef.current) videoRef.current.currentTime = seekTo;
   };
 
+  // Lets the backend keep a split session's original until the player leaves it
+  useEffect(() => {
+    sendMessageToBackend('VideoViewState', { FilePath: video.filePath, Open: true });
+    return () => sendMessageToBackend('VideoViewState', { FilePath: video.filePath, Open: false });
+  }, [video.filePath]);
+
+  const matchRanges = useMemo(() => {
+    const ranges = (video.matches ?? [])
+      .map((match) => ({
+        match,
+        start: Math.max(0, timeStringToSeconds(match.startTime)),
+        end: Math.min(duration, timeStringToSeconds(match.endTime)),
+      }))
+      .filter((range) => range.end > range.start);
+    // A video that is just the match (a split session) already shows it on its card
+    const [only] = ranges;
+    if (ranges.length === 1 && only.start <= 30 && only.end >= duration - 30) return [];
+    return ranges;
+  }, [video.matches, duration]);
+
+  const seekToTime = (time: number) => {
+    setCurrentTime(time);
+    if (videoRef.current) videoRef.current.currentTime = time;
+  };
+
   // Kept in a ref so the keyboard handler always sees the current bookmarks and filter
   const jumpToAdjacentBookmarkRef = useRef<(direction: 1 | -1) => void>(() => {});
   useLayoutEffect(() => {
@@ -2625,117 +2652,183 @@ export default function VideoComponent({ video }: { video: Content }) {
               })}
             </div>
             <div
-              className="timeline-container bg-base-300 border border-base-400 rounded-lg relative h-[50px] w-full overflow-hidden"
+              className="relative"
               style={{
                 width: `${duration * pixelsPerSecond}px`,
                 minWidth: '100%',
               }}
-              onClick={handleTimelineClick}
-              onMouseDown={(e) => {
-                if (e.button !== 0 || e.target !== e.currentTarget) return;
-                scrubCandidateRef.current = e.clientX;
-              }}
             >
-              {settings.showAudioWaveformInTimeline && (
-                <canvas
-                  ref={waveformCanvasRef}
-                  height={49}
-                  className="absolute top-0 pointer-events-none"
-                  style={{
-                    height: '49px',
-                    opacity: 0.6,
-                  }}
-                />
-              )}
-              {sortedSegments.map((seg) => {
-                const left = seg.startTime * pixelsPerSecond;
-                const width = (seg.endTime - seg.startTime) * pixelsPerSecond;
-                const hidden = seg.fileName !== video.fileName;
-                const audioMenuOpen =
-                  timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible;
-                const customMix = hasCustomAudioMix(seg.mutedAudioTracks, seg.audioTrackVolumes);
-                return (
-                  <div
-                    key={seg.id}
-                    className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors rounded-r-sm rounded-l-sm shadow-md
-                                                bg-primary/20 border border-primary/20`}
-                    style={{ left: `${left}px`, width: `${width}px` }}
-                    onMouseEnter={(e) => segmentHover.enter(seg.id, e)}
-                    onMouseMove={segmentHover.move}
-                    onMouseLeave={segmentHover.leave}
-                    onMouseDown={(e) => {
-                      segmentHover.commit();
-                      handleSegmentMouseDown(e, seg.id);
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      handleDeleteSegment(seg.id);
-                    }}
-                  >
-                    <div className="absolute left-0 top-0 h-full w-[3px] bg-accent/80 rounded-l-sm pointer-events-none" />
-                    <div className="absolute right-0 top-0 h-full w-[3px] bg-accent/80 rounded-r-sm pointer-events-none" />
-
-                    {audioTracks.isMultiTrack &&
-                      video.audioTrackNames &&
-                      video.audioTrackNames.length > 1 &&
-                      width >= 36 && (
-                        <button
-                          className={`absolute top-[4px] right-[8px] flex items-center justify-center w-5 h-5 rounded-full z-10 pointer-events-auto cursor-pointer transition-[opacity,color,background-color] bg-black/60 backdrop-blur-sm hover:bg-black/80 ${audioMenuOpen || customMix ? 'text-accent' : 'text-white/80 hover:text-white'} ${hoveredSegmentId === seg.id || audioMenuOpen || customMix ? 'opacity-100' : 'opacity-0'}`}
-                          aria-label="Segment audio"
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible) {
-                              setTimelineAudioMenu((prev) =>
-                                prev ? { ...prev, visible: false } : null,
-                              );
-                              return;
-                            }
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const trackCount = video.audioTrackNames?.length ?? 0;
-                            const estimatedHeight = 24 + trackCount * 32;
-                            const fitsBelow =
-                              rect.bottom + 4 + estimatedHeight <= window.innerHeight;
-                            const top = fitsBelow
-                              ? rect.bottom + 4
-                              : Math.max(8, rect.top - 4 - estimatedHeight);
-                            const next = {
-                              segId: seg.id,
-                              x: rect.left,
-                              y: top,
-                              flipUp: !fitsBelow,
-                              visible: false,
-                            };
-                            setTimelineAudioMenu(next);
-                            requestAnimationFrame(() =>
-                              setTimelineAudioMenu((prev) =>
-                                prev ? { ...prev, visible: true } : null,
-                              ),
-                            );
-                          }}
-                        >
-                          <Headphones className="w-3 h-3" />
-                        </button>
-                      )}
-
-                    <div
-                      className="absolute top-0 -left-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
-                      onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
-                      aria-label="Resize segment start"
-                    />
-                    <div
-                      className="absolute top-0 -right-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
-                      onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
-                      aria-label="Resize segment end"
-                    />
-                  </div>
-                );
-              })}
               <div
-                className="absolute top-0 left-0 z-10 w-1 h-full -translate-x-1/2 rounded-sm shadow cursor-pointer marker bg-accent"
-                style={{ left: `${currentTime * pixelsPerSecond}px` }}
-                onMouseDown={handleMarkerDragStart}
-              />
+                className="timeline-container bg-base-300 border border-base-400 rounded-lg relative h-[50px] w-full overflow-hidden"
+                onClick={handleTimelineClick}
+                onMouseDown={(e) => {
+                  if (e.button !== 0 || e.target !== e.currentTarget) return;
+                  scrubCandidateRef.current = e.clientX;
+                }}
+              >
+                {settings.showAudioWaveformInTimeline && (
+                  <canvas
+                    ref={waveformCanvasRef}
+                    height={49}
+                    className="absolute top-0 pointer-events-none"
+                    style={{
+                      height: '49px',
+                      opacity: 0.6,
+                    }}
+                  />
+                )}
+                {sortedSegments.map((seg) => {
+                  const left = seg.startTime * pixelsPerSecond;
+                  const width = (seg.endTime - seg.startTime) * pixelsPerSecond;
+                  const hidden = seg.fileName !== video.fileName;
+                  const audioMenuOpen =
+                    timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible;
+                  const customMix = hasCustomAudioMix(seg.mutedAudioTracks, seg.audioTrackVolumes);
+                  return (
+                    <div
+                      key={seg.id}
+                      className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors rounded-r-sm rounded-l-sm shadow-md
+                                                bg-primary/20 border border-primary/20`}
+                      style={{ left: `${left}px`, width: `${width}px` }}
+                      onMouseEnter={(e) => segmentHover.enter(seg.id, e)}
+                      onMouseMove={segmentHover.move}
+                      onMouseLeave={segmentHover.leave}
+                      onMouseDown={(e) => {
+                        segmentHover.commit();
+                        handleSegmentMouseDown(e, seg.id);
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        handleDeleteSegment(seg.id);
+                      }}
+                    >
+                      <div className="absolute left-0 top-0 h-full w-[3px] bg-accent/80 rounded-l-sm pointer-events-none" />
+                      <div className="absolute right-0 top-0 h-full w-[3px] bg-accent/80 rounded-r-sm pointer-events-none" />
+
+                      {audioTracks.isMultiTrack &&
+                        video.audioTrackNames &&
+                        video.audioTrackNames.length > 1 &&
+                        width >= 36 && (
+                          <button
+                            className={`absolute top-[4px] right-[8px] flex items-center justify-center w-5 h-5 rounded-full z-10 pointer-events-auto cursor-pointer transition-[opacity,color,background-color] bg-black/60 backdrop-blur-sm hover:bg-black/80 ${audioMenuOpen || customMix ? 'text-accent' : 'text-white/80 hover:text-white'} ${hoveredSegmentId === seg.id || audioMenuOpen || customMix ? 'opacity-100' : 'opacity-0'}`}
+                            aria-label="Segment audio"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (
+                                timelineAudioMenu?.segId === seg.id &&
+                                timelineAudioMenu.visible
+                              ) {
+                                setTimelineAudioMenu((prev) =>
+                                  prev ? { ...prev, visible: false } : null,
+                                );
+                                return;
+                              }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const trackCount = video.audioTrackNames?.length ?? 0;
+                              const estimatedHeight = 24 + trackCount * 32;
+                              const fitsBelow =
+                                rect.bottom + 4 + estimatedHeight <= window.innerHeight;
+                              const top = fitsBelow
+                                ? rect.bottom + 4
+                                : Math.max(8, rect.top - 4 - estimatedHeight);
+                              const next = {
+                                segId: seg.id,
+                                x: rect.left,
+                                y: top,
+                                flipUp: !fitsBelow,
+                                visible: false,
+                              };
+                              setTimelineAudioMenu(next);
+                              requestAnimationFrame(() =>
+                                setTimelineAudioMenu((prev) =>
+                                  prev ? { ...prev, visible: true } : null,
+                                ),
+                              );
+                            }}
+                          >
+                            <Headphones className="w-3 h-3" />
+                          </button>
+                        )}
+
+                      <div
+                        className="absolute top-0 -left-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
+                        onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
+                        aria-label="Resize segment start"
+                      />
+                      <div
+                        className="absolute top-0 -right-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
+                        onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
+                        aria-label="Resize segment end"
+                      />
+                    </div>
+                  );
+                })}
+                <div
+                  className="absolute top-0 left-0 z-10 w-1 h-full -translate-x-1/2 rounded-sm shadow cursor-pointer marker bg-accent"
+                  style={{ left: `${currentTime * pixelsPerSecond}px` }}
+                  onMouseDown={handleMarkerDragStart}
+                />
+              </div>
+              {/* Drawn over the timeline from its outer edges, so the outlines sit on its border at any display scale */}
+              {bookmarksReady && matchRanges.length > 0 && (
+                <div className="absolute inset-0 pointer-events-none">
+                  {matchRanges.map(({ match, start, end }, index) => {
+                    const width = (end - start) * pixelsPerSecond;
+                    const tone =
+                      match.result === 'Win'
+                        ? 'bg-success/[0.03] border-success/60'
+                        : match.result === 'Loss'
+                          ? 'bg-error/[0.03] border-error/60'
+                          : 'bg-white/[0.02] border-white/25';
+                    const score = formatMatchScore(match);
+                    // Without a result the match is named by its position instead
+                    const lead = match.result
+                      ? score
+                      : [`Match ${index + 1}`, score].filter(Boolean).join(' ');
+                    const mapImage = getMatchMapImage(video.igdbId, match);
+                    return (
+                      <div
+                        key={`match-${index}`}
+                        className={`absolute top-0 h-full border rounded-md pointer-events-none ${tone}`}
+                        style={{ left: `${start * pixelsPerSecond}px`, width: `${width}px` }}
+                      >
+                        {width >= 40 && (
+                          <MatchTooltip
+                            match={match}
+                            mapImage={mapImage}
+                            className={`absolute top-1 left-1 flex items-center gap-1.5 h-5 max-w-[calc(100%-8px)] ${mapImage ? 'pl-0.5' : 'pl-1.5'} pr-1.5 rounded-sm bg-base-300/85 text-[10px] leading-none text-white/85 cursor-pointer pointer-events-auto hover:text-white`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              seekToTime(start);
+                            }}
+                          >
+                            {mapImage && (
+                              <img
+                                src={mapImage}
+                                alt=""
+                                className="h-4 w-7 shrink-0 rounded-[2px] object-cover"
+                                draggable={false}
+                              />
+                            )}
+                            <span className="truncate">
+                              {match.result && (
+                                <span
+                                  className={`font-semibold ${matchResultTextClass[match.result]}`}
+                                >
+                                  {match.result}
+                                </span>
+                              )}
+                              {match.result && lead && ' '}
+                              {lead}
+                            </span>
+                          </MatchTooltip>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
           {timelineAudioMenu &&

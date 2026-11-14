@@ -452,6 +452,7 @@ namespace Segra.Backend.App
             lines.Add($"Confirm before deleting: {s.ConfirmBeforeDeleting}");
             lines.Add($"Remove original after compression: {s.RemoveOriginalAfterCompression}");
             lines.Add($"Discard sessions without bookmarks: {s.DiscardSessionsWithoutBookmarks}");
+            lines.Add($"Split sessions into matches: {s.SplitSessionsIntoMatches}");
         }
 
         private static void LogClipExport(List<string> lines)

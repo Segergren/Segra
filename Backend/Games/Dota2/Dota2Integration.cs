@@ -1,4 +1,5 @@
 using Serilog;
+using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -16,6 +17,38 @@ namespace Segra.Backend.Games.Dota2
         private int _lastValidAssists = 0;
         private bool _hadAegis = false;
         private bool _initialStatsCaptured = false;
+        private readonly object _stateLock = new();
+        private readonly MatchTracker _matches = new();
+        private string? _matchId;
+
+        private const string PreGame = "DOTA_GAMERULES_STATE_PRE_GAME";
+        private const string InProgress = "DOTA_GAMERULES_STATE_GAME_IN_PROGRESS";
+        private const string PostGame = "DOTA_GAMERULES_STATE_POST_GAME";
+
+        // Internal names that don't read as the hero's name
+        private static readonly Dictionary<string, string> HeroNames = new()
+        {
+            ["abyssal_underlord"] = "Underlord",
+            ["antimage"] = "Anti-Mage",
+            ["centaur"] = "Centaur Warrunner",
+            ["doom_bringer"] = "Doom",
+            ["furion"] = "Nature's Prophet",
+            ["keeper_of_the_light"] = "Keeper of the Light",
+            ["life_stealer"] = "Lifestealer",
+            ["magnataur"] = "Magnus",
+            ["necrolyte"] = "Necrophos",
+            ["nevermore"] = "Shadow Fiend",
+            ["obsidian_destroyer"] = "Outworld Destroyer",
+            ["queenofpain"] = "Queen of Pain",
+            ["rattletrap"] = "Clockwerk",
+            ["shredder"] = "Timbersaw",
+            ["skeleton_king"] = "Wraith King",
+            ["treant"] = "Treant Protector",
+            ["vengefulspirit"] = "Vengeful Spirit",
+            ["windrunner"] = "Windranger",
+            ["wisp"] = "Io",
+            ["zuus"] = "Zeus",
+        };
 
         private class GameState
         {
@@ -45,18 +78,30 @@ namespace Segra.Backend.Games.Dota2
 
             [System.Text.Json.Serialization.JsonPropertyName("assists")]
             public int? Assists { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("team_name")]
+            public string? TeamName { get; set; }
         }
 
         private class Hero
         {
             [System.Text.Json.Serialization.JsonPropertyName("alive")]
             public bool? Alive { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("name")]
+            public string? Name { get; set; }
         }
 
         private class Map
         {
             [System.Text.Json.Serialization.JsonPropertyName("game_state")]
             public string? GameState { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("matchid")]
+            public JsonElement MatchId { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("win_team")]
+            public string? WinTeam { get; set; }
         }
 
         public override async Task Start()
@@ -179,6 +224,93 @@ namespace Segra.Backend.Games.Dota2
         }
 
         private void ProcessGameState(GameState state)
+        {
+            lock (_stateLock)
+            {
+                TrackMatch(state);
+                ProcessStatChanges(state);
+            }
+        }
+
+        private void TrackMatch(GameState state)
+        {
+            try
+            {
+                var map = state.Map;
+                string? team = state.Player?.TeamName;
+                // Spectating or watching a replay has no team of our own
+                if (map == null || team is not ("radiant" or "dire"))
+                {
+                    _matches.End();
+                    return;
+                }
+
+                string id = map.MatchId.ValueKind switch
+                {
+                    JsonValueKind.String => map.MatchId.GetString() ?? string.Empty,
+                    JsonValueKind.Number => map.MatchId.GetRawText(),
+                    _ => string.Empty,
+                };
+                if (id != _matchId)
+                {
+                    _matches.End();
+                    _matchId = null;
+                }
+
+                string? phase = map.GameState;
+                if (phase is PreGame or InProgress && !_matches.IsRunning && !(id == _matchId && _matches.Resume()))
+                {
+                    _matches.Start();
+                    _matchId = id;
+                }
+
+                if (_matchId == null)
+                {
+                    return;
+                }
+
+                void Apply(GameMatch m)
+                {
+                    m.Character = FormatHero(state.Hero?.Name) ?? m.Character;
+                    m.Kills = state.Player!.Kills ?? m.Kills;
+                    m.Deaths = state.Player.Deaths ?? m.Deaths;
+                    m.Assists = state.Player.Assists ?? m.Assists;
+                }
+
+                if (phase == PostGame)
+                {
+                    _matches.End(m =>
+                    {
+                        Apply(m);
+                        if (map.WinTeam is "radiant" or "dire")
+                            m.Result = map.WinTeam == team ? MatchResult.Win : MatchResult.Loss;
+                    });
+                }
+                else if (_matches.IsRunning)
+                {
+                    _matches.Update(Apply);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Error tracking the Dota 2 match: {ex.Message}");
+            }
+        }
+
+        // npc_dota_hero_dragon_knight -> Dragon Knight
+        private static string? FormatHero(string? name)
+        {
+            const string prefix = "npc_dota_hero_";
+            if (string.IsNullOrEmpty(name) || !name.StartsWith(prefix, StringComparison.Ordinal) || name.Length == prefix.Length)
+                return null;
+
+            string hero = name[prefix.Length..];
+            return HeroNames.TryGetValue(hero, out string? display)
+                ? display
+                : CultureInfo.InvariantCulture.TextInfo.ToTitleCase(hero.Replace('_', ' '));
+        }
+
+        private void ProcessStatChanges(GameState state)
         {
             try
             {

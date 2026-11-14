@@ -418,14 +418,16 @@ namespace Segra.Backend.Media
                 await SendProgress(97);
 
                 var bookmarks = new List<Bookmark>();
+                var matches = new List<GameMatch>();
                 TimeSpan offset = TimeSpan.Zero;
                 foreach (var session in sessions)
                 {
                     bookmarks.AddRange(session.Bookmarks.Select(b => new Bookmark { Type = b.Type, Subtype = b.Subtype, Time = b.Time + offset }));
+                    matches.AddRange((session.Matches ?? []).Select(m => m.Shifted(offset)));
                     offset += session.Duration;
                 }
 
-                string? sessionId = await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Session, first.Game, bookmarks, igdbId: first.IgdbId, audioTrackNames: first.AudioTrackNames, audioTrackTypes: first.AudioTrackTypes, gameExePath: first.GameExePath);
+                string? sessionId = await ContentService.CreateMetadataFile(outputFilePath, Content.ContentType.Session, first.Game, bookmarks, igdbId: first.IgdbId, audioTrackNames: first.AudioTrackNames, audioTrackTypes: first.AudioTrackTypes, gameExePath: first.GameExePath, matches: matches);
                 await ContentService.CreateThumbnail(outputFilePath, Content.ContentType.Session, sessionId);
                 await ContentService.CreateWaveformFile(outputFilePath, Content.ContentType.Session, sessionId);
                 await SendProgress(99);
