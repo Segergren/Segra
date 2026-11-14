@@ -11,12 +11,12 @@ namespace Segra.Backend.Games
     /// bookmark types, see <see cref="SteamTimelineReader"/> for how the markers are read.
     ///
     /// Steam only hands the timeline over when the game closes, so the bookmarks are added at that point: to the
-    /// recording when it is still running, otherwise to the finished session. One timeline covers the whole run of
-    /// the game and is shared by every recording made during it.
+    /// recording when it is still running, otherwise to the finished session. A timeline covers the run of the game
+    /// and is shared by every recording made during it.
     /// </summary>
     internal abstract class SteamTimelineIntegration : Integration
     {
-        private static readonly TimeSpan CatchTimeout = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan WriteTimeout = TimeSpan.FromSeconds(30);
 
         // Running games by process id
         private static readonly Dictionary<int, GameRun> _runs = [];
@@ -61,39 +61,53 @@ namespace Segra.Backend.Games
             // Guarded by the lock on _runs
             public List<(Recording Recording, SteamTimelineIntegration Integration)> Recordings { get; } = [];
 
+            private readonly Dictionary<string, SteamTimelineFile> _kept = [];
+
+            // Timelines from before the game started belong to an earlier run that Steam still has recordings of
+            private DateTime? _since = StartTime(pid);
+
             public async Task Watch()
             {
                 try
                 {
-                    // Steam lists the timeline a few seconds after the game starts it
-                    string? file = null;
+                    SteamTimelineReader.RemoveLeftovers();
+
+                    // Steam lists a timeline a few seconds after the game starts it, and starts a new one after sleep
                     for (int tick = 0; IsRunning(); tick++)
                     {
-                        if (file == null && tick % 50 == 0)
-                            file = SteamTimelineReader.FindTimelineFile(appId);
+                        if (tick % 50 == 0)
+                            KeepTimelines();
                         await Task.Delay(100);
                     }
 
-                    file ??= SteamTimelineReader.FindTimelineFile(appId);
-                    if (file == null)
+                    KeepTimelines();
+                    if (_kept.Count == 0)
                     {
                         Log.Information($"[{logPrefix}] Steam had no timeline for the game, nothing to import");
                         return;
                     }
 
-                    var stopwatch = Stopwatch.StartNew();
-                    var timeline = await Task.Factory.StartNew(
-                        () => SteamTimelineReader.Catch(file, CatchTimeout), TaskCreationOptions.LongRunning);
-                    if (timeline == null)
+                    // Steam writes the last timeline a few seconds after the game closes
+                    var closed = Stopwatch.StartNew();
+                    var pending = _kept.Values.OrderBy(t => t.Started).ToList();
+                    var newest = pending[^1];
+                    var timelines = new List<SteamTimeline>();
+                    while (pending.Contains(newest) && closed.Elapsed < WriteTimeout)
                     {
-                        Log.Warning($"[{logPrefix}] Steam did not write {Path.GetFileName(file)} within {CatchTimeout.TotalSeconds:0} s, no timeline events imported");
-                        return;
+                        await Task.Delay(100);
+                        Read(pending, timelines, closed.Elapsed);
                     }
 
-                    var kinds = timeline.Events.GroupBy(e => $"{e.Title} ({e.Icon})").Select(g => $"{g.Count()}x {g.Key}");
-                    Log.Information($"[{logPrefix}] Steam timeline with {timeline.Events.Count} events, written {stopwatch.Elapsed.TotalSeconds:0.0} s after the game closed: {string.Join(", ", kinds)}");
-                    foreach (var timelineEvent in timeline.Events)
-                        Log.Debug($"[{logPrefix}] {timeline.Start + timelineEvent.Time:HH:mm:ss.fff} {timelineEvent.Title} | {timelineEvent.Description} | {timelineEvent.Icon}");
+                    if (pending.Count > 0 && !pending.Contains(newest))
+                    {
+                        await Task.Delay(1000);
+                        Read(pending, timelines, closed.Elapsed);
+                    }
+
+                    foreach (var missing in pending)
+                        Log.Warning($"[{logPrefix}] Steam did not write {missing.Id} within {WriteTimeout.TotalSeconds:0} s, its events are not imported");
+                    if (timelines.Count == 0)
+                        return;
 
                     List<(Recording Recording, SteamTimelineIntegration Integration)> recordings;
                     lock (_runs)
@@ -103,7 +117,7 @@ namespace Segra.Backend.Games
                     }
 
                     foreach (var (recording, integration) in recordings)
-                        await Import(timeline, recording, integration);
+                        await Import(timelines, recording, integration);
                 }
                 catch (Exception ex)
                 {
@@ -111,11 +125,64 @@ namespace Segra.Backend.Games
                 }
                 finally
                 {
+                    foreach (var timeline in _kept.Values)
+                        SteamTimelineReader.Release(timeline);
+
                     lock (_runs)
                     {
                         if (_runs.TryGetValue(pid, out var run) && run == this)
                             _runs.Remove(pid);
                     }
+                }
+            }
+
+            private void KeepTimelines()
+            {
+                var found = SteamTimelineReader.FindTimelines(appId);
+                if (found.Count == 0)
+                    return;
+
+                _since ??= found[^1].Started;
+                foreach (var timeline in found)
+                {
+                    if (timeline.Started < _since || !_kept.TryAdd(timeline.Id, timeline))
+                        continue;
+
+                    if (SteamTimelineReader.Keep(timeline))
+                        Log.Information($"[{logPrefix}] Keeping Steam timeline {timeline.Id}");
+                    else
+                        Log.Warning($"[{logPrefix}] Could not link Steam timeline {timeline.Id}, it is only read if Steam leaves the file");
+                }
+            }
+
+            private void Read(List<SteamTimelineFile> pending, List<SteamTimeline> timelines, TimeSpan sinceClosed)
+            {
+                foreach (var file in pending.ToList())
+                {
+                    if (SteamTimelineReader.Read(file) is not SteamTimeline timeline)
+                        continue;
+
+                    pending.Remove(file);
+                    timelines.Add(timeline);
+
+                    var kinds = timeline.Events.GroupBy(e => $"{e.Title} ({e.Icon})").Select(g => $"{g.Count()}x {g.Key}");
+                    Log.Information($"[{logPrefix}] Steam timeline {file.Id} with {timeline.Events.Count} events, read {sinceClosed.TotalSeconds:0.0} s after the game closed: {string.Join(", ", kinds)}");
+                    foreach (var timelineEvent in timeline.Events)
+                        Log.Debug($"[{logPrefix}] {timeline.Start + timelineEvent.Time:HH:mm:ss.fff} {timelineEvent.Title} | {timelineEvent.Description} | {timelineEvent.Icon}");
+                }
+            }
+
+            private static DateTime? StartTime(int pid)
+            {
+                try
+                {
+                    using var process = Process.GetProcessById(pid);
+                    return process.StartTime - TimeSpan.FromSeconds(5);
+                }
+                catch (Exception ex) when (ex is ArgumentException or Win32Exception or InvalidOperationException)
+                {
+                    // Anti-cheat can deny access to the process, the newest timeline is then taken as its first
+                    return null;
                 }
             }
 
@@ -137,19 +204,22 @@ namespace Segra.Backend.Games
                 }
             }
 
-            private async Task Import(SteamTimeline timeline, Recording recording, SteamTimelineIntegration integration)
+            private async Task Import(List<SteamTimeline> timelines, Recording recording, SteamTimelineIntegration integration)
             {
                 var bookmarks = new List<Bookmark>();
-                foreach (var timelineEvent in timeline.Events)
+                foreach (var timeline in timelines)
                 {
-                    if (integration.GetBookmarkType(timelineEvent) is not BookmarkType type)
-                        continue;
+                    foreach (var timelineEvent in timeline.Events)
+                    {
+                        if (integration.GetBookmarkType(timelineEvent) is not BookmarkType type)
+                            continue;
 
-                    var time = timeline.Start + timelineEvent.Time;
-                    if (time < recording.StartTime || time > recording.EndTime)
-                        continue;
+                        var time = timeline.Start + timelineEvent.Time;
+                        if (time < recording.StartTime || time > recording.EndTime)
+                            continue;
 
-                    bookmarks.Add(new Bookmark { Type = type, Time = time - recording.StartTime });
+                        bookmarks.Add(new Bookmark { Type = type, Time = time - recording.StartTime });
+                    }
                 }
 
                 // A stopped recording is written to the session from its bookmark list, it is left alone until that is done
@@ -175,7 +245,16 @@ namespace Segra.Backend.Games
                 }
 
                 if (session != null)
+                {
+                    // A session saved without these bookmarks had nothing to make its highlight from
+                    bool highlight = Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights &&
+                        session.Bookmarks?.Any(b => b.Type.IncludeInHighlight()) != true &&
+                        bookmarks.Any(b => b.Type.IncludeInHighlight());
+
                     await ContentService.AddBookmarks(session.Id, bookmarks);
+                    if (highlight)
+                        _ = AiService.CreateHighlight(session.Id);
+                }
 
                 var file = Path.GetFileName(recording.FilePath) ?? "the replay buffer";
                 if (session != null || IsRecording(recording))

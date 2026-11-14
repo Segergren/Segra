@@ -6,6 +6,7 @@ namespace Segra.Backend.Games.Wardogs
     /// Bookmarks kills, assists and deaths from the markers WARDOGS sends to the Steam timeline since 0.3.0:
     /// <list type="bullet">
     /// <item>"Killed" (wd-kill), described by weapon and distance.</item>
+    /// <item>"Double Kill" and "Triple Kill" (wd-kill), in place of the "Killed" markers of those kills.</item>
     /// <item>"Kill Assist" (wd-assist).</item>
     /// <item>"Killed by" (wd-killed), described by weapon.</item>
     /// <item>"Revived" (wd-respawn), not bookmarked.</item>
