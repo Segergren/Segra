@@ -29,11 +29,10 @@ const dayMonthYearFormat = new Intl.DateTimeFormat(undefined, {
 });
 
 // "Yesterday, 22:55", "Sat, 21:04" or "14 Nov"
-export function formatCreatedAt(createdAt: string, timeOnly = false, now = new Date()): string {
+export function formatCreatedAt(createdAt: string, now = new Date()): string {
   const date = new Date(createdAt);
   if (isNaN(date.getTime())) return '';
   const time = timeFormat.format(date);
-  if (timeOnly) return time;
   const days = daysAgo(date, now);
   if (days <= 0) return `Today, ${time}`;
   if (days === 1) return `Yesterday, ${time}`;

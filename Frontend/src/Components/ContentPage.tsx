@@ -10,6 +10,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import ContentFilters, { ALL_GAMES, GameOption, IMPORTED, SortOption } from './ContentFilters';
 import { useSettings } from '../Context/SettingsContext';
+import { gameIconSource } from '../Utils/GameIconSource';
 import { useModal } from '../Context/ModalContext';
 import { useImports } from '../Context/ImportContext';
 import Button from './Button';
@@ -89,16 +90,8 @@ export default function ContentPage({
   });
 
   const gameOptions = useMemo(() => {
-    const iconFor = (item: Content): string | null => {
-      const listed =
-        state.gameList.find((g) => item.igdbId != null && g.igdbId === item.igdbId) ??
-        state.gameList.find((g) => g.name === item.game);
-      const setting = gameSettings.find((g) => g.name === item.game);
-      const iconId = listed?.icon || setting?.icon;
-      if (iconId && !airplaneMode) return `https://segra.tv/api/games/icon/${iconId}`;
-      if (setting?.customIcon) return `data:image/png;base64,${setting.customIcon}`;
-      return null;
-    };
+    const iconFor = (item: Content) =>
+      gameIconSource(item.game, item.igdbId, state.gameList, gameSettings, airplaneMode);
 
     const options = new Map<string, GameOption>();
     for (const item of contentItems) {

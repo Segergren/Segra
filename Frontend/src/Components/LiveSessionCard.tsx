@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { Recording } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { formatCreatedAt } from '../Utils/ContentFormat';
+import { gameIconSource } from '../Utils/GameIconSource';
+import { useAppState } from '../Context/AppStateContext';
+import { useSettings } from '../Context/SettingsContext';
+import GameIcon from './GameIcon';
 
 // One frame per recording, kept across remounts so it is only generated once
 const thumbnailCache = new Map<string, string>();
@@ -38,6 +42,9 @@ export default function LiveSessionCard({
   );
   const [thumbnailLoaded, setThumbnailLoaded] = useState(() => !!thumbnailUrl);
   const [opening, setOpening] = useState(false);
+  const { gameList } = useAppState();
+  const { games: gameSettings, airplaneMode } = useSettings();
+  const iconSrc = gameIconSource(recording.game, undefined, gameList, gameSettings, airplaneMode);
   // Opening usually takes well under a second, so the overlay only shows when it takes longer
   const [showOpening, setShowOpening] = useState(false);
   useEffect(() => {
@@ -130,12 +137,18 @@ export default function LiveSessionCard({
 
       <div className="card-body gap-1 pt-2 border border-t-0 border-[#49515b] rounded-b-[inherit]">
         <div className="flex justify-between items-center">
-          <h2 className="card-title !block truncate">{recording.game}</h2>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <GameIcon
+              src={iconSrc}
+              kind={recording.game === 'Manual Recording' ? 'display' : 'game'}
+            />
+            <h2 className="card-title !block truncate min-w-0">{recording.game}</h2>
+          </div>
           {/* Same size as the menu button on other cards so the rows line up */}
           <span className="btn btn-ghost btn-sm btn-circle invisible" aria-hidden="true" />
         </div>
         <div className="text-sm text-gray-200">
-          Started {formatCreatedAt(new Date(startMs).toISOString(), true)}
+          {formatCreatedAt(new Date(startMs).toISOString())}
         </div>
       </div>
     </div>
