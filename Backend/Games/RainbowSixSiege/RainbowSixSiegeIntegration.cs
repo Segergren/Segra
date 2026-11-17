@@ -65,6 +65,20 @@ namespace Segra.Backend.Games.RainbowSixSiege
             [434715462383] = "Oregon",
             [441825219764] = "Outback",
             [398899676157] = "Fortress",
+            [409325881472] = "Villa",
+            [419965653950] = "Calypso Casino",
+            [423767322185] = "Skyscraper",
+            [430788891316] = "Theme Park",
+            [436375283234] = "Coastline",
+            [439976373310] = "Presidential Plane",
+            [441408792952] = "Kanal",
+            [441842102525] = "Emerald Plains",
+            [446546313105] = "House",
+            [447442858240] = "Stadium Bravo",
+            [447445273533] = "Stadium Alpha",
+            [453996545976] = "Favela",
+            [454245490351] = "Tower",
+            [454336658645] = "Yacht",
         };
 
         public RainbowSixSiegeIntegration()
