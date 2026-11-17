@@ -302,7 +302,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
             ) : (
               <>
                 <Monitor className="w-4 h-4" />
-                Display Capture
+                Record Display
               </>
             )}
           </Button>

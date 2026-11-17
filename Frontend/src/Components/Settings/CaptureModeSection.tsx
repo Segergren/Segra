@@ -1,5 +1,6 @@
 import { Settings as SettingsType, HotkeyAction } from '../../Models/types';
 import { getKeyName } from './HotkeysSection';
+import { formatBufferLength } from '../../Utils/ContentFormat';
 import {
   usePendingRecordingSettings,
   RECORDING_SETTING_GROUPS,
@@ -98,12 +99,4 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
       </label>
     </div>
   );
-}
-
-function formatBufferLength(seconds: number): string {
-  if (seconds < 60) return `${seconds} seconds`;
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  const minutesText = `${minutes} minute${minutes === 1 ? '' : 's'}`;
-  return rest === 0 ? minutesText : `${minutesText} ${rest} seconds`;
 }

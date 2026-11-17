@@ -14,6 +14,7 @@ import { useModal } from '../Context/ModalContext';
 import { useImports } from '../Context/ImportContext';
 import Button from './Button';
 import MergeModal from './MergeModal';
+import EmptyLibraryState from './EmptyLibraryState';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 
 // Imports that carried no Segra metadata have no game, so they are only listed under Imported
@@ -567,6 +568,16 @@ export default function ContentPage({
   const progressValues = Object.values(progressItems);
   const hasProgress = progressValues.length > 0;
 
+  const iconByGame = new Map(gameOptions.map((g) => [g.key, g.icon]));
+  const gameIconFor = (video: Content) => ({
+    src: iconByGame.get(video.game) ?? null,
+    kind: isUnknownImport(video)
+      ? ('import' as const)
+      : video.game === 'Manual Recording'
+        ? ('display' as const)
+        : ('game' as const),
+  });
+
   return (
     <div
       ref={containerRef}
@@ -615,14 +626,12 @@ export default function ContentPage({
               isSelected={selectedItems.has(video.id)}
               isSelectionMode={isCtrlPressed || selectedItems.size > 0 || marqueeRect !== null}
               isHighlighted={video.id === highlightedContentId}
+              gameIcon={gameIconFor(video)}
             />
           ))}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-          <Icon size={60} className="mb-4" />
-          <p className="text-xl">No {title.toLowerCase()} found</p>
-        </div>
+        <EmptyLibraryState contentType={contentType} Icon={Icon} />
       )}
 
       {marqueeRect && (

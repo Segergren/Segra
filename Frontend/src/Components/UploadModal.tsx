@@ -2,7 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { Content } from '../Models/types';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAuth } from '../Hooks/useAuth.tsx';
-import { Upload, Globe, EyeOff } from 'lucide-react';
+import { Upload, Globe, EyeOff, LogIn } from 'lucide-react';
+import { useSelectedVideo } from '../Context/SelectedVideoContext';
+import { useSelectedMenu } from '../Context/SelectedMenuContext';
+import { requestSettingsSection } from '../Utils/SettingsNavigation';
 import Button from './Button';
 import DropdownSelect from './DropdownSelect';
 
@@ -16,6 +19,8 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
   const { clipShowInBrowserAfterUpload } = useSettings();
   const updateSettings = useSettingsUpdater();
   const { session } = useAuth();
+  const { setSelectedVideo } = useSelectedVideo();
+  const { setSelectedMenu } = useSelectedMenu();
   const [title, setTitle] = useState(video.title || '');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<'Public' | 'Unlisted'>(() =>
@@ -53,6 +58,14 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
     onClose();
   };
 
+  // Sign-in lives in Settings, so leave the editor and open the Account section
+  const openSignIn = () => {
+    onClose();
+    requestSettingsSection('account');
+    setSelectedVideo(null);
+    setSelectedMenu('Settings');
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -63,10 +76,18 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
   return (
     <>
       <div className="bg-base-300">
-        <div className="modal-header">
-          <Button variant="ghost" icon className="absolute right-2 top-1 z-10" onClick={onClose}>
-            ✕
-          </Button>
+        <div className="modal-header pb-2">
+          <div className="flex items-center justify-between gap-4">
+            <h3 className="font-bold text-2xl">Upload to Segra.tv</h3>
+            <Button variant="ghost" size="sm" icon onClick={onClose} aria-label="Close">
+              ✕
+            </Button>
+          </div>
+          {session === null && (
+            <p className="mt-1 text-sm text-gray-400">
+              Sign in to Segra.tv to upload clips and share them with a link.
+            </p>
+          )}
         </div>
         <div className="modal-body pt-3">
           <div className="form-control w-full">
@@ -160,11 +181,19 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
           <Button
             variant="primary"
             className="w-full focus:!outline focus:!outline-1 focus:!outline-white focus:!outline-offset-2"
-            onClick={handleUpload}
-            disabled={session === null}
+            onClick={session === null ? openSignIn : handleUpload}
           >
-            <Upload className="w-5 h-5" />
-            {session === null ? 'Login to upload' : 'Upload'}
+            {session === null ? (
+              <>
+                <LogIn className="w-5 h-5" />
+                Sign In to Upload
+              </>
+            ) : (
+              <>
+                <Upload className="w-5 h-5" />
+                Upload
+              </>
+            )}
           </Button>
         </div>
       </div>

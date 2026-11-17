@@ -19,6 +19,7 @@ import HighlightsSection from '../Components/Settings/HighlightsSection';
 import PreferencesSection from '../Components/Settings/PreferencesSection';
 import MenuCustomizationSection from '../Components/Settings/MenuCustomizationSection';
 import AdvancedSection from '../Components/Settings/AdvancedSection';
+import { getRequestedSettingsSection } from '../Utils/SettingsNavigation';
 
 type SectionId =
   'account' | 'recording' | 'clips' | 'games' | 'storage' | 'preferences' | 'advanced';
@@ -60,7 +61,10 @@ export default function Settings() {
   const [isScrolled, setIsScrolled] = useState(scrollPositions.settings > 0);
 
   useLayoutEffect(() => {
-    if (containerRef.current) containerRef.current.scrollTop = scrollTopRef.current;
+    const requested = getRequestedSettingsSection();
+    const target = requested ? document.getElementById(requested) : null;
+    if (target) target.scrollIntoView({ block: 'start' });
+    else if (containerRef.current) containerRef.current.scrollTop = scrollTopRef.current;
     return () => setScrollPosition('settings', scrollTopRef.current);
   }, [setScrollPosition]);
 

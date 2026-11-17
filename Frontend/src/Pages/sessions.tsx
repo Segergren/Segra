@@ -11,9 +11,10 @@ export default function Sessions() {
   const { isFinishingRecording, recording } = useAppState();
   const { showLiveSessionCard } = useSettings();
   const { clippingProgress } = useClipping();
-  const isMergingSessions = Object.values(clippingProgress).some(
+  const merges = Object.values(clippingProgress).filter(
     (p) => p.outputType === 'Session' && p.progress >= 0,
   );
+  const isMergingSessions = merges.length > 0;
 
   // Keep the last recording so its card can stay in place while the file is finalized
   const [lastRecording, setLastRecording] = useState(recording);
@@ -35,7 +36,17 @@ export default function Sessions() {
         />
       )}
       {((isFinishingRecording && !showLiveCard) || isMergingSessions) && (
-        <ContentCard key="recording-progress" type="Session" isLoading />
+        <ContentCard
+          key="recording-progress"
+          type="Session"
+          isLoading
+          loadingLabel={isMergingSessions ? 'Merging Sessions' : 'Saving Recording'}
+          loadingProgress={
+            isMergingSessions
+              ? merges.reduce((sum, p) => sum + p.progress, 0) / merges.length
+              : undefined
+          }
+        />
       )}
     </>
   );
@@ -44,7 +55,7 @@ export default function Sessions() {
     <ContentPage
       contentType="Session"
       sectionId="sessions"
-      title="Sessions"
+      title="Full Sessions"
       Icon={Play}
       progressItems={showProgress ? { recording: true } : {}}
       isProgressVisible={showProgress}

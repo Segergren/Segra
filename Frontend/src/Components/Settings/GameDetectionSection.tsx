@@ -106,7 +106,10 @@ function overridesSummary(g: GameSetting, maxDisplayHeight: number): string {
     g.volumeOverride,
     g.highlightPaddingOverride,
   ].filter((o) => o != null).length;
-  if (others > 0) parts.push(parts.length > 0 ? `+${others} more` : `${others} overrides`);
+  if (others > 0)
+    parts.push(
+      parts.length > 0 ? `+${others} more` : others === 1 ? '1 override' : `${others} overrides`,
+    );
   return parts.length > 0 ? parts.join(' • ') : DEFAULT_SUMMARY;
 }
 

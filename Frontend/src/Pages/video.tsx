@@ -11,18 +11,13 @@ import { useSegments } from '../Context/SegmentsContext';
 import { useUploads } from '../Context/UploadContext';
 import { useModal } from '../Context/ModalContext';
 import UploadModal from '../Components/UploadModal';
-import type { LucideIcon, LucideProps } from 'lucide-react';
-import { Icon } from 'lucide-react';
-import { crosshair2Dot, soccerBall } from '@lucide/lab';
 import {
   Trash2,
+  FolderOpen,
   Settings,
   SquarePlus,
-  Bookmark as BookmarkIcon,
   BookmarkPlus,
   Clapperboard,
-  HeartHandshake,
-  Swords,
   Pause,
   Play,
   RotateCcw,
@@ -36,6 +31,7 @@ import {
   Minus,
   ZoomIn,
   ZoomOut,
+  Keyboard,
   Headphones,
   ChevronDown,
 } from 'lucide-react';
@@ -55,14 +51,7 @@ import WebcamOverlay from '../Components/WebcamOverlay';
 import WebcamToggle from '../Components/WebcamToggle';
 import MatchTooltip from '../Components/MatchTooltip';
 import { formatMatchStat, getMatchImage, matchResultTextClass } from '../Utils/MatchUtils';
-
-const Crosshair2Dot = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
-  <Icon {...props} ref={ref} iconNode={crosshair2Dot} />
-)) as LucideIcon;
-
-const SoccerBall = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
-  <Icon {...props} ref={ref} iconNode={soccerBall} />
-)) as LucideIcon;
+import { getIconMapping } from '../Utils/BookmarkIcons';
 
 // Converts time string in format "HH:MM:SS.mmm" to seconds
 const timeStringToSeconds = (timeStr: string): number => {
@@ -115,24 +104,22 @@ const formatPlaybackRateLabel = (rate: number) => `${rate}x`;
 const PLAYER_BUTTON_CLASS =
   'flex items-center justify-center p-1.5 rounded-full text-white/90 cursor-pointer transition-colors hover:text-white hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent';
 
-const DEFAULT_ICON_MAPPING: Record<BookmarkType, LucideIcon> = {
-  Manual: BookmarkIcon,
-  Kill: Crosshair2Dot,
-  Goal: SoccerBall,
-  Assist: HeartHandshake,
-  Death: Skull,
-};
-
-const GAME_ICON_OVERRIDES: Record<number, Partial<Record<BookmarkType, LucideIcon>>> = {
-  115: { Kill: Swords }, // League of Legends
-};
-
-function getIconMapping(igdbId?: number): Record<BookmarkType, LucideIcon> {
-  if (igdbId && GAME_ICON_OVERRIDES[igdbId]) {
-    return { ...DEFAULT_ICON_MAPPING, ...GAME_ICON_OVERRIDES[igdbId] };
-  }
-  return DEFAULT_ICON_MAPPING;
-}
+// Mirrors the editor's keydown handler
+const PLAYER_SHORTCUTS: [string, string[]][] = [
+  ['Play or pause', ['Space', 'K']],
+  ['Skip 5 seconds', ['←', '→']],
+  ['Skip 10 seconds', ['J', 'L']],
+  ['Previous or next bookmark', ['Ctrl + ←', 'Ctrl + →']],
+  ['Previous or next frame', [',', '.']],
+  ['Slower or faster', ['<', '>']],
+  ['Jump to 0% to 90%', ['0-9']],
+  ['Start or end', ['Home', 'End']],
+  ['Volume', ['↑', '↓']],
+  ['Mute', ['M']],
+  ['Fullscreen', ['F']],
+  ['Previous or next video', ['Shift + P', 'Shift + N']],
+  ['Show shortcuts', ['?']],
+];
 
 function TopInfoBar({ video }: { video: Content }) {
   const { setSelectedVideo } = useSelectedVideo();
@@ -168,21 +155,19 @@ function TopInfoBar({ video }: { video: Content }) {
       </Button>
       <div className="flex items-center gap-2 overflow-hidden">
         <span className="whitespace-nowrap">
-          Created: {createdDateStr}
+          {createdDateStr}
           {createdTimeStr ? ` ${createdTimeStr}` : ''}
         </span>
         <span>•</span>
-        <span className="whitespace-nowrap">Size: {video.fileSize}</span>
+        <span className="whitespace-nowrap">{video.fileSize}</span>
         <span>•</span>
-        <span className="flex items-center gap-1 min-w-0">
-          <span className="whitespace-nowrap">Location:</span>
-          <a
-            className="text-gray-300 cursor-pointer hover:underline hover:text-gray-200 truncate"
-            onClick={() => openFileLocation(video.filePath)}
-          >
-            {video.filePath}
-          </a>
-        </span>
+        <a
+          className="flex items-center gap-1 min-w-0 text-gray-300 cursor-pointer hover:text-gray-200 group"
+          onClick={() => openFileLocation(video.filePath)}
+        >
+          <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate group-hover:underline">{video.filePath}</span>
+        </a>
       </div>
     </div>
   );
@@ -301,6 +286,8 @@ export default function VideoComponent({ video }: { video: Content }) {
   const [videoUndecodable, setVideoUndecodable] = useState(false);
   useEffect(() => setVideoUndecodable(false), [video.filePath]);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const shortcutsRef = useRef<HTMLDivElement | null>(null);
   const videoPanStartRef = useRef<{ x: number; y: number } | null>(null);
   const panMovedRef = useRef(false);
   const videoScaleRef = useRef<number>(videoScale);
@@ -308,6 +295,23 @@ export default function VideoComponent({ video }: { video: Content }) {
   useEffect(() => {
     videoScaleRef.current = videoScale;
   }, [videoScale]);
+
+  // Close the shortcut sheet when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!showShortcuts) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!shortcutsRef.current?.contains(event.target as Node)) setShowShortcuts(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowShortcuts(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showShortcuts]);
 
   // Close speed menu when clicking outside or pressing Escape
   useEffect(() => {
@@ -700,6 +704,13 @@ export default function VideoComponent({ video }: { video: Content }) {
       if ((e.key === 'ArrowDown' || e.code === 'ArrowDown') && !isTyping) {
         e.preventDefault();
         setPlayerVolume(volume - 0.05);
+        showControlsTemporarily();
+        return;
+      }
+
+      if (e.key === '?' && !isTyping) {
+        e.preventDefault();
+        setShowShortcuts((open) => !open);
         showControlsTemporarily();
         return;
       }
@@ -1271,9 +1282,9 @@ export default function VideoComponent({ video }: { video: Content }) {
   }, [isPlaying]);
 
   useEffect(() => {
-    isMenuOpenRef.current = showSpeedMenu || showAudioTracks;
+    isMenuOpenRef.current = showSpeedMenu || showAudioTracks || showShortcuts;
     if (controlsVisibleRef.current) scheduleControlsHide();
-  }, [showSpeedMenu, showAudioTracks]);
+  }, [showSpeedMenu, showAudioTracks, showShortcuts]);
 
   // Prevent page scrollbars while our overlay is active
   useEffect(() => {
@@ -2547,6 +2558,48 @@ export default function VideoComponent({ video }: { video: Content }) {
                       </div>
                     </div>
 
+                    <div className="relative" ref={shortcutsRef}>
+                      <button
+                        type="button"
+                        onClick={() => setShowShortcuts((open) => !open)}
+                        onPointerUp={(e) => e.currentTarget.blur()}
+                        className={`${PLAYER_BUTTON_CLASS} ${showShortcuts ? 'text-white bg-white/15' : ''}`}
+                        aria-label="Keyboard shortcuts"
+                        aria-expanded={showShortcuts}
+                      >
+                        <Keyboard className="w-5 h-5" />
+                      </button>
+                      <div
+                        role="dialog"
+                        aria-label="Keyboard shortcuts"
+                        className={`absolute right-0 bottom-full z-50 mb-2 w-80 p-3 rounded-xl border border-white/10 bg-black/80 backdrop-blur-md shadow-xl transition-all duration-200 ${showShortcuts ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
+                      >
+                        <p className="mb-2.5 text-sm font-semibold text-white">
+                          Keyboard shortcuts
+                        </p>
+                        <dl className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 text-[13px]">
+                          {PLAYER_SHORTCUTS.map(([label, keys]) => (
+                            <React.Fragment key={label}>
+                              <dt className="text-white/80">{label}</dt>
+                              <dd className="flex justify-end gap-1">
+                                {keys.map((key) => (
+                                  <kbd
+                                    key={key}
+                                    className="kbd kbd-xs h-5 px-1.5 border-white/15 bg-white/10 text-white/90"
+                                  >
+                                    {key}
+                                  </kbd>
+                                ))}
+                              </dd>
+                            </React.Fragment>
+                          ))}
+                        </dl>
+                        <p className="mt-3 text-xs text-white/50">
+                          Bookmark jumps skip the types you have hidden.
+                        </p>
+                      </div>
+                    </div>
+
                     <button
                       onClick={toggleFullscreen}
                       onPointerUp={(e) => e.currentTarget.blur()}
@@ -2600,7 +2653,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                         exit={{ opacity: 0, scale: 0.5 }}
                         transition={{ duration: 0.1 }}
                         className="tooltip absolute bottom-0 transform -translate-x-1/2 cursor-pointer z-10 flex flex-col items-center text-[#25272e]"
-                        data-tip={`${bookmark.type}${bookmark.subtype ? ` - ${bookmark.subtype}` : ''} (${bookmark.time})`}
+                        data-tip={`${bookmark.subtype ? `${bookmark.type} (${bookmark.subtype})` : bookmark.type} at ${formatTime(timeInSeconds)}`}
                         style={{ left: `${leftPos}px` }}
                         onClick={() => seekToBookmark(bookmark)}
                         onContextMenu={(e) => {
@@ -2880,7 +2933,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 </div>
               );
             })()}
-          <div className="flex items-center justify-between gap-4 py-1 shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-1 shrink-0">
             <div className="flex items-center gap-3">
               <div className="flex items-center border rounded-lg join bg-base-300 border-base-400">
                 {hasPlaylist && (
@@ -2896,20 +2949,21 @@ export default function VideoComponent({ video }: { video: Content }) {
                 <button
                   onClick={() => skipTime(-5)}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
+                  aria-label="Back 5 seconds"
                 >
                   <RotateCcw className="w-5 h-5" />
                 </button>
                 <button
                   onClick={handlePlayPause}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
-                  data-tip={isPlaying ? 'Pause' : 'Play'}
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                 </button>
                 <button
                   onClick={() => skipTime(5)}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
-                  data-tip="Forward 5s"
+                  aria-label="Forward 5 seconds"
                 >
                   <RotateCw className="w-5 h-5" />
                 </button>
@@ -2973,7 +3027,7 @@ export default function VideoComponent({ video }: { video: Content }) {
               {video.type === 'Buffer' && copyButtons}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 ml-auto">
               {(video.type === 'Session' || video.type === 'Buffer') && (
                 <>
                   {availableBookmarkTypes.length > 0 && (
@@ -2983,6 +3037,8 @@ export default function VideoComponent({ video }: { video: Content }) {
                           key={type}
                           onClick={() => toggleBookmarkType(type)}
                           className={`btn btn-sm h-full btn-secondary border-none transition-colors join-item px-2 ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
+                          aria-label={`${type} bookmarks`}
+                          aria-pressed={selectedBookmarkTypes.has(type)}
                         >
                           {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
                             className: 'w-5 h-5',
@@ -3026,102 +3082,105 @@ export default function VideoComponent({ video }: { video: Content }) {
             </div>
           </div>
         </div>
-        <div className="flex flex-col h-full border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
-          <div className="flex-1 pt-4 pl-4 pr-0.5 overflow-y-scroll">
-            {segments.map((seg, index) => (
-              <SegmentCard
-                key={seg.id}
-                segment={seg}
-                index={index}
-                moveCard={moveCard}
-                formatTime={formatTime}
-                isHovered={hoveredSegmentId === seg.id}
-                segmentHover={segmentHover}
-                removeSegment={removeSegment}
-                audioTrackNames={video.audioTrackNames}
-                audioTrackTypes={video.audioTrackTypes}
-                onAudioMixChange={(id, mix) =>
-                  updateSegment({ ...segments.find((s) => s.id === id)!, ...mix })
-                }
-              />
-            ))}
-            {clipOutputMode === 'combined' && segments.length > 0 && (
-              <div className="flex items-center justify-center pb-1">
-                <span
-                  className="text-sm font-medium text-gray-300 opacity-50 tabular-nums"
-                  title="Total length of all segments"
-                >
-                  {formatTime(totalSegmentsDuration)}
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="relative flex items-center gap-2 px-4 pt-2 pb-4">
-            <Button
-              variant="primary"
-              size="sm"
-              className="flex-1 h-10 py-0 hover:text-accent transition-[color,background-color,border-color,opacity] duration-300"
-              onClick={handleClearSegments}
-              disabled={segments.length === 0}
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Clear</span>
-            </Button>
-            <div
-              ref={segmentOptionsRef}
-              className={`dropdown dropdown-top dropdown-end static! ${segmentOptionsOpen ? 'dropdown-open' : ''}`}
-            >
+        {/* Segments only matter where clips can be made */}
+        {showClipTools && (
+          <div className="flex flex-col h-full border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
+            <div className="flex-1 pt-4 pl-4 pr-0.5 overflow-y-scroll">
+              {segments.map((seg, index) => (
+                <SegmentCard
+                  key={seg.id}
+                  segment={seg}
+                  index={index}
+                  moveCard={moveCard}
+                  formatTime={formatTime}
+                  isHovered={hoveredSegmentId === seg.id}
+                  segmentHover={segmentHover}
+                  removeSegment={removeSegment}
+                  audioTrackNames={video.audioTrackNames}
+                  audioTrackTypes={video.audioTrackTypes}
+                  onAudioMixChange={(id, mix) =>
+                    updateSegment({ ...segments.find((s) => s.id === id)!, ...mix })
+                  }
+                />
+              ))}
+              {clipOutputMode === 'combined' && segments.length > 0 && (
+                <div className="flex items-center justify-center pb-1">
+                  <span
+                    className="text-sm font-medium text-gray-300 opacity-50 tabular-nums"
+                    title="Total length of all segments"
+                  >
+                    {formatTime(totalSegmentsDuration)}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="relative flex items-center gap-2 px-4 pt-2 pb-4">
               <Button
                 variant="primary"
                 size="sm"
-                className="h-10 px-2.5 hover:text-accent"
-                aria-label="Segment options"
-                aria-expanded={segmentOptionsOpen}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  if (segmentOptionsOpen) closeSegmentOptions();
-                  else setSegmentOptionsOpen(true);
-                }}
+                className="flex-1 h-10 py-0 hover:text-accent transition-[color,background-color,border-color,opacity] duration-300"
+                onClick={handleClearSegments}
+                disabled={segments.length === 0}
               >
-                <Settings className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" />
+                <span>Clear</span>
               </Button>
-              <ul
-                tabIndex={0}
-                className="dropdown-content menu bg-base-300 border border-base-400 rounded-lg z-[100] left-4! p-1.5 mb-2 shadow"
+              <div
+                ref={segmentOptionsRef}
+                className={`dropdown dropdown-top dropdown-end static! ${segmentOptionsOpen ? 'dropdown-open' : ''}`}
               >
-                <li>
-                  <label className="flex items-center gap-2 px-2! text-sm text-gray-300 hover:bg-transparent! active:bg-transparent!">
-                    <input
-                      type="checkbox"
-                      name="clipClearSegmentsAfterCreatingClip"
-                      checked={settings.clipClearSegmentsAfterCreatingClip}
-                      onChange={(e) =>
-                        updateSettings({ clipClearSegmentsAfterCreatingClip: e.target.checked })
-                      }
-                      className="checkbox checkbox-sm checkbox-accent"
-                    />
-                    Clear segments after clipping
-                  </label>
-                </li>
-                <li className="menu-title px-2 pt-2 pb-1 text-xs">Clip output</li>
-                {(['combined', 'separate'] as const).map((mode) => (
-                  <li key={mode}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="h-10 px-2.5 hover:text-accent"
+                  aria-label="Segment options"
+                  aria-expanded={segmentOptionsOpen}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    if (segmentOptionsOpen) closeSegmentOptions();
+                    else setSegmentOptionsOpen(true);
+                  }}
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+                <ul
+                  tabIndex={0}
+                  className="dropdown-content menu bg-base-300 border border-base-400 rounded-lg z-[100] left-4! p-1.5 mb-2 shadow"
+                >
+                  <li>
                     <label className="flex items-center gap-2 px-2! text-sm text-gray-300 hover:bg-transparent! active:bg-transparent!">
                       <input
-                        type="radio"
-                        name="clipOutputMode"
-                        checked={clipOutputMode === mode}
-                        onChange={() => setClipOutputMode(mode)}
-                        className="radio radio-sm radio-accent"
+                        type="checkbox"
+                        name="clipClearSegmentsAfterCreatingClip"
+                        checked={settings.clipClearSegmentsAfterCreatingClip}
+                        onChange={(e) =>
+                          updateSettings({ clipClearSegmentsAfterCreatingClip: e.target.checked })
+                        }
+                        className="checkbox checkbox-sm checkbox-accent"
                       />
-                      {mode === 'combined' ? 'Combined' : 'Separate'}
+                      Clear segments after clipping
                     </label>
                   </li>
-                ))}
-              </ul>
+                  <li className="menu-title px-2 pt-2 pb-1 text-xs">Clip output</li>
+                  {(['combined', 'separate'] as const).map((mode) => (
+                    <li key={mode}>
+                      <label className="flex items-center gap-2 px-2! text-sm text-gray-300 hover:bg-transparent! active:bg-transparent!">
+                        <input
+                          type="radio"
+                          name="clipOutputMode"
+                          checked={clipOutputMode === mode}
+                          onChange={() => setClipOutputMode(mode)}
+                          className="radio radio-sm radio-accent"
+                        />
+                        {mode === 'combined' ? 'Combined' : 'Separate'}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </DndProvider>
   );

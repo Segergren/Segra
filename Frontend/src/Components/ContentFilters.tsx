@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { ArrowUpDown, Clock, HardDrive, Timer, Gamepad2, FileUp, Monitor } from 'lucide-react';
+import { useEffect } from 'react';
+import { ArrowUpDown, Clock, HardDrive, Timer, Gamepad2 } from 'lucide-react';
 import GameFilterDropdown from './GameFilterDropdown';
+import GameIcon from './GameIcon';
 
 export type SortOption = 'newest' | 'oldest' | 'size' | 'duration' | 'game';
 
@@ -24,19 +25,6 @@ export interface ContentFiltersProps {
   sectionId: string;
   selectedGame: string;
   sortOption: SortOption;
-}
-
-function GameIcon({ src }: { src: string | null }) {
-  const [failed, setFailed] = useState(false);
-  if (!src || failed) return <Gamepad2 size={18} className={ICON_CLASS} />;
-  return (
-    <img
-      src={src}
-      alt=""
-      className="w-5 h-5 rounded object-cover shrink-0"
-      onError={() => setFailed(true)}
-    />
-  );
 }
 
 function GameLabel({ icon, name, count }: { icon: React.ReactNode; name: string; count: number }) {
@@ -111,13 +99,12 @@ export default function ContentFilters({
       label: (
         <GameLabel
           icon={
-            g.key === IMPORTED ? (
-              <FileUp size={18} className={ICON_CLASS} />
-            ) : g.key === 'Manual Recording' ? (
-              <Monitor size={18} className={ICON_CLASS} />
-            ) : (
-              <GameIcon src={g.icon} />
-            )
+            <GameIcon
+              src={g.icon}
+              kind={
+                g.key === IMPORTED ? 'import' : g.key === 'Manual Recording' ? 'display' : 'game'
+              }
+            />
           }
           name={g.name}
           count={g.count}

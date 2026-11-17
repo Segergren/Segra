@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Recording } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
+import { formatCreatedAt } from '../Utils/ContentFormat';
 
 // One frame per recording, kept across remounts so it is only generated once
 const thumbnailCache = new Map<string, string>();
@@ -124,9 +125,7 @@ export default function LiveSessionCard({
           <span className="btn btn-ghost btn-sm btn-circle invisible" aria-hidden="true" />
         </div>
         <div className="text-sm text-gray-200">
-          Started{' '}
-          {new Date(startMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}{' '}
-          &bull; {new Date(startMs).toLocaleDateString()}
+          Started {formatCreatedAt(new Date(startMs).toISOString(), true)}
         </div>
       </div>
     </div>

@@ -17,6 +17,7 @@ import {
   Copy,
   Bookmark,
   ExternalLink,
+  Skull,
 } from 'lucide-react';
 import { Link, Check } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
@@ -25,7 +26,10 @@ import { useCompression } from '../Context/CompressionContext';
 import { useContentMigration } from '../Context/ContentMigrationContext';
 import Button from './Button';
 import MatchTooltip from './MatchTooltip';
+import GameIcon from './GameIcon';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
+import { formatCreatedAt, formatFileSize, getKillDeathCount } from '../Utils/ContentFormat';
+import { getIconMapping } from '../Utils/BookmarkIcons';
 import {
   getMatchRecord,
   formatMatchStat,
@@ -60,6 +64,9 @@ interface VideoCardProps {
   isSelected?: boolean; // Whether this card is selected in multi-select mode
   isSelectionMode?: boolean; // Whether multi-select mode is active
   isHighlighted?: boolean; // Briefly pulse the card to draw attention (e.g. after import)
+  loadingLabel?: string; // Shown over a skeleton card, e.g. "Creating Clip"
+  loadingProgress?: number; // 0-100, drawn as a bar under the label
+  gameIcon?: { src: string | null; kind: 'game' | 'display' | 'import' }; // Shown before the title
 }
 
 export default function ContentCard({
@@ -70,6 +77,9 @@ export default function ContentCard({
   isSelected = false,
   isSelectionMode = false,
   isHighlighted = false,
+  loadingLabel,
+  loadingProgress,
+  gameIcon,
 }: VideoCardProps) {
   const { enableAi, showNewBadgeOnVideos, airplaneMode } = useSettings();
   const { cacheFolder, content: allContent } = useAppState();
@@ -222,6 +232,27 @@ export default function ContentCard({
             {/* Mirrors the loaded card's figure/body exactly so the skeleton is the same height. */}
             <figure className="relative aspect-video border border-b-0 border-[#49515b] [background:linear-gradient(#000,#000)_padding-box,linear-gradient(#49515b,#49515b)_border-box]">
               <div className="skeleton w-full h-full rounded-none bg-base-200/75"></div>
+              {loadingLabel && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                  <p className="text-base text-white/90">{loadingLabel}</p>
+                  {loadingProgress != null && (
+                    <div className="mt-3 w-2/3">
+                      <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-white/90 rounded-full"
+                          style={{
+                            width: `${Math.max(0, Math.min(100, loadingProgress))}%`,
+                            transition: 'width 0.7s ease-out',
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-center mt-1.5 text-white/80 tabular-nums">
+                        {Math.round(Math.max(0, Math.min(100, loadingProgress)))}%
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </figure>
             <div className="card-body gap-1 pt-2 border border-t-0 border-[#49515b] rounded-b-[inherit]">
               <div className="flex justify-between items-center">
@@ -260,10 +291,10 @@ export default function ContentCard({
       if (hours > 0) {
         return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
       } else {
-        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
       }
     } catch {
-      return '00:00'; // Fallback for invalid duration
+      return '0:00'; // Fallback for invalid duration
     }
   };
 
@@ -276,6 +307,10 @@ export default function ContentCard({
   const singleMatchImage = singleMatch ? getMatchImage(content?.igdbId, singleMatch) : undefined;
   const singleMatchScore = singleMatch ? formatMatchStat(singleMatch) : '';
   const matchRecord = getMatchRecord(matches);
+  const killDeath = getKillDeathCount(content!);
+  const bookmarkIcons = getIconMapping(content?.igdbId);
+  const KillIcon = bookmarkIcons.Kill;
+  const GoalIcon = bookmarkIcons.Goal;
 
   // Check if content was created within the last hour and hasn't been viewed yet
   const isRecent = useMemo((): boolean => {
@@ -689,31 +724,34 @@ export default function ContentCard({
 
       <div className="card-body gap-1 pt-2 border border-t-0 border-[#49515b] rounded-b-[inherit]">
         <div className="flex justify-between items-center">
-          {isRenaming ? (
-            <input
-              ref={renameInputRef}
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commitRename();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setIsRenaming(false);
-                }
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="card-title !block truncate bg-transparent outline-none w-full"
-              placeholder={content!.game || 'Untitled'}
-            />
-          ) : (
-            <h2 className="card-title !block truncate">
-              {content!.title || content!.game || 'Untitled'}
-            </h2>
-          )}
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            {gameIcon && <GameIcon src={gameIcon.src} kind={gameIcon.kind} />}
+            {isRenaming ? (
+              <input
+                ref={renameInputRef}
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitRename();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setIsRenaming(false);
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="card-title !block truncate bg-transparent outline-none w-full min-w-0"
+                placeholder={content!.game || 'Untitled'}
+              />
+            ) : (
+              <h2 className="card-title !block truncate min-w-0">
+                {content!.title || content!.game || 'Untitled'}
+              </h2>
+            )}
+          </div>
           <div
             ref={dropdownRef}
             className={`dropdown dropdown-end ${isBusy ? 'pointer-events-none opacity-50' : ''}`}
@@ -757,8 +795,44 @@ export default function ContentCard({
           </div>
         </div>
         <div className="text-sm text-gray-200 flex items-center justify-between w-full">
-          <span>
-            {content!.fileSize} &bull; {new Date(content!.createdAt).toLocaleDateString()}
+          <span className="flex items-center gap-x-2.5 min-w-0 whitespace-nowrap">
+            <span>{formatCreatedAt(content!.createdAt)}</span>
+            {killDeath && (
+              <>
+                <span className="w-px h-3.5 shrink-0 bg-gray-500" aria-hidden="true" />
+                <span className="flex items-center gap-2.5 tabular-nums">
+                  {killDeath.kills > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1"
+                      aria-label={`${killDeath.kills} kills`}
+                    >
+                      <KillIcon size={14} strokeWidth={2.25} className="text-gray-400" />
+                      {killDeath.kills}
+                    </span>
+                  )}
+                  {killDeath.showDeaths && (
+                    <span
+                      className="inline-flex items-center gap-1"
+                      aria-label={`${killDeath.deaths} deaths`}
+                    >
+                      <Skull size={14} strokeWidth={2.25} className="text-gray-400" />
+                      {killDeath.deaths}
+                    </span>
+                  )}
+                  {killDeath.goals > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1"
+                      aria-label={`${killDeath.goals} goals`}
+                    >
+                      <GoalIcon size={14} strokeWidth={2.25} className="text-gray-400" />
+                      {killDeath.goals}
+                    </span>
+                  )}
+                </span>
+              </>
+            )}
+            <span className="w-px h-3.5 shrink-0 bg-gray-500" aria-hidden="true" />
+            <span className="text-gray-400 truncate">{formatFileSize(content!)}</span>
           </span>
           {!airplaneMode && uploadUrl && (
             <div className="flex absolute right-3 gap-0 pr-[0.3875rem]">
