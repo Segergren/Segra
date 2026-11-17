@@ -17,14 +17,6 @@ const normalizePath = (path: string) => path.replace(/\\/g, '/').replace(/\/+$/,
 
 const TYPE_FOLDERS = ['Full Sessions', 'Replay Buffers', 'Clips', 'Highlights'];
 
-// IGDB ids of the games whose integrations track matches
-const MATCH_GAMES = [
-  { igdbId: 242408, name: 'Counter-Strike 2' },
-  { igdbId: 2963, name: 'Dota 2' },
-  { igdbId: 115, name: 'League of Legends' },
-  { igdbId: 7360, name: 'Rainbow Six Siege' },
-];
-
 // The recording-path root a file currently lives under (the part before its content-type folder).
 const deriveSourceRoot = (filePath: string) => {
   const p = normalizePath(filePath);
@@ -381,55 +373,6 @@ export default function StorageSettingsSection({
             <div className="font-semibold">Delete Original After Compression</div>
             <div className="text-sm opacity-70 mt-0.5">
               Removes the full-size video once its compressed copy is saved.
-            </div>
-          </div>
-        </label>
-        <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
-          <input
-            type="checkbox"
-            name="discardSessionsWithoutBookmarks"
-            checked={settings.discardSessionsWithoutBookmarks}
-            onChange={(e) => updateSettings({ discardSessionsWithoutBookmarks: e.target.checked })}
-            className="checkbox checkbox-primary checkbox-sm"
-          />
-          <div>
-            <div className="font-semibold">Discard Sessions Without Bookmarks</div>
-            <div className="text-sm opacity-70 mt-0.5">
-              Deletes a session recording when it ends unless you added a bookmark with the hotkey.
-              Kills and other automatic bookmarks don&apos;t count.
-            </div>
-          </div>
-        </label>
-        <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
-          <input
-            type="checkbox"
-            name="splitSessionsIntoMatches"
-            checked={settings.splitSessionsIntoMatches}
-            onChange={(e) => updateSettings({ splitSessionsIntoMatches: e.target.checked })}
-            className="checkbox checkbox-primary checkbox-sm"
-          />
-          <div>
-            <div className="font-semibold">Split Sessions Into Matches</div>
-            <div className="text-sm opacity-70 mt-0.5">
-              Saves each match as its own session when a recording ends and deletes the time in
-              menus between matches.
-            </div>
-            <div className="flex items-center gap-1.5 mt-1.5">
-              {MATCH_GAMES.map(({ igdbId, name }) => {
-                const icon = appState.gameList.find((g) => g.igdbId === igdbId)?.icon;
-                return icon && !settings.airplaneMode ? (
-                  <img
-                    key={igdbId}
-                    src={`https://segra.tv/api/games/icon/${icon}`}
-                    alt={name}
-                    className="w-5 h-5 rounded object-cover"
-                  />
-                ) : (
-                  <span key={igdbId} className="text-xs opacity-70">
-                    {name}
-                  </span>
-                );
-              })}
             </div>
           </div>
         </label>

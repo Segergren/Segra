@@ -757,7 +757,7 @@ namespace Segra.Backend.App
             "crfValue", "cqLevel", "encoder", "codec", "stretch4By3", "enableHdr", "replayBufferDuration",
             "replayBufferMaxSize", "inputDevices", "outputDevices", "forceMonoInputSources", "inputNoiseSuppression",
             "enableSeparateAudioTracks", "audioOutputMode", "applicationAudioCaptures", "gameIntegrations",
-            "webcamEnabled", "webcamDeviceId"
+            "webcamEnabled", "webcamDeviceId", "discardSessionsWithoutBookmarks", "splitSessionsIntoMatches"
         ];
 
         // Serialized exactly like the Settings message so the frontend can compare values directly
@@ -935,7 +935,8 @@ namespace Segra.Backend.App
         {
             var recording = AppState.Instance.Recording ?? OBSService.FinishingSession;
             bool finished = AppState.Instance.Recording == null;
-            string? source = recording?.FilePath;
+            // After a split only the file being written can be watched, with times moved to its start
+            (string? source, TimeSpan fileStart) = recording?.CurrentFile ?? (null, TimeSpan.Zero);
             if (recording == null || string.IsNullOrEmpty(source) || !File.Exists(source))
             {
                 await SendFrontendMessage("RecordingSnapshotFailed", new { message = "No session recording is in progress." });
@@ -975,14 +976,17 @@ namespace Segra.Backend.App
                     Id = $"live-{Guid.NewGuid()}",
                     Type = Content.ContentType.Session,
                     Game = recording!.Game,
-                    Bookmarks = recording.Bookmarks.ToList(),
-                    Matches = recording.GetMatches() is { Count: > 0 } matches ? matches : null,
+                    Bookmarks = recording.GetBookmarks()
+                        .Where(b => b.Time >= fileStart)
+                        .Select(b => new Bookmark { Type = b.Type, Subtype = b.Subtype, Time = b.Time - fileStart })
+                        .ToList(),
+                    Matches = recording.GetMatches().Where(m => m.EndTime > fileStart).Select(m => { var shifted = m.Shifted(-fileStart); shifted.StartTime = shifted.StartTime < TimeSpan.Zero ? TimeSpan.Zero : shifted.StartTime; return shifted; }).ToList() is { Count: > 0 } matches ? matches : null,
                     FileName = Path.GetFileNameWithoutExtension(source),
                     FilePath = source,
                     FileSizeKb = dataLength / 1024,
                     FileSize = $"{dataLength / 1048576.0:F0} MB",
                     Duration = duration,
-                    CreatedAt = recording.StartTime,
+                    CreatedAt = recording.StartTime + fileStart,
                     AudioTrackNames = recording.AudioTrackNames,
                     AudioTrackTypes = recording.AudioTrackTypes,
                 };

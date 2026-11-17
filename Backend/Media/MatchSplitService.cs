@@ -1,8 +1,12 @@
 using Serilog;
 using Segra.Backend.App;
 using System.Globalization;
+using System.Runtime.CompilerServices;
+using Segra.Backend.Core;
 using Segra.Backend.Core.Models;
+using Segra.Backend.Games;
 using Segra.Backend.Shared;
+using Segra.Backend.Recorder;
 using Segra.Backend.Windows.Storage;
 using static Segra.Backend.Shared.GeneralUtils;
 
@@ -36,7 +40,186 @@ namespace Segra.Backend.Media
         /// </summary>
         public static async Task<List<SplitSession>?> SplitAsync(Recording session, string filePath, WebcamLayer? webcam, int? igdbId, bool keepOnlyBookmarked)
         {
-            List<GameMatch> matches = session.GetMatches();
+            if (session.GetFiles().Count > 1)
+                return await SaveSplitFilesAsync(session, igdbId, keepOnlyBookmarked, includeCurrent: true);
+
+            return await SplitFileAsync(session, filePath, TimeSpan.Zero, session.GetMatches(), session.GetBookmarks(), webcam, igdbId, keepOnlyBookmarked);
+        }
+
+        // How far the files of a split recording have been saved
+        private sealed class SplitProgress
+        {
+            public readonly SemaphoreSlim Lock = new(1, 1);
+            public int SavedFiles;
+            // Where the next file starts in the recording, measured from the saved files
+            public TimeSpan NextStart;
+        }
+
+        private static readonly ConditionalWeakTable<Recording, SplitProgress> _progress = new();
+
+        /// <summary>
+        /// Saves the file the recording just finished writing after a split, while it keeps recording.
+        /// </summary>
+        public static void SaveFinishedFile(Recording session, bool keepOnlyBookmarked)
+        {
+            var work = BackgroundWork.Begin();
+            _ = Task.Run(async () =>
+            {
+                using (work)
+                {
+                    try
+                    {
+                        int? igdbId = !string.IsNullOrEmpty(session.ExePath) ? GameUtils.GetIgdbIdFromExePath(session.ExePath) : null;
+                        var saved = await SaveSplitFilesAsync(session, igdbId, keepOnlyBookmarked, includeCurrent: false);
+                        if (saved.Count == 0)
+                            return;
+                        await SettingsService.LoadContentFromFolderIntoState(false);
+                        CreateHighlights(saved);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Failed to save the finished recording file");
+                    }
+                }
+            });
+        }
+
+        public static void CreateHighlights(IEnumerable<SplitSession> sessions)
+        {
+            if (!Settings.Instance.EnableAi || !Settings.Instance.AutoGenerateHighlights)
+                return;
+            foreach (var saved in sessions.Where(s => s.Bookmarks.Any(b => b.Type.IncludeInHighlight())))
+                _ = AiService.CreateHighlight(saved.Id);
+        }
+
+        /// <summary>
+        /// Deletes the files of a discarded recording that weren't saved while it was recording.
+        /// </summary>
+        public static async Task DiscardUnsavedFilesAsync(Recording session)
+        {
+            var progress = _progress.GetOrCreateValue(session);
+            await progress.Lock.WaitAsync();
+            try
+            {
+                var files = session.GetFiles();
+                for (int i = progress.SavedFiles; i < files.Count; i++)
+                    DeleteOriginal(files[i].Path, i == 0 ? session.Webcam?.FilePath : null);
+                progress.SavedFiles = files.Count;
+            }
+            finally
+            {
+                progress.Lock.Release();
+            }
+        }
+
+        // For a recording that is split at match ends: each file becomes a session, and only a file that still holds
+        // several matches or long menus before its match is cut further. The file being written is left for later
+        // unless includeCurrent is set.
+        private static async Task<List<SplitSession>> SaveSplitFilesAsync(Recording session, int? igdbId, bool keepOnlyBookmarked, bool includeCurrent)
+        {
+            var progress = _progress.GetOrCreateValue(session);
+            await progress.Lock.WaitAsync();
+            try
+            {
+                var files = session.GetFiles();
+                int count = includeCurrent ? files.Count : files.Count - 1;
+                var saved = new List<SplitSession>();
+                for (; progress.SavedFiles < count; progress.SavedFiles++)
+                {
+                    int i = progress.SavedFiles;
+                    // Where the next file starts by the clock, for when this one can't be measured
+                    TimeSpan? nextStart = i + 1 < files.Count ? files[i + 1].Start : null;
+                    progress.NextStart = await SaveSplitFileAsync(session, files[i].Path, progress.NextStart, nextStart, igdbId, keepOnlyBookmarked, saved);
+                }
+                return saved;
+            }
+            finally
+            {
+                progress.Lock.Release();
+            }
+        }
+
+        // Saves one file of a split recording into saved and returns where the next file starts
+        private static async Task<TimeSpan> SaveSplitFileAsync(Recording session, string file, TimeSpan fileStart, TimeSpan? nextStart, int? igdbId, bool keepOnlyBookmarked, List<SplitSession> saved)
+        {
+            Log.Information($"Saving {file}");
+            List<GameMatch> allMatches = session.GetMatches();
+            List<Bookmark> allBookmarks = session.GetBookmarks();
+            bool splitIntoMatches = session.SplitIntoMatches;
+            if (!File.Exists(file))
+            {
+                Log.Warning($"Split file {file} is missing");
+                return nextStart ?? fileStart;
+            }
+            await EnsureFileReady(file);
+            TimeSpan duration = await FFmpegService.GetVideoDuration(file);
+            if (duration <= TimeSpan.Zero)
+            {
+                Log.Warning($"Could not read the length of {file}, saving it without matches");
+                if (await SaveWholeAsync(session, file, fileStart, nextStart ?? fileStart, [], [], igdbId) is SplitSession unplaced)
+                    saved.Add(unplaced);
+                return nextStart ?? fileStart;
+            }
+
+            TimeSpan offset = fileStart;
+            TimeSpan fileEnd = fileStart + duration;
+            List<GameMatch> matches = allMatches
+                .Where(m => m.EndTime > offset && m.StartTime < fileEnd)
+                .Select(m =>
+                {
+                    var shifted = m.Shifted(-offset);
+                    shifted.StartTime = Max(TimeSpan.Zero, shifted.StartTime);
+                    shifted.EndTime = Min(duration, shifted.EndTime);
+                    return shifted;
+                })
+                .ToList();
+            List<Bookmark> bookmarks = allBookmarks
+                .Where(b => b.Time >= offset && b.Time < fileEnd)
+                .Select(b => new Bookmark { Type = b.Type, Subtype = b.Subtype, Time = b.Time - offset })
+                .ToList();
+            bool hasManualBookmark = bookmarks.Any(b => b.Type == BookmarkType.Manual);
+
+            // Menus between matches, or a file without the manual bookmark it needs to be kept
+            if ((splitIntoMatches && matches.Count == 0 && !hasManualBookmark) || (keepOnlyBookmarked && !hasManualBookmark))
+            {
+                Log.Information($"Deleting {file}: {(matches.Count == 0 ? "no match in it" : "no manual bookmark")}");
+                DeleteOriginal(file, null);
+                return fileEnd;
+            }
+
+            if (splitIntoMatches && matches.Count > 0
+                && await SplitFileAsync(session, file, offset, matches, bookmarks, null, igdbId, keepOnlyBookmarked) is { } parts)
+            {
+                saved.AddRange(parts);
+                return fileEnd;
+            }
+
+            if (await SaveWholeAsync(session, file, offset, fileEnd, bookmarks, matches, igdbId) is SplitSession whole)
+                saved.Add(whole);
+            return fileEnd;
+        }
+
+        private static async Task<SplitSession?> SaveWholeAsync(Recording session, string file, TimeSpan offset, TimeSpan end, List<Bookmark> bookmarks, List<GameMatch> matches, int? igdbId)
+        {
+            string? id = await ContentService.CreateMetadataFile(file, Content.ContentType.Session, session.Game, bookmarks,
+                createdAt: session.StartTime + end, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes,
+                gameExePath: session.ExePath, matches: matches.Count > 0 ? matches : null);
+            if (id == null)
+                return null;
+
+            await ContentService.CreateThumbnail(file, Content.ContentType.Session, id);
+            var waveformWork = BackgroundWork.Begin();
+            _ = Task.Run(async () =>
+            {
+                using (waveformWork)
+                    await ContentService.CreateWaveformFile(file, Content.ContentType.Session, id);
+            });
+            return new SplitSession(id, bookmarks);
+        }
+
+        // Matches and bookmarks are relative to the file, which starts at fileStart in the recording
+        private static async Task<List<SplitSession>?> SplitFileAsync(Recording session, string filePath, TimeSpan fileStart, List<GameMatch> matches, List<Bookmark> bookmarks, WebcamLayer? webcam, int? igdbId, bool keepOnlyBookmarked)
+        {
             if (matches.Count == 0)
                 return null;
 
@@ -47,7 +230,6 @@ namespace Segra.Backend.Media
                 return null;
             }
 
-            List<Bookmark> bookmarks = session.GetBookmarks();
             var parts = matches
                 .OrderBy(m => m.StartTime)
                 .Select(m => new Part(m, Max(TimeSpan.Zero, m.StartTime - PaddingBefore), Min(duration, m.EndTime + PaddingAfter)))
@@ -69,6 +251,12 @@ namespace Segra.Backend.Media
                 if (parts.Count == 0)
                     return null;
             }
+
+            // A single match is trimmed in place, which takes no time; the unused start is freed later.
+            // A file open in the player can't be changed under it, so that one is cut into a new file.
+            if (parts.Count == 1 && webcam == null && !MessageService.IsViewing(filePath)
+                && await TrimInPlaceAsync(session, filePath, fileStart, parts[0], bookmarks, igdbId) is { } trimmed)
+                return trimmed;
 
             TimeSpan kept = TimeSpan.FromSeconds(parts.Sum(p => (p.End - p.Start).TotalSeconds));
             if (matches.Count == 1 && duration - kept < MinTrimForSingleMatch)
@@ -96,7 +284,7 @@ namespace Segra.Backend.Media
             {
                 foreach (var part in parts)
                 {
-                    DateTime matchStart = session.StartTime + part.Match.StartTime;
+                    DateTime matchStart = session.StartTime + fileStart + part.Match.StartTime;
                     part.FilePath = GetUniqueFilePath(PathUtils.Combine(folder, $"{matchStart:yyyy-MM-dd_HH-mm-ss}.mp4"));
                     string partial = part.FilePath + PartialSuffix;
                     TimeSpan length = part.End - part.Start;
@@ -149,7 +337,7 @@ namespace Segra.Backend.Media
                 GameMatch partMatch = part.Match.Shifted(-part.Origin);
 
                 string? id = await ContentService.CreateMetadataFile(part.FilePath!, Content.ContentType.Session, session.Game, partBookmarks,
-                    createdAt: session.StartTime + part.End, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes,
+                    createdAt: session.StartTime + fileStart + part.End, igdbId: igdbId, audioTrackNames: session.AudioTrackNames, audioTrackTypes: session.AudioTrackTypes,
                     gameExePath: session.ExePath, webcam: part.Webcam, matches: [partMatch]);
                 if (id == null)
                 {
@@ -177,6 +365,47 @@ namespace Segra.Backend.Media
             DeleteOriginal(filePath, webcam?.FilePath);
             Log.Information($"Split the session into {created.Count} match session(s)");
             return created;
+        }
+
+        // Unused bytes worth a rewrite of the whole file to free
+        private const long MinReclaimBytes = 256L * 1024 * 1024;
+
+        // Returns null when the file couldn't be trimmed and is unchanged
+        private static async Task<List<SplitSession>?> TrimInPlaceAsync(Recording session, string filePath, TimeSpan fileStart, Part part, List<Bookmark> bookmarks, int? igdbId)
+        {
+            var trim = await EmbeddedMetadataService.TrimIndexAsync(filePath, part.Start, part.End);
+            if (trim == null)
+                return null;
+
+            part.Origin = trim.Start;
+            var partBookmarks = bookmarks
+                .Where(b => part.Contains(b.Time))
+                .Select(b => new Bookmark { Type = b.Type, Subtype = b.Subtype, Time = Max(TimeSpan.Zero, b.Time - part.Origin) })
+                .ToList();
+            var saved = await SaveWholeAsync(session, filePath, fileStart, fileStart + part.End, partBookmarks, [part.Match.Shifted(-part.Origin)], igdbId);
+            if (saved == null)
+                return [];
+
+            if (trim.UnusedBytes >= MinReclaimBytes)
+                SpaceReclaimService.Enqueue(filePath);
+            return [saved];
+        }
+
+        /// <summary>
+        /// Ends the recording file once the padding after a match is recorded, so saving the match needs no copying.
+        /// </summary>
+        public static void SplitAfterMatch()
+        {
+            var recording = AppState.Instance.Recording;
+            if (recording == null)
+                return;
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(PaddingAfter);
+                if (ReferenceEquals(AppState.Instance.Recording, recording) && OBSService.SplitRecordingFile())
+                    Log.Information("Splitting the recording after the match");
+            });
         }
 
         private static readonly object _originalLock = new();

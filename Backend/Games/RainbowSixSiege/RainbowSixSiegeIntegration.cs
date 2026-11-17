@@ -2,6 +2,7 @@ using Serilog;
 using Microsoft.Win32;
 using System.Text.RegularExpressions;
 using Segra.Backend.Core.Models;
+using Segra.Backend.Media;
 
 namespace Segra.Backend.Games.RainbowSixSiege
 {
@@ -277,11 +278,14 @@ namespace Segra.Backend.Games.RainbowSixSiege
 
             if (score != null && opponentScore != null && IsMatchOver(round))
             {
+                bool wasRunning = matches.IsRunning;
                 matches.End(m =>
                 {
                     Apply(m);
                     m.Result = score > opponentScore ? MatchResult.Win : MatchResult.Loss;
                 });
+                if (wasRunning)
+                    MatchSplitService.SplitAfterMatch();
             }
             else
             {

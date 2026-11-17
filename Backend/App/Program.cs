@@ -268,6 +268,9 @@ namespace Segra.Backend.App
                         Log.Error(ex, "Failed to initialize app state");
                     }
                 });
+                // Picks up sessions still waiting to have their trimmed start freed
+                SpaceReclaimService.Start();
+
                 if (IsFirstRun)
                 {
                     // Default device selection needs the enumerated devices

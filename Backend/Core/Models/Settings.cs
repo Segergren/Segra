@@ -1299,6 +1299,10 @@ namespace Segra.Backend.Core.Models
         [JsonPropertyName("startSettings")]
         public JsonObject? StartSettings { get; set; }
 
+        // The Split Sessions Into Matches setting when the recording started
+        [JsonIgnore]
+        public bool SplitIntoMatches { get; set; }
+
         // Webcam layout at start, with the session's webcam file when there is one
         [JsonIgnore]
         public WebcamLayer? Webcam { get; set; }
@@ -1345,6 +1349,40 @@ namespace Segra.Backend.Core.Models
             lock (_matchesLock)
             {
                 return _matches.Select(m => m.Clone()).ToList();
+            }
+        }
+
+        private readonly object _filesLock = new();
+        // Files the recording continued in after a split, with when each one started
+        private readonly List<(string Path, TimeSpan Start)> _splitFiles = [];
+
+        public void AddSplitFile(string path, TimeSpan start)
+        {
+            lock (_filesLock)
+            {
+                _splitFiles.Add((Segra.Backend.Shared.PathUtils.Normalize(path), start));
+            }
+        }
+
+        // Every file of the recording in order, starting with FilePath, with when each one started
+        public List<(string Path, TimeSpan Start)> GetFiles()
+        {
+            lock (_filesLock)
+            {
+                return [(FilePath!, TimeSpan.Zero), .. _splitFiles];
+            }
+        }
+
+        // The file being written now and where it starts in the recording
+        [JsonIgnore]
+        public (string? Path, TimeSpan Start) CurrentFile
+        {
+            get
+            {
+                lock (_filesLock)
+                {
+                    return _splitFiles.Count > 0 ? _splitFiles[^1] : (FilePath, TimeSpan.Zero);
+                }
             }
         }
 

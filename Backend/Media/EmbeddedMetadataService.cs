@@ -15,7 +15,7 @@ namespace Segra.Backend.Media
     /// can restore it, plus bookmarks as chapters for editors and players. Usually only the index (moov)
     /// is rewritten; videos that keep their index in front for streaming get copied when it outgrows its space.
     /// </summary>
-    internal static class EmbeddedMetadataService
+    internal static partial class EmbeddedMetadataService
     {
         private static readonly byte[] SegraBoxId = "SEGRA-METADATA\0\u0001"u8.ToArray();
         private static readonly byte[] ChapterDataMagic = "SEGRACHP"u8.ToArray();

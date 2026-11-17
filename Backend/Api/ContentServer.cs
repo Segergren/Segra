@@ -237,7 +237,7 @@ namespace Segra.Backend.Api
             {
                 // The session being recorded is served through its rebuilt index
                 var live = LiveMp4.Find(fileName);
-                if (live != null && AppState.Instance.Recording?.FilePath is string recordingPath && LiveMp4.SamePath(recordingPath, fileName))
+                if (live != null && AppState.Instance.Recording?.CurrentFile.Path is string recordingPath && LiveMp4.SamePath(recordingPath, fileName))
                     await StreamLiveVideo(live, context);
                 else
                     await StreamVideoFile(fileName, context);

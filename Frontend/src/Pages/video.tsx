@@ -31,7 +31,6 @@ import {
   Minus,
   ZoomIn,
   ZoomOut,
-  Keyboard,
   Headphones,
   ChevronDown,
 } from 'lucide-react';
@@ -103,23 +102,6 @@ const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 1.5, 2] as const;
 const formatPlaybackRateLabel = (rate: number) => `${rate}x`;
 const PLAYER_BUTTON_CLASS =
   'flex items-center justify-center p-1.5 rounded-full text-white/90 cursor-pointer transition-colors hover:text-white hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent';
-
-// Mirrors the editor's keydown handler
-const PLAYER_SHORTCUTS: [string, string[]][] = [
-  ['Play or pause', ['Space', 'K']],
-  ['Skip 5 seconds', ['←', '→']],
-  ['Skip 10 seconds', ['J', 'L']],
-  ['Previous or next bookmark', ['Ctrl + ←', 'Ctrl + →']],
-  ['Previous or next frame', [',', '.']],
-  ['Slower or faster', ['<', '>']],
-  ['Jump to 0% to 90%', ['0-9']],
-  ['Start or end', ['Home', 'End']],
-  ['Volume', ['↑', '↓']],
-  ['Mute', ['M']],
-  ['Fullscreen', ['F']],
-  ['Previous or next video', ['Shift + P', 'Shift + N']],
-  ['Show shortcuts', ['?']],
-];
 
 function TopInfoBar({ video }: { video: Content }) {
   const { setSelectedVideo } = useSelectedVideo();
@@ -286,8 +268,6 @@ export default function VideoComponent({ video }: { video: Content }) {
   const [videoUndecodable, setVideoUndecodable] = useState(false);
   useEffect(() => setVideoUndecodable(false), [video.filePath]);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const shortcutsRef = useRef<HTMLDivElement | null>(null);
   const videoPanStartRef = useRef<{ x: number; y: number } | null>(null);
   const panMovedRef = useRef(false);
   const videoScaleRef = useRef<number>(videoScale);
@@ -295,23 +275,6 @@ export default function VideoComponent({ video }: { video: Content }) {
   useEffect(() => {
     videoScaleRef.current = videoScale;
   }, [videoScale]);
-
-  // Close the shortcut sheet when clicking outside or pressing Escape
-  useEffect(() => {
-    if (!showShortcuts) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!shortcutsRef.current?.contains(event.target as Node)) setShowShortcuts(false);
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShowShortcuts(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [showShortcuts]);
 
   // Close speed menu when clicking outside or pressing Escape
   useEffect(() => {
@@ -704,13 +667,6 @@ export default function VideoComponent({ video }: { video: Content }) {
       if ((e.key === 'ArrowDown' || e.code === 'ArrowDown') && !isTyping) {
         e.preventDefault();
         setPlayerVolume(volume - 0.05);
-        showControlsTemporarily();
-        return;
-      }
-
-      if (e.key === '?' && !isTyping) {
-        e.preventDefault();
-        setShowShortcuts((open) => !open);
         showControlsTemporarily();
         return;
       }
@@ -1282,9 +1238,9 @@ export default function VideoComponent({ video }: { video: Content }) {
   }, [isPlaying]);
 
   useEffect(() => {
-    isMenuOpenRef.current = showSpeedMenu || showAudioTracks || showShortcuts;
+    isMenuOpenRef.current = showSpeedMenu || showAudioTracks;
     if (controlsVisibleRef.current) scheduleControlsHide();
-  }, [showSpeedMenu, showAudioTracks, showShortcuts]);
+  }, [showSpeedMenu, showAudioTracks]);
 
   // Prevent page scrollbars while our overlay is active
   useEffect(() => {
@@ -2555,48 +2511,6 @@ export default function VideoComponent({ video }: { video: Content }) {
                             );
                           })}
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="relative" ref={shortcutsRef}>
-                      <button
-                        type="button"
-                        onClick={() => setShowShortcuts((open) => !open)}
-                        onPointerUp={(e) => e.currentTarget.blur()}
-                        className={`${PLAYER_BUTTON_CLASS} ${showShortcuts ? 'text-white bg-white/15' : ''}`}
-                        aria-label="Keyboard shortcuts"
-                        aria-expanded={showShortcuts}
-                      >
-                        <Keyboard className="w-5 h-5" />
-                      </button>
-                      <div
-                        role="dialog"
-                        aria-label="Keyboard shortcuts"
-                        className={`absolute right-0 bottom-full z-50 mb-2 w-80 p-3 rounded-xl border border-white/10 bg-black/80 backdrop-blur-md shadow-xl transition-all duration-200 ${showShortcuts ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
-                      >
-                        <p className="mb-2.5 text-sm font-semibold text-white">
-                          Keyboard shortcuts
-                        </p>
-                        <dl className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 text-[13px]">
-                          {PLAYER_SHORTCUTS.map(([label, keys]) => (
-                            <React.Fragment key={label}>
-                              <dt className="text-white/80">{label}</dt>
-                              <dd className="flex justify-end gap-1">
-                                {keys.map((key) => (
-                                  <kbd
-                                    key={key}
-                                    className="kbd kbd-xs h-5 px-1.5 border-white/15 bg-white/10 text-white/90"
-                                  >
-                                    {key}
-                                  </kbd>
-                                ))}
-                              </dd>
-                            </React.Fragment>
-                          ))}
-                        </dl>
-                        <p className="mt-3 text-xs text-white/50">
-                          Bookmark jumps skip the types you have hidden.
-                        </p>
                       </div>
                     </div>
 

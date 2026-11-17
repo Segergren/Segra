@@ -69,6 +69,10 @@ interface VideoCardProps {
   gameIcon?: { src: string | null; kind: 'game' | 'display' | 'import' }; // Shown before the title
 }
 
+// Same fill and border as the button's hover state, so it doesn't change size while the menu is open
+const OPEN_MENU_BUTTON_CLASS =
+  'bg-white/10 [--btn-border:color-mix(in_oklab,var(--color-base-200),#000_7%)] [--btn-border-style:solid]';
+
 export default function ContentCard({
   content,
   type,
@@ -724,7 +728,7 @@ export default function ContentCard({
 
       <div className="card-body gap-1 pt-2 border border-t-0 border-[#49515b] rounded-b-[inherit]">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {gameIcon && <GameIcon src={gameIcon.src} kind={gameIcon.kind} />}
             {isRenaming ? (
               <input
@@ -782,7 +786,7 @@ export default function ContentCard({
             <label
               ref={dropdownTriggerRef}
               tabIndex={isBusy ? -1 : 0}
-              className="btn btn-ghost btn-sm btn-circle hover:bg-white/10 active:bg-white/10"
+              className={`btn btn-ghost btn-sm btn-circle hover:bg-white/10 active:bg-white/10 ${isDropdownOpen ? OPEN_MENU_BUTTON_CLASS : ''}`}
             >
               <Ellipsis size={24} />
             </label>

@@ -4,7 +4,7 @@ import { Settings } from '../Models/types';
 
 // Settings a recording reads when it starts, grouped by the section that edits them
 export const RECORDING_SETTING_GROUPS = {
-  captureMode: ['recordingMode'],
+  captureMode: ['recordingMode', 'discardSessionsWithoutBookmarks', 'splitSessionsIntoMatches'],
   video: [
     'resolution',
     'frameRate',

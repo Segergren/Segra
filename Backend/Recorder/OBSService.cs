@@ -54,6 +54,9 @@ namespace Segra.Backend.Recorder
 
         private static RecordingOutput? _output;
         private static ReplayBuffer? _bufferOutput;
+        // Set when the session output can start a new file mid-recording (see SplitRecordingFile)
+        private static volatile bool _canSplitRecording;
+        private static SignalConnection? _fileChangedConnection;
 
         // Set while the always-on display buffer owns the outputs; holds what its saves are tagged with.
         // The key is the configuration it was last started with (see SyncAlwaysOnBuffer).
@@ -1220,6 +1223,7 @@ namespace Segra.Backend.Recorder
             // below have passed, so a blocked start attempt can never clobber an active recording's settings.
             EffectiveRecordingSettings eff = GameSettingsService.Resolve(exePath);
             var startSettings = alwaysOn ? null : MessageService.GetRecordingStartSettings();
+            bool splitIntoMatches = Settings.Instance.SplitSessionsIntoMatches;
             if (alwaysOn)
                 eff.RecordingMode = RecordingMode.Buffer;
 
@@ -1880,6 +1884,15 @@ namespace Segra.Backend.Recorder
 
             WebcamLayer? webcamLayer = CreateWebcamOutputs(_bufferOutput != null, _output != null, videoOutputPath, eff);
 
+            // Integrations can then end the file at a match end, so saving the matches needs no copying.
+            // The webcam file would need the same cuts, so sessions with a webcam are cut afterwards instead.
+            if (_output != null && webcamLayer == null && splitIntoMatches)
+            {
+                _output.Update(s => s.Set("split_file", true));
+                _fileChangedConnection = _output.ConnectSignal(OutputSignal.FileChanged, OnRecordingFileChanged);
+                _canSplitRecording = true;
+            }
+
             // Overwrite the file name with the hooked executable name if using game hook
             fileName = _hookedExecutableFileName ?? fileName;
 
@@ -1906,6 +1919,16 @@ namespace Segra.Backend.Recorder
 
                 // Set the exact start time for session recording (Full Session has bookmarks)
                 startTime = DateTime.Now;
+
+                // Names the files after a split. Set after starting, or the first file would be renamed too.
+                if (_canSplitRecording)
+                {
+                    _output.Update(s => s
+                        .Set("directory", sessionDir)
+                        .Set("format", "%CCYY-%MM-%DD_%hh-%mm-%ss")
+                        .Set("extension", "mp4")
+                        .Set("allow_spaces", false));
+                }
                 _ = Task.Run(() => PlaySound("start"));
                 hasPlayedStartSound = true;
 
@@ -1973,6 +1996,7 @@ namespace Segra.Backend.Recorder
                 AudioTrackNames = actualAudioTrackNames,
                 AudioTrackTypes = actualAudioTrackTypes,
                 StartSettings = startSettings,
+                SplitIntoMatches = splitIntoMatches,
                 Webcam = webcamLayer
             };
             AppState.Instance.PreRecording = null;
@@ -2447,7 +2471,7 @@ namespace Segra.Backend.Recorder
             try
             {
                 // Saved sessions with their bookmarks, for auto highlights
-                var savedSessions = new List<(string Id, List<Bookmark> Bookmarks)>();
+                var savedSessions = new List<MatchSplitService.SplitSession>();
                 if (session != null)
                 {
                     string filePath = session.FilePath!;
@@ -2457,7 +2481,7 @@ namespace Segra.Backend.Recorder
                     if (discardSession && !hasManualBookmarks)
                     {
                         Log.Information("Discarding session recording without manual bookmarks");
-                        MatchSplitService.DeleteOriginal(filePath, session.Webcam?.FilePath);
+                        await MatchSplitService.DiscardUnsavedFilesAsync(session);
                     }
                     else
                     {
@@ -2468,12 +2492,13 @@ namespace Segra.Backend.Recorder
                             ? GameUtils.GetIgdbIdFromExePath(session.ExePath)
                             : null;
                         WebcamLayer? webcam = await FinishWebcamLayer(session.Webcam, session.Webcam?.FilePath, filePath);
-                        var matchSessions = Settings.Instance.SplitSessionsIntoMatches
+                        // A recording that was split while recording is always saved per file
+                        var matchSessions = session.SplitIntoMatches || session.GetFiles().Count > 1
                             ? await MatchSplitService.SplitAsync(session, filePath, webcam, igdbId, keepOnlyBookmarked: discardSession)
                             : null;
                         if (matchSessions != null)
                         {
-                            savedSessions.AddRange(matchSessions.Select(m => (m.Id, m.Bookmarks)));
+                            savedSessions.AddRange(matchSessions);
                         }
                         else
                         {
@@ -2481,7 +2506,7 @@ namespace Segra.Backend.Recorder
                             if (sessionContentId == null)
                                 ContentService.DeleteWebcamFile(webcam?.FilePath);
                             else
-                                savedSessions.Add((sessionContentId, session.Bookmarks));
+                                savedSessions.Add(new(sessionContentId, session.Bookmarks));
                             await ContentService.CreateThumbnail(filePath, Content.ContentType.Session, sessionContentId);
                             // Decoding a long session's audio takes seconds, so it doesn't hold up the finishing state
                             var waveformWork = BackgroundWork.Begin();
@@ -2505,14 +2530,7 @@ namespace Segra.Backend.Recorder
                 await StorageService.EnsureStorageBelowLimit();
                 await StorageService.DeleteExpiredContent();
 
-                // If the recording is not a replay buffer recording, AI is enabled and auto generate highlights is enabled -> analyze the video!
-                if (Settings.Instance.EnableAi && Settings.Instance.AutoGenerateHighlights)
-                {
-                    foreach (var saved in savedSessions.Where(saved => saved.Bookmarks.Any(b => b.Type.IncludeInHighlight())))
-                    {
-                        _ = AiService.CreateHighlight(saved.Id);
-                    }
-                }
+                MatchSplitService.CreateHighlights(savedSessions);
             }
             finally
             {
@@ -4141,6 +4159,36 @@ namespace Segra.Backend.Recorder
         }
 
         /// <summary>
+        /// Continues the session recording in a new file from the next keyframe. Returns false when the
+        /// recording can't be split, e.g. while it is stopping.
+        /// </summary>
+        internal static bool SplitRecordingFile()
+        {
+            if (!_recorderLock.Wait(0))
+                return false;
+            try
+            {
+                return _canSplitRecording && _output != null && _output.SplitFile();
+            }
+            finally
+            {
+                _recorderLock.Release();
+            }
+        }
+
+        private static void OnRecordingFileChanged(nint calldata)
+        {
+            string? nextFile = Calldata.GetString(calldata, "next_file");
+            var recording = AppState.Instance.Recording;
+            if (string.IsNullOrEmpty(nextFile) || recording?.FilePath == null)
+                return;
+
+            recording.AddSplitFile(nextFile, DateTime.Now - recording.StartTime);
+            Log.Information($"Recording continues in {nextFile}");
+            MatchSplitService.SaveFinishedFile(recording, _activeEffectiveSettings?.DiscardSessionsWithoutBookmarks ?? Settings.Instance.DiscardSessionsWithoutBookmarks);
+        }
+
+        /// <summary>
         /// Clears output references. Outputs are manually disposed since AutoDispose is false;
         /// disposing an Output/ReplayBuffer also disconnects its Stopped/Saved subscriptions.
         /// </summary>
@@ -4154,6 +4202,9 @@ namespace Segra.Backend.Recorder
             lock (_replaySaveLock)
                 _previousSaveIndeterminate = false;
 
+            _canSplitRecording = false;
+            try { _fileChangedConnection?.Dispose(); } catch (Exception ex) { Log.Warning($"Error disconnecting file split signal: {ex.Message}"); }
+            _fileChangedConnection = null;
             try { _output?.Dispose(); } catch (Exception ex) { Log.Warning($"Error disposing output: {ex.Message}"); }
             _output = null;
 
