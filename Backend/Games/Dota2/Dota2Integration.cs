@@ -284,7 +284,7 @@ namespace Segra.Backend.Games.Dota2
                         Apply(m);
                         if (map.WinTeam is "radiant" or "dire")
                             m.Result = map.WinTeam == team ? MatchResult.Win : MatchResult.Loss;
-                    });
+                    }, finished: true);
                 }
                 else if (_matches.IsRunning)
                 {

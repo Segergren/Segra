@@ -1,5 +1,6 @@
 using Serilog;
 using Segra.Backend.Core.Models;
+using Segra.Backend.Media;
 
 namespace Segra.Backend.Games
 {
@@ -60,12 +61,18 @@ namespace Segra.Backend.Games
             }
         }
 
-        public void End(Action<GameMatch>? update = null)
+        // finished is for a match that is over, not one left or disconnected from; it ends the recording file
+        // after the match so the match is saved right away
+        public void End(Action<GameMatch>? update = null, bool finished = false)
         {
+            bool split;
             lock (_lock)
             {
+                split = finished && IsCurrent() && !_ended;
                 EndRunning(update);
             }
+            if (split)
+                MatchSplitService.SplitAfterMatch(() => IsRunning);
         }
 
         // Ends the match where it was last seen, for games that only learn it ended once the next one begins

@@ -394,7 +394,7 @@ namespace Segra.Backend.Media
         /// <summary>
         /// Ends the recording file once the padding after a match is recorded, so saving the match needs no copying.
         /// </summary>
-        public static void SplitAfterMatch()
+        public static void SplitAfterMatch(Func<bool> matchRunning)
         {
             var recording = AppState.Instance.Recording;
             if (recording == null)
@@ -403,6 +403,9 @@ namespace Segra.Backend.Media
             _ = Task.Run(async () =>
             {
                 await Task.Delay(PaddingAfter);
+                // A resumed or new match would be cut in two
+                if (matchRunning())
+                    return;
                 if (ReferenceEquals(AppState.Instance.Recording, recording) && OBSService.SplitRecordingFile())
                     Log.Information("Splitting the recording after the match");
             });

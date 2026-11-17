@@ -354,7 +354,7 @@ namespace Segra.Backend.Games.CounterStrike2
 
                 // Later gameover updates only refresh the result in case the final score arrived late
                 if (_matches.IsRunning)
-                    _matches.End(ApplyResult);
+                    _matches.End(ApplyResult, finished: true);
                 else
                     _matches.Update(ApplyResult);
             }

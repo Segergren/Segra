@@ -177,7 +177,7 @@ namespace Segra.Backend.Games.LeagueOfLegends
                         "Lose" => MatchResult.Loss,
                         _ => null,
                     };
-                });
+                }, finished: true);
             }
             else if (_matches.IsRunning)
             {
