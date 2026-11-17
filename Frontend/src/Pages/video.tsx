@@ -2982,7 +2982,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 >
                   <Minus className="w-4 h-4" />
                 </button>
-                <span className="text-sm font-medium text-center text-gray-300">
+                <span className="w-9 shrink-0 text-sm font-medium text-center tabular-nums text-gray-300">
                   {zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)}x
                 </span>
                 <button
