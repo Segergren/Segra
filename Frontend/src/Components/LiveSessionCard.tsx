@@ -38,6 +38,16 @@ export default function LiveSessionCard({
   );
   const [thumbnailLoaded, setThumbnailLoaded] = useState(() => !!thumbnailUrl);
   const [opening, setOpening] = useState(false);
+  // Opening usually takes well under a second, so the overlay only shows when it takes longer
+  const [showOpening, setShowOpening] = useState(false);
+  useEffect(() => {
+    if (!opening) {
+      setShowOpening(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowOpening(true), 300);
+    return () => clearTimeout(timer);
+  }, [opening]);
 
   // Retried only until the file has enough data to read
   useEffect(() => {
@@ -110,7 +120,7 @@ export default function LiveSessionCard({
             REC
           </span>
         )}
-        {opening && (
+        {showOpening && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center gap-2 text-sm text-white">
             <span className="loading loading-spinner loading-xs" />
             Opening...
