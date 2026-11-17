@@ -151,7 +151,7 @@ try {
     ['Clips', 'Clips'],
     ['Highlights', 'Highlights'],
     ['Settings', 'Settings'],
-    ['Full Sessions', 'Sessions'],
+    ['Full Sessions', 'Full Sessions'],
   ];
   for (const [label, heading] of connected && problems.length === 0 ? pages : []) {
     const open = `(() => {
@@ -207,7 +207,7 @@ try {
     if (clicked === true) {
       const shown = await waitFor(async () => {
         if (problems.length > 0) return 'problems';
-        const res = await cdp.send('Runtime.evaluate', { expression: `!!document.querySelector('video') && ![...document.querySelectorAll('h1')].some(h => h.textContent.trim() === 'Sessions')`,
+        const res = await cdp.send('Runtime.evaluate', { expression: `!!document.querySelector('video') && ![...document.querySelectorAll('h1')].some(h => h.textContent.trim() === 'Full Sessions')`,
           returnByValue: true,
         });
         return res.result?.result?.value === true;
