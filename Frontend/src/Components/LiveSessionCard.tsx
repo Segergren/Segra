@@ -6,9 +6,7 @@ import { gameIconSource } from '../Utils/GameIconSource';
 import { useAppState } from '../Context/AppStateContext';
 import { useSettings } from '../Context/SettingsContext';
 import GameIcon from './GameIcon';
-
-// One frame per recording, kept across remounts so it is only generated once
-const thumbnailCache = new Map<string, string>();
+import { getLiveThumbnail, setLiveThumbnail } from '../Utils/LiveThumbnails';
 
 // True when no pixel is brighter than near-black, checked on a downscaled copy
 const isFullyBlack = async (blob: Blob) => {
@@ -38,7 +36,7 @@ export default function LiveSessionCard({
   const startMs = new Date(recording.startTime).getTime();
   const filePath = recording.filePath;
   const [thumbnailUrl, setThumbnailUrl] = useState(() =>
-    filePath ? thumbnailCache.get(filePath) : undefined,
+    filePath ? getLiveThumbnail(filePath) : undefined,
   );
   const [thumbnailLoaded, setThumbnailLoaded] = useState(() => !!thumbnailUrl);
   const [opening, setOpening] = useState(false);
@@ -72,7 +70,7 @@ export default function LiveSessionCard({
         if (await isFullyBlack(blob)) throw new Error('Black frame');
         if (cancelled) return;
         const objectUrl = URL.createObjectURL(blob);
-        thumbnailCache.set(filePath, objectUrl);
+        setLiveThumbnail(filePath, objectUrl);
         setThumbnailUrl(objectUrl);
       } catch {
         if (!cancelled) timer = setTimeout(attempt, 1000);

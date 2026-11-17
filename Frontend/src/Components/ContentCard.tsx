@@ -30,6 +30,7 @@ import GameIcon from './GameIcon';
 import { useDeleteConfirmation } from '../Hooks/useDeleteConfirmation';
 import { formatCreatedAt, formatFileSize, getKillDeathCount } from '../Utils/ContentFormat';
 import { getIconMapping } from '../Utils/BookmarkIcons';
+import { getLiveThumbnail } from '../Utils/LiveThumbnails';
 import {
   getMatchRecord,
   formatMatchStat,
@@ -145,6 +146,8 @@ export default function ContentCard({
     hasSeededKnownContent && content != null && !knownContentKeys.has(thumbnailKey);
 
   // Existing content starts "loaded" (instant); only newly appeared content crossfades from the shimmer.
+  // A session saved from the live card shows the live frame until its own thumbnail is ready
+  const liveThumbnail = content?.filePath ? getLiveThumbnail(content.filePath) : undefined;
   const [thumbnailLoaded, setThumbnailLoaded] = useState(
     () => !isNewContent || loadedThumbnailKeys.has(thumbnailKey),
   );
@@ -614,13 +617,21 @@ export default function ContentCard({
       <figure className="relative aspect-video border border-b-0 border-[#49515b] [background:linear-gradient(#000,#000)_padding-box,linear-gradient(#49515b,#49515b)_border-box]">
         {/* Shimmer crossfades out as the image fades in, so the figure never flashes black. */}
         <div
-          className={`absolute inset-0 rounded-none bg-base-200/75 transition-opacity duration-200 ${thumbnailLoaded ? 'opacity-0' : 'skeleton opacity-100'}`}
+          className={`absolute inset-0 rounded-none bg-base-200/75 transition-opacity duration-200 ${thumbnailLoaded || liveThumbnail ? 'opacity-0' : 'skeleton opacity-100'}`}
         ></div>
+        {liveThumbnail && !thumbnailLoaded && (
+          <img
+            src={liveThumbnail}
+            alt=""
+            className="absolute inset-0 w-full h-full object-contain select-none"
+            draggable={false}
+          />
+        )}
         <img
           ref={thumbnailRef}
           src={thumbnailPath}
           alt={'thumbnail'}
-          className={`w-full h-full object-contain select-none transition-opacity duration-200 ${thumbnailLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className={`w-full h-full object-contain select-none ${liveThumbnail ? '' : 'transition-opacity duration-200'} ${thumbnailLoaded ? 'opacity-100' : 'opacity-0'}`}
           loading="lazy"
           width={1600}
           height={900}
