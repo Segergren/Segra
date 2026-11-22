@@ -818,18 +818,14 @@ export default function ContentCard({
             {killDeath && (
               <>
                 <span className="w-px h-3.5 shrink-0 bg-gray-500" aria-hidden="true" />
-                {/* Icons sit up to center on the digits rather than the line box; the skull more for its heavy top */}
+                {/* The skull sits up half a pixel to center its ink on the digits */}
                 <span className="flex items-center gap-2.5 tabular-nums">
                   {killDeath.kills > 0 && (
                     <span
                       className="inline-flex items-center gap-1"
                       aria-label={`${killDeath.kills} kills`}
                     >
-                      <KillIcon
-                        size={14}
-                        strokeWidth={2.25}
-                        className="text-gray-400 -translate-y-px -mr-px"
-                      />
+                      <KillIcon size={14} strokeWidth={2.25} className="text-gray-400 -mr-px" />
                       {killDeath.kills}
                     </span>
                   )}
@@ -841,7 +837,7 @@ export default function ContentCard({
                       <Skull
                         size={14}
                         strokeWidth={2.25}
-                        className="text-gray-400 -translate-y-[1.5px] -mr-0.5"
+                        className="text-gray-400 -translate-y-[0.5px] -mr-0.5"
                       />
                       {killDeath.deaths}
                     </span>
@@ -851,11 +847,7 @@ export default function ContentCard({
                       className="inline-flex items-center gap-1"
                       aria-label={`${killDeath.goals} goals`}
                     >
-                      <GoalIcon
-                        size={14}
-                        strokeWidth={2.25}
-                        className="text-gray-400 -translate-y-px"
-                      />
+                      <GoalIcon size={14} strokeWidth={2.25} className="text-gray-400" />
                       {killDeath.goals}
                     </span>
                   )}
