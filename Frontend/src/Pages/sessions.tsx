@@ -36,13 +36,7 @@ export default function Sessions() {
         />
       )}
       {(isSavingRecording || isMergingSessions) && (
-        <ContentCard
-          key="recording-progress"
-          type="Session"
-          isLoading
-          // Merge progress is shown in the sidebar
-          loadingLabel={isSavingRecording ? 'Saving Recording' : undefined}
-        />
+        <ContentCard key="recording-progress" type="Session" isLoading />
       )}
     </>
   );

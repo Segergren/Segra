@@ -65,7 +65,6 @@ interface VideoCardProps {
   isSelected?: boolean; // Whether this card is selected in multi-select mode
   isSelectionMode?: boolean; // Whether multi-select mode is active
   isHighlighted?: boolean; // Briefly pulse the card to draw attention (e.g. after import)
-  loadingLabel?: string; // Shown over a skeleton card, e.g. "Saving Recording"
   gameIcon?: { src: string | null; kind: 'game' | 'display' | 'import' }; // Shown before the title
 }
 
@@ -81,7 +80,6 @@ export default function ContentCard({
   isSelected = false,
   isSelectionMode = false,
   isHighlighted = false,
-  loadingLabel,
   gameIcon,
 }: VideoCardProps) {
   const { enableAi, showNewBadgeOnVideos, airplaneMode } = useSettings();
@@ -237,11 +235,6 @@ export default function ContentCard({
             {/* Mirrors the loaded card's figure/body exactly so the skeleton is the same height. */}
             <figure className="relative aspect-video box-content border border-b-0 border-[#49515b] [background:linear-gradient(#000,#000)_padding-box,linear-gradient(#49515b,#49515b)_border-box]">
               <div className="skeleton w-full h-full rounded-none bg-base-200/75"></div>
-              {loadingLabel && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-                  <p className="text-base text-white/90">{loadingLabel}</p>
-                </div>
-              )}
             </figure>
             <div className="card-body gap-1 pt-2 border border-t-0 border-[#49515b] rounded-b-[inherit]">
               <div className="flex justify-between items-center">
