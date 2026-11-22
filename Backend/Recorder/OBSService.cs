@@ -2486,7 +2486,8 @@ namespace Segra.Backend.Recorder
                     else
                     {
                         // Ensure file is fully written to disk/network before thumbnail generation
-                        await EnsureFileReady(filePath);
+                        // After a split, FilePath is the first file, which is already saved
+                        await EnsureFileReady(session.CurrentFile.Path ?? filePath);
 
                         int? igdbId = !string.IsNullOrEmpty(session.ExePath)
                             ? GameUtils.GetIgdbIdFromExePath(session.ExePath)
