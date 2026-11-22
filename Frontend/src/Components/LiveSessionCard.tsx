@@ -74,9 +74,9 @@ export default function LiveSessionCard({
         setLiveThumbnail(filePath, objectUrl);
         setThumbnailUrl(objectUrl);
       } catch {
-        // Each try runs ffmpeg on the recording, so a long black loading screen backs off to every 15 s
+        // Each try runs ffmpeg on the recording, so a long black loading screen is retried every 15 s
         failures++;
-        if (!cancelled) timer = setTimeout(attempt, Math.min(failures, 15) * 1000);
+        if (!cancelled) timer = setTimeout(attempt, failures < 10 ? 1000 : 15000);
       }
     };
     // OBS writes the first readable fragment about one keyframe interval (1 s) in
