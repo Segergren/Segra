@@ -59,6 +59,7 @@ export default function LiveSessionCard({
     if (thumbnailUrl || !filePath) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
+    let failures = 0;
     const attempt = async () => {
       const time = Math.max(0, Math.floor((Date.now() - startMs) / 1000 - 1));
       try {
@@ -73,7 +74,9 @@ export default function LiveSessionCard({
         setLiveThumbnail(filePath, objectUrl);
         setThumbnailUrl(objectUrl);
       } catch {
-        if (!cancelled) timer = setTimeout(attempt, 1000);
+        // Each try runs ffmpeg on the recording, so a long black loading screen backs off to every 15 s
+        failures++;
+        if (!cancelled) timer = setTimeout(attempt, Math.min(failures, 15) * 1000);
       }
     };
     // OBS writes the first readable fragment about one keyframe interval (1 s) in
