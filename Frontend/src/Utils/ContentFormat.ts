@@ -2,21 +2,23 @@ import { BookmarkType, Content } from '../Models/types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// A gaming night that runs past midnight still belongs to that evening, so days start at 05:00
-const DAY_START_HOUR = 5;
+// Until 05:00 the night still counts as the evening before; after that, days follow the calendar
+const NIGHT_END_HOUR = 5;
 
-// The day a moment belongs to, as local midnight. Built from wall-clock fields so the night
-// the clocks change still splits at 05:00.
-const gamingDay = (d: Date) =>
-  new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() - DAY_START_HOUR);
-const startOfGamingDay = (d: Date) => {
-  const day = gamingDay(d);
+// The day a moment belongs to, as local midnight, when days start at startHour. Built from
+// wall-clock fields so the night the clocks change still splits at that hour.
+const startOfDay = (d: Date, startHour: number) => {
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() - startHour);
   return new Date(day.getFullYear(), day.getMonth(), day.getDate());
 };
 
 // Whole days between the date and today; 0 is today
-const daysAgo = (date: Date, now: Date) =>
-  Math.round((startOfGamingDay(now).getTime() - startOfGamingDay(date).getTime()) / DAY_MS);
+const daysAgo = (date: Date, now: Date) => {
+  const startHour = now.getHours() < NIGHT_END_HOUR ? NIGHT_END_HOUR : 0;
+  return Math.round(
+    (startOfDay(now, startHour).getTime() - startOfDay(date, startHour).getTime()) / DAY_MS,
+  );
+};
 
 // timeStyle keeps each locale's own form: 00:19 in 24-hour locales, 12:19 AM in en-US
 export const timeFormat = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
@@ -36,7 +38,7 @@ export function formatCreatedAt(createdAt: string, now = new Date()): string {
   const days = daysAgo(date, now);
   if (days <= 0) return `Today, ${time}`;
   if (days === 1) return `Yesterday, ${time}`;
-  if (days < 7) return `${shortWeekdayFormat.format(gamingDay(date))}, ${time}`;
+  if (days < 7) return `${shortWeekdayFormat.format(date)}, ${time}`;
   return date.getFullYear() === now.getFullYear()
     ? dayMonthFormat.format(date)
     : dayMonthYearFormat.format(date);
