@@ -313,6 +313,15 @@ export default function ContentCard({
   const singleMatch = matches.length === 1 ? matches[0] : null;
   const singleMatchImage = singleMatch ? getMatchImage(content?.igdbId, singleMatch) : undefined;
   const singleMatchScore = singleMatch ? formatMatchStat(singleMatch) : '';
+  // A map picture sits above the result and a character avatar inline; without either the name is shown
+  const singleMatchMapPicture =
+    singleMatchImage && !singleMatchImage.square ? singleMatchImage : undefined;
+  const singleMatchAvatar = singleMatchImage?.square ? singleMatchImage : undefined;
+  const singleMatchName = singleMatchImage
+    ? undefined
+    : (singleMatch?.map ?? singleMatch?.character);
+  const singleMatchHasRow =
+    !!singleMatchAvatar || !!singleMatch?.result || !!singleMatchScore || !!singleMatchName;
   const matchRecord = getMatchRecord(matches);
   const killDeath = getKillDeathCount(content!);
   const bookmarkIcons = getIconMapping(content?.igdbId);
@@ -642,42 +651,61 @@ export default function ContentCard({
         <span className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
           {formattedDuration}
         </span>
-        {singleMatch && (!!singleMatch.result || !!singleMatchScore || !!singleMatchImage) && (
+        {singleMatch && (!!singleMatchMapPicture || singleMatchHasRow) && (
           <MatchTooltip
             match={singleMatch}
             image={singleMatchImage}
-            className={`absolute bottom-2 left-2 flex items-center gap-1.5 max-w-[calc(100%-6rem)] bg-black/75 text-white text-xs ${singleMatchImage ? 'pl-0.5 py-0.5' : 'pl-2 py-1'} pr-2 rounded`}
+            className="absolute bottom-2 left-2 flex flex-col gap-0.5 p-0.5 max-w-[calc(100%-6rem)] bg-black/75 text-white text-xs rounded"
           >
-            {singleMatchImage && (
+            {singleMatchMapPicture && (
               <img
-                src={singleMatchImage.src}
+                src={singleMatchMapPicture.src}
                 alt=""
-                className={`h-5 ${singleMatchImage.square ? 'w-5' : 'w-9'} shrink-0 rounded-sm object-cover`}
+                className="w-20 min-w-full aspect-video shrink-0 rounded-sm object-cover"
                 draggable={false}
               />
             )}
-            <span className="truncate">
-              {singleMatch.result && (
-                <span className={`font-semibold ${matchResultTextClass[singleMatch.result]}`}>
-                  {singleMatch.result}
-                </span>
-              )}
-              {singleMatchScore && (
-                <span className={singleMatch.result ? 'ml-1.5' : undefined}>
-                  {singleMatchScore}
-                </span>
-              )}
-            </span>
+            {singleMatchHasRow && (
+              <div
+                className={`flex gap-1.5 min-w-0 px-1.5 py-0.5 ${singleMatchAvatar ? 'items-center pl-0' : 'items-baseline justify-center'}`}
+              >
+                {singleMatchAvatar && (
+                  <img
+                    src={singleMatchAvatar.src}
+                    alt=""
+                    className="h-5 w-5 -my-0.5 shrink-0 rounded-sm object-cover"
+                    draggable={false}
+                  />
+                )}
+                {singleMatch.result && (
+                  <span
+                    className={`shrink-0 font-bold uppercase tracking-wide ${matchResultTextClass[singleMatch.result]}`}
+                  >
+                    {singleMatch.result}
+                  </span>
+                )}
+                {singleMatchScore && (
+                  <span className="shrink-0 font-bold tabular-nums">{singleMatchScore}</span>
+                )}
+                {singleMatchName && (
+                  <>
+                    {(singleMatch.result || singleMatchScore) && (
+                      <span className="text-gray-400" aria-hidden="true">
+                        ·
+                      </span>
+                    )}
+                    <span className="truncate text-gray-300">{singleMatchName}</span>
+                  </>
+                )}
+              </div>
+            )}
           </MatchTooltip>
         )}
         {matches.length > 1 && (
-          <span className="absolute bottom-2 left-2 max-w-[calc(100%-6rem)] truncate bg-black/75 text-white text-xs px-2 py-1 rounded">
+          <span className="absolute bottom-2 left-2 flex items-baseline gap-1.5 max-w-[calc(100%-6rem)] bg-black/75 text-white text-xs px-2 py-1 rounded">
             {matchRecord.length > 0
-              ? matchRecord.map(({ result, text }, i) => (
-                  <span
-                    key={result}
-                    className={`font-semibold ${matchResultTextClass[result]} ${i > 0 ? 'ml-1.5' : ''}`}
-                  >
+              ? matchRecord.map(({ result, text }) => (
+                  <span key={result} className={`font-bold ${matchResultTextClass[result]}`}>
                     {text}
                   </span>
                 ))
@@ -815,13 +843,18 @@ export default function ContentCard({
             {killDeath && (
               <>
                 <span className="w-px h-3.5 shrink-0 bg-gray-500" aria-hidden="true" />
+                {/* Icons sit up to center on the digits rather than the line box; the skull more for its heavy top */}
                 <span className="flex items-center gap-2.5 tabular-nums">
                   {killDeath.kills > 0 && (
                     <span
                       className="inline-flex items-center gap-1"
                       aria-label={`${killDeath.kills} kills`}
                     >
-                      <KillIcon size={14} strokeWidth={2.25} className="text-gray-400" />
+                      <KillIcon
+                        size={14}
+                        strokeWidth={2.25}
+                        className="text-gray-400 -translate-y-px -mr-px"
+                      />
                       {killDeath.kills}
                     </span>
                   )}
@@ -830,7 +863,11 @@ export default function ContentCard({
                       className="inline-flex items-center gap-1"
                       aria-label={`${killDeath.deaths} deaths`}
                     >
-                      <Skull size={14} strokeWidth={2.25} className="text-gray-400" />
+                      <Skull
+                        size={14}
+                        strokeWidth={2.25}
+                        className="text-gray-400 -translate-y-[1.5px] -mr-0.5"
+                      />
                       {killDeath.deaths}
                     </span>
                   )}
@@ -839,7 +876,11 @@ export default function ContentCard({
                       className="inline-flex items-center gap-1"
                       aria-label={`${killDeath.goals} goals`}
                     >
-                      <GoalIcon size={14} strokeWidth={2.25} className="text-gray-400" />
+                      <GoalIcon
+                        size={14}
+                        strokeWidth={2.25}
+                        className="text-gray-400 -translate-y-px"
+                      />
                       {killDeath.goals}
                     </span>
                   )}
