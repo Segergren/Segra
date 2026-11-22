@@ -1,5 +1,6 @@
 using Serilog;
 using System.Diagnostics;
+using Segra.Backend.App;
 using Segra.Backend.Core;
 using Segra.Backend.Media;
 using Segra.Backend.Shared;
@@ -235,10 +236,10 @@ namespace Segra.Backend.Windows.Storage
                 DateTime cutoff = DateTime.Now.AddDays(-Math.Max(1, settings.AutoDeleteAfterDays));
                 DateTime oneHourAgo = DateTime.Now.AddHours(-1);
                 bool includeClips = settings.AutoDeleteClipsAndHighlights;
-                // Skips files written in the last hour since they are likely still in use
+                // Skips files written in the last hour since they are likely still in use, and videos open in the player
                 List<Content> expired = AppState.Instance.Content.ToList()
                     .Where(c => (includeClips || c.Type is Content.ContentType.Session or Content.ContentType.Buffer) && !c.IsImported && c.CreatedAt != default && c.CreatedAt < cutoff
-                        && File.GetLastWriteTime(c.FilePath) < oneHourAgo)
+                        && File.GetLastWriteTime(c.FilePath) < oneHourAgo && !MessageService.IsViewing(c.FilePath))
                     .ToList();
 
                 if (expired.Count == 0)
