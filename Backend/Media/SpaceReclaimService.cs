@@ -13,9 +13,12 @@ namespace Segra.Backend.Media
     internal static class SpaceReclaimService
     {
         private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(30);
+        private const int MaxAttempts = 3;
         private static readonly object _lock = new();
         private static List<string>? _queue;
         private static int _running;
+        // Failed rewrites per file in this run, so one bad file isn't copied over and over
+        private static readonly Dictionary<string, int> _failures = new(StringComparer.OrdinalIgnoreCase);
 
         private static string QueuePath => PathUtils.Combine(FolderNames.CacheFolder, "reclaim-queue.json");
 
@@ -70,6 +73,7 @@ namespace Segra.Backend.Media
                             queue.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
                             SaveQueue(queue);
                         }
+                        _failures.Remove(path);
                     }
                     else
                     {
@@ -109,6 +113,7 @@ namespace Segra.Backend.Media
 
             Log.Information($"Reclaiming the unused space in {path}");
             var stopwatch = Stopwatch.StartNew();
+            bool busy = false;
             bool replaced = await EmbeddedMetadataService.RunExclusiveAsync(async () =>
             {
                 try
@@ -126,6 +131,7 @@ namespace Segra.Backend.Media
                     // A recording or the player may have started meanwhile
                     if (IsBusy(path))
                     {
+                        busy = true;
                         TryDelete(temp);
                         return false;
                     }
@@ -141,7 +147,7 @@ namespace Segra.Backend.Media
                 }
             });
             if (!replaced)
-                return false;
+                return !busy && GiveUp(path);
 
             var (displaySize, sizeKb) = ContentService.GetFileSize(path);
             await ContentService.UpdateMetadataFile(FolderNames.GetMetadataFilePath(content.Type, content.Id), c =>
@@ -152,6 +158,17 @@ namespace Segra.Backend.Media
             await EmbeddedMetadataService.EmbedAsync(content);
             await SettingsService.LoadContentFromFolderIntoState(false);
             Log.Information($"Reclaimed the unused space in {path} in {stopwatch.Elapsed.TotalSeconds:F0} s ({displaySize})");
+            return true;
+        }
+
+        // True once the file has failed MaxAttempts times, which drops it from the queue
+        private static bool GiveUp(string path)
+        {
+            int failures = _failures.GetValueOrDefault(path) + 1;
+            _failures[path] = failures;
+            if (failures < MaxAttempts)
+                return false;
+            Log.Warning($"Giving up on reclaiming the space in {path} after {failures} failed attempts");
             return true;
         }
 
