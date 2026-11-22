@@ -58,12 +58,14 @@ function useApplyAutoDelete({ settings, content, updateSettings }: AutoDeletePro
     const count = newlyExpired.length;
     const size = formatSize(newlyExpired.reduce((sum, c) => sum + (c.fileSizeKb || 0), 0));
     const onlyClips = newlyExpired.every((c) => c.type === 'Clip' || c.type === 'Highlight');
-    const noun = onlyClips ? 'clips and highlights' : 'videos';
+    const first = newlyExpired[0].type;
+    const single = first === 'Clip' || first === 'Highlight' ? first : 'Video';
+    const noun = count === 1 ? single.toLowerCase() : onlyClips ? 'clips and highlights' : 'videos';
     openModal(
       <ConfirmationModal
         title="Delete Old Videos"
         description={`${count} ${noun} (${size}) ${count === 1 ? 'is' : 'are'} older than ${next.days} day${next.days === 1 ? '' : 's'} and will be deleted now.\n\nAre you sure you want to continue?`}
-        confirmText={count === 1 ? 'Delete Video' : `Delete ${count} Videos`}
+        confirmText={count === 1 ? `Delete ${single}` : `Delete ${count} Videos`}
         cancelText="Cancel"
         onConfirm={() => {
           updateSettings(updates);
