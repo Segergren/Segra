@@ -1364,13 +1364,16 @@ namespace Segra.Backend.Recorder
             {
                 // Layers, bottom to top: display capture, window capture, game capture
                 AddMonitorCapture();
-                _captureWindowSpec = $"*:*:{fileName}";
+                // A launcher's game exe can start before the sources exist, so take the latest one
+                string? preRecordingExe = AppState.Instance.PreRecording?.Exe;
+                string captureFileName = string.IsNullOrEmpty(preRecordingExe) ? fileName : Path.GetFileName(preRecordingExe);
+                _captureWindowSpec = $"*:*:{captureFileName}";
                 AddWindowCapture(_captureWindowSpec);
 
                 // The game hook serves one app per game, so leave it to OBS Studio while it streams or records
                 if (ObsStudioOutput.IsStreamingOrRecording())
                     Log.Information("OBS Studio is streaming or recording, skipping game capture");
-                else if (IsGameHookTaken(fileName))
+                else if (IsGameHookTaken(captureFileName))
                     Log.Information("Another app has the game hook, skipping game capture");
                 else
                     AddGameCapture(_captureWindowSpec, withHookTimeout: true);
