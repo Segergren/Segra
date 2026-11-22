@@ -235,7 +235,7 @@ export default function ContentCard({
         {type !== 'Highlight' && (
           <>
             {/* Mirrors the loaded card's figure/body exactly so the skeleton is the same height. */}
-            <figure className="relative aspect-video border border-b-0 border-[#49515b] [background:linear-gradient(#000,#000)_padding-box,linear-gradient(#49515b,#49515b)_border-box]">
+            <figure className="relative aspect-video box-content border border-b-0 border-[#49515b] [background:linear-gradient(#000,#000)_padding-box,linear-gradient(#49515b,#49515b)_border-box]">
               <div className="skeleton w-full h-full rounded-none bg-base-200/75"></div>
               {loadingLabel && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
@@ -605,7 +605,7 @@ export default function ContentCard({
       onContextMenu={openContextMenu}
     >
       {/* Draws its own border over a border-colored underlay so the rounded thumbnail corners have no dark seam. */}
-      <figure className="relative aspect-video border border-b-0 border-[#49515b] [background:linear-gradient(#000,#000)_padding-box,linear-gradient(#49515b,#49515b)_border-box]">
+      <figure className="relative aspect-video box-content border border-b-0 border-[#49515b] [background:linear-gradient(#000,#000)_padding-box,linear-gradient(#49515b,#49515b)_border-box]">
         {/* Shimmer crossfades out as the image fades in, so the figure never flashes black. */}
         <div
           className={`absolute inset-0 rounded-none bg-base-200/75 transition-opacity duration-200 ${thumbnailLoaded || liveThumbnail ? 'opacity-0' : 'skeleton opacity-100'}`}
