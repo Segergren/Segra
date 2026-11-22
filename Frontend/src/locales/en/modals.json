@@ -1,0 +1,69 @@
+{
+  "upload": {
+    "title": "Upload to Segra.tv",
+    "close": "Close",
+    "signInHint": "Sign in to Segra.tv to upload clips and share them with a link.",
+    "titleLabel": "Title",
+    "titlePlaceholder": "Enter a title",
+    "titleRequired": "Title is required",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Add a description",
+    "visibility": "Visibility",
+    "public": "Public",
+    "unlisted": "Unlisted",
+    "openInBrowser": "Open in Browser",
+    "signInToUpload": "Sign In to Upload",
+    "upload": "Upload"
+  },
+  "recovery": {
+    "title": "Recover Video Files?",
+    "pageOf": "{{current}} of {{total}}",
+    "foundWithoutMetadata": "Found video file without metadata:",
+    "crashedRecording": "This may be from a crashed recording.",
+    "type": "Type",
+    "size": "Size",
+    "game": "Game",
+    "location": "Location",
+    "searchGames": "Search games...",
+    "openInExplorer": "Open in File Explorer",
+    "actions": {
+      "recover": "Recover",
+      "delete": "Delete",
+      "skip": "Skip"
+    },
+    "deleteConfirm": {
+      "title": "Delete recovered file?",
+      "description": "Are you sure you want to permanently delete <strong>{{fileName}}</strong>?",
+      "irreversible": "This action cannot be undone."
+    }
+  },
+  "merge": {
+    "title": {
+      "session_one": "Merge {{count}} session",
+      "session_other": "Merge {{count}} sessions",
+      "buffer_one": "Merge {{count}} replay buffer",
+      "buffer_other": "Merge {{count}} replay buffers",
+      "clip_one": "Merge {{count}} clip",
+      "clip_other": "Merge {{count}} clips",
+      "highlight_one": "Merge {{count}} highlight",
+      "highlight_other": "Merge {{count}} highlights"
+    },
+    "orderHint": "Drag to change the order.",
+    "result": {
+      "session": "The result is saved as a new session and keeps all bookmarks.",
+      "reencode": "Their video settings differ, so they are re-encoded into a new clip. This takes a while.",
+      "clip": "The merged video is saved as a new clip."
+    },
+    "totalLength": "Total length {{duration}}",
+    "merge": "Merge",
+    "mergeSlow": "Merge (slow)"
+  },
+  "confirmation": {
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
+  "deleteConfirm": {
+    "title": "Delete this item?",
+    "confirm": "Delete"
+  }
+}

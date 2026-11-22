@@ -29,6 +29,8 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useEffect, useLayoutEffect, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { menuLabelKey } from './Utils/menuLabels';
 import Button from './Components/Button';
 import { MenuItemId, DEFAULT_MENU_ITEMS, menuItemHasContent } from './Models/types';
 
@@ -45,7 +47,10 @@ const MENU_ICONS: Record<MenuItemId, LucideIcon> = {
   Settings: Settings,
 };
 
+// MenuItemId values double as the persisted setting and the content-type lookup key, so they
+// stay untranslated; only the rendered label is keyed (see Utils/menuLabels.ts).
 export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
+  const { t } = useTranslation(['nav', 'common']);
   const settings = useSettings();
   const appState = useAppState();
   const { hasLoadedObs, recording, preRecording, alwaysOnBufferActive } = appState;
@@ -191,7 +196,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
                 >
                   <span className="flex items-center gap-2">
                     <Icon className="w-5 h-5" />
-                    {id}
+                    {t(menuLabelKey(id))}
                   </span>
                   <div className="ml-auto flex items-center">
                     <AnimatePresence>
@@ -220,7 +225,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
                   onMouseDown={() => onSelectMenu(id)}
                 >
                   <Icon className="w-5 h-5" />
-                  {id}
+                  {t(menuLabelKey(id))}
                 </Button>
               );
 
@@ -250,7 +255,9 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
       {/* OBS Loading Section */}
       {!hasLoadedObs && obsDownloadProgress !== null && obsDownloadProgress < 100 && (
         <div className="mb-4 flex flex-col items-center px-4">
-          <p className="text-center text-sm text-gray-300 mb-2">Downloading OBS</p>
+          <p className="text-center text-sm text-gray-300 mb-2">
+            {t('common:status.downloadingObs')}
+          </p>
           <div className="w-full bg-base-200 rounded-full h-1.5">
             <div
               className="h-1.5 rounded-full bg-primary transition-all duration-300"
@@ -274,7 +281,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
               className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex items-center justify-center gap-1.5 text-xs leading-none text-gray-400"
             >
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
-              Replay Buffer
+              {t('nav:replayBuffer')}
             </motion.div>
           )}
         </AnimatePresence>
@@ -297,12 +304,12 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
             {appState.recording || appState.preRecording ? (
               <>
                 <OctagonX className="w-4 h-4" />
-                Stop
+                {t('common:action.stop')}
               </>
             ) : (
               <>
                 <Monitor className="w-4 h-4" />
-                Record Display
+                {t('common:action.recordDisplay')}
               </>
             )}
           </Button>

@@ -1,0 +1,19 @@
+{
+  "status": {
+    "downloadingObs": "正在下载 OBS"
+  },
+  "action": {
+    "stop": "停止",
+    "recordDisplay": "录制屏幕"
+  },
+  "relative": {
+    "today": "今天，{{time}}",
+    "yesterday": "昨天，{{time}}",
+    "weekdayTime": "{{weekday}} {{time}}"
+  },
+  "duration": {
+    "seconds_other": "{{count}} 秒",
+    "minutes_other": "{{count}} 分",
+    "combined": "{{minutes}} {{seconds}}"
+  }
+}

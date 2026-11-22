@@ -1,0 +1,142 @@
+{
+  "pendingChanges": "(applies to next recording)",
+  "video": {
+    "title": "Video Settings",
+    "presets": {
+      "low": {
+        "title": "Low Quality"
+      },
+      "standard": {
+        "title": "Standard"
+      },
+      "high": {
+        "title": "High Quality"
+      },
+      "custom": {
+        "title": "Custom",
+        "detail": "Manual config"
+      }
+    },
+    "buffer": {
+      "duration": {
+        "label": "Buffer Duration",
+        "unit": "sec"
+      },
+      "maxSize": {
+        "label": "Buffer Maximum Size"
+      },
+      "clearAfterSave": {
+        "label": "Clear Buffer After Saving",
+        "description": "Each saved clip only contains footage since the last save. Turn off to always save the full buffer duration."
+      }
+    },
+    "resolution": {
+      "label": "Resolution"
+    },
+    "frameRate": {
+      "label": "Frame Rate"
+    },
+    "rateControl": {
+      "label": "Rate Control",
+      "cbr": "CBR (Constant Bitrate)",
+      "vbr": "VBR (Variable Bitrate)",
+      "crf": "CRF (Constant Rate Factor)",
+      "cqp": "CQP (Constant Quantization Parameter)"
+    },
+    "bitrate": {
+      "label": "Bitrate",
+      "min": "Minimum Bitrate",
+      "max": "Maximum Bitrate",
+      "unit": "Mbps"
+    },
+    "crfValue": {
+      "label": "CRF Value"
+    },
+    "cqLevel": {
+      "label": "CQ Level"
+    },
+    "encoder": {
+      "label": "Video Encoder"
+    },
+    "codec": {
+      "label": "Codec",
+      "integratedGpu": "Integrated GPU",
+      "secondaryGpu": "Secondary GPU",
+      "secondaryGpuHint": "Runs on a different GPU than your main one"
+    },
+    "stretch4by3": {
+      "label": "Stretch 4:3 to 16:9",
+      "description": "Games running at a 4:3 resolution fill the whole video instead of getting black bars."
+    },
+    "hdr": {
+      "label": "Record in HDR",
+      "description": "Keeps HDR brightness and color, but videos can look washed out on screens without HDR. When off, HDR is converted to SDR."
+    },
+    "gpuPriority": {
+      "label": "Realtime GPU Priority",
+      "description": "Keeps recordings smooth in GPU-heavy games. When off, the game gets a few more FPS but recordings can stutter."
+    }
+  },
+  "monitor": {
+    "usage": "Used for manual recordings and the always-on replay buffer.",
+    "screen": {
+      "label": "Screen",
+      "picked": "Picked in screen-share dialog",
+      "asksNext": "Asks on next recording",
+      "change": "Change screen"
+    },
+    "selection": {
+      "label": "Monitor Selection",
+      "automatic": "Automatic",
+      "primary": " (Primary)"
+    }
+  },
+  "captureMode": {
+    "title": "Capture Mode",
+    "session": {
+      "title": "Session Recording",
+      "description": "Records each game from launch to close as one video.",
+      "cost": "Uses disk space."
+    },
+    "buffer": {
+      "title": "Replay Buffer",
+      "description": "Keeps the last {{length}} of gameplay in memory so you can save it as a clip.",
+      "cost": "Uses RAM."
+    },
+    "hybrid": {
+      "title": "Hybrid (Session + Buffer)",
+      "description": "Records each game as one video and lets you save the last {{length}} as a clip.",
+      "cost": "Uses RAM and disk space."
+    },
+    "alwaysOn": {
+      "label": "Always-on Replay Buffer",
+      "description": "Keeps a replay buffer of your display running when no game is recording. Press <hotkey/> to save the last {{length}} as a clip.",
+      "hotkeyFallback": "the Save Replay Buffer hotkey"
+    },
+    "discardSessions": {
+      "label": "Discard Sessions Without Bookmarks",
+      "description": "Deletes a session recording when it ends unless you added a bookmark with the hotkey. Kills and other automatic bookmarks don't count."
+    },
+    "splitMatches": {
+      "label": "Split Sessions Into Matches",
+      "description": "Saves each match as its own session and deletes the time in menus between matches.",
+      "worksIn": "Works in {{games}}.",
+      "gameList": "{{first}} and {{last}}",
+      "separator": ", "
+    }
+  },
+  "webcam": {
+    "title": "Webcam",
+    "enable": {
+      "label": "Record Webcam",
+      "badge": "BETA",
+      "description": "Records your camera as a separate layer. Move, resize or hide it in the editor, and clips include it while it is shown."
+    },
+    "camera": {
+      "label": "Camera",
+      "disconnected": "Disconnected camera",
+      "none": "No cameras found",
+      "select": "Select a camera"
+    }
+  }
+}

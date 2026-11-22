@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useScroll } from '../Context/ScrollContext';
 import { useUpdate } from '../Context/UpdateContext';
@@ -19,19 +20,22 @@ import HighlightsSection from '../Components/Settings/HighlightsSection';
 import PreferencesSection from '../Components/Settings/PreferencesSection';
 import MenuCustomizationSection from '../Components/Settings/MenuCustomizationSection';
 import AdvancedSection from '../Components/Settings/AdvancedSection';
+import LanguageSection from '../Components/Settings/LanguageSection';
 import { getRequestedSettingsSection } from '../Utils/SettingsNavigation';
 
 type SectionId =
   'account' | 'recording' | 'clips' | 'games' | 'storage' | 'preferences' | 'advanced';
 
-const ALL_NAV_ITEMS: { id: SectionId; label: string }[] = [
-  { id: 'account', label: 'Account' },
-  { id: 'recording', label: 'Recording' },
-  { id: 'clips', label: 'Clips' },
-  { id: 'storage', label: 'Storage' },
-  { id: 'games', label: 'Games' },
-  { id: 'preferences', label: 'Preferences' },
-  { id: 'advanced', label: 'Advanced' },
+// Section ids double as scroll anchors and localisation keys; only the rendered label is
+// translated.
+const ALL_NAV_ITEMS: { id: SectionId; labelKey: string }[] = [
+  { id: 'account', labelKey: 'account' },
+  { id: 'recording', labelKey: 'recording' },
+  { id: 'clips', labelKey: 'clips' },
+  { id: 'storage', labelKey: 'storage' },
+  { id: 'games', labelKey: 'games' },
+  { id: 'preferences', labelKey: 'preferences' },
+  { id: 'advanced', labelKey: 'advanced' },
 ];
 
 function SectionHeader({ id, children }: { id: string; children: React.ReactNode }) {
@@ -45,6 +49,7 @@ function SectionHeader({ id, children }: { id: string; children: React.ReactNode
 }
 
 export default function Settings() {
+  const { t } = useTranslation('settings');
   const { openReleaseNotesModal, checkForUpdates, canSelfUpdate } = useUpdate();
   const settings = useSettings();
   const updateSettings = useSettingsUpdater();
@@ -132,7 +137,7 @@ export default function Settings() {
         className={`shrink-0 px-5 pt-5 pb-3 border-b transition-colors duration-300 ${isScrolled ? 'border-base-400/50' : 'border-transparent'}`}
       >
         <div className="flex items-center gap-6">
-          <h1 className="text-[1.75rem] font-bold">Settings</h1>
+          <h1 className="text-[1.75rem] font-bold">{t('title')}</h1>
           <nav className="flex gap-1">
             {navItems.map((item) => (
               <button
@@ -144,7 +149,7 @@ export default function Settings() {
                     : 'text-base-content/70 hover:text-primary'
                 }`}
               >
-                {item.label}
+                {t('nav.' + item.labelKey)}
               </button>
             ))}
           </nav>
@@ -165,13 +170,13 @@ export default function Settings() {
         {/* ACCOUNT */}
         {!settings.airplaneMode && (
           <>
-            <SectionHeader id="account">Account</SectionHeader>
+            <SectionHeader id="account">{t('nav.account')}</SectionHeader>
             <AccountSection />
           </>
         )}
 
         {/* RECORDING */}
-        <SectionHeader id="recording">Recording</SectionHeader>
+        <SectionHeader id="recording">{t('nav.recording')}</SectionHeader>
         <CaptureModeSection settings={settings} updateSettings={updateSettings} />
         <HotkeysSection settings={settings} updateSettings={updateSettings} />
         <HotkeyBrokerWarning />
@@ -181,26 +186,27 @@ export default function Settings() {
         <WebcamSection settings={settings} updateSettings={updateSettings} />
 
         {/* CLIPS */}
-        <SectionHeader id="clips">Clips</SectionHeader>
+        <SectionHeader id="clips">{t('nav.clips')}</SectionHeader>
         <ClipSettingsSection settings={settings} updateSettings={updateSettings} />
         <HighlightsSection settings={settings} updateSettings={updateSettings} />
 
         {/* STORAGE */}
-        <SectionHeader id="storage">Storage</SectionHeader>
+        <SectionHeader id="storage">{t('nav.storage')}</SectionHeader>
         <StorageSettingsSection settings={settings} updateSettings={updateSettings} />
 
         {/* GAMES */}
-        <SectionHeader id="games">Games</SectionHeader>
+        <SectionHeader id="games">{t('nav.games')}</SectionHeader>
         <GameDetectionSection />
         <GameIntegrationsSection />
 
         {/* PREFERENCES */}
-        <SectionHeader id="preferences">Preferences</SectionHeader>
+        <SectionHeader id="preferences">{t('nav.preferences')}</SectionHeader>
         <PreferencesSection settings={settings} updateSettings={updateSettings} />
+        <LanguageSection />
         <MenuCustomizationSection settings={settings} updateSettings={updateSettings} />
 
         {/* ADVANCED */}
-        <SectionHeader id="advanced">Advanced</SectionHeader>
+        <SectionHeader id="advanced">{t('nav.advanced')}</SectionHeader>
         <AdvancedSection
           settings={settings}
           updateSettings={updateSettings}

@@ -1,0 +1,107 @@
+{
+  "recording": {
+    "capture": {
+      "game": "Game capture (using game hook)",
+      "window": "Window capture (game hook unavailable)",
+      "display": "Display capture (not using game hook)"
+    },
+    "monitor": {
+      "primary": "Primary"
+    },
+    "status": {
+      "recording": "Recording"
+    },
+    "addToBlockList": "Add to Block List"
+  },
+  "clipping": {
+    "merging": "Merging",
+    "mergeFailed": "Merge Failed",
+    "creating": "Creating Clip",
+    "clipFailed": "Clip Failed",
+    "unknownError": "Unknown error",
+    "cancel": "Cancel clip"
+  },
+  "segment": {
+    "delete": {
+      "title": "Delete segment?",
+      "description": "Remove this segment from the clip? This action cannot be undone."
+    },
+    "alt": "Segment",
+    "noThumbnail": "No thumbnail",
+    "audio": {
+      "label": "Segment audio"
+    }
+  },
+  "upload": {
+    "status": {
+      "uploading": "Uploading {{progress}}%",
+      "processing": "Processing",
+      "complete": "Upload Complete",
+      "failed": "Upload Failed",
+      "pending": "Uploading…"
+    },
+    "cancel": "Cancel upload"
+  },
+  "import": {
+    "status": {
+      "importing": "Importing {{current}} of {{total}}",
+      "recovering": "Recovering",
+      "recoveryComplete": "Recovery Complete",
+      "complete": "Import Complete",
+      "error": "Import Error",
+      "pending": "Importing…"
+    }
+  },
+  "live": {
+    "thumbnail": "Thumbnail",
+    "rec": "REC",
+    "opening": "Opening…"
+  },
+  "ai": {
+    "creatingHighlight": "Creating Highlight"
+  },
+  "migration": {
+    "status": {
+      "moving": "Moving {{current}} of {{total}}",
+      "cancelling": "Cancelling…",
+      "cancelled": "Move Cancelled",
+      "complete": "Move Complete",
+      "error": "Move Error",
+      "pending": "Moving…"
+    },
+    "cancel": "Cancel move"
+  },
+  "migrationOverlay": {
+    "title": "Updating Segra",
+    "description": "Preparing your content for the new version.",
+    "step": "Step {{step}} of {{total}}",
+    "progress": "{{progress}} of {{total}} {{unit}}"
+  },
+  "update": {
+    "status": {
+      "inProgress": "Update in Progress",
+      "available": "Update Available"
+    },
+    "version": "Version {{version}}",
+    "dismiss": "Dismiss update notification",
+    "installNow": "Install Now",
+    "releaseNotes": "Release Notes"
+  },
+  "hevc": {
+    "action": {
+      "install": "Install",
+      "installing": "Installing",
+      "restart": "Restart"
+    },
+    "player": {
+      "canPlayAfterRestart": "Restart Segra to play this video",
+      "cantPlay": "This video can't play",
+      "installed": "The HEVC Video Extension is installed.",
+      "reason": "It's H.265, which needs Microsoft's HEVC Video Extension."
+    },
+    "banner": {
+      "installed": "The HEVC Video Extension is installed. Restart Segra to play H.265 videos.",
+      "needed": "H.265 videos need Microsoft's HEVC Video Extension to play in Segra."
+    }
+  }
+}

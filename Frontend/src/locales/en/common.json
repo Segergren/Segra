@@ -1,0 +1,21 @@
+{
+  "status": {
+    "downloadingObs": "Downloading OBS"
+  },
+  "action": {
+    "stop": "Stop",
+    "recordDisplay": "Record Display"
+  },
+  "relative": {
+    "today": "Today, {{time}}",
+    "yesterday": "Yesterday, {{time}}",
+    "weekdayTime": "{{weekday}}, {{time}}"
+  },
+  "duration": {
+    "seconds_one": "{{count}} second",
+    "seconds_other": "{{count}} seconds",
+    "minutes_one": "{{count}} minute",
+    "minutes_other": "{{count}} minutes",
+    "combined": "{{minutes}} {{seconds}}"
+  }
+}

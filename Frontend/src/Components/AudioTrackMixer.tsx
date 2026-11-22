@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MorphIcon } from 'morphicons/react';
 import { AudioLines, Headphones, Mic, VolumeX } from 'lucide';
 import type { AudioTrackType } from '../Models/types';
@@ -32,6 +33,7 @@ export default function AudioTrackMixer({
   onVolumeChange,
   onClose,
 }: AudioTrackMixerProps) {
+  const { t } = useTranslation('editor');
   // Dragging a slider and releasing elsewhere in the row must not toggle mute
   const sliderPressedRef = useRef(false);
 
@@ -70,7 +72,7 @@ export default function AudioTrackMixer({
                   onToggleMute(track.index);
                 }}
                 className={`flex items-center flex-1 gap-2 min-w-0 cursor-pointer transition-colors ${isMuted ? 'text-white/40 hover:text-white/70' : 'text-white'}`}
-                aria-label={isMuted ? 'Unmute track' : 'Mute track'}
+                aria-label={isMuted ? t('audioMixer.unmute') : t('audioMixer.mute')}
                 aria-pressed={!isMuted}
               >
                 <MorphIcon

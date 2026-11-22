@@ -1,9 +1,11 @@
 import { Crown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAiHighlights } from '../Context/AiHighlightsContext';
 import ContentPage from '../Components/ContentPage';
 import AiContentCard from '../Components/AiContentCard';
 
 export default function Highlights() {
+  const { t } = useTranslation('app');
   const { aiProgress } = useAiHighlights();
 
   // Pre-render the progress card element
@@ -16,7 +18,7 @@ export default function Highlights() {
     <ContentPage
       contentType="Highlight"
       sectionId="highlights"
-      title="Highlights"
+      title={t('page.highlights.title')}
       Icon={Crown}
       progressItems={aiProgress}
       isProgressVisible={Object.keys(aiProgress).length > 0}

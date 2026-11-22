@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Play } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import ContentPage from '../Components/ContentPage';
 import { useAppState } from '../Context/AppStateContext';
 import { useClipping } from '../Context/ClippingContext';
@@ -8,6 +9,7 @@ import ContentCard from '../Components/ContentCard';
 import LiveSessionCard from '../Components/LiveSessionCard';
 
 export default function Sessions() {
+  const { t } = useTranslation('app');
   const { isFinishingRecording, recording } = useAppState();
   const { showLiveSessionCard } = useSettings();
   const { clippingProgress } = useClipping();
@@ -45,7 +47,7 @@ export default function Sessions() {
     <ContentPage
       contentType="Session"
       sectionId="sessions"
-      title="Full Sessions"
+      title={t('page.sessions.title')}
       Icon={Play}
       progressItems={showProgress ? { recording: true } : {}}
       isProgressVisible={showProgress}

@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TriangleAlert } from 'lucide-react';
 import Button from './Button';
 
@@ -14,11 +15,12 @@ export interface ConfirmationModalProps {
 export default function ConfirmationModal({
   title,
   description,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText,
+  cancelText,
   onConfirm,
   onCancel,
 }: ConfirmationModalProps) {
+  const { t } = useTranslation('modals');
   return (
     <>
       {/* Header */}
@@ -47,10 +49,10 @@ export default function ConfirmationModal({
       {/* Footer with buttons */}
       <div className="modal-action mt-6 flex justify-end gap-3">
         <Button variant="primary" onClick={onCancel}>
-          {cancelText}
+          {cancelText ?? t('confirmation.cancel')}
         </Button>
         <Button variant="danger" onClick={onConfirm}>
-          {confirmText}
+          {confirmText ?? t('confirmation.confirm')}
         </Button>
       </div>
     </>

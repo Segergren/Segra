@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { VolumeX, Volume2, SkipBack, SkipForward } from 'lucide-react';
 import CloudBadge from '../CloudBadge';
 import DropdownSelect from '../DropdownSelect';
@@ -12,6 +13,7 @@ interface PreferencesSectionProps {
 }
 
 export default function PreferencesSection({ settings, updateSettings }: PreferencesSectionProps) {
+  const { t } = useTranslation('preferences');
   const appState = useAppState();
   const [draggingSoundVolume, setDraggingSoundVolume] = useState<number | null>(null);
   const soundVolume = draggingSoundVolume ?? settings.soundEffectsVolume;
@@ -33,78 +35,81 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
       key: 'showGameBackground',
       label: (
         <>
-          Show Game Covers <CloudBadge />
+          {t('interface.toggles.showGameBackground.label')} <CloudBadge />
         </>
       ),
-      description: 'Shows cover art on the recording card and the game integration cards.',
+      description: t('interface.toggles.showGameBackground.description'),
     },
     {
       key: 'showLiveSessionCard',
-      label: 'Show Session Being Recorded',
-      description:
-        'Shows the session being recorded first in Full Sessions so you can watch and clip it before the recording stops.',
+      label: t('interface.toggles.showLiveSessionCard.label'),
+      description: t('interface.toggles.showLiveSessionCard.description'),
     },
     {
       key: 'showNewBadgeOnVideos',
-      label: 'Show New Badge',
+      label: t('interface.toggles.showNewBadgeOnVideos.label'),
       description: (
-        <>
-          Marks sessions and replays from the last hour that you haven't opened yet with a
-          <span className="badge badge-primary badge-xs text-base-300 mx-1 align-middle relative -top-[1.5px]">
-            NEW
-          </span>
-          badge.
-        </>
+        <Trans
+          ns="preferences"
+          i18nKey="interface.toggles.showNewBadgeOnVideos.description"
+          components={{
+            badge: (
+              <span className="badge badge-primary badge-xs text-base-300 mx-1 align-middle relative -top-[1.5px]" />
+            ),
+          }}
+        />
       ),
     },
     {
       key: 'confirmBeforeDeleting',
-      label: 'Confirm Before Deleting',
-      description: 'Asks before videos, recovered recordings or game paths are deleted.',
+      label: t('interface.toggles.confirmBeforeDeleting.label'),
+      description: t('interface.toggles.confirmBeforeDeleting.description'),
     },
     {
       key: 'showAudioWaveformInTimeline',
-      label: 'Show Audio Waveform',
-      description: 'Draws the audio waveform along the video editor timeline.',
+      label: t('interface.toggles.showAudioWaveformInTimeline.label'),
+      description: t('interface.toggles.showAudioWaveformInTimeline.description'),
     },
     {
       key: 'showClipToolsOnClips',
-      label: 'Show Clip Tools on Clips and Highlights',
-      description:
-        'Shows the Create Clip and Add Segment buttons when watching a clip or highlight.',
+      label: t('interface.toggles.showClipToolsOnClips.label'),
+      description: t('interface.toggles.showClipToolsOnClips.description'),
     },
     {
       key: 'showVideoNavigation',
-      label: 'Show Previous and Next Video',
+      label: t('interface.toggles.showVideoNavigation.label'),
       description: (
-        <>
-          Shows the <SkipBack className="inline w-3.5 h-3.5 align-[-2px]" aria-hidden="true" /> and{' '}
-          <SkipForward className="inline w-3.5 h-3.5 align-[-2px]" aria-hidden="true" /> buttons in
-          the video player to go to the previous or next video in the list.
-        </>
+        <Trans
+          ns="preferences"
+          i18nKey="interface.toggles.showVideoNavigation.description"
+          components={{
+            back: <SkipBack className="inline w-3.5 h-3.5 align-[-2px]" aria-hidden="true" />,
+            forward: <SkipForward className="inline w-3.5 h-3.5 align-[-2px]" aria-hidden="true" />,
+          }}
+        />
       ),
     },
     {
       key: 'showBookmarksInFullscreen',
-      label: 'Show Bookmarks in Fullscreen',
-      description: 'Shows bookmarks above the seek bar in the fullscreen video player.',
+      label: t('interface.toggles.showBookmarksInFullscreen.label'),
+      description: t('interface.toggles.showBookmarksInFullscreen.description'),
     },
   ];
 
   return (
     <>
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
-        <h2 className="text-xl font-semibold mb-4">App</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('app.title')}</h2>
         <div className="grid grid-cols-2 gap-4">
           <div className="form-control">
             <label className="label">
-              <span className="label-text text-base-content">Run on Startup</span>
+              <span className="label-text text-base-content">{t('app.runOnStartup.label')}</span>
             </label>
             <DropdownSelect
               items={[
-                { value: 'Off', label: "Don't Start" },
-                { value: 'Minimized', label: 'Start Minimized' },
-                { value: 'Normal', label: 'Start as Normal Window' },
+                { value: 'Off', label: t('app.runOnStartup.off') },
+                { value: 'Minimized', label: t('app.runOnStartup.minimized') },
+                { value: 'Normal', label: t('app.runOnStartup.normal') },
               ]}
               value={settings.runOnStartup ? settings.startupWindowMode : 'Off'}
               onChange={(val) =>
@@ -119,7 +124,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
           </div>
           <div className="form-control">
             <label className="label">
-              <span className="label-text text-base-content">Close Button</span>
+              <span className="label-text text-base-content">{t('app.closeButton.label')}</span>
             </label>
             <DropdownSelect
               items={[
@@ -128,10 +133,10 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
                   // Linux has no tray; launching Segra again brings the window back
                   label:
                     appState.platform === 'linux'
-                      ? 'Keep Running in Background'
-                      : 'Minimize to Tray',
+                      ? t('app.closeButton.keepInBackground')
+                      : t('app.closeButton.minimizeToTray'),
                 },
-                { value: 'Exit', label: 'Close App' },
+                { value: 'Exit', label: t('app.closeButton.exit') },
               ]}
               value={settings.closeButtonAction}
               onChange={(val) => updateSettings({ closeButtonAction: val as CloseButtonAction })}
@@ -141,7 +146,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
 
         <label className="label mt-4">
           <span className="label-text text-base-content">
-            Sound Effects Volume
+            {t('app.soundVolume')}
             {draggingSoundVolume !== null && ` (${Math.round(draggingSoundVolume * 100)}%)`}
           </span>
         </label>
@@ -174,7 +179,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
       </div>
 
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
-        <h2 className="text-xl font-semibold mb-4">Interface</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('interface.title')}</h2>
         <div className="grid grid-cols-2 gap-3">
           {interfaceToggles.map(({ key, label, description }) => (
             <label

@@ -17,9 +17,15 @@
       #root {
         background-color: #171f2a;
       }
+      /* Roboto covers Latin; the faces after it are Han-capable, so Chinese UI text does not
+         drop to a generic sans-serif fallback. */
+      body {
+        font-family:
+          Roboto, 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      }
     </style>
   </head>
-  <body style="font-family: Roboto, sans-serif">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

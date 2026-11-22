@@ -1,0 +1,150 @@
+{
+  "detection": {
+    "title": "游戏录制与单游戏独立覆盖设置",
+    "description": "你录制过的游戏会自动出现在这里。选一个游戏，可以改它的录制设置，或者决定它要不要被录制。只有当 Segra 自己识别不到某个游戏时，才需要在下面手动添加。",
+    "autoRecord": {
+      "label": "自动录制游戏",
+      "description": "游戏启动后自动开始录制。设为「总是」的游戏和手动开始的录制不受影响。"
+    },
+    "addGame": {
+      "label": "添加游戏",
+      "placeholder": "搜索要录制的游戏…",
+      "customButton": "添加自定义游戏",
+      "noMatch": "游戏库里没有匹配的游戏。",
+      "addCustom": "添加自定义游戏"
+    },
+    "empty": "还没有游戏。你录制过的游戏会自动出现在这里，也可以在搜索框里搜一个。",
+    "card": {
+      "remove": "移除{{name}}",
+      "summary": {
+        "notRecorded": "不录制",
+        "always": "总是",
+        "more": "+{{count}} 项",
+        "override_other": "{{count}} 项覆盖设置",
+        "default": "使用默认设置"
+      }
+    },
+    "removeConfirm": {
+      "title": "移除游戏设置？",
+      "description": "移除{{name}}及其全部录制覆盖设置？已录制的文件不会被删除。",
+      "confirm": "移除"
+    },
+    "panel": {
+      "executables_other": "{{count}} 个可执行文件",
+      "automaticRecording": {
+        "title": "自动录制",
+        "description": "决定 Segra 是否在这个游戏启动时开始录制。当前「自动录制游戏」{{state}}。",
+        "on": "已开启",
+        "off": "已关闭"
+      },
+      "record": {
+        "auto": {
+          "label": "自动",
+          "description": "跟随「自动录制游戏」"
+        },
+        "always": {
+          "label": "总是",
+          "description": "即使自动录制已关闭"
+        },
+        "never": {
+          "label": "从不",
+          "description": "只在手动开始时录制"
+        }
+      },
+      "quality": {
+        "title": "录制质量",
+        "description": "为这个游戏单独覆盖分辨率、帧率和码率。"
+      },
+      "mode": {
+        "title": "录制模式",
+        "description": "为这个游戏单独覆盖录制方式：完整会话、即时回放缓冲，或两者都要。",
+        "hybrid": "混合",
+        "session": "会话",
+        "buffer": "即时回放缓冲",
+        "bufferDuration": "缓冲时长",
+        "bufferMaxSize": "缓冲大小上限"
+      },
+      "discardBookmarks": {
+        "title": "丢弃没有书签的会话",
+        "description": "为这个游戏单独覆盖这一点：会话里没有手动书签时，是否丢弃。",
+        "checkbox": "丢弃没有手动书签的会话录制"
+      },
+      "hdr": {
+        "title": "HDR 录制",
+        "description": "为这个游戏单独覆盖 HDR 录制是否启用。例如某些游戏的 HDR 注入工具会干扰采集，就可以在这里关掉。",
+        "checkbox": "显示器支持时用 HDR 录制"
+      },
+      "volume": {
+        "title": "录制音量",
+        "description": "为这个游戏单独覆盖采集到的游戏和系统音量，不会改动你自己的游戏内音量或 Windows 音量。"
+      },
+      "highlightPadding": {
+        "title": "高光留边",
+        "description": "为这个游戏单独覆盖每个高光时刻前后各保留多少秒。",
+        "before": "高光前",
+        "after": "高光后"
+      },
+      "units": {
+        "seconds": "秒",
+        "megabytes": "MB"
+      }
+    }
+  },
+  "presets": {
+    "low": "低质量",
+    "standard": "标准",
+    "high": "高质量",
+    "custom": "自定义",
+    "manualConfig": "手动配置"
+  },
+  "quality": {
+    "resolution": "分辨率",
+    "frameRate": "帧率",
+    "rateControl": "码率控制",
+    "cbr": "CBR（固定码率）",
+    "vbr": "VBR（可变码率）",
+    "crf": "CRF（固定质量因子）",
+    "cqp": "CQP（固定量化参数）",
+    "bitrate": "码率",
+    "minBitrate": "最小码率",
+    "maxBitrate": "最大码率",
+    "crfValue": "CRF 值",
+    "cqLevel": "CQ 等级",
+    "encoder": "视频编码器",
+    "codec": "编码格式"
+  },
+  "integrations": {
+    "title": "游戏集成",
+    "pending": "（下一次录制时生效）",
+    "description": "为支持的游戏启用自动事件检测。启用后，Segra 会在对局中自动为击杀、进球等事件打书签。",
+    "beta": "Beta",
+    "notes": {
+      "overwatchColorBlind": "击杀和助攻只在关闭色盲模式时生效。"
+    }
+  },
+  "custom": {
+    "title": "添加自定义游戏",
+    "description": "用于 Segra 自己检测不到的游戏。只要这些可执行文件中的任意一个在运行，就会开始录制。",
+    "gameName": "游戏名称",
+    "namePlaceholder": "输入游戏名称…",
+    "catalogMatch": "与 Segra 游戏库中的{{name}}匹配，因此会使用该游戏的图标和封面。",
+    "executables": "可执行文件",
+    "addAnother": "再添加一个可执行文件",
+    "removeExecutableAria": "移除{{file}}",
+    "removeExecutable": {
+      "title": "移除可执行文件？",
+      "description": "从自定义游戏中移除此可执行文件？",
+      "confirm": "移除"
+    },
+    "picker": {
+      "runningApps": "正在运行的应用",
+      "refresh": "刷新",
+      "noApps": "没有正在运行的应用。先启动游戏，再点「刷新」。",
+      "loading": "加载中…",
+      "or": "或",
+      "browse": "浏览 .exe 文件",
+      "selecting": "选择中…"
+    },
+    "addGame": "添加游戏"
+  }
+}

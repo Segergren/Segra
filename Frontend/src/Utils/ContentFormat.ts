@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 import { BookmarkType, Content } from '../Models/types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -20,28 +21,36 @@ const daysAgo = (date: Date, now: Date) => {
   );
 };
 
-// timeStyle keeps each locale's own form: 00:19 in 24-hour locales, 12:19 AM in en-US
-export const timeFormat = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
-const shortWeekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
-const dayMonthFormat = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
-const dayMonthYearFormat = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-});
+// Date formats follow the active UI language, so a Chinese UI keeps Chinese date order even
+// on a machine whose OS locale is something else.
+const formatterCache = new Map<string, Intl.DateTimeFormat>();
+const localeFormatter = (options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat => {
+  const locale = i18n.language || 'en';
+  const key = `${locale}:${JSON.stringify(options)}`;
+  let formatter = formatterCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    formatterCache.set(key, formatter);
+  }
+  return formatter;
+};
 
 // "Yesterday, 22:55", "Sat, 21:04" or "14 Nov"
 export function formatCreatedAt(createdAt: string, now = new Date()): string {
   const date = new Date(createdAt);
   if (isNaN(date.getTime())) return '';
-  const time = timeFormat.format(date);
+  const time = localeFormatter({ timeStyle: 'short' }).format(date);
   const days = daysAgo(date, now);
-  if (days <= 0) return `Today, ${time}`;
-  if (days === 1) return `Yesterday, ${time}`;
-  if (days < 7) return `${shortWeekdayFormat.format(date)}, ${time}`;
+  if (days <= 0) return i18n.t('relative.today', { time });
+  if (days === 1) return i18n.t('relative.yesterday', { time });
+  if (days < 7)
+    return i18n.t('relative.weekdayTime', {
+      weekday: localeFormatter({ weekday: 'short' }).format(date),
+      time,
+    });
   return date.getFullYear() === now.getFullYear()
-    ? dayMonthFormat.format(date)
-    : dayMonthYearFormat.format(date);
+    ? localeFormatter({ day: 'numeric', month: 'short' }).format(date)
+    : localeFormatter({ day: 'numeric', month: 'short', year: 'numeric' }).format(date);
 }
 
 const sizeFormat = new Intl.NumberFormat(undefined, {
@@ -89,9 +98,11 @@ export function getKillDeathCount(content: Content): KillDeathCount | null {
 
 // "45 seconds", "2 minutes" or "1 minute 30 seconds"
 export function formatBufferLength(seconds: number): string {
-  if (seconds < 60) return `${seconds} seconds`;
+  if (seconds < 60) return i18n.t('duration.seconds', { count: seconds });
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
-  const minutesText = `${minutes} minute${minutes === 1 ? '' : 's'}`;
-  return rest === 0 ? minutesText : `${minutesText} ${rest} seconds`;
+  const minutesText = i18n.t('duration.minutes', { count: minutes });
+  if (rest === 0) return minutesText;
+  const secondsText = i18n.t('duration.seconds', { count: rest });
+  return i18n.t('duration.combined', { minutes: minutesText, seconds: secondsText });
 }

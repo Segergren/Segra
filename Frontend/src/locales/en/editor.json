@@ -1,0 +1,88 @@
+{
+  "topBar": {
+    "back": "Back"
+  },
+  "player": {
+    "play": "Play",
+    "pause": "Pause",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "copy": "Copy",
+    "copyCompressed": "Copy as compressed file",
+    "audioTracks": "Audio tracks",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "changeSpeed": "Change playback speed",
+    "enterFullscreen": "Enter Fullscreen",
+    "exitFullscreen": "Exit Fullscreen",
+    "bookmarkAt": "{{type}} at {{time}}",
+    "bookmarkFilter": "{{type}} bookmarks"
+  },
+  "bookmarkType": {
+    "manual": "Manual",
+    "kill": "Kill",
+    "goal": "Goal",
+    "assist": "Assist",
+    "death": "Death"
+  },
+  "bookmarkSubtype": {
+    "headshot": "Headshot"
+  },
+  "matchResult": {
+    "win": "Win",
+    "loss": "Loss",
+    "draw": "Draw"
+  },
+  "timeline": {
+    "bookmarkTip": "{{type}} at {{time}}",
+    "bookmarkTipSubtype": "{{type}} ({{subtype}}) at {{time}}",
+    "segmentAudio": "Segment audio",
+    "resizeStart": "Resize segment start",
+    "resizeEnd": "Resize segment end",
+    "matchNumber": "Match {{number}}",
+    "totalLength": "Total length of all segments",
+    "previousVideo": "Previous video",
+    "back5": "Back 5 seconds",
+    "forward5": "Forward 5 seconds",
+    "nextVideo": "Next video"
+  },
+  "actions": {
+    "upload": "Upload",
+    "createClip": "Create Clip",
+    "createClips": "Create Clips",
+    "addSegment": "Add Segment",
+    "addBookmark": "Add Bookmark",
+    "clear": "Clear"
+  },
+  "segmentMenu": {
+    "options": "Segment options",
+    "clearAfterClip": "Clear segments after clipping",
+    "clipOutput": "Clip output",
+    "combined": "Combined",
+    "separate": "Separate"
+  },
+  "confirm": {
+    "deleteBookmark": {
+      "title": "Delete bookmark?",
+      "description": "Delete the {{type}} bookmark at {{time}}? This action cannot be undone."
+    },
+    "deleteSegment": {
+      "title": "Delete segment?",
+      "description": "Remove this segment from the clip? This action cannot be undone."
+    },
+    "clearSegments": {
+      "title": "Delete all segments?",
+      "description_one": "Remove the {{count}} segment from the clip? This action cannot be undone.",
+      "description_other": "Remove all {{count}} segments from the clip? This action cannot be undone.",
+      "confirm": "Delete all"
+    }
+  },
+  "webcam": {
+    "drag": "Webcam, drag to move",
+    "resize": "Resize webcam"
+  },
+  "audioMixer": {
+    "mute": "Mute track",
+    "unmute": "Unmute track"
+  }
+}

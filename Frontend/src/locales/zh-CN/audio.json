@@ -1,0 +1,72 @@
+{
+  "title": "音频",
+  "pendingHint": "（下次录制时生效）",
+  "inputDevices": {
+    "title": "输入设备"
+  },
+  "outputDevices": {
+    "title": "输出设备"
+  },
+  "device": {
+    "defaultName": "默认设备",
+    "fullMixOnly": "此音源只会包含在完整混音中",
+    "unavailable": "此音源不可用",
+    "options": {
+      "noiseSuppression": "噪声抑制",
+      "mono": "单声道"
+    }
+  },
+  "whatToRecord": {
+    "title": "录制内容",
+    "everything": {
+      "label": "全部声音",
+      "description": "所选输出设备的所有声音，包括音乐和语音聊天。"
+    },
+    "gameOnly": {
+      "label": "仅游戏",
+      "description": "只录制游戏自身的声音。"
+    },
+    "gameAndVoiceChat": {
+      "label": "游戏和语音聊天",
+      "description": "游戏加上 Discord 和 TeamSpeak。"
+    }
+  },
+  "appAudio": {
+    "title": "应用音频",
+    "description": "把这些应用的声音和游戏音频一起录制；开启「独立音轨」后，每个应用各占一条音轨。显示器录制本身就包含全部桌面音频，因此不会额外加入应用。",
+    "remove": "移除 {{name}}",
+    "addApp": "添加应用",
+    "noApps": "没有其他正在运行的应用",
+    "loading": "加载中…"
+  },
+  "separateTracks": {
+    "label": "独立音轨",
+    "description": "把每个音源单独保存成一条音轨，与完整混音并存。"
+  },
+  "trackLimitWarning": {
+    "message": "你选择的音源超过了 {{max}} 个。只有前 {{max}} 个会保存为独立音轨，其余音源只会录进完整混音。",
+    "dismiss": "关闭音轨上限警告"
+  },
+  "hotkeys": {
+    "title": "快捷键",
+    "pressKeys": "按下按键…",
+    "actions": {
+      "createBookmark": "创建书签",
+      "saveReplayBuffer": "保存即时回放缓冲",
+      "toggleRecording": "开始 / 停止录制",
+      "toggleRecordingHint": "录制当前聚焦的游戏；没有游戏聚焦时录制显示器。会停止正在进行的录制。",
+      "togglePreview": "切换录制预览"
+    }
+  },
+  "broker": {
+    "outdated": "用于在以管理员权限运行的游戏上触发快捷键的助手已过期。更新它需要管理员权限。",
+    "missing": "快捷键无法作用在以管理员权限运行的游戏上。安装助手即可修复，需要管理员权限。",
+    "update": "更新",
+    "install": "安装"
+  },
+  "inputGroup": {
+    "message": "快捷键只在游戏聚焦时生效。要在任何窗口都能使用，请在终端运行 <code>{{command}}</code>，然后注销再重新登录。",
+    "copy": "复制",
+    "copied": "已复制"
+  }
+}

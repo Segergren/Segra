@@ -7,6 +7,7 @@ import {
   useCallback,
   ReactNode,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 
@@ -104,6 +105,7 @@ function clearAuth() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('app');
   const [session, setSession] = useState<AuthSession | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -224,51 +226,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('websocket-message', handleMessage as EventListener);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    sessionGenRef.current++;
-    setIsAuthenticating(true);
-    setAuthError(null);
-    try {
-      const data = await api.login(email, password);
-      if (data.error) {
-        setAuthError(data.error);
-        return;
-      }
-      if (!data.session) {
-        setAuthError('Login failed - no session returned');
-        return;
-      }
-      const newSession: AuthSession = data.session;
-      const authUser = getUserFromJwt(newSession.access_token);
-      setSession(newSession);
-      setUser(authUser);
-      saveSession(newSession);
-      sendMessageToBackend('Login', {
-        accessToken: newSession.access_token,
-        refreshToken: newSession.refresh_token,
-      });
-    } catch {
-      setAuthError('Login failed. Please try again.');
-    } finally {
-      setIsAuthenticating(false);
-    }
-  }, []);
-
-  const register = useCallback(async (email: string, password: string) => {
-    sessionGenRef.current++;
-    setIsAuthenticating(true);
-    setAuthError(null);
-    try {
-      const data = await api.register(email, password);
-      if (data.error) {
-        setAuthError(data.error);
-        return { confirmEmail: false };
-      }
-      if (data.confirmEmail) {
-        return { confirmEmail: true };
-      }
-      // Auto-confirmed: log in automatically
-      if (data.session) {
+  const login = useCallback(
+    async (email: string, password: string) => {
+      sessionGenRef.current++;
+      setIsAuthenticating(true);
+      setAuthError(null);
+      try {
+        const data = await api.login(email, password);
+        if (data.error) {
+          setAuthError(data.error);
+          return;
+        }
+        if (!data.session) {
+          setAuthError(t('auth.loginFailedNoSession'));
+          return;
+        }
         const newSession: AuthSession = data.session;
         const authUser = getUserFromJwt(newSession.access_token);
         setSession(newSession);
@@ -278,15 +250,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           accessToken: newSession.access_token,
           refreshToken: newSession.refresh_token,
         });
+      } catch {
+        setAuthError(t('auth.loginFailed'));
+      } finally {
+        setIsAuthenticating(false);
       }
-      return { confirmEmail: false };
-    } catch {
-      setAuthError('Registration failed. Please try again.');
-      return { confirmEmail: false };
-    } finally {
-      setIsAuthenticating(false);
-    }
-  }, []);
+    },
+    [t],
+  );
+
+  const register = useCallback(
+    async (email: string, password: string) => {
+      sessionGenRef.current++;
+      setIsAuthenticating(true);
+      setAuthError(null);
+      try {
+        const data = await api.register(email, password);
+        if (data.error) {
+          setAuthError(data.error);
+          return { confirmEmail: false };
+        }
+        if (data.confirmEmail) {
+          return { confirmEmail: true };
+        }
+        // Auto-confirmed: log in automatically
+        if (data.session) {
+          const newSession: AuthSession = data.session;
+          const authUser = getUserFromJwt(newSession.access_token);
+          setSession(newSession);
+          setUser(authUser);
+          saveSession(newSession);
+          sendMessageToBackend('Login', {
+            accessToken: newSession.access_token,
+            refreshToken: newSession.refresh_token,
+          });
+        }
+        return { confirmEmail: false };
+      } catch {
+        setAuthError(t('auth.registrationFailed'));
+        return { confirmEmail: false };
+      } finally {
+        setIsAuthenticating(false);
+      }
+    },
+    [t],
+  );
 
   // Discord sign-in opens in the default browser; the backend relays the session back over the websocket.
   const loginWithDiscord = useCallback(() => {
@@ -309,7 +317,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsWaitingForDiscord(false);
 
       if (result.status === 'expired') {
-        setAuthError('Discord sign-in timed out. Please try again.');
+        setAuthError(t('auth.discordTimedOut'));
         return;
       }
       if (result.status !== 'success' || !result.accessToken || !result.refreshToken) {
@@ -322,7 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       const authUser = getUserFromJwt(newSession.access_token);
       if (!authUser) {
-        setAuthError('Failed to authenticate. Please try again.');
+        setAuthError(t('auth.authenticateFailed'));
         return;
       }
 
@@ -338,7 +346,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener('websocket-message', handleMessage);
     return () => window.removeEventListener('websocket-message', handleMessage);
-  }, []);
+  }, [t]);
 
   const value: AuthContextType = {
     user,

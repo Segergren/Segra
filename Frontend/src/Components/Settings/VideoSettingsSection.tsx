@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import DropdownSelect from '../DropdownSelect';
 import BitrateInput from './BitrateInput';
@@ -23,13 +24,16 @@ export default function VideoSettingsSection({
   settings,
   updateSettings,
 }: VideoSettingsSectionProps) {
+  const { t } = useTranslation('recording');
   const appState = useAppState();
   const getSecondaryGpuLabel = (encoderId: string) => {
     const vendor = getEncoderVendor(encoderId);
     if (!vendor || appState.gpuVendor === GpuVendor.Unknown || vendor === appState.gpuVendor) {
       return null;
     }
-    return appState.integratedGpuVendors?.includes(vendor) ? 'Integrated GPU' : 'Secondary GPU';
+    return appState.integratedGpuVendors?.includes(vendor)
+      ? t('video.codec.integratedGpu')
+      : t('video.codec.secondaryGpu');
   };
   const hasHdrDisplay = appState.displays.some((d) => d.isHdr);
   const [localReplayBufferDuration, setLocalReplayBufferDuration] = useState<string>(
@@ -65,41 +69,39 @@ export default function VideoSettingsSection({
   const monitorSelectionField = appState.usesScreenSharePicker ? (
     <div className="form-control w-full">
       <label className="label text-base-content px-0 !block">
-        <span className="label-text">Screen</span>
+        <span className="label-text">{t('monitor.screen.label')}</span>
       </label>
       <div className="input input-bordered bg-base-200 w-full flex items-center justify-between gap-2 pr-1.5">
         <span className="truncate font-medium">
           {settings.pipeWireRestoreToken
-            ? 'Picked in screen-share dialog'
-            : 'Asks on next recording'}
+            ? t('monitor.screen.picked')
+            : t('monitor.screen.asksNext')}
         </span>
         <button
           className="btn btn-sm border-base-400 bg-base-300 hover:bg-base-100 font-semibold shrink-0"
           disabled={!settings.pipeWireRestoreToken}
           onClick={() => sendMessageToBackend('ResetScreenSelection')}
         >
-          Change screen
+          {t('monitor.screen.change')}
         </button>
       </div>
-      <div className="mt-1 px-1 text-xs opacity-70 leading-snug">
-        Used for manual recordings and the always-on replay buffer.
-      </div>
+      <div className="mt-1 px-1 text-xs opacity-70 leading-snug">{t('monitor.usage')}</div>
     </div>
   ) : (
     <div className="form-control">
       <label className="label">
-        <span className="label-text text-base-content">Monitor Selection</span>
+        <span className="label-text text-base-content">{t('monitor.selection.label')}</span>
       </label>
       <DropdownSelect
         items={[
-          { value: 'Automatic', label: 'Automatic' },
+          { value: 'Automatic', label: t('monitor.selection.automatic') },
           ...appState.displays.map((d, i) => {
             const hasDuplicateName = appState.displays.some(
               (other, j) => j !== i && other.deviceName === d.deviceName,
             );
             const label = hasDuplicateName
-              ? `${d.deviceName} (${i + 1})${d.isPrimary ? ' (Primary)' : ''}`
-              : `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`;
+              ? `${d.deviceName} (${i + 1})${d.isPrimary ? t('monitor.selection.primary') : ''}`
+              : `${d.deviceName}${d.isPrimary ? t('monitor.selection.primary') : ''}`;
             return {
               value: d.deviceId,
               label: (
@@ -119,19 +121,15 @@ export default function VideoSettingsSection({
           })
         }
       />
-      <div className="mt-1 px-1 text-xs opacity-70 leading-snug">
-        Used for manual recordings and the always-on replay buffer.
-      </div>
+      <div className="mt-1 px-1 text-xs opacity-70 leading-snug">{t('monitor.usage')}</div>
     </div>
   );
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <div className="flex items-center gap-2 mb-4">
-        <h2 className="text-xl font-semibold">Video Settings</h2>
-        {hasPendingChanges && (
-          <span className="text-xs text-warning">(applies to next recording)</span>
-        )}
+        <h2 className="text-xl font-semibold">{t('video.title')}</h2>
+        {hasPendingChanges && <span className="text-xs text-warning">{t('pendingChanges')}</span>}
       </div>
 
       {/* Quality Preset Selector */}
@@ -143,7 +141,7 @@ export default function VideoSettingsSection({
             } cursor-pointer hover:bg-base-300`}
             onClick={() => handlePresetChange('low')}
           >
-            <div className="text-sm font-semibold">Low Quality</div>
+            <div className="text-sm font-semibold">{t('video.presets.low.title')}</div>
             <div className="text-xs opacity-70 mt-1">720p • 30fps</div>
           </div>
           <div
@@ -152,7 +150,7 @@ export default function VideoSettingsSection({
             } cursor-pointer hover:bg-base-300`}
             onClick={() => handlePresetChange('standard')}
           >
-            <div className="text-sm font-semibold">Standard</div>
+            <div className="text-sm font-semibold">{t('video.presets.standard.title')}</div>
             <div className="text-xs opacity-70 mt-1">1080p • 60fps</div>
           </div>
           <div
@@ -161,7 +159,7 @@ export default function VideoSettingsSection({
             } cursor-pointer hover:bg-base-300`}
             onClick={() => handlePresetChange('high')}
           >
-            <div className="text-sm font-semibold">High Quality</div>
+            <div className="text-sm font-semibold">{t('video.presets.high.title')}</div>
             <div className="text-xs opacity-70 mt-1">
               {appState.maxDisplayHeight >= 1440 ? '1440p' : '1080p'} • 60fps
             </div>
@@ -172,8 +170,8 @@ export default function VideoSettingsSection({
             } cursor-pointer hover:bg-base-300`}
             onClick={() => handlePresetChange('custom')}
           >
-            <div className="text-sm font-semibold">Custom</div>
-            <div className="text-xs opacity-70 mt-1">Manual config</div>
+            <div className="text-sm font-semibold">{t('video.presets.custom.title')}</div>
+            <div className="text-xs opacity-70 mt-1">{t('video.presets.custom.detail')}</div>
           </div>
         </div>
       </div>
@@ -214,7 +212,7 @@ export default function VideoSettingsSection({
                   htmlFor="replayBufferDuration"
                   className="label text-base-content px-0 !block"
                 >
-                  <span className="label-text">Buffer Duration</span>
+                  <span className="label-text">{t('video.buffer.duration.label')}</span>
                 </label>
                 <div className="relative w-full">
                   <input
@@ -233,7 +231,7 @@ export default function VideoSettingsSection({
                     className="input input-bordered bg-base-200 disabled:bg-base-200 disabled:input-bordered disabled:opacity-80 w-full pr-12 outline-none focus:border-base-400"
                   />
                   <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
-                    sec
+                    {t('video.buffer.duration.unit')}
                   </span>
                 </div>
               </div>
@@ -244,7 +242,7 @@ export default function VideoSettingsSection({
                   htmlFor="replayBufferMaxSize"
                   className="label text-base-content px-0 !block"
                 >
-                  <span className="label-text">Buffer Maximum Size</span>
+                  <span className="label-text">{t('video.buffer.maxSize.label')}</span>
                 </label>
                 <div className="relative w-full">
                   <input
@@ -276,10 +274,9 @@ export default function VideoSettingsSection({
                   onChange={(e) => updateSettings({ clearReplayBufferAfterSave: e.target.checked })}
                 />
                 <div>
-                  <div className="font-semibold">Clear Buffer After Saving</div>
+                  <div className="font-semibold">{t('video.buffer.clearAfterSave.label')}</div>
                   <div className="text-sm opacity-70 mt-0.5">
-                    Each saved clip only contains footage since the last save. Turn off to always
-                    save the full buffer duration.
+                    {t('video.buffer.clearAfterSave.description')}
                   </div>
                 </div>
               </label>
@@ -314,7 +311,9 @@ export default function VideoSettingsSection({
               {/* Resolution */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Resolution</span>
+                  <span className="label-text text-base-content">
+                    {t('video.resolution.label')}
+                  </span>
                 </label>
                 <DropdownSelect
                   items={[
@@ -335,7 +334,7 @@ export default function VideoSettingsSection({
               {/* Frame Rate */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Frame Rate</span>
+                  <span className="label-text text-base-content">{t('video.frameRate.label')}</span>
                 </label>
                 <DropdownSelect
                   items={[24, 30, 60, 120, 144].map((v) => ({
@@ -350,17 +349,19 @@ export default function VideoSettingsSection({
               {/* Rate Control */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Rate Control</span>
+                  <span className="label-text text-base-content">
+                    {t('video.rateControl.label')}
+                  </span>
                 </label>
                 <DropdownSelect
                   items={[
-                    { value: 'CBR', label: 'CBR (Constant Bitrate)' },
-                    { value: 'VBR', label: 'VBR (Variable Bitrate)' },
+                    { value: 'CBR', label: t('video.rateControl.cbr') },
+                    { value: 'VBR', label: t('video.rateControl.vbr') },
                     ...(settings.encoder === 'cpu'
-                      ? [{ value: 'CRF', label: 'CRF (Constant Rate Factor)' }]
+                      ? [{ value: 'CRF', label: t('video.rateControl.crf') }]
                       : []),
                     ...(settings.encoder !== 'cpu'
-                      ? [{ value: 'CQP', label: 'CQP (Constant Quantization Parameter)' }]
+                      ? [{ value: 'CQP', label: t('video.rateControl.cqp') }]
                       : []),
                   ]}
                   value={settings.rateControl}
@@ -372,7 +373,7 @@ export default function VideoSettingsSection({
               {settings.rateControl === 'CBR' && (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">Bitrate</span>
+                    <span className="label-text text-base-content">{t('video.bitrate.label')}</span>
                   </label>
                   <BitrateInput
                     value={settings.bitrate}
@@ -386,7 +387,7 @@ export default function VideoSettingsSection({
                 <>
                   <div className="form-control">
                     <label className="label">
-                      <span className="label-text text-base-content">Minimum Bitrate</span>
+                      <span className="label-text text-base-content">{t('video.bitrate.min')}</span>
                     </label>
                     <BitrateInput
                       value={settings.minBitrate}
@@ -400,7 +401,7 @@ export default function VideoSettingsSection({
                   </div>
                   <div className="form-control">
                     <label className="label">
-                      <span className="label-text text-base-content">Maximum Bitrate</span>
+                      <span className="label-text text-base-content">{t('video.bitrate.max')}</span>
                     </label>
                     <BitrateInput
                       value={settings.maxBitrate}
@@ -419,7 +420,9 @@ export default function VideoSettingsSection({
               {settings.rateControl === 'CRF' && (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">CRF Value</span>
+                    <span className="label-text text-base-content">
+                      {t('video.crfValue.label')}
+                    </span>
                   </label>
                   <div className="relative w-full">
                     <input
@@ -447,7 +450,7 @@ export default function VideoSettingsSection({
               {settings.rateControl === 'CQP' && (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">CQ Level</span>
+                    <span className="label-text text-base-content">{t('video.cqLevel.label')}</span>
                   </label>
                   <div className="relative w-full">
                     <input
@@ -474,7 +477,7 @@ export default function VideoSettingsSection({
               {/* Encoder */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Video Encoder</span>
+                  <span className="label-text text-base-content">{t('video.encoder.label')}</span>
                 </label>
                 <DropdownSelect
                   items={[
@@ -489,7 +492,7 @@ export default function VideoSettingsSection({
               {/* Codec */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Codec</span>
+                  <span className="label-text text-base-content">{t('video.codec.label')}</span>
                 </label>
                 <DropdownSelect
                   items={appState.codecs
@@ -520,7 +523,7 @@ export default function VideoSettingsSection({
                             {secondaryGpuLabel && (
                               <span
                                 className="text-xs font-normal text-base-content/50"
-                                title="Runs on a different GPU than your main one"
+                                title={t('video.codec.secondaryGpuHint')}
                               >
                                 {secondaryGpuLabel}
                               </span>
@@ -566,10 +569,8 @@ export default function VideoSettingsSection({
             className="checkbox checkbox-primary checkbox-sm"
           />
           <div>
-            <div className="font-semibold">Stretch 4:3 to 16:9</div>
-            <div className="text-sm opacity-70 mt-0.5">
-              Games running at a 4:3 resolution fill the whole video instead of getting black bars.
-            </div>
+            <div className="font-semibold">{t('video.stretch4by3.label')}</div>
+            <div className="text-sm opacity-70 mt-0.5">{t('video.stretch4by3.description')}</div>
           </div>
         </label>
 
@@ -583,11 +584,8 @@ export default function VideoSettingsSection({
               className="checkbox checkbox-primary checkbox-sm"
             />
             <div>
-              <div className="font-semibold">Record in HDR</div>
-              <div className="text-sm opacity-70 mt-0.5">
-                Keeps HDR brightness and color, but videos can look washed out on screens without
-                HDR. When off, HDR is converted to SDR.
-              </div>
+              <div className="font-semibold">{t('video.hdr.label')}</div>
+              <div className="text-sm opacity-70 mt-0.5">{t('video.hdr.description')}</div>
             </div>
           </label>
         )}
@@ -605,10 +603,9 @@ export default function VideoSettingsSection({
                 className="checkbox checkbox-primary checkbox-sm"
               />
               <div>
-                <div className="font-semibold">Realtime GPU Priority</div>
+                <div className="font-semibold">{t('video.gpuPriority.label')}</div>
                 <div className="text-sm opacity-70 mt-0.5">
-                  Keeps recordings smooth in GPU-heavy games. When off, the game gets a few more FPS
-                  but recordings can stutter.
+                  {t('video.gpuPriority.description')}
                 </div>
               </div>
             </label>

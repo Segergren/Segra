@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FileText, RefreshCw, Plane, BookOpen } from 'lucide-react';
 import { GithubIcon, DiscordIcon } from '../icons/BrandIcons';
@@ -24,6 +25,7 @@ export default function AdvancedSection({
   checkForUpdates,
   canSelfUpdate,
 }: AdvancedSectionProps) {
+  const { t } = useTranslation('account');
   const appState = useAppState();
   const rowRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLSpanElement>(null);
@@ -48,12 +50,14 @@ export default function AdvancedSection({
   return (
     <>
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
-        <h2 className="text-xl font-semibold mb-4">Updates</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('advanced.updates.title')}</h2>
         {!canSelfUpdate && (
           <p className="text-sm opacity-70 mb-4">
-            Segra updates automatically through Flatpak. To update now, run{' '}
-            <code className="px-1 py-0.5 rounded bg-base-200">flatpak update tv.segra.Segra</code>{' '}
-            or use your software center.
+            <Trans
+              ns="account"
+              i18nKey="advanced.updates.flatpakHint"
+              components={{ code: <code className="px-1 py-0.5 rounded bg-base-200" /> }}
+            />
           </p>
         )}
         {/* OBS Version is hidden when the recorder is fixed for this install (bundled or already downloaded) */}
@@ -62,12 +66,14 @@ export default function AdvancedSection({
             {canSelfUpdate && (
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Update Channel</span>
+                  <span className="label-text text-base-content">
+                    {t('advanced.updates.channel')}
+                  </span>
                 </label>
                 <DropdownSelect
                   items={[
-                    { value: 'stable', label: 'Stable' },
-                    { value: 'beta', label: 'Beta' },
+                    { value: 'stable', label: t('advanced.updates.stable') },
+                    { value: 'beta', label: t('advanced.updates.beta') },
                   ]}
                   value={settings.receiveBetaUpdates ? 'beta' : 'stable'}
                   onChange={(val) => updateSettings({ receiveBetaUpdates: val === 'beta' })}
@@ -77,18 +83,22 @@ export default function AdvancedSection({
             {appState.availableOBSVersions.length > 0 && (
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">OBS Version</span>
+                  <span className="label-text text-base-content">
+                    {t('advanced.updates.obsVersion')}
+                  </span>
                 </label>
                 <DropdownSelect
                   items={[
-                    { value: '', label: 'Automatic' },
+                    { value: '', label: t('advanced.updates.obsAutomatic') },
                     ...[...appState.availableOBSVersions]
                       .sort((a, b) => {
                         return b.version.localeCompare(a.version, undefined, { numeric: true });
                       })
                       .map((v) => ({
                         value: v.version,
-                        label: `${v.version}${v.isBeta ? ' (Beta)' : ''}`,
+                        label: v.isBeta
+                          ? t('advanced.updates.obsBetaVersion', { version: v.version })
+                          : v.version,
                       })),
                   ]}
                   value={settings.selectedOBSVersion || ''}
@@ -108,7 +118,7 @@ export default function AdvancedSection({
               loading={appState.isCheckingForUpdates}
             >
               {!appState.isCheckingForUpdates && <RefreshCw size={16} className="shrink-0" />}
-              <span className="inline-block">Check for Updates</span>
+              <span className="inline-block">{t('advanced.updates.check')}</span>
             </Button>
           )}
           <Button
@@ -118,13 +128,13 @@ export default function AdvancedSection({
             onClick={() => openReleaseNotesModal(null)}
           >
             <GithubIcon size={16} aria-hidden="true" />
-            <span className="inline-block">View Release Notes</span>
+            <span className="inline-block">{t('advanced.updates.viewReleaseNotes')}</span>
           </Button>
         </div>
       </div>
 
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
-        <h2 className="text-xl font-semibold mb-4">Online Features</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('advanced.online.title')}</h2>
         <div ref={rowRef}>
           <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 overflow-hidden">
             <input
@@ -136,7 +146,7 @@ export default function AdvancedSection({
             />
             <div>
               <span ref={contentRef} className="inline-flex items-center gap-1.5 font-semibold">
-                Airplane Mode
+                {t('advanced.online.airplaneMode')}
                 <AnimatePresence initial={false}>
                   {settings.airplaneMode && (
                     <motion.span
@@ -160,7 +170,7 @@ export default function AdvancedSection({
                 </AnimatePresence>
               </span>
               <div className="text-sm opacity-70 mt-0.5">
-                Signs you out and hides uploading and sharing.
+                {t('advanced.online.airplaneModeDescription')}
               </div>
             </div>
           </label>
@@ -179,7 +189,7 @@ export default function AdvancedSection({
               }
             >
               <BookOpen className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span className="leading-none">Docs</span>
+              <span className="leading-none">{t('advanced.about.docs')}</span>
             </Button>
             <Button
               variant="primary"
@@ -197,7 +207,7 @@ export default function AdvancedSection({
               onClick={() => sendMessageToBackend('OpenLogsLocation')}
             >
               <FileText className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span className="leading-none">Logs</span>
+              <span className="leading-none">{t('advanced.about.logs')}</span>
             </Button>
           </div>
           <div>

@@ -1,0 +1,109 @@
+{
+  "type": {
+    "session": "session",
+    "buffer": "buffer",
+    "clip": "clip",
+    "highlight": "highlight"
+  },
+  "badge": {
+    "new": "NEW"
+  },
+  "card": {
+    "untitled": "Untitled",
+    "matches_one": "{{count}} match",
+    "matches_other": "{{count}} matches"
+  },
+  "aria": {
+    "kills_one": "{{count}} kill",
+    "kills_other": "{{count}} kills",
+    "deaths_one": "{{count}} death",
+    "deaths_other": "{{count}} deaths",
+    "goals_one": "{{count}} goal",
+    "goals_other": "{{count}} goals"
+  },
+  "menu": {
+    "upload": "Upload",
+    "copy": "Copy",
+    "rename": "Rename",
+    "openFileLocation": "Open File Location",
+    "compress": "Compress",
+    "delete": "Delete",
+    "createHighlight": "Create Highlight",
+    "creatingHighlight": "Creating Highlight...",
+    "noHighlights": "No Highlights"
+  },
+  "delete": {
+    "title": "Delete {{type}}?",
+    "description": "Are you sure you want to permanently delete <strong>{{name}}</strong>?<br/><hint>This action cannot be undone.</hint>"
+  },
+  "status": {
+    "moving": "Moving...",
+    "waitingToMove": "Waiting to move",
+    "compressing": "Compressing...",
+    "done": "Done!",
+    "skipped": "Skipped",
+    "error": "Error"
+  },
+  "page": {
+    "import": "Import"
+  },
+  "selection": {
+    "selected": "{{count}} Selected",
+    "deleteTitle_one": "Delete {{count}} item?",
+    "deleteTitle_other": "Delete {{count}} items?",
+    "deleteDescription_one": "Are you sure you want to permanently delete the selected item?\n\nThis action cannot be undone.",
+    "deleteDescription_other": "Are you sure you want to permanently delete the selected {{count}} items?\n\nThis action cannot be undone.",
+    "merge": "Merge",
+    "mergeSlow": "Merge (slow)",
+    "delete": "Delete",
+    "cancel": "Cancel"
+  },
+  "merge": {
+    "hintSelectTwo": "Select at least two to merge",
+    "hintSessionSlow": "These were recorded with different video or audio settings. Merging them would mean re-encoding, which takes too long for full sessions.",
+    "hintClipSlow": "These were recorded with different video settings, so they get re-encoded with your clip settings."
+  },
+  "sort": {
+    "newest": "Newest",
+    "oldest": "Oldest",
+    "size": "Size",
+    "duration": "Duration",
+    "game": "Game",
+    "gameAz": "Game A–Z"
+  },
+  "filter": {
+    "allGames": "All games"
+  },
+  "game": {
+    "imported": "Imported"
+  },
+  "empty": {
+    "changeCaptureMode": "Change capture mode",
+    "setUpHotkeys": "Set up hotkeys",
+    "openHighlightSettings": "Open highlight settings",
+    "session": {
+      "title": "No sessions yet",
+      "bufferBody": "Your capture mode is Replay Buffer, so games are not saved as full sessions. Moments you save show up under Replay Buffer.",
+      "autoRecordBody": "Start a game and Segra records it in the background. The whole session shows up here when you close the game.",
+      "manualRecordBody": "Auto-record is off, so a game is only recorded when you start the recording yourself.",
+      "pressHotkey": " Press <kbd>{{keys}}</kbd> to start or stop a recording."
+    },
+    "buffer": {
+      "title": "No replay buffers yet",
+      "offBody": "The replay buffer is off. Switch your capture mode to Replay Buffer or Hybrid to save the last moments of a game with a hotkey.",
+      "keepLast": "While you play, Segra keeps the last <nowrap>{{duration}}</nowrap> in memory. Press <kbd>{{keys}}</kbd> to save it here.",
+      "keepLastNoHotkey": "While you play, Segra keeps the last <nowrap>{{duration}}</nowrap> in memory. Turn on the Save Replay Buffer hotkey to save it here."
+    },
+    "clip": {
+      "title": "No clips yet",
+      "body": "Open a recording, press Add Segment to mark the moment you want, then press Create Clip."
+    },
+    "highlight": {
+      "offTitle": "Highlights are off",
+      "offBody": "Turn them on to join the kills and goals from a match into one video.",
+      "title": "No highlights yet",
+      "autoBody": "In supported games, Segra bookmarks your kills and goals and joins them into one video when the recording ends. You can also choose Create Highlight in a session's menu.",
+      "manualBody": "Choose Create Highlight in a session's menu to join its kills and goals into one video."
+    }
+  }
+}

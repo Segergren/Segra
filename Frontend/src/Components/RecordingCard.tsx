@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   PreRecording,
@@ -26,6 +27,7 @@ interface RecordingCardProps {
 }
 
 const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }) => {
+  const { t } = useTranslation('cards');
   const timerRef = useRef<HTMLSpanElement>(null);
   const previewImgRef = useRef<HTMLImageElement>(null);
   const settings = useSettings();
@@ -54,10 +56,10 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
   const isDisplayCapture = !!recording && captureMode === 'display';
   const captureTooltip =
     captureMode === 'game'
-      ? 'Game capture (using game hook)'
+      ? t('recording.capture.game')
       : captureMode === 'window'
-        ? 'Window capture (game hook unavailable)'
-        : 'Display capture (not using game hook)';
+        ? t('recording.capture.window')
+        : t('recording.capture.display');
   const captureTooltipColor = captureMode === 'game' ? 'tooltip-success' : 'tooltip-warning';
   const CaptureIcon =
     captureMode === 'game' ? Gamepad2 : captureMode === 'window' ? AppWindow : Monitor;
@@ -85,8 +87,8 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
     return {
       value: d.deviceId,
       label: hasDuplicateName
-        ? `${d.deviceName} (${displayIndex + 1})${d.isPrimary ? ' (Primary)' : ''}`
-        : `${d.deviceName}${d.isPrimary ? ' (Primary)' : ''}`,
+        ? `${d.deviceName} (${displayIndex + 1})${d.isPrimary ? ` (${t('recording.monitor.primary')})` : ''}`
+        : `${d.deviceName}${d.isPrimary ? ` (${t('recording.monitor.primary')})` : ''}`,
     };
   });
 
@@ -276,7 +278,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
               className={`w-3 h-3 shrink-0 mb-0.5 rounded-full mr-1.5 ${preRecording ? 'bg-orange-500' : 'bg-red-500'}`}
             ></span>
             <span className="text-gray-200 text-sm font-medium">
-              {preRecording ? preRecording.status : 'Recording'}
+              {preRecording ? preRecording.status : t('recording.status.recording')}
             </span>
             {!preRecording && (
               <div
@@ -342,7 +344,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
                       }}
                     >
                       <Ban size={20} />
-                      <span>Add to Block List</span>
+                      <span>{t('recording.addToBlockList')}</span>
                     </Button>
                   </li>
                 </ul>

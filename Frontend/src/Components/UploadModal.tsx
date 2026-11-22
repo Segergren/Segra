@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Content } from '../Models/types';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAuth } from '../Hooks/useAuth.tsx';
@@ -16,6 +17,7 @@ interface UploadModalProps {
 }
 
 export default function UploadModal({ video, onUpload, onClose }: UploadModalProps) {
+  const { t } = useTranslation('modals');
   const { clipShowInBrowserAfterUpload } = useSettings();
   const updateSettings = useSettingsUpdater();
   const { session } = useAuth();
@@ -78,28 +80,26 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
       <div className="bg-base-300">
         <div className="modal-header pb-2">
           <div className="flex items-center justify-between gap-4">
-            <h3 className="font-bold text-2xl">Upload to Segra.tv</h3>
-            <Button variant="ghost" size="sm" icon onClick={onClose} aria-label="Close">
+            <h3 className="font-bold text-2xl">{t('upload.title')}</h3>
+            <Button variant="ghost" size="sm" icon onClick={onClose} aria-label={t('upload.close')}>
               ✕
             </Button>
           </div>
           {session === null && (
-            <p className="mt-1 text-sm text-gray-400">
-              Sign in to Segra.tv to upload clips and share them with a link.
-            </p>
+            <p className="mt-1 text-sm text-gray-400">{t('upload.signInHint')}</p>
           )}
         </div>
         <div className="modal-body pt-3">
           <div className="form-control w-full">
             <label className="label">
               <span className="label-text text-base-content">
-                Title <span className="text-error">*</span>
+                {t('upload.titleLabel')} <span className="text-error">*</span>
               </span>
             </label>
             <input
               ref={titleInputRef}
               type="text"
-              placeholder="Enter a title"
+              placeholder={t('upload.titlePlaceholder')}
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
@@ -110,27 +110,27 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
             />
             {titleError && (
               <label className="label mt-1">
-                <span className="label-text-alt text-error">Title is required</span>
+                <span className="label-text-alt text-error">{t('upload.titleRequired')}</span>
               </label>
             )}
           </div>
 
           <div className="form-control w-full mt-4">
             <label className="label">
-              <span className="label-text text-base-content">Description</span>
+              <span className="label-text text-base-content">{t('upload.descriptionLabel')}</span>
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
               className="textarea textarea-bordered bg-base-300 w-full focus:outline focus:outline-1 focus:outline-white focus:outline-offset-0 resize-none"
-              placeholder="Add a description"
+              placeholder={t('upload.descriptionPlaceholder')}
             />
           </div>
 
           <div className="form-control w-full mt-4">
             <label className="label">
-              <span className="label-text text-base-content">Visibility</span>
+              <span className="label-text text-base-content">{t('upload.visibility')}</span>
             </label>
             <DropdownSelect
               items={[
@@ -139,7 +139,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
                   label: (
                     <span className="flex items-center gap-2">
                       <Globe size={16} />
-                      Public
+                      {t('upload.public')}
                     </span>
                   ),
                 },
@@ -148,7 +148,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
                   label: (
                     <span className="flex items-center gap-2">
                       <EyeOff size={16} />
-                      Unlisted
+                      {t('upload.unlisted')}
                     </span>
                   ),
                 },
@@ -173,7 +173,7 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
                   }
                 }}
               />
-              <span className="label-text text-base-content">Open in Browser</span>
+              <span className="label-text text-base-content">{t('upload.openInBrowser')}</span>
             </label>
           </div>
         </div>
@@ -186,12 +186,12 @@ export default function UploadModal({ video, onUpload, onClose }: UploadModalPro
             {session === null ? (
               <>
                 <LogIn className="w-5 h-5" />
-                Sign In to Upload
+                {t('upload.signInToUpload')}
               </>
             ) : (
               <>
                 <Upload className="w-5 h-5" />
-                Upload
+                {t('upload.upload')}
               </>
             )}
           </Button>

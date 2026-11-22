@@ -1,0 +1,109 @@
+{
+  "profile": {
+    "signIn": {
+      "title": "登录",
+      "lastUsed": "上次使用",
+      "waitingForBrowser": "正在等待浏览器…",
+      "connecting": "正在连接…",
+      "continueWithDiscord": "使用 Discord 继续",
+      "finishInBrowser": "请在浏览器里完成 Discord 登录。<cancel>取消</cancel>",
+      "orUseEmail": "或使用邮箱",
+      "email": "邮箱",
+      "password": "密码",
+      "confirmPassword": "确认密码",
+      "signInWithEmail": "使用邮箱登录",
+      "noAccount": "还没有账户？",
+      "createOne": "立即注册",
+      "alreadyHaveAccount": "已有账户？",
+      "signInLink": "登录",
+      "createAccount": "创建账户",
+      "confirmEmailSent": "请查收邮件确认账户，然后登录。",
+      "passwordMismatch": "两次输入的密码不一致。",
+      "passwordTooShort": "密码至少 6 个字符。",
+      "errors": {
+        "invalidCredentials": "邮箱或密码错误。",
+        "emailNotConfirmed": "请先确认邮箱。点击收件箱里的链接完成确认。",
+        "alreadyRegistered": "该邮箱已有账户，请直接登录。"
+      }
+    },
+    "setup": {
+      "title": "设置你的资料",
+      "avatar": "头像",
+      "avatarPreviewAlt": "头像预览",
+      "usernameLabel": "选择用户名",
+      "usernamePlaceholder": "用户名",
+      "usernameTakenHint": "这个用户名已被占用",
+      "continue": "继续",
+      "errors": {
+        "usernameTooShort": "用户名至少 3 个字符",
+        "usernameTooLong": "用户名不能超过 20 个字符",
+        "usernameInvalidChars": "用户名只能包含字母、数字、下划线和连字符",
+        "usernameTaken": "用户名已被占用",
+        "avatarType": "头像必须是 JPEG、PNG、GIF 或 WebP 图片",
+        "avatarSize": "头像不能超过 5MB",
+        "updateFailed": "资料更新失败"
+      }
+    },
+    "user": {
+      "avatarAlt": "{{name}} 的头像",
+      "authenticatedUser": "已登录用户",
+      "logout": "退出登录",
+      "profileLoadFailed": "无法加载你的资料。{{error}}",
+      "unknownError": "未知错误。"
+    }
+  },
+  "advanced": {
+    "updates": {
+      "title": "更新",
+      "flatpakHint": "Segra 通过 Flatpak 自动更新。要立即更新，请运行 <code>flatpak update tv.segra.Segra</code>，或使用软件中心。",
+      "channel": "更新通道",
+      "stable": "稳定版",
+      "beta": "测试版",
+      "obsVersion": "OBS 版本",
+      "obsAutomatic": "自动",
+      "obsBetaVersion": "{{version}}（Beta）",
+      "check": "检查更新",
+      "viewReleaseNotes": "查看更新日志"
+    },
+    "online": {
+      "title": "在线功能",
+      "airplaneMode": "离线模式",
+      "airplaneModeDescription": "退出登录，并隐藏上传和分享。"
+    },
+    "about": {
+      "docs": "文档",
+      "logs": "日志"
+    }
+  },
+  "notes": {
+    "header": {
+      "welcome": "欢迎使用 Segra 2.0",
+      "whatsNew": "新版本内容",
+      "sinceVersion": "v{{version}} 之后的更新",
+      "browse": "浏览 Segra 最近的版本发布",
+      "close": "关闭"
+    },
+    "empty": {
+      "upToDate": "已是最新版本",
+      "noNotes": "暂无更新日志",
+      "upToDateDescription": "你正在使用最新版本的 Segra。下次发布后再来看看吧。",
+      "noNotesDescription": "暂时找不到可以显示的更新日志。"
+    },
+    "latest": "最新",
+    "beta": "测试版",
+    "relative": {
+      "justNow": "刚刚",
+      "minutesAgo": "{{n}} 分钟前",
+      "hoursAgo": "{{n}} 小时前",
+      "daysAgo": "{{n}} 天前",
+      "weeksAgo": "{{n}} 周前",
+      "monthsAgo": "{{n}} 个月前",
+      "yearsAgo": "{{n}} 年前"
+    },
+    "decodeError": "内容解析失败",
+    "footer": {
+      "showing_other": "共 {{count}} 条更新",
+      "viewOnGithub": "在 GitHub 上查看"
+    }
+  }
+}

@@ -1,19 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Camera } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../Hooks/useAuth';
 import Button from './Button';
 
+// Returns an i18n key for the first failed rule, or an empty string when the name is valid.
 function validateUsername(value: string): string {
-  if (value.length < 3) return 'Username must be at least 3 characters';
-  if (value.length > 20) return 'Username must be less than 20 characters';
-  if (!/^[a-zA-Z0-9_-]+$/.test(value))
-    return 'Username can only contain letters, numbers, underscores and hyphens';
+  if (value.length < 3) return 'profile.setup.errors.usernameTooShort';
+  if (value.length > 20) return 'profile.setup.errors.usernameTooLong';
+  if (!/^[a-zA-Z0-9_-]+$/.test(value)) return 'profile.setup.errors.usernameInvalidChars';
   return '';
 }
 
 export default function SetupProfileModal() {
+  const { t } = useTranslation('account');
   const { session } = useAuth();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,12 +58,12 @@ export default function SetupProfileModal() {
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      setError('Avatar must be a JPEG, PNG, GIF, or WebP image');
+      setError(t('profile.setup.errors.avatarType'));
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setError('Avatar must be less than 5MB');
+      setError(t('profile.setup.errors.avatarSize'));
       return;
     }
 
@@ -87,11 +89,11 @@ export default function SetupProfileModal() {
 
     const validation = validateUsername(username);
     if (validation) {
-      setError(validation);
+      setError(t(validation));
       return;
     }
     if (isTaken) {
-      setError('Username is already taken');
+      setError(t('profile.setup.errors.usernameTaken'));
       return;
     }
 
@@ -117,7 +119,7 @@ export default function SetupProfileModal() {
 
       await queryClient.invalidateQueries({ queryKey: ['profile'] });
     } catch {
-      setError('Failed to update profile');
+      setError(t('profile.setup.errors.updateFailed'));
       setIsSubmitting(false);
     }
   };
@@ -128,7 +130,7 @@ export default function SetupProfileModal() {
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60">
       <div className="bg-base-300 rounded-2xl p-8 w-full max-w-sm border border-custom shadow-xl">
         <div className="flex flex-col items-center gap-6">
-          <h2 className="text-xl font-bold">Set Up Your Profile</h2>
+          <h2 className="text-xl font-bold">{t('profile.setup.title')}</h2>
 
           {/* Avatar */}
           <div
@@ -139,7 +141,7 @@ export default function SetupProfileModal() {
               {avatarPreview ? (
                 <img
                   src={avatarPreview}
-                  alt="Avatar preview"
+                  alt={t('profile.setup.avatarPreviewAlt')}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -154,7 +156,7 @@ export default function SetupProfileModal() {
               onChange={handleAvatarSelect}
             />
           </div>
-          <span className="text-xs opacity-50 -mt-4">Avatar</span>
+          <span className="text-xs opacity-50 -mt-4">{t('profile.setup.avatar')}</span>
 
           {error && (
             <div className="alert alert-error w-full text-sm">
@@ -165,7 +167,7 @@ export default function SetupProfileModal() {
           <form onSubmit={handleSubmit} className="w-full space-y-4">
             <div className="form-control">
               <label className="label">
-                <span className="label-text">Choose your username</span>
+                <span className="label-text">{t('profile.setup.usernameLabel')}</span>
               </label>
               <input
                 type="text"
@@ -174,18 +176,20 @@ export default function SetupProfileModal() {
                 className={`input input-bordered bg-base-200 w-full ${
                   isTaken || usernameError ? 'input-error' : ''
                 }`}
-                placeholder="Username"
+                placeholder={t('profile.setup.usernamePlaceholder')}
                 disabled={isSubmitting}
                 autoFocus
               />
               {isTaken && (
                 <label className="label">
-                  <span className="label-text-alt text-error">This username is already taken</span>
+                  <span className="label-text-alt text-error">
+                    {t('profile.setup.usernameTakenHint')}
+                  </span>
                 </label>
               )}
               {usernameError && (
                 <label className="label">
-                  <span className="label-text-alt text-error">{usernameError}</span>
+                  <span className="label-text-alt text-error">{t(usernameError)}</span>
                 </label>
               )}
             </div>
@@ -197,7 +201,7 @@ export default function SetupProfileModal() {
               loading={isSubmitting}
               disabled={isDisabled}
             >
-              Continue
+              {t('profile.setup.continue')}
             </Button>
           </form>
         </div>

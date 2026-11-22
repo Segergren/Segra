@@ -1,9 +1,11 @@
 import { Clapperboard } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useClipping } from '../Context/ClippingContext';
 import ContentPage from '../Components/ContentPage';
 import ContentCard from '../Components/ContentCard';
 
 export default function Clips() {
+  const { t } = useTranslation('app');
   const { clippingProgress } = useClipping();
   // Merged sessions report through the same progress, but they show up under Sessions
   const clipProgress = Object.fromEntries(
@@ -20,7 +22,7 @@ export default function Clips() {
     <ContentPage
       contentType="Clip"
       sectionId="clips"
-      title="Clips"
+      title={t('page.clips.title')}
       Icon={Clapperboard}
       progressItems={clipProgress}
       isProgressVisible={Object.keys(clipProgress).length > 0}

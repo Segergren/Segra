@@ -1,4 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { gt } from 'semver';
 import Markdown from 'markdown-to-jsx';
 import confetti from 'canvas-confetti';
@@ -6,6 +7,7 @@ import { CircleCheck, X, Calendar } from 'lucide-react';
 import { GithubIcon } from './icons/BrandIcons';
 import { ReleaseNote } from '../Models/WebSocketMessages';
 import { ReleaseNotesContext } from '../App';
+import i18n from '../i18n';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import Button from './Button';
 
@@ -154,13 +156,13 @@ function decodeBase64(base64: string): string {
   try {
     return decodeURIComponent(escape(atob(base64)));
   } catch {
-    return 'Error decoding content';
+    return String(i18n.t('notes.decodeError', { ns: 'account' }));
   }
 }
 
 function formatAbsoluteDate(isoDate: string): string {
   try {
-    return new Date(isoDate).toLocaleDateString('en-US', {
+    return new Date(isoDate).toLocaleDateString(i18n.language, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -170,24 +172,25 @@ function formatAbsoluteDate(isoDate: string): string {
   }
 }
 
-function formatRelativeDate(isoDate: string): string | null {
+// Returns an i18n key plus its interpolation value; the caller runs it through t().
+function formatRelativeDate(isoDate: string): { key: string; n: number } | null {
   try {
     const then = new Date(isoDate).getTime();
     if (Number.isNaN(then)) return null;
     const diffSec = Math.max(0, Math.floor((Date.now() - then) / 1000));
-    if (diffSec < 60) return 'just now';
+    if (diffSec < 60) return { key: 'notes.relative.justNow', n: 0 };
     const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffMin < 60) return { key: 'notes.relative.minutesAgo', n: diffMin };
     const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) return { key: 'notes.relative.hoursAgo', n: diffHours };
     const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 7) return { key: 'notes.relative.daysAgo', n: diffDays };
     const diffWeeks = Math.floor(diffDays / 7);
-    if (diffWeeks < 5) return `${diffWeeks}w ago`;
+    if (diffWeeks < 5) return { key: 'notes.relative.weeksAgo', n: diffWeeks };
     const diffMonths = Math.floor(diffDays / 30);
-    if (diffMonths < 12) return `${diffMonths}mo ago`;
+    if (diffMonths < 12) return { key: 'notes.relative.monthsAgo', n: diffMonths };
     const diffYears = Math.floor(diffDays / 365);
-    return `${diffYears}y ago`;
+    return { key: 'notes.relative.yearsAgo', n: diffYears };
   } catch {
     return null;
   }
@@ -196,7 +199,7 @@ function formatRelativeDate(isoDate: string): string | null {
 function getReleaseChannel(version: string): { text: string; className: string } | null {
   if (version.includes('-beta')) {
     return {
-      text: 'Beta',
+      text: 'notes.beta',
       className: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
     };
   }
@@ -287,6 +290,7 @@ export default function ReleaseNotesModal({
   filterVersion,
   celebrate = false,
 }: ReleaseNotesModalProps) {
+  const { t } = useTranslation('account');
   const headerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!celebrate) return;
@@ -329,15 +333,21 @@ export default function ReleaseNotesModal({
       >
         <div className="min-w-0">
           <h2 className="font-bold text-2xl text-white leading-tight">
-            {celebrate ? 'Welcome to Segra 2.0' : "What's New"}
+            {celebrate ? t('notes.header.welcome') : t('notes.header.whatsNew')}
           </h2>
           <p className="text-sm text-gray-400 mt-0.5">
             {filterVersion
-              ? `Updates since v${filterVersion}`
-              : 'Browse recent releases from Segra'}
+              ? t('notes.header.sinceVersion', { version: filterVersion })
+              : t('notes.header.browse')}
           </p>
         </div>
-        <Button variant="ghost" icon size="sm" onClick={onClose} aria-label="Close">
+        <Button
+          variant="ghost"
+          icon
+          size="sm"
+          onClick={onClose}
+          aria-label={t('notes.header.close')}
+        >
           <X size={18} />
         </Button>
       </div>
@@ -352,12 +362,12 @@ export default function ReleaseNotesModal({
               <CircleCheck size={30} />
             </div>
             <h3 className="text-lg font-semibold text-white mb-1">
-              {filterVersion ? "You're up to date!" : 'No release notes available'}
+              {filterVersion ? t('notes.empty.upToDate') : t('notes.empty.noNotes')}
             </h3>
             <p className="text-sm text-gray-400 max-w-sm">
               {filterVersion
-                ? 'You are on the latest version of Segra. Check back after the next release for new changes.'
-                : 'We could not find any release notes to display right now.'}
+                ? t('notes.empty.upToDateDescription')
+                : t('notes.empty.noNotesDescription')}
             </p>
           </div>
         ) : (
@@ -375,14 +385,14 @@ export default function ReleaseNotesModal({
                   </span>
                   {isLatest && (
                     <span className="inline-flex items-center h-6 bg-success/15 text-success px-2 rounded-md text-[11px] font-medium tracking-wide uppercase border border-success/25 leading-none">
-                      Latest
+                      {t('notes.latest')}
                     </span>
                   )}
                   {channel && (
                     <span
                       className={`inline-flex items-center h-6 px-2 rounded-md text-[11px] font-medium tracking-wide uppercase border leading-none ${channel.className}`}
                     >
-                      {channel.text}
+                      {t(channel.text)}
                     </span>
                   )}
                   <span
@@ -391,7 +401,9 @@ export default function ReleaseNotesModal({
                   >
                     <Calendar size={12} />
                     {absolute}
-                    {relative && <span className="text-gray-600">· {relative}</span>}
+                    {relative && (
+                      <span className="text-gray-600">· {t(relative.key, { n: relative.n })}</span>
+                    )}
                   </span>
                 </div>
 
@@ -416,12 +428,11 @@ export default function ReleaseNotesModal({
       {!isLoading && filteredNotes.length > 0 && (
         <div className="mt-6 pt-4 border-t border-base-400 flex items-center justify-between gap-3">
           <span className="text-xs text-gray-500">
-            Showing {filteredNotes.length} release
-            {filteredNotes.length === 1 ? '' : 's'}
+            {t('notes.footer.showing', { count: filteredNotes.length })}
           </span>
           <Button variant="primary" size="sm" onClick={handleOpenGithubReleases}>
             <GithubIcon size={14} />
-            View on GitHub
+            {t('notes.footer.viewOnGithub')}
           </Button>
         </div>
       )}

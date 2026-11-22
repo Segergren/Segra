@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import {
   useContentMigration,
@@ -10,6 +11,7 @@ interface ContentMigrationCardProps {
 }
 
 export default function ContentMigrationCard({ migration }: ContentMigrationCardProps) {
+  const { t } = useTranslation('cards');
   const { cancelMigration } = useContentMigration();
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -17,16 +19,19 @@ export default function ContentMigrationCard({ migration }: ContentMigrationCard
     switch (migration.status) {
       case 'migrating':
         return isCancelling
-          ? 'Cancelling...'
-          : `Moving ${migration.currentFileIndex} of ${migration.totalFiles}`;
+          ? t('migration.status.cancelling')
+          : t('migration.status.moving', {
+              current: migration.currentFileIndex,
+              total: migration.totalFiles,
+            });
       case 'cancelled':
-        return migration.message || 'Move Cancelled';
+        return migration.message || t('migration.status.cancelled');
       case 'done':
-        return migration.message || 'Move Complete';
+        return migration.message || t('migration.status.complete');
       case 'error':
-        return migration.message || 'Move Error';
+        return migration.message || t('migration.status.error');
       default:
-        return 'Moving...';
+        return t('migration.status.pending');
     }
   };
 
@@ -78,7 +83,7 @@ export default function ContentMigrationCard({ migration }: ContentMigrationCard
                 }}
                 disabled={isCancelling}
                 className="absolute right-0 -top-px flex items-center h-5 px-1 transition-colors cursor-pointer disabled:opacity-50"
-                aria-label="Cancel move"
+                aria-label={t('migration.cancel')}
               >
                 <X size={16} />
               </button>

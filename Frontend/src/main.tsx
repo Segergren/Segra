@@ -7,6 +7,8 @@ import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
 import './globals.css';
+// Initialises i18next before the first render so the UI never paints with raw keys.
+import './i18n';
 import App from './App.tsx';
 import { SelectedVideoProvider } from './Context/SelectedVideoContext.tsx';
 import { SelectedMenuProvider } from './Context/SelectedMenuContext';

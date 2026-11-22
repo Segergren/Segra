@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowUpDown, Clock, HardDrive, Timer, Gamepad2 } from 'lucide-react';
 import GameFilterDropdown from './GameFilterDropdown';
 import GameIcon from './GameIcon';
@@ -48,6 +49,8 @@ export default function ContentFilters({
   selectedGame,
   sortOption,
 }: ContentFiltersProps) {
+  const { t } = useTranslation('library');
+
   // Persist changes to localStorage
   useEffect(() => {
     try {
@@ -71,15 +74,15 @@ export default function ContentFilters({
   const getSortLabel = (option: SortOption): string => {
     switch (option) {
       case 'newest':
-        return 'Newest';
+        return t('sort.newest');
       case 'oldest':
-        return 'Oldest';
+        return t('sort.oldest');
       case 'size':
-        return 'Size';
+        return t('sort.size');
       case 'duration':
-        return 'Duration';
+        return t('sort.duration');
       case 'game':
-        return 'Game';
+        return t('sort.game');
     }
   };
 
@@ -89,7 +92,7 @@ export default function ContentFilters({
       label: (
         <GameLabel
           icon={<Gamepad2 size={18} className={ICON_CLASS} />}
-          name="All games"
+          name={t('filter.allGames')}
           count={totalCount}
         />
       ),
@@ -136,7 +139,7 @@ export default function ContentFilters({
               onClick={() => handleSortChange('newest')}
             >
               <Clock size={20} />
-              <span>Newest</span>
+              <span>{t('sort.newest')}</span>
             </a>
           </li>
           <li>
@@ -147,7 +150,7 @@ export default function ContentFilters({
               onClick={() => handleSortChange('oldest')}
             >
               <Clock size={20} />
-              <span>Oldest</span>
+              <span>{t('sort.oldest')}</span>
             </a>
           </li>
           <li>
@@ -158,7 +161,7 @@ export default function ContentFilters({
               onClick={() => handleSortChange('size')}
             >
               <HardDrive size={20} />
-              <span>Size</span>
+              <span>{t('sort.size')}</span>
             </a>
           </li>
           <li>
@@ -169,7 +172,7 @@ export default function ContentFilters({
               onClick={() => handleSortChange('duration')}
             >
               <Timer size={20} />
-              <span>Duration</span>
+              <span>{t('sort.duration')}</span>
             </a>
           </li>
           <li>
@@ -180,7 +183,7 @@ export default function ContentFilters({
               onClick={() => handleSortChange('game')}
             >
               <Gamepad2 size={20} />
-              <span>Game A–Z</span>
+              <span>{t('sort.gameAz')}</span>
             </a>
           </li>
         </ul>

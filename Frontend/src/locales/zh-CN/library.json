@@ -1,0 +1,103 @@
+{
+  "type": {
+    "session": "会话",
+    "buffer": "即时回放缓冲",
+    "clip": "片段",
+    "highlight": "高光"
+  },
+  "badge": {
+    "new": "新"
+  },
+  "card": {
+    "untitled": "未命名",
+    "matches_other": "{{count}} 场对局"
+  },
+  "aria": {
+    "kills_other": "{{count}} 次击杀",
+    "deaths_other": "{{count}} 次死亡",
+    "goals_other": "{{count}} 个进球"
+  },
+  "menu": {
+    "upload": "上传",
+    "copy": "复制",
+    "rename": "重命名",
+    "openFileLocation": "打开文件所在位置",
+    "compress": "压缩",
+    "delete": "删除",
+    "createHighlight": "创建高光",
+    "creatingHighlight": "正在创建高光…",
+    "noHighlights": "没有高光"
+  },
+  "delete": {
+    "title": "删除{{type}}？",
+    "description": "确定要永久删除<strong>{{name}}</strong>？<br/><hint>此操作无法撤销。</hint>"
+  },
+  "status": {
+    "moving": "正在移动…",
+    "waitingToMove": "等待移动",
+    "compressing": "正在压缩…",
+    "done": "完成！",
+    "skipped": "已跳过",
+    "error": "错误"
+  },
+  "page": {
+    "import": "导入"
+  },
+  "selection": {
+    "selected": "已选 {{count}} 项",
+    "deleteTitle_other": "删除 {{count}} 个项目？",
+    "deleteDescription_other": "确定要永久删除所选的 {{count}} 个项目？\n\n此操作无法撤销。",
+    "merge": "合并",
+    "mergeSlow": "合并（较慢）",
+    "delete": "删除",
+    "cancel": "取消"
+  },
+  "merge": {
+    "hintSelectTwo": "至少选择两个才能合并",
+    "hintSessionSlow": "这些录制的视频或音频设置不同，合并需要重新编码，完整会话耗时太长。",
+    "hintClipSlow": "这些录制的视频设置不同，会按你的片段设置重新编码。"
+  },
+  "sort": {
+    "newest": "最新",
+    "oldest": "最早",
+    "size": "大小",
+    "duration": "时长",
+    "game": "游戏",
+    "gameAz": "游戏 A–Z"
+  },
+  "filter": {
+    "allGames": "全部游戏"
+  },
+  "game": {
+    "imported": "已导入"
+  },
+  "empty": {
+    "changeCaptureMode": "更改采集模式",
+    "setUpHotkeys": "设置快捷键",
+    "openHighlightSettings": "打开高光设置",
+    "session": {
+      "title": "还没有会话",
+      "bufferBody": "当前采集模式是即时回放缓冲，游戏不会被保存为完整会话。你保存的瞬间会显示在「即时回放缓冲」里。",
+      "autoRecordBody": "开始游戏后，Segra 会在后台录制。关闭游戏后，整段会话会出现在这里。",
+      "manualRecordBody": "自动录制已关闭，只有你自己开始录制时才会录制游戏。",
+      "pressHotkey": "按 <kbd>{{keys}}</kbd> 开始或停止录制。"
+    },
+    "buffer": {
+      "title": "还没有即时回放缓冲",
+      "offBody": "即时回放缓冲已关闭。把采集模式切换为即时回放缓冲或混合，就能用快捷键保存游戏的最后一段。",
+      "keepLast": "游玩时，Segra 会在内存中保留最近 <nowrap>{{duration}}</nowrap>。按 <kbd>{{keys}}</kbd> 即可保存到这里。",
+      "keepLastNoHotkey": "游玩时，Segra 会在内存中保留最近 <nowrap>{{duration}}</nowrap>。开启「保存即时回放缓冲」快捷键后就能保存到这里。"
+    },
+    "clip": {
+      "title": "还没有片段",
+      "body": "打开一段录制，点击「添加分段」标记想要的瞬间，再点击「创建片段」。"
+    },
+    "highlight": {
+      "offTitle": "高光已关闭",
+      "offBody": "开启后会把一局中的击杀和进球合成一段视频。",
+      "title": "还没有高光",
+      "autoBody": "在支持的游戏里，Segra 会标记你的击杀和进球，录制结束后把它们合成一段视频。也可以在会话菜单里选择「创建高光」。",
+      "manualBody": "在会话菜单里选择「创建高光」，把它的击杀和进球合成一段视频。"
+    }
+  }
+}

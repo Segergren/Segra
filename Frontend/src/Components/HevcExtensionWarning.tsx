@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, Info, VideoOff } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
 import Button from './Button';
@@ -21,6 +22,7 @@ export default function HevcExtensionWarning({
   variant?: 'banner' | 'player';
   className?: string;
 }) {
+  const { t } = useTranslation('cards');
   const { platform } = useAppState();
   const [status, setStatus] = useState<'idle' | 'installing' | 'installed'>('idle');
 
@@ -53,7 +55,11 @@ export default function HevcExtensionWarning({
         sendMessageToBackend('InstallHevcExtension');
       }}
     >
-      {status === 'installed' ? 'Restart' : status === 'installing' ? 'Installing' : 'Install'}
+      {status === 'installed'
+        ? t('hevc.action.restart')
+        : status === 'installing'
+          ? t('hevc.action.installing')
+          : t('hevc.action.install')}
     </Button>
   );
 
@@ -71,12 +77,12 @@ export default function HevcExtensionWarning({
         />
         <div>
           <p className="font-semibold text-base-content">
-            {status === 'installed' ? 'Restart Segra to play this video' : "This video can't play"}
+            {status === 'installed'
+              ? t('hevc.player.canPlayAfterRestart')
+              : t('hevc.player.cantPlay')}
           </p>
           <p className="text-sm text-base-content/60 mt-1">
-            {status === 'installed'
-              ? 'The HEVC Video Extension is installed.'
-              : "It's H.265, which needs Microsoft's HEVC Video Extension."}
+            {status === 'installed' ? t('hevc.player.installed') : t('hevc.player.reason')}
           </p>
         </div>
         {actionButton}
@@ -96,9 +102,7 @@ export default function HevcExtensionWarning({
         className={`shrink-0 ${status === 'installed' ? 'text-success' : 'text-warning'}`}
       />
       <span className="min-w-0 flex-1">
-        {status === 'installed'
-          ? 'The HEVC Video Extension is installed. Restart Segra to play H.265 videos.'
-          : "H.265 videos need Microsoft's HEVC Video Extension to play in Segra."}
+        {status === 'installed' ? t('hevc.banner.installed') : t('hevc.banner.needed')}
       </span>
       {actionButton}
     </div>

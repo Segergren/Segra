@@ -1,0 +1,81 @@
+{
+  "title": "Storage Settings",
+  "paths": {
+    "recording": "Recording Path",
+    "recordingPlaceholder": "Enter or select folder path",
+    "cache": "Cache Path",
+    "cachePlaceholder": "Enter or select folder for metadata",
+    "browse": "Browse"
+  },
+  "limit": {
+    "label": "Storage Limit",
+    "placeholder": "Set maximum storage in GB",
+    "unlimited": "Unlimited",
+    "noLimit": "No limit",
+    "unlimitedHint": "Nothing is deleted to free up space. Recording stops when the drive is almost full.",
+    "limitedHint": "Older sessions and replay buffers are deleted to stay under the limit.",
+    "warningTitle": "Storage Limit Warning",
+    "warningBody": "The storage limit ({{limit}} GB) is lower than your current folder size ({{current}} GB).\n\nThis will cause older recordings to be automatically deleted to free up space.\n\nAre you sure you want to continue?",
+    "apply": "Apply Limit"
+  },
+  "toggles": {
+    "gameFolders": {
+      "label": "Save Recordings in Game Folders",
+      "description": "Puts each recording in a folder named after the game. Changing this moves your existing recordings."
+    },
+    "excludeClips": {
+      "label": "Exclude Clips and Highlights From Storage Limit",
+      "description": "Clips and highlights are never deleted to free up space. When on, only sessions and replay buffers count toward the limit."
+    },
+    "removeOriginal": {
+      "label": "Delete Original After Compression",
+      "description": "Removes the full-size video once its compressed copy is saved."
+    }
+  },
+  "outside": {
+    "videos_one": "{{count}} video ({{size}} GB) stored outside your recording path",
+    "videos_other": "{{count}} videos ({{size}} GB) stored outside your recording path",
+    "hint": "Move them into your recording path to keep all your content in one place.",
+    "move": "Move to Recording Path",
+    "moving": "Moving...",
+    "dialogTitle": "Move videos to recording path",
+    "dialogConfirm": "Move Videos"
+  },
+  "usage": {
+    "title": "Storage Usage",
+    "used": "{{used}} GB used",
+    "usedOfLimit": "{{used}} GB of {{limit}} GB limit",
+    "percent": "{{percent}}%",
+    "percentOverLimit": "{{percent}}% over limit",
+    "noLimit": "No limit"
+  },
+  "segments": {
+    "session": "Sessions",
+    "buffer": "Buffers",
+    "clip": "Clips",
+    "highlight": "Highlights",
+    "other": "Other"
+  },
+  "segmentSize": {
+    "value": "{{size}} GB",
+    "notCounted": "{{size}} GB (not counted)"
+  },
+  "free": {
+    "onDrive": "Free on drive",
+    "inLimit": "Free in limit",
+    "size": "{{size}} GB free"
+  },
+  "drive": {
+    "label": "Drive {{letter}}:",
+    "disk": "Disk",
+    "checking": "Checking drive space...",
+    "usedOf": "{{drive}} {{used}} GB used of {{total}} GB"
+  },
+  "aria": {
+    "usedNoLimit": "{{used}} GB used, no storage limit",
+    "usedOfLimit": "{{used}} GB used of a {{limit}} GB limit"
+  },
+  "actions": {
+    "cancel": "Cancel"
+  }
+}

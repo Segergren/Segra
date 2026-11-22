@@ -1,0 +1,18 @@
+{
+  "title": "Settings",
+  "nav": {
+    "account": "Account",
+    "recording": "Recording",
+    "clips": "Clips",
+    "storage": "Storage",
+    "games": "Games",
+    "preferences": "Preferences",
+    "advanced": "Advanced"
+  },
+  "language": {
+    "title": "Language",
+    "description": "Choose the language used by the Segra interface.",
+    "en": "English",
+    "zhCN": "简体中文"
+  }
+}

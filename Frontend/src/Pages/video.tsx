@@ -1,5 +1,7 @@
 import React, { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Content, BookmarkType, Segment, Bookmark } from '../Models/types';
+import i18n from '../i18n';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAppState } from '../Context/AppStateContext';
@@ -104,12 +106,13 @@ const PLAYER_BUTTON_CLASS =
   'flex items-center justify-center p-1.5 rounded-full text-white/90 cursor-pointer transition-colors hover:text-white hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent';
 
 function TopInfoBar({ video }: { video: Content }) {
+  const { t } = useTranslation('editor');
   const { setSelectedVideo } = useSelectedVideo();
 
   const created = new Date(video.createdAt);
   const isValidDate = !isNaN(created.getTime());
-  const locale = Intl.DateTimeFormat().resolvedOptions().locale?.toLowerCase() || '';
-  const isUS = locale.includes('-us');
+  const locale = i18n.language;
+  const isUS = locale.startsWith('en');
   const createdDateStr = !isValidDate
     ? video.createdAt
     : isUS
@@ -118,7 +121,7 @@ function TopInfoBar({ video }: { video: Content }) {
 
   const createdTimeStr = !isValidDate
     ? ''
-    : created.toLocaleTimeString(isUS ? 'en-US' : undefined, {
+    : created.toLocaleTimeString(locale, {
         hour: '2-digit',
         minute: '2-digit',
         hour12: isUS,
@@ -131,7 +134,7 @@ function TopInfoBar({ video }: { video: Content }) {
         size="xs"
         className="h-6 min-h-0 px-1"
         onClick={() => setSelectedVideo(null)}
-        aria-label="Back"
+        aria-label={t('topBar.back')}
       >
         <ArrowLeft className="w-4 h-4" />
       </Button>
@@ -169,6 +172,8 @@ const fetchThumbnailAtTime = async (videoPath: string, timeInSeconds: number): P
 };
 
 export default function VideoComponent({ video }: { video: Content }) {
+  // `t` is already used for time values in this file, so the translator is `tr`
+  const { t: tr } = useTranslation('editor');
   // Context hooks
   const settings = useSettings();
   const appState = useAppState();
@@ -1926,7 +1931,7 @@ export default function VideoComponent({ video }: { video: Content }) {
         onClick={handleCopyFile}
       >
         <MorphIcon icon={fileCopied ? Check : Copy} size={20} spring="snappy" />
-        <span>Copy</span>
+        <span>{tr('player.copy')}</span>
       </Button>
       {copySizeOptions.length > 0 && (
         <div
@@ -1937,7 +1942,7 @@ export default function VideoComponent({ video }: { video: Content }) {
             variant="primary"
             size="sm"
             className={`h-10 hover:text-accent join-item px-2 ${compressCopyProgress !== null ? 'pointer-events-none' : ''}`}
-            aria-label="Copy as compressed file"
+            aria-label={tr('player.copyCompressed')}
             aria-expanded={copyMenuOpen}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -2149,8 +2154,11 @@ export default function VideoComponent({ video }: { video: Content }) {
     if (bookmarkIndex !== -1) {
       const bookmark = video.bookmarks[bookmarkIndex];
       confirmDelete({
-        title: 'Delete bookmark?',
-        description: `Delete the ${bookmark.type.toLowerCase()} bookmark at ${bookmark.time}? This action cannot be undone.`,
+        title: tr('confirm.deleteBookmark.title'),
+        description: tr('confirm.deleteBookmark.description', {
+          type: tr(`bookmarkType.${bookmark.type.toLowerCase()}`),
+          time: bookmark.time,
+        }),
         onConfirm: () => {
           video.bookmarks.splice(bookmarkIndex, 1);
 
@@ -2168,8 +2176,8 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   const handleDeleteSegment = (segmentId: number) => {
     confirmDelete({
-      title: 'Delete segment?',
-      description: 'Remove this segment from the clip? This action cannot be undone.',
+      title: tr('confirm.deleteSegment.title'),
+      description: tr('confirm.deleteSegment.description'),
       onConfirm: () => removeSegment(segmentId),
     });
   };
@@ -2178,9 +2186,9 @@ export default function VideoComponent({ video }: { video: Content }) {
     if (segments.length === 0) return;
 
     confirmDelete({
-      title: 'Delete all segments?',
-      description: `Remove all ${segments.length} ${segments.length === 1 ? 'segment' : 'segments'} from the clip? This action cannot be undone.`,
-      confirmText: 'Delete all',
+      title: tr('confirm.clearSegments.title'),
+      description: tr('confirm.clearSegments.description', { count: segments.length }),
+      confirmText: tr('confirm.clearSegments.confirm'),
       onConfirm: clearAllSegments,
     });
   };
@@ -2326,7 +2334,10 @@ export default function VideoComponent({ video }: { video: Content }) {
                           type="button"
                           onClick={() => seekToBookmark(bookmark)}
                           className="flex items-center justify-center w-[22px] h-[22px] rounded-full bg-[#EFAF2B] text-[#25272e] cursor-pointer pointer-events-auto"
-                          aria-label={`${bookmark.type} at ${bookmark.time}`}
+                          aria-label={tr('player.bookmarkAt', {
+                            type: tr(`bookmarkType.${bookmark.type.toLowerCase()}`),
+                            time: bookmark.time,
+                          })}
                         >
                           {React.createElement(
                             getIconMapping(video.igdbId)[bookmark.type] || Skull,
@@ -2347,7 +2358,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     <button
                       onClick={handlePlayPause}
                       className={PLAYER_BUTTON_CLASS}
-                      aria-label={isPlaying ? 'Pause' : 'Play'}
+                      aria-label={isPlaying ? tr('player.pause') : tr('player.play')}
                     >
                       {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                     </button>
@@ -2356,7 +2367,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       <button
                         onClick={toggleMute}
                         className={PLAYER_BUTTON_CLASS}
-                        aria-label={isMuted ? 'Unmute' : 'Mute'}
+                        aria-label={isMuted ? tr('player.unmute') : tr('player.mute')}
                       >
                         <MorphIcon
                           icon={
@@ -2400,7 +2411,9 @@ export default function VideoComponent({ video }: { video: Content }) {
                                 key={type}
                                 onClick={() => toggleBookmarkType(type)}
                                 className={`flex items-center justify-center p-1.5 rounded-full cursor-pointer transition-colors hover:bg-white/15 ${isShown ? 'text-accent' : 'text-white/40 hover:text-white/70'}`}
-                                aria-label={`${type} bookmarks`}
+                                aria-label={tr('player.bookmarkFilter', {
+                                  type: tr(`bookmarkType.${type.toLowerCase()}`),
+                                })}
                                 aria-pressed={isShown}
                               >
                                 {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
@@ -2423,7 +2436,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                         <button
                           onClick={() => setShowAudioTracks(!showAudioTracks)}
                           className={`${PLAYER_BUTTON_CLASS} ${showAudioTracks ? 'text-white bg-white/15' : ''}`}
-                          aria-label="Audio tracks"
+                          aria-label={tr('player.audioTracks')}
                         >
                           <Headphones className="w-5 h-5" />
                         </button>
@@ -2454,7 +2467,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       }}
                       disabled={videoScale <= 1}
                       className={PLAYER_BUTTON_CLASS}
-                      aria-label="Zoom out"
+                      aria-label={tr('player.zoomOut')}
                     >
                       <ZoomOut className="w-5 h-5" />
                     </button>
@@ -2465,7 +2478,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       }}
                       disabled={videoScale >= 4}
                       className={PLAYER_BUTTON_CLASS}
-                      aria-label="Zoom in"
+                      aria-label={tr('player.zoomIn')}
                     >
                       <ZoomIn className="w-5 h-5" />
                     </button>
@@ -2474,7 +2487,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                         ref={speedButtonRef}
                         type="button"
                         className="flex items-center justify-center w-8 h-8 text-[13px] font-semibold tracking-tight whitespace-nowrap rounded-full text-white/90 cursor-pointer transition-colors hover:text-white hover:bg-white/15"
-                        aria-label="Change playback speed"
+                        aria-label={tr('player.changeSpeed')}
                         aria-haspopup="menu"
                         aria-expanded={showSpeedMenu}
                         onClick={() => {
@@ -2520,7 +2533,9 @@ export default function VideoComponent({ video }: { video: Content }) {
                       onMouseUp={(e) => e.currentTarget.blur()}
                       onTouchEnd={(e) => e.currentTarget.blur()}
                       className={PLAYER_BUTTON_CLASS}
-                      aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+                      aria-label={
+                        isFullscreen ? tr('player.exitFullscreen') : tr('player.enterFullscreen')
+                      }
                     >
                       <MorphIcon
                         icon={isFullscreen ? Minimize : Maximize}
@@ -2567,7 +2582,18 @@ export default function VideoComponent({ video }: { video: Content }) {
                         exit={{ opacity: 0, scale: 0.5 }}
                         transition={{ duration: 0.1 }}
                         className="tooltip absolute bottom-0 transform -translate-x-1/2 cursor-pointer z-10 flex flex-col items-center text-[#25272e]"
-                        data-tip={`${bookmark.subtype ? `${bookmark.type} (${bookmark.subtype})` : bookmark.type} at ${formatTime(timeInSeconds)}`}
+                        data-tip={
+                          bookmark.subtype
+                            ? tr('timeline.bookmarkTipSubtype', {
+                                type: tr(`bookmarkType.${bookmark.type.toLowerCase()}`),
+                                subtype: tr(`bookmarkSubtype.${bookmark.subtype.toLowerCase()}`),
+                                time: formatTime(timeInSeconds),
+                              })
+                            : tr('timeline.bookmarkTip', {
+                                type: tr(`bookmarkType.${bookmark.type.toLowerCase()}`),
+                                time: formatTime(timeInSeconds),
+                              })
+                        }
                         style={{ left: `${leftPos}px` }}
                         onClick={() => seekToBookmark(bookmark)}
                         onContextMenu={(e) => {
@@ -2676,7 +2702,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                         width >= 36 && (
                           <button
                             className={`absolute top-[4px] right-[8px] flex items-center justify-center w-5 h-5 rounded-full z-10 pointer-events-auto cursor-pointer transition-[opacity,color,background-color] bg-black/60 backdrop-blur-sm hover:bg-black/80 ${audioMenuOpen || customMix ? 'text-accent' : 'text-white/80 hover:text-white'} ${hoveredSegmentId === seg.id || audioMenuOpen || customMix ? 'opacity-100' : 'opacity-0'}`}
-                            aria-label="Segment audio"
+                            aria-label={tr('timeline.segmentAudio')}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -2719,12 +2745,12 @@ export default function VideoComponent({ video }: { video: Content }) {
                       <div
                         className="absolute top-0 -left-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
                         onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
-                        aria-label="Resize segment start"
+                        aria-label={tr('timeline.resizeStart')}
                       />
                       <div
                         className="absolute top-0 -right-[7px] z-20 w-[14px] h-full bg-transparent cursor-col-resize pointer-events-auto"
                         onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
-                        aria-label="Resize segment end"
+                        aria-label={tr('timeline.resizeEnd')}
                       />
                     </div>
                   );
@@ -2750,7 +2776,9 @@ export default function VideoComponent({ video }: { video: Content }) {
                     // Without a result the match is named by its position instead
                     const lead = match.result
                       ? score
-                      : [`Match ${index + 1}`, score].filter(Boolean).join(' ');
+                      : [tr('timeline.matchNumber', { number: index + 1 }), score]
+                          .filter(Boolean)
+                          .join(' ');
                     const matchImage = getMatchImage(video.igdbId, match);
                     return (
                       <div
@@ -2781,7 +2809,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                                 <span
                                   className={`font-semibold ${matchResultTextClass[match.result]}`}
                                 >
-                                  {match.result}
+                                  {tr(`matchResult.${match.result.toLowerCase()}`)}
                                 </span>
                               )}
                               {lead && (
@@ -2855,7 +2883,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     onClick={() => prev && setSelectedVideo(prev)}
                     disabled={!prev}
                     className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none! disabled:text-gray-300/50"
-                    aria-label="Previous video"
+                    aria-label={tr('timeline.previousVideo')}
                   >
                     <SkipBack className="w-5 h-5" />
                   </button>
@@ -2863,21 +2891,21 @@ export default function VideoComponent({ video }: { video: Content }) {
                 <button
                   onClick={() => skipTime(-5)}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
-                  aria-label="Back 5 seconds"
+                  aria-label={tr('timeline.back5')}
                 >
                   <RotateCcw className="w-5 h-5" />
                 </button>
                 <button
                   onClick={handlePlayPause}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
-                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                  aria-label={isPlaying ? tr('player.pause') : tr('player.play')}
                 >
                   {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                 </button>
                 <button
                   onClick={() => skipTime(5)}
                   className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none!"
-                  aria-label="Forward 5 seconds"
+                  aria-label={tr('timeline.forward5')}
                 >
                   <RotateCw className="w-5 h-5" />
                 </button>
@@ -2886,7 +2914,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     onClick={() => next && setSelectedVideo(next)}
                     disabled={!next}
                     className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item active:translate-none! disabled:text-gray-300/50"
-                    aria-label="Next video"
+                    aria-label={tr('timeline.nextVideo')}
                   >
                     <SkipForward className="w-5 h-5" />
                   </button>
@@ -2905,7 +2933,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   )}
                 >
                   <Upload className="w-5 h-5" />
-                  <span>Upload</span>
+                  <span>{tr('actions.upload')}</span>
                 </Button>
               )}
               {(video.type === 'Clip' || video.type === 'Highlight') && copyButtons}
@@ -2920,10 +2948,12 @@ export default function VideoComponent({ video }: { video: Content }) {
                     <Clapperboard className="w-5 h-5" />
                     <span className="grid justify-items-start">
                       <span className="col-start-1 row-start-1 invisible" aria-hidden="true">
-                        Create Clips
+                        {tr('actions.createClips')}
                       </span>
                       <span className="col-start-1 row-start-1">
-                        {clipOutputMode === 'separate' ? 'Create Clips' : 'Create Clip'}
+                        {clipOutputMode === 'separate'
+                          ? tr('actions.createClips')
+                          : tr('actions.createClip')}
                       </span>
                     </span>
                   </Button>
@@ -2934,7 +2964,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     onClick={handleAddSegment}
                   >
                     <SquarePlus className="w-5 h-5" />
-                    <span>Add Segment</span>
+                    <span>{tr('actions.addSegment')}</span>
                   </Button>
                 </>
               )}
@@ -2951,7 +2981,9 @@ export default function VideoComponent({ video }: { video: Content }) {
                           key={type}
                           onClick={() => toggleBookmarkType(type)}
                           className={`btn btn-sm h-full btn-secondary border-none transition-colors join-item px-2 ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
-                          aria-label={`${type} bookmarks`}
+                          aria-label={tr('player.bookmarkFilter', {
+                            type: tr(`bookmarkType.${type.toLowerCase()}`),
+                          })}
                           aria-pressed={selectedBookmarkTypes.has(type)}
                         >
                           {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
@@ -2967,6 +2999,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                       size="sm"
                       className="h-10 hover:text-accent"
                       onClick={handleAddBookmark}
+                      aria-label={tr('actions.addBookmark')}
                     >
                       <BookmarkPlus className="w-5 h-5" />
                     </Button>
@@ -2979,6 +3012,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   onClick={() => handleZoomChange(false)}
                   className="btn btn-sm h-full btn-secondary disabled:opacity-100 disabled:bg-base-300"
                   disabled={zoom <= 1}
+                  aria-label={tr('player.zoomOut')}
                 >
                   <Minus className="w-4 h-4" />
                 </button>
@@ -2989,6 +3023,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   onClick={() => handleZoomChange(true)}
                   className="btn btn-sm h-full btn-secondary"
                   disabled={zoom >= 1000}
+                  aria-label={tr('player.zoomIn')}
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -3021,7 +3056,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 <div className="flex items-center justify-center pb-1">
                   <span
                     className="text-sm font-medium text-gray-300 opacity-50 tabular-nums"
-                    title="Total length of all segments"
+                    title={tr('timeline.totalLength')}
                   >
                     {formatTime(totalSegmentsDuration)}
                   </span>
@@ -3037,7 +3072,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                 disabled={segments.length === 0}
               >
                 <Trash2 className="w-4 h-4" />
-                <span>Clear</span>
+                <span>{tr('actions.clear')}</span>
               </Button>
               <div
                 ref={segmentOptionsRef}
@@ -3047,7 +3082,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                   variant="primary"
                   size="sm"
                   className="h-10 px-2.5 hover:text-accent"
-                  aria-label="Segment options"
+                  aria-label={tr('segmentMenu.options')}
                   aria-expanded={segmentOptionsOpen}
                   onMouseDown={(e) => {
                     e.preventDefault();
@@ -3072,10 +3107,12 @@ export default function VideoComponent({ video }: { video: Content }) {
                         }
                         className="checkbox checkbox-sm checkbox-accent"
                       />
-                      Clear segments after clipping
+                      {tr('segmentMenu.clearAfterClip')}
                     </label>
                   </li>
-                  <li className="menu-title px-2 pt-2 pb-1 text-xs">Clip output</li>
+                  <li className="menu-title px-2 pt-2 pb-1 text-xs">
+                    {tr('segmentMenu.clipOutput')}
+                  </li>
                   {(['combined', 'separate'] as const).map((mode) => (
                     <li key={mode}>
                       <label className="flex items-center gap-2 px-2! text-sm text-gray-300 hover:bg-transparent! active:bg-transparent!">
@@ -3086,7 +3123,9 @@ export default function VideoComponent({ video }: { video: Content }) {
                           onChange={() => setClipOutputMode(mode)}
                           className="radio radio-sm radio-accent"
                         />
-                        {mode === 'combined' ? 'Combined' : 'Separate'}
+                        {mode === 'combined'
+                          ? tr('segmentMenu.combined')
+                          : tr('segmentMenu.separate')}
                       </label>
                     </li>
                   ))}

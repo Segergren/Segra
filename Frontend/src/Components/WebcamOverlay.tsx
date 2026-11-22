@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { WebcamLayer } from '../Models/types';
 import { useWebcamHidden } from './WebcamToggle';
 
@@ -74,6 +75,7 @@ export default function WebcamOverlay({
   videoId,
   onDraggingChange,
 }: WebcamOverlayProps) {
+  const { t } = useTranslation('editor');
   const visible = !useWebcamHidden(videoId, layer.hidden);
   const camRef = useRef<HTMLVideoElement>(null);
   const [position, setPosition] = useState({ x: layer.x, y: layer.y, size: layer.size });
@@ -298,7 +300,7 @@ export default function WebcamOverlay({
         muted
         playsInline
         preload="auto"
-        aria-label="Webcam, drag to move"
+        aria-label={t('webcam.drag')}
         className={`absolute cursor-move touch-none object-cover will-change-[opacity,scale] ${
           visible
             ? 'pointer-events-auto opacity-100 scale-100'
@@ -333,7 +335,7 @@ export default function WebcamOverlay({
           return (
             <div
               key={`${hx},${hy}`}
-              aria-label="Resize webcam"
+              aria-label={t('webcam.resize')}
               className="absolute pointer-events-auto touch-none"
               style={{
                 left:

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useUploads, type UploadProgress } from '../Context/UploadContext';
 import CircularProgress from './CircularProgress';
@@ -9,6 +10,7 @@ interface UploadCardProps {
 }
 
 export default function UploadCard({ upload }: UploadCardProps) {
+  const { t } = useTranslation('cards');
   const { cancelUpload } = useUploads();
   const [isCancelling, setIsCancelling] = useState(false);
   const isUploading = upload.status === 'uploading';
@@ -25,15 +27,15 @@ export default function UploadCard({ upload }: UploadCardProps) {
   const getStatusText = () => {
     switch (upload.status) {
       case 'uploading':
-        return `Uploading ${Math.round(upload.progress)}%`;
+        return t('upload.status.uploading', { progress: Math.round(upload.progress) });
       case 'processing':
-        return 'Processing';
+        return t('upload.status.processing');
       case 'done':
-        return 'Upload Complete';
+        return t('upload.status.complete');
       case 'error':
-        return upload.message || 'Upload Failed';
+        return upload.message || t('upload.status.failed');
       default:
-        return 'Uploading...';
+        return t('upload.status.pending');
     }
   };
 
@@ -74,7 +76,7 @@ export default function UploadCard({ upload }: UploadCardProps) {
                   onClick={handleCancel}
                   disabled={isCancelling}
                   className="absolute right-0 top-1/2 -translate-y-1/2 p-1 transition-colors cursor-pointer disabled:opacity-50"
-                  aria-label="Cancel upload"
+                  aria-label={t('upload.cancel')}
                 >
                   <X size={16} />
                 </motion.button>

@@ -1,0 +1,107 @@
+{
+  "recording": {
+    "capture": {
+      "game": "游戏采集（使用游戏钩子）",
+      "window": "窗口采集（游戏钩子不可用）",
+      "display": "显示器采集（未使用游戏钩子）"
+    },
+    "monitor": {
+      "primary": "主显示器"
+    },
+    "status": {
+      "recording": "录制中"
+    },
+    "addToBlockList": "加入阻断列表"
+  },
+  "clipping": {
+    "merging": "合并中",
+    "mergeFailed": "合并失败",
+    "creating": "创建片段中",
+    "clipFailed": "创建片段失败",
+    "unknownError": "未知错误",
+    "cancel": "取消创建片段"
+  },
+  "segment": {
+    "delete": {
+      "title": "删除分段？",
+      "description": "要从片段中移除这个分段吗？此操作无法撤销。"
+    },
+    "alt": "分段",
+    "noThumbnail": "无缩略图",
+    "audio": {
+      "label": "分段音轨"
+    }
+  },
+  "upload": {
+    "status": {
+      "uploading": "上传中 {{progress}}%",
+      "processing": "处理中",
+      "complete": "上传完成",
+      "failed": "上传失败",
+      "pending": "上传中…"
+    },
+    "cancel": "取消上传"
+  },
+  "import": {
+    "status": {
+      "importing": "正在导入第 {{current}} 个，共 {{total}} 个",
+      "recovering": "恢复中",
+      "recoveryComplete": "恢复完成",
+      "complete": "导入完成",
+      "error": "导入出错",
+      "pending": "导入中…"
+    }
+  },
+  "live": {
+    "thumbnail": "缩略图",
+    "rec": "REC",
+    "opening": "打开中…"
+  },
+  "ai": {
+    "creatingHighlight": "创建高光中"
+  },
+  "migration": {
+    "status": {
+      "moving": "正在移动第 {{current}} 个，共 {{total}} 个",
+      "cancelling": "正在取消…",
+      "cancelled": "移动已取消",
+      "complete": "移动完成",
+      "error": "移动出错",
+      "pending": "正在移动…"
+    },
+    "cancel": "取消移动"
+  },
+  "migrationOverlay": {
+    "title": "正在更新 Segra",
+    "description": "正在为新版本准备你的内容。",
+    "step": "第 {{step}} 步，共 {{total}} 步",
+    "progress": "{{progress}} / {{total}} {{unit}}"
+  },
+  "update": {
+    "status": {
+      "inProgress": "正在更新",
+      "available": "有可用更新"
+    },
+    "version": "版本 {{version}}",
+    "dismiss": "关闭更新提示",
+    "installNow": "立即安装",
+    "releaseNotes": "更新日志"
+  },
+  "hevc": {
+    "action": {
+      "install": "安装",
+      "installing": "安装中",
+      "restart": "重启"
+    },
+    "player": {
+      "canPlayAfterRestart": "重启 Segra 后即可播放此视频",
+      "cantPlay": "无法播放此视频",
+      "installed": "已安装 HEVC 视频扩展。",
+      "reason": "该视频是 H.265 编码，需要安装 Microsoft 的 HEVC 视频扩展。"
+    },
+    "banner": {
+      "installed": "已安装 HEVC 视频扩展。重启 Segra 后即可播放 H.265 视频。",
+      "needed": "H.265 视频需要安装 Microsoft 的 HEVC 视频扩展，才能在 Segra 中播放。"
+    }
+  }
+}
