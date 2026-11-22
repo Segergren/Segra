@@ -65,8 +65,7 @@ interface VideoCardProps {
   isSelected?: boolean; // Whether this card is selected in multi-select mode
   isSelectionMode?: boolean; // Whether multi-select mode is active
   isHighlighted?: boolean; // Briefly pulse the card to draw attention (e.g. after import)
-  loadingLabel?: string; // Shown over a skeleton card, e.g. "Creating Clip"
-  loadingProgress?: number; // 0-100, drawn as a bar under the label
+  loadingLabel?: string; // Shown over a skeleton card, e.g. "Saving Recording"
   gameIcon?: { src: string | null; kind: 'game' | 'display' | 'import' }; // Shown before the title
 }
 
@@ -83,7 +82,6 @@ export default function ContentCard({
   isSelectionMode = false,
   isHighlighted = false,
   loadingLabel,
-  loadingProgress,
   gameIcon,
 }: VideoCardProps) {
   const { enableAi, showNewBadgeOnVideos, airplaneMode } = useSettings();
@@ -242,22 +240,6 @@ export default function ContentCard({
               {loadingLabel && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
                   <p className="text-base text-white/90">{loadingLabel}</p>
-                  {loadingProgress != null && (
-                    <div className="mt-3 w-2/3">
-                      <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-white/90 rounded-full"
-                          style={{
-                            width: `${Math.max(0, Math.min(100, loadingProgress))}%`,
-                            transition: 'width 0.7s ease-out',
-                          }}
-                        />
-                      </div>
-                      <p className="text-xs text-center mt-1.5 text-white/80 tabular-nums">
-                        {Math.round(Math.max(0, Math.min(100, loadingProgress)))}%
-                      </p>
-                    </div>
-                  )}
                 </div>
               )}
             </figure>

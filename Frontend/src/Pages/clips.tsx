@@ -10,22 +10,10 @@ export default function Clips() {
     Object.entries(clippingProgress).filter(([, p]) => p.outputType !== 'Session'),
   );
 
-  const running = Object.values(clipProgress).filter((p) => p.progress >= 0);
-  const averageProgress =
-    running.length > 0
-      ? running.reduce((sum, p) => sum + p.progress, 0) / running.length
-      : undefined;
-
-  // Pre-render the progress card element
+  // Pre-render the progress card element; the sidebar shows each clip's progress
   const progressCardElement =
     Object.keys(clipProgress).length > 0 ? (
-      <ContentCard
-        key="clipping-progress"
-        type="Clip"
-        isLoading
-        loadingLabel={running.length > 1 ? `Creating ${running.length} Clips` : 'Creating Clip'}
-        loadingProgress={averageProgress}
-      />
+      <ContentCard key="clipping-progress" type="Clip" isLoading />
     ) : null;
 
   return (
