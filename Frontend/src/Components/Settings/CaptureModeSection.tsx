@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import { Settings as SettingsType, HotkeyAction } from '../../Models/types';
 import { useAppState } from '../../Context/AppStateContext';
 import { getKeyName } from './HotkeysSection';
@@ -21,6 +22,7 @@ interface CaptureModeSectionProps {
 }
 
 export default function CaptureModeSection({ settings, updateSettings }: CaptureModeSectionProps) {
+  const { t } = useTranslation('recording');
   const appState = useAppState();
   const hasPendingChanges = usePendingRecordingSettings(RECORDING_SETTING_GROUPS.captureMode);
   const matchGameIcons = settings.airplaneMode
@@ -41,28 +43,27 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
       fallback
     );
   };
-  const saveHotkey = hotkeyFor(HotkeyAction.SaveReplayBuffer, 'the Save Replay Buffer hotkey');
+  const saveHotkey = hotkeyFor(
+    HotkeyAction.SaveReplayBuffer,
+    t('captureMode.alwaysOn.hotkeyFallback'),
+  );
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <div className="flex items-center gap-2 mb-4">
-        <h2 className="text-xl font-semibold">Capture Mode</h2>
-        {hasPendingChanges && (
-          <span className="text-xs text-warning">(applies to next recording)</span>
-        )}
+        <h2 className="text-xl font-semibold">{t('captureMode.title')}</h2>
+        {hasPendingChanges && <span className="text-xs text-warning">{t('pendingChanges')}</span>}
       </div>
       <div className="grid grid-cols-3 gap-4">
         <div
           className={`bg-base-200 p-4 rounded-lg flex flex-col transition-all transition-200 border ${settings.recordingMode == 'Session' ? 'border-primary' : 'border-base-400'} cursor-pointer hover:bg-base-300`}
           onClick={() => updateSettings({ recordingMode: 'Session' })}
         >
-          <div className="text-lg font-semibold mb-3">Session Recording</div>
+          <div className="text-lg font-semibold mb-3">{t('captureMode.session.title')}</div>
           <div className="text-sm text-left">
             <p>
-              <span className="opacity-70">
-                Records each game from launch to close as one video.
-              </span>{' '}
-              <span className="text-primary">Uses disk space.</span>
+              <span className="opacity-70">{t('captureMode.session.description')}</span>{' '}
+              <span className="text-primary">{t('captureMode.session.cost')}</span>
             </p>
           </div>
         </div>
@@ -71,14 +72,14 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           onClick={() => updateSettings({ recordingMode: 'Buffer' })}
         >
           <div className="flex items-center gap-2 mb-3">
-            <div className="text-lg font-semibold text-center">Replay Buffer</div>
+            <div className="text-lg font-semibold text-center">{t('captureMode.buffer.title')}</div>
           </div>
           <div className="text-sm text-left">
             <p>
               <span className="opacity-70">
-                Keeps the last {bufferLength} of gameplay in memory so you can save it as a clip.
+                {t('captureMode.buffer.description', { length: bufferLength })}
               </span>{' '}
-              <span className="text-primary">Uses RAM.</span>
+              <span className="text-primary">{t('captureMode.buffer.cost')}</span>
             </p>
           </div>
         </div>
@@ -87,14 +88,14 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           onClick={() => updateSettings({ recordingMode: 'Hybrid' })}
         >
           <div className="flex items-center gap-2 mb-3">
-            <div className="text-lg font-semibold">Hybrid (Session + Buffer)</div>
+            <div className="text-lg font-semibold">{t('captureMode.hybrid.title')}</div>
           </div>
           <div className="text-sm text-left">
             <p>
               <span className="opacity-70">
-                Records each game as one video and lets you save the last {bufferLength} as a clip.
+                {t('captureMode.hybrid.description', { length: bufferLength })}
               </span>{' '}
-              <span className="text-primary">Uses RAM and disk space.</span>
+              <span className="text-primary">{t('captureMode.hybrid.cost')}</span>
             </p>
           </div>
         </div>
@@ -107,10 +108,14 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           onChange={(e) => updateSettings({ alwaysOnReplayBuffer: e.target.checked })}
         />
         <div>
-          <div className="font-semibold">Always-on Replay Buffer</div>
+          <div className="font-semibold">{t('captureMode.alwaysOn.label')}</div>
           <div className="text-sm opacity-70 mt-0.5">
-            Keeps a replay buffer of your display running when no game is recording. Press{' '}
-            {saveHotkey} to save the last {bufferLength} as a clip.
+            <Trans
+              ns="recording"
+              i18nKey="captureMode.alwaysOn.description"
+              values={{ length: bufferLength }}
+              components={{ hotkey: <>{saveHotkey}</> }}
+            />
           </div>
         </div>
       </label>
@@ -124,10 +129,9 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
             className="checkbox checkbox-primary checkbox-sm"
           />
           <div>
-            <div className="font-semibold">Discard Sessions Without Bookmarks</div>
+            <div className="font-semibold">{t('captureMode.discardSessions.label')}</div>
             <div className="text-sm opacity-70 mt-0.5">
-              Deletes a session recording when it ends unless you added a bookmark with the hotkey.
-              Kills and other automatic bookmarks don&apos;t count.
+              {t('captureMode.discardSessions.description')}
             </div>
           </div>
         </label>
@@ -141,7 +145,7 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
           />
           <div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="font-semibold">Split Sessions Into Matches</span>
+              <span className="font-semibold">{t('captureMode.splitMatches.label')}</span>
               {showMatchGameIcons && (
                 <span className="flex items-center gap-1.5">
                   {matchGameIcons.map(({ name, icon }) => (
@@ -156,11 +160,16 @@ export default function CaptureModeSection({ settings, updateSettings }: Capture
               )}
             </div>
             <div className="text-sm opacity-70 mt-0.5">
-              Saves each match as its own session and deletes the time in menus between matches.
+              {t('captureMode.splitMatches.description')}
               {!showMatchGameIcons &&
-                ` Works in ${MATCH_GAMES.slice(0, -1)
-                  .map((g) => g.name)
-                  .join(', ')} and ${MATCH_GAMES[MATCH_GAMES.length - 1].name}.`}
+                ` ${t('captureMode.splitMatches.worksIn', {
+                  games: t('captureMode.splitMatches.gameList', {
+                    first: MATCH_GAMES.slice(0, -1)
+                      .map((g) => g.name)
+                      .join(t('captureMode.splitMatches.separator')),
+                    last: MATCH_GAMES[MATCH_GAMES.length - 1].name,
+                  }),
+                })}`}
             </div>
           </div>
         </label>

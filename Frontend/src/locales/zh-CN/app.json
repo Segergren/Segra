@@ -1,0 +1,23 @@
+{
+  "page": {
+    "sessions": {
+      "title": "完整会话"
+    },
+    "replayBuffer": {
+      "title": "即时回放缓冲"
+    },
+    "clips": {
+      "title": "片段"
+    },
+    "highlights": {
+      "title": "高光"
+    }
+  },
+  "auth": {
+    "loginFailedNoSession": "登录失败，服务端未返回会话。",
+    "loginFailed": "登录失败，请重试。",
+    "registrationFailed": "注册失败，请重试。",
+    "discordTimedOut": "Discord 登录超时，请重试。",
+    "authenticateFailed": "认证失败，请重试。"
+  }
+}

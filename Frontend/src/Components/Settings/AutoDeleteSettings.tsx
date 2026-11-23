@@ -1,4 +1,5 @@
 import { KeyboardEvent, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Content, Settings as SettingsType } from '../../Models/types';
 import { useModal } from '../../Context/ModalContext';
 import ConfirmationModal from '../ConfirmationModal';
@@ -38,6 +39,7 @@ interface AutoDeleteProps {
 // Applies a change, asking first when it deletes videos right away
 function useApplyAutoDelete({ settings, content, updateSettings }: AutoDeleteProps) {
   const { openModal, closeModal } = useModal();
+  const { t } = useTranslation('clips');
 
   const current: Rule = {
     enabled: settings.autoDeleteOldContent,
@@ -60,13 +62,16 @@ function useApplyAutoDelete({ settings, content, updateSettings }: AutoDeletePro
     const onlyClips = newlyExpired.every((c) => c.type === 'Clip' || c.type === 'Highlight');
     const first = newlyExpired[0].type;
     const single = first === 'Clip' || first === 'Highlight' ? first : 'Video';
-    const noun = count === 1 ? single.toLowerCase() : onlyClips ? 'clips and highlights' : 'videos';
+    const nounKey = count === 1 ? single.toLowerCase() : onlyClips ? 'mixed' : 'video';
+    const deleteKey = count === 1 ? single.toLowerCase() : 'video';
+    const noun = t('autoDelete.confirm.noun.' + nounKey, { count });
+    const days = t('autoDelete.confirm.days', { count: next.days });
     openModal(
       <ConfirmationModal
-        title="Delete Old Videos"
-        description={`${count} ${noun} (${size}) ${count === 1 ? 'is' : 'are'} older than ${next.days} day${next.days === 1 ? '' : 's'} and will be deleted now.\n\nAre you sure you want to continue?`}
-        confirmText={count === 1 ? `Delete ${single}` : `Delete ${count} Videos`}
-        cancelText="Cancel"
+        title={t('autoDelete.confirm.title')}
+        description={t('autoDelete.confirm.description', { count, noun, size, days })}
+        confirmText={t('autoDelete.confirm.delete.' + deleteKey, { count })}
+        cancelText={t('autoDelete.confirm.cancel')}
         onConfirm={() => {
           updateSettings(updates);
           closeModal();
@@ -82,6 +87,7 @@ function useApplyAutoDelete({ settings, content, updateSettings }: AutoDeletePro
 
 export function AutoDeleteField(props: AutoDeleteProps) {
   const { settings } = props;
+  const { t } = useTranslation('clips');
   const apply = useApplyAutoDelete(props);
   const [localDays, setLocalDays] = useState(String(settings.autoDeleteAfterDays));
   const enabled = settings.autoDeleteOldContent;
@@ -106,7 +112,7 @@ export function AutoDeleteField(props: AutoDeleteProps) {
   return (
     <div className="form-control">
       <label className="label block px-0">
-        <span className="label-text text-base-content">Delete Videos After</span>
+        <span className="label-text text-base-content">{t('autoDelete.field.label')}</span>
       </label>
 
       <div className="join w-full">
@@ -119,13 +125,13 @@ export function AutoDeleteField(props: AutoDeleteProps) {
             onBlur={commitDays}
             onKeyDown={blurOnEnter}
             disabled={!enabled}
-            placeholder={enabled ? 'Set age in days' : 'Never'}
+            placeholder={enabled ? t('autoDelete.field.placeholder') : t('autoDelete.field.never')}
             min="1"
             className="input input-bordered join-item bg-base-200 w-full block pr-14 outline-none focus:border-base-400 disabled:bg-base-200 disabled:border-base-400 disabled:placeholder:opacity-100 disabled:placeholder:text-base-content/50"
           />
           {enabled && (
             <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
-              {Number(localDays) === 1 ? 'day' : 'days'}
+              {t('autoDelete.field.daysUnit', { count: Number(localDays) })}
             </span>
           )}
         </div>
@@ -139,15 +145,15 @@ export function AutoDeleteField(props: AutoDeleteProps) {
             }
             className="checkbox checkbox-primary checkbox-sm"
           />
-          Never
+          {t('autoDelete.field.never')}
         </label>
       </div>
       <div className="mt-1 px-1 text-xs opacity-70 leading-snug">
         {!enabled
-          ? 'Videos are kept until you delete them or the storage limit is reached.'
+          ? t('autoDelete.field.hintNever')
           : settings.autoDeleteClipsAndHighlights
-            ? 'Videos older than this are deleted. Imported videos are kept.'
-            : 'Sessions and replay buffers older than this are deleted.'}
+            ? t('autoDelete.field.hintAll')
+            : t('autoDelete.field.hintSessions')}
       </div>
     </div>
   );
@@ -155,6 +161,7 @@ export function AutoDeleteField(props: AutoDeleteProps) {
 
 export function AutoDeleteClipsToggle(props: AutoDeleteProps) {
   const { settings } = props;
+  const { t } = useTranslation('clips');
   const apply = useApplyAutoDelete(props);
   const enabled = settings.autoDeleteOldContent;
 
@@ -176,10 +183,8 @@ export function AutoDeleteClipsToggle(props: AutoDeleteProps) {
         className="checkbox checkbox-primary checkbox-sm"
       />
       <div>
-        <div className="font-semibold">Delete Old Clips and Highlights</div>
-        <div className="text-sm opacity-70 mt-0.5">
-          Also deletes clips and highlights once they are older than the Delete Videos After age.
-        </div>
+        <div className="font-semibold">{t('autoDelete.clipsToggle.label')}</div>
+        <div className="text-sm opacity-70 mt-0.5">{t('autoDelete.clipsToggle.description')}</div>
       </div>
     </label>
   );

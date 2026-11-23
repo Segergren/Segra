@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderInput } from 'lucide-react';
 import { Settings as SettingsType } from '../../Models/types';
@@ -38,6 +39,7 @@ export default function StorageSettingsSection({
   settings,
   updateSettings,
 }: StorageSettingsSectionProps) {
+  const { t } = useTranslation('storage');
   const appState = useAppState();
   const { isMigrating } = useContentMigration();
   const [localStorageLimit, setLocalStorageLimit] = useState<string>(String(settings.storageLimit));
@@ -101,7 +103,7 @@ export default function StorageSettingsSection({
   const handleMigrateClick = () => {
     openModal(
       <ConfirmationModal
-        title="Move videos to recording path"
+        title={t('outside.dialogTitle')}
         description={
           <MigrationFlow
             fromPaths={fromPaths}
@@ -110,8 +112,8 @@ export default function StorageSettingsSection({
             sizeGb={outsideSizeGb}
           />
         }
-        confirmText="Move Videos"
-        cancelText="Cancel"
+        confirmText={t('outside.dialogConfirm')}
+        cancelText={t('actions.cancel')}
         onConfirm={() => {
           sendMessageToBackend('MigrateContent');
           closeModal();
@@ -143,10 +145,13 @@ export default function StorageSettingsSection({
 
     openModal(
       <ConfirmationModal
-        title="Storage Limit Warning"
-        description={`The storage limit (${limitGb} GB) is lower than your current folder size (${currentFolderSizeGb.toFixed(2)} GB).\n\nThis will cause older recordings to be automatically deleted to free up space.\n\nAre you sure you want to continue?`}
-        confirmText="Apply Limit"
-        cancelText="Cancel"
+        title={t('limit.warningTitle')}
+        description={t('limit.warningBody', {
+          limit: limitGb,
+          current: currentFolderSizeGb.toFixed(2),
+        })}
+        confirmText={t('limit.apply')}
+        cancelText={t('actions.cancel')}
         onConfirm={() => {
           onConfirm();
           closeModal();
@@ -195,12 +200,12 @@ export default function StorageSettingsSection({
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
-      <h2 className="text-xl font-semibold mb-4">Storage Settings</h2>
+      <h2 className="text-xl font-semibold mb-4">{t('title')}</h2>
       <div className="grid grid-cols-2 gap-4">
         {/* Recording Path */}
         <div className="form-control">
           <label className="label">
-            <span className="label-text text-base-content">Recording Path</span>
+            <span className="label-text text-base-content">{t('paths.recording')}</span>
           </label>
           <div className="flex space-x-2">
             <div className="join w-full">
@@ -215,14 +220,14 @@ export default function StorageSettingsSection({
                   }
                 }}
                 onKeyDown={blurOnEnter}
-                placeholder="Enter or select folder path"
+                placeholder={t('paths.recordingPlaceholder')}
                 className="input input-bordered flex-1 bg-base-200 join-item"
               />
               <button
                 onClick={handleBrowseClick}
                 className="btn btn-secondary bg-base-200 hover:bg-base-300 border-base-400 hover:border-base-400 font-semibold join-item"
               >
-                Browse
+                {t('paths.browse')}
               </button>
             </div>
           </div>
@@ -231,7 +236,7 @@ export default function StorageSettingsSection({
         {/* Cache Folder Path */}
         <div className="form-control">
           <label className="label">
-            <span className="label-text text-base-content">Cache Path</span>
+            <span className="label-text text-base-content">{t('paths.cache')}</span>
           </label>
           <div className="flex space-x-2">
             <div className="join w-full">
@@ -246,14 +251,14 @@ export default function StorageSettingsSection({
                   }
                 }}
                 onKeyDown={blurOnEnter}
-                placeholder="Enter or select folder for metadata"
+                placeholder={t('paths.cachePlaceholder')}
                 className="input input-bordered flex-1 bg-base-200 join-item"
               />
               <button
                 onClick={handleCacheBrowseClick}
                 className="btn btn-secondary bg-base-200 hover:bg-base-300 border-base-400 hover:border-base-400 font-semibold join-item"
               >
-                Browse
+                {t('paths.browse')}
               </button>
             </div>
           </div>
@@ -262,7 +267,7 @@ export default function StorageSettingsSection({
         {/* Storage Limit */}
         <div className="form-control">
           <label className="label block px-0">
-            <span className="label-text text-base-content">Storage Limit</span>
+            <span className="label-text text-base-content">{t('limit.label')}</span>
           </label>
 
           <div className="join w-full">
@@ -274,7 +279,9 @@ export default function StorageSettingsSection({
                 onChange={(e) => setLocalStorageLimit(e.target.value)}
                 onBlur={handleStorageLimitBlur}
                 disabled={settings.unlimitedStorage}
-                placeholder={settings.unlimitedStorage ? 'No limit' : 'Set maximum storage in GB'}
+                placeholder={
+                  settings.unlimitedStorage ? t('limit.noLimit') : t('limit.placeholder')
+                }
                 min="1"
                 className="input input-bordered join-item bg-base-200 w-full block pr-12 outline-none focus:border-base-400 disabled:bg-base-200 disabled:border-base-400 disabled:placeholder:opacity-100 disabled:placeholder:text-base-content/50"
               />
@@ -293,13 +300,11 @@ export default function StorageSettingsSection({
                 onChange={(e) => handleUnlimitedChange(e.target.checked)}
                 className="checkbox checkbox-primary checkbox-sm"
               />
-              Unlimited
+              {t('limit.unlimited')}
             </label>
           </div>
           <div className="mt-1 px-1 text-xs opacity-70 leading-snug">
-            {settings.unlimitedStorage
-              ? 'Nothing is deleted to free up space. Recording stops when the drive is almost full.'
-              : 'Older sessions and replay buffers are deleted to stay under the limit.'}
+            {settings.unlimitedStorage ? t('limit.unlimitedHint') : t('limit.limitedHint')}
           </div>
         </div>
 
@@ -333,11 +338,8 @@ export default function StorageSettingsSection({
             className="checkbox checkbox-primary checkbox-sm"
           />
           <div>
-            <div className="font-semibold">Save Recordings in Game Folders</div>
-            <div className="text-sm opacity-70 mt-0.5">
-              Puts each recording in a folder named after the game. Changing this moves your
-              existing recordings.
-            </div>
+            <div className="font-semibold">{t('toggles.gameFolders.label')}</div>
+            <div className="text-sm opacity-70 mt-0.5">{t('toggles.gameFolders.description')}</div>
           </div>
         </label>
         <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
@@ -349,11 +351,8 @@ export default function StorageSettingsSection({
             className="checkbox checkbox-primary checkbox-sm"
           />
           <div>
-            <div className="font-semibold">Exclude Clips and Highlights From Storage Limit</div>
-            <div className="text-sm opacity-70 mt-0.5">
-              Clips and highlights are never deleted to free up space. When on, only sessions and
-              replay buffers count toward the limit.
-            </div>
+            <div className="font-semibold">{t('toggles.excludeClips.label')}</div>
+            <div className="text-sm opacity-70 mt-0.5">{t('toggles.excludeClips.description')}</div>
           </div>
         </label>
         <AutoDeleteClipsToggle
@@ -370,9 +369,9 @@ export default function StorageSettingsSection({
             className="checkbox checkbox-primary checkbox-sm"
           />
           <div>
-            <div className="font-semibold">Delete Original After Compression</div>
+            <div className="font-semibold">{t('toggles.removeOriginal.label')}</div>
             <div className="text-sm opacity-70 mt-0.5">
-              Removes the full-size video once its compressed copy is saved.
+              {t('toggles.removeOriginal.description')}
             </div>
           </div>
         </label>
@@ -403,12 +402,9 @@ export default function StorageSettingsSection({
             <div className="mt-4 flex flex-col gap-3 rounded-lg border border-base-400 bg-base-200 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="text-base-content font-medium">
-                  {outsideCount} video{outsideCount === 1 ? '' : 's'} ({outsideSizeGb.toFixed(2)}{' '}
-                  GB) stored outside your recording path
+                  {t('outside.videos', { count: outsideCount, size: outsideSizeGb.toFixed(2) })}
                 </p>
-                <p className="text-sm opacity-70">
-                  Move them into your recording path to keep all your content in one place.
-                </p>
+                <p className="text-sm opacity-70">{t('outside.hint')}</p>
               </div>
               <Button
                 variant="primary"
@@ -418,7 +414,7 @@ export default function StorageSettingsSection({
               >
                 {!isMigrating && <FolderInput size={16} className="shrink-0" />}
                 <span className="inline-block">
-                  {isMigrating ? 'Moving...' : 'Move to Recording Path'}
+                  {isMigrating ? t('outside.moving') : t('outside.move')}
                 </span>
               </Button>
             </div>

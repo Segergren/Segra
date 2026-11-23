@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { TriangleAlert, LogOut, Ellipsis, Mail, History } from 'lucide-react';
 import { DiscordIcon } from '../icons/BrandIcons';
 import discordLoading from '../../assets/discord-loading.webp';
@@ -9,14 +10,12 @@ import Button from '../Button';
 type AuthTab = 'login' | 'register';
 
 // Plain-language versions of the auth service's messages
-const friendlyAuthError = (message: string) => {
+const friendlyAuthErrorKey = (message: string): string | null => {
   const m = message.toLowerCase();
-  if (m.includes('invalid login credentials')) return 'Wrong email or password.';
-  if (m.includes('email not confirmed'))
-    return 'Confirm your email first. Check your inbox for the link.';
-  if (m.includes('already registered'))
-    return 'An account with this email already exists. Try signing in instead.';
-  return message;
+  if (m.includes('invalid login credentials')) return 'profile.signIn.errors.invalidCredentials';
+  if (m.includes('email not confirmed')) return 'profile.signIn.errors.emailNotConfirmed';
+  if (m.includes('already registered')) return 'profile.signIn.errors.alreadyRegistered';
+  return null;
 };
 
 function Banner({ tone, children }: { tone: 'error' | 'success'; children: React.ReactNode }) {
@@ -36,6 +35,7 @@ function Banner({ tone, children }: { tone: 'error' | 'success'; children: React
 }
 
 export default function AccountSection() {
+  const { t } = useTranslation('account');
   const {
     user,
     session,
@@ -89,18 +89,18 @@ export default function AccountSection() {
     setConfirmEmailMessage('');
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError(t('profile.signIn.passwordMismatch'));
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+      setError(t('profile.signIn.passwordTooShort'));
       return;
     }
 
     const result = await register(email, password);
     if (result?.confirmEmail) {
-      setConfirmEmailMessage('Check your email to confirm your account, then log in.');
+      setConfirmEmailMessage(t('profile.signIn.confirmEmailSent'));
     }
   };
 
@@ -115,7 +115,8 @@ export default function AccountSection() {
     signOut();
   };
 
-  const displayError = error || (authError ? friendlyAuthError(authError) : '');
+  const authErrorKey = authError ? friendlyAuthErrorKey(authError) : null;
+  const displayError = error || (authErrorKey ? t(authErrorKey) : authError || '');
   const clearErrors = () => {
     setError('');
     clearAuthError();
@@ -125,7 +126,7 @@ export default function AccountSection() {
   if (!session) {
     return (
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400 space-y-4">
-        <h2 className="text-xl font-semibold">Sign In</h2>
+        <h2 className="text-xl font-semibold">{t('profile.signIn.title')}</h2>
         {confirmEmailMessage && <Banner tone="success">{confirmEmailMessage}</Banner>}
 
         <div className="space-y-4">
@@ -136,7 +137,7 @@ export default function AccountSection() {
               >
                 <div className="flex items-center gap-1 text-xs font-medium text-warning">
                   <History className="w-3 h-3" />
-                  Last used
+                  {t('profile.signIn.lastUsed')}
                 </div>
               </div>
             )}
@@ -159,35 +160,40 @@ export default function AccountSection() {
             >
               {!isWaitingForDiscord && <DiscordIcon className="w-5 h-5" />}
               {isWaitingForDiscord
-                ? 'Waiting for your browser...'
+                ? t('profile.signIn.waitingForBrowser')
                 : isAuthenticating
-                  ? 'Connecting...'
-                  : 'Continue with Discord'}
+                  ? t('profile.signIn.connecting')
+                  : t('profile.signIn.continueWithDiscord')}
             </Button>
           </div>
 
           {isWaitingForDiscord && (
             <p className="-mt-2 text-center text-xs opacity-70">
-              Finish signing in with Discord in your browser.{' '}
-              <button
-                type="button"
-                className="underline underline-offset-2 hover:text-base-content"
-                onClick={cancelDiscordLogin}
-              >
-                Cancel
-              </button>
+              <Trans
+                ns="account"
+                i18nKey="profile.signIn.finishInBrowser"
+                components={{
+                  cancel: (
+                    <button
+                      type="button"
+                      className="underline underline-offset-2 hover:text-base-content"
+                      onClick={cancelDiscordLogin}
+                    />
+                  ),
+                }}
+              />
             </p>
           )}
 
           {lastAttempt === 'discord' && errorBanner}
 
-          <div className="divider my-0 text-sm opacity-70">Or Use Email</div>
+          <div className="divider my-0 text-sm opacity-70">{t('profile.signIn.orUseEmail')}</div>
 
           {tab === 'login' ? (
             <form onSubmit={handleEmailLogin} className="space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Email</span>
+                  <span className="label-text text-base-content">{t('profile.signIn.email')}</span>
                 </label>
                 <input
                   type="email"
@@ -205,7 +211,9 @@ export default function AccountSection() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Password</span>
+                  <span className="label-text text-base-content">
+                    {t('profile.signIn.password')}
+                  </span>
                 </label>
                 <input
                   type="password"
@@ -230,7 +238,7 @@ export default function AccountSection() {
                   >
                     <div className="flex items-center gap-1 text-xs font-medium text-warning">
                       <History className="w-3 h-3" />
-                      Last used
+                      {t('profile.signIn.lastUsed')}
                     </div>
                   </div>
                 )}
@@ -241,18 +249,18 @@ export default function AccountSection() {
                   loading={isAuthenticating}
                 >
                   <Mail size={20} />
-                  Sign In with Email
+                  {t('profile.signIn.signInWithEmail')}
                 </Button>
               </div>
 
               <p className="text-center text-sm">
-                <span className="opacity-70">Don&apos;t have an account?</span>{' '}
+                <span className="opacity-70">{t('profile.signIn.noAccount')}</span>{' '}
                 <button
                   type="button"
                   className="text-primary font-medium hover:underline underline-offset-2 cursor-pointer"
                   onClick={() => switchTab('register')}
                 >
-                  Create one
+                  {t('profile.signIn.createOne')}
                 </button>
               </p>
             </form>
@@ -260,7 +268,7 @@ export default function AccountSection() {
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Email</span>
+                  <span className="label-text text-base-content">{t('profile.signIn.email')}</span>
                 </label>
                 <input
                   type="email"
@@ -278,7 +286,9 @@ export default function AccountSection() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Password</span>
+                  <span className="label-text text-base-content">
+                    {t('profile.signIn.password')}
+                  </span>
                 </label>
                 <input
                   type="password"
@@ -296,7 +306,9 @@ export default function AccountSection() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Confirm Password</span>
+                  <span className="label-text text-base-content">
+                    {t('profile.signIn.confirmPassword')}
+                  </span>
                 </label>
                 <input
                   type="password"
@@ -321,17 +333,17 @@ export default function AccountSection() {
                 loading={isAuthenticating}
               >
                 <Mail size={20} />
-                Create Account
+                {t('profile.signIn.createAccount')}
               </Button>
 
               <p className="text-center text-sm">
-                <span className="opacity-70">Already have an account?</span>{' '}
+                <span className="opacity-70">{t('profile.signIn.alreadyHaveAccount')}</span>{' '}
                 <button
                   type="button"
                   className="text-primary font-medium hover:underline underline-offset-2 cursor-pointer"
                   onClick={() => switchTab('login')}
                 >
-                  Sign in
+                  {t('profile.signIn.signInLink')}
                 </button>
               </p>
             </form>
@@ -351,7 +363,7 @@ export default function AccountSection() {
               {profile?.avatar_url ? (
                 <img
                   src={profile.avatar_url}
-                  alt={`${profile.username}'s avatar`}
+                  alt={t('profile.user.avatarAlt', { name: profile.username })}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = '/default-avatar.png';
@@ -377,7 +389,9 @@ export default function AccountSection() {
                 <div className="skeleton h-[24px] w-24"></div>
               )}
             </h3>
-            <p className="text-sm opacity-70 truncate">{user?.email || 'Authenticated User'}</p>
+            <p className="text-sm opacity-70 truncate">
+              {user?.email || t('profile.user.authenticatedUser')}
+            </p>
           </div>
 
           {/* More Options Dropdown */}
@@ -401,7 +415,7 @@ export default function AccountSection() {
                   }}
                 >
                   <LogOut size={20} />
-                  <span>Logout</span>
+                  <span>{t('profile.user.logout')}</span>
                 </Button>
               </li>
             </ul>
@@ -413,7 +427,9 @@ export default function AccountSection() {
       {profileError && (
         <div className="mt-3">
           <Banner tone="error">
-            Couldn&apos;t load your profile. {profileError.message || 'Unknown error.'}
+            {t('profile.user.profileLoadFailed', {
+              error: profileError.message || t('profile.user.unknownError'),
+            })}
           </Banner>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import DropdownSelect from '../DropdownSelect';
 import {
   Settings as SettingsType,
@@ -16,33 +17,37 @@ interface ClipSettingsSectionProps {
   updateSettings: (updates: Partial<SettingsType>) => void;
 }
 
-// GPU quality (CQ/QP) options. Nvidia and AMD share the 0-51 scale; Intel's ICQ scale starts at 1.
-const GPU_QUALITY_OPTIONS = [
-  { value: '0', label: '0 (Highest Quality)' },
-  { value: '10', label: '10' },
-  { value: '15', label: '15' },
-  { value: '20', label: '20 (High Quality)' },
-  { value: '23', label: '23 (Normal Quality)' },
-  { value: '26', label: '26' },
-  { value: '30', label: '30 (Low Quality)' },
-  { value: '35', label: '35' },
-  { value: '40', label: '40' },
-  { value: '45', label: '45' },
-  { value: '51', label: '51 (Lowest Quality)' },
-];
-
-const INTEL_GPU_QUALITY_OPTIONS = [
-  { value: '1', label: '1 (Highest Quality)' },
-  ...GPU_QUALITY_OPTIONS.slice(1),
-];
-
-const DEFAULT_GPU_QUALITY_OPTIONS = [{ value: '23', label: '23 (Normal Quality)' }];
-
 export default function ClipSettingsSection({
   settings,
   updateSettings,
 }: ClipSettingsSectionProps) {
+  const { t } = useTranslation('clips');
   const appState = useAppState();
+
+  // GPU quality (CQ/QP) options. Nvidia and AMD share the 0-51 scale; Intel's ICQ scale starts at 1.
+  const GPU_QUALITY_OPTIONS = [
+    { value: '0', label: t('clipSettings.quality.highest', { value: '0' }) },
+    { value: '10', label: '10' },
+    { value: '15', label: '15' },
+    { value: '20', label: t('clipSettings.quality.high', { value: '20' }) },
+    { value: '23', label: t('clipSettings.quality.normal', { value: '23' }) },
+    { value: '26', label: '26' },
+    { value: '30', label: t('clipSettings.quality.low', { value: '30' }) },
+    { value: '35', label: '35' },
+    { value: '40', label: '40' },
+    { value: '45', label: '45' },
+    { value: '51', label: t('clipSettings.quality.lowest', { value: '51' }) },
+  ];
+
+  const INTEL_GPU_QUALITY_OPTIONS = [
+    { value: '1', label: t('clipSettings.quality.highest', { value: '1' }) },
+    ...GPU_QUALITY_OPTIONS.slice(1),
+  ];
+
+  const DEFAULT_GPU_QUALITY_OPTIONS = [
+    { value: '23', label: t('clipSettings.quality.normal', { value: '23' }) },
+  ];
+
   // Helper function to get available presets based on encoder settings
   const getAvailablePresets = (
     encoder: string,
@@ -51,15 +56,15 @@ export default function ClipSettingsSection({
   ): Array<{ value: string; label: string }> => {
     if (encoder === 'cpu') {
       return [
-        { value: 'ultrafast', label: 'Ultrafast' },
-        { value: 'superfast', label: 'Superfast' },
-        { value: 'veryfast', label: 'Veryfast' },
-        { value: 'faster', label: 'Faster' },
-        { value: 'fast', label: 'Fast' },
-        { value: 'medium', label: 'Medium' },
-        { value: 'slow', label: 'Slow' },
-        { value: 'slower', label: 'Slower' },
-        { value: 'veryslow', label: 'Veryslow' },
+        { value: 'ultrafast', label: t('presetOptions.ultrafast') },
+        { value: 'superfast', label: t('presetOptions.superfast') },
+        { value: 'veryfast', label: t('presetOptions.veryfast') },
+        { value: 'faster', label: t('presetOptions.faster') },
+        { value: 'fast', label: t('presetOptions.fast') },
+        { value: 'medium', label: t('presetOptions.medium') },
+        { value: 'slow', label: t('presetOptions.slow') },
+        { value: 'slower', label: t('presetOptions.slower') },
+        { value: 'veryslow', label: t('presetOptions.veryslow') },
       ];
     }
 
@@ -68,32 +73,32 @@ export default function ClipSettingsSection({
         // AV1 NVENC uses different presets (p1-p7)
         if (codec === 'av1') {
           return [
-            { value: 'p1', label: 'P1 (Fastest)' },
+            { value: 'p1', label: t('presetOptions.p1') },
             { value: 'p2', label: 'P2' },
             { value: 'p3', label: 'P3' },
-            { value: 'p4', label: 'P4 (Balanced)' },
+            { value: 'p4', label: t('presetOptions.p4') },
             { value: 'p5', label: 'P5' },
             { value: 'p6', label: 'P6' },
-            { value: 'p7', label: 'P7 (Slowest/Best Quality)' },
+            { value: 'p7', label: t('presetOptions.p7') },
           ];
         }
         return [
-          { value: 'slow', label: 'Slow' },
-          { value: 'medium', label: 'Medium' },
-          { value: 'fast', label: 'Fast' },
+          { value: 'slow', label: t('presetOptions.slow') },
+          { value: 'medium', label: t('presetOptions.medium') },
+          { value: 'fast', label: t('presetOptions.fast') },
         ];
       case GpuVendor.AMD:
         return [
-          { value: 'quality', label: 'Quality' },
-          { value: 'transcoding', label: 'Transcoding (Balanced)' },
-          { value: 'lowlatency', label: 'Low Latency (Fast)' },
-          { value: 'ultralowlatency', label: 'Ultra Low Latency (Fastest)' },
+          { value: 'quality', label: t('presetOptions.quality') },
+          { value: 'transcoding', label: t('presetOptions.transcoding') },
+          { value: 'lowlatency', label: t('presetOptions.lowLatency') },
+          { value: 'ultralowlatency', label: t('presetOptions.ultraLowLatency') },
         ];
       case GpuVendor.Intel:
         return [
-          { value: 'fast', label: 'Fast' },
-          { value: 'medium', label: 'Medium' },
-          { value: 'slow', label: 'Slow' },
+          { value: 'fast', label: t('presetOptions.fast') },
+          { value: 'medium', label: t('presetOptions.medium') },
+          { value: 'slow', label: t('presetOptions.slow') },
         ];
       default:
         return [];
@@ -106,7 +111,7 @@ export default function ClipSettingsSection({
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
-      <h2 className="text-xl font-semibold mb-4">Clip Settings</h2>
+      <h2 className="text-xl font-semibold mb-4">{t('clipSettings.title')}</h2>
 
       {/* Quality Preset Selector */}
       <div className="mb-4">
@@ -117,8 +122,12 @@ export default function ClipSettingsSection({
             }`}
             onClick={() => handlePresetChange('low')}
           >
-            <div className="text-sm font-semibold">Low Quality</div>
-            <div className="text-xs opacity-70 mt-1">Fast • 30fps</div>
+            <div className="text-sm font-semibold">
+              {t('clipSettings.qualityPresets.low.title')}
+            </div>
+            <div className="text-xs opacity-70 mt-1">
+              {t('clipSettings.qualityPresets.low.hint')}
+            </div>
           </div>
           <div
             className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
@@ -126,8 +135,12 @@ export default function ClipSettingsSection({
             }`}
             onClick={() => handlePresetChange('standard')}
           >
-            <div className="text-sm font-semibold">Standard</div>
-            <div className="text-xs opacity-70 mt-1">Balanced • 60fps</div>
+            <div className="text-sm font-semibold">
+              {t('clipSettings.qualityPresets.standard.title')}
+            </div>
+            <div className="text-xs opacity-70 mt-1">
+              {t('clipSettings.qualityPresets.standard.hint')}
+            </div>
           </div>
           <div
             className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
@@ -135,8 +148,12 @@ export default function ClipSettingsSection({
             }`}
             onClick={() => handlePresetChange('high')}
           >
-            <div className="text-sm font-semibold">High Quality</div>
-            <div className="text-xs opacity-70 mt-1">Quality • 60fps</div>
+            <div className="text-sm font-semibold">
+              {t('clipSettings.qualityPresets.high.title')}
+            </div>
+            <div className="text-xs opacity-70 mt-1">
+              {t('clipSettings.qualityPresets.high.hint')}
+            </div>
           </div>
           <div
             className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
@@ -144,8 +161,12 @@ export default function ClipSettingsSection({
             }`}
             onClick={() => handlePresetChange('custom')}
           >
-            <div className="text-sm font-semibold">Custom</div>
-            <div className="text-xs opacity-70 mt-1">Manual config</div>
+            <div className="text-sm font-semibold">
+              {t('clipSettings.qualityPresets.custom.title')}
+            </div>
+            <div className="text-xs opacity-70 mt-1">
+              {t('clipSettings.qualityPresets.custom.hint')}
+            </div>
           </div>
         </div>
       </div>
@@ -176,7 +197,9 @@ export default function ClipSettingsSection({
               {/* Encoder */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Encoder</span>
+                  <span className="label-text text-base-content">
+                    {t('clipSettings.encoder.label')}
+                  </span>
                 </label>
                 <DropdownSelect
                   items={[
@@ -220,23 +243,25 @@ export default function ClipSettingsSection({
               {settings.clipEncoder === 'cpu' ? (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">Quality</span>
+                    <span className="label-text text-base-content">
+                      {t('clipSettings.quality.label')}
+                    </span>
                     <span className="text-xs opacity-60">CRF</span>
                   </label>
                   <DropdownSelect
                     items={[
-                      { value: '17', label: '17 (Highest Quality)' },
+                      { value: '17', label: t('clipSettings.quality.highest', { value: '17' }) },
                       { value: '18', label: '18' },
                       { value: '19', label: '19' },
-                      { value: '20', label: '20 (High Quality)' },
+                      { value: '20', label: t('clipSettings.quality.high', { value: '20' }) },
                       { value: '21', label: '21' },
                       { value: '22', label: '22' },
-                      { value: '23', label: '23 (Normal Quality)' },
+                      { value: '23', label: t('clipSettings.quality.normal', { value: '23' }) },
                       { value: '24', label: '24' },
                       { value: '25', label: '25' },
-                      { value: '26', label: '26 (Low Quality)' },
+                      { value: '26', label: t('clipSettings.quality.low', { value: '26' }) },
                       { value: '27', label: '27' },
-                      { value: '28', label: '28 (Lowest Quality)' },
+                      { value: '28', label: t('clipSettings.quality.lowest', { value: '28' }) },
                     ]}
                     value={String(settings.clipQualityCpu)}
                     onChange={(val) => updateSettings({ clipQualityCpu: Number(val) })}
@@ -245,7 +270,9 @@ export default function ClipSettingsSection({
               ) : (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-base-content">Quality</span>
+                    <span className="label-text text-base-content">
+                      {t('clipSettings.quality.label')}
+                    </span>
                     <span className="text-xs opacity-60">
                       {appState.gpuVendor === GpuVendor.AMD
                         ? 'QP'
@@ -272,7 +299,9 @@ export default function ClipSettingsSection({
               {/* Codec */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Codec</span>
+                  <span className="label-text text-base-content">
+                    {t('clipSettings.codec.label')}
+                  </span>
                 </label>
                 <DropdownSelect
                   items={[
@@ -314,16 +343,18 @@ export default function ClipSettingsSection({
               {/* FPS */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Frame Rate</span>
+                  <span className="label-text text-base-content">
+                    {t('clipSettings.frameRate.label')}
+                  </span>
                 </label>
                 <DropdownSelect
                   items={[
-                    { value: '0', label: 'Original FPS' },
-                    { value: '24', label: '24 FPS' },
-                    { value: '30', label: '30 FPS' },
-                    { value: '60', label: '60 FPS' },
-                    { value: '120', label: '120 FPS' },
-                    { value: '144', label: '144 FPS' },
+                    { value: '0', label: t('clipSettings.frameRate.original') },
+                    { value: '24', label: t('clipSettings.frameRate.fps', { value: '24' }) },
+                    { value: '30', label: t('clipSettings.frameRate.fps', { value: '30' }) },
+                    { value: '60', label: t('clipSettings.frameRate.fps', { value: '60' }) },
+                    { value: '120', label: t('clipSettings.frameRate.fps', { value: '120' }) },
+                    { value: '144', label: t('clipSettings.frameRate.fps', { value: '144' }) },
                   ]}
                   value={String(settings.clipFps)}
                   onChange={(val) => updateSettings({ clipFps: Number(val) as ClipFPS })}
@@ -333,15 +364,26 @@ export default function ClipSettingsSection({
               {/* Audio Quality */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Audio Quality</span>
+                  <span className="label-text text-base-content">
+                    {t('clipSettings.audioQuality.label')}
+                  </span>
                 </label>
                 <DropdownSelect
                   items={[
-                    { value: '96k', label: '96 kbps (Low)' },
-                    { value: '128k', label: '128 kbps (Medium)' },
-                    { value: '192k', label: '192 kbps (High)' },
-                    { value: '256k', label: '256 kbps (Very High)' },
-                    { value: '320k', label: '320 kbps (Insane)' },
+                    { value: '96k', label: t('clipSettings.audioQuality.low', { value: '96' }) },
+                    {
+                      value: '128k',
+                      label: t('clipSettings.audioQuality.medium', { value: '128' }),
+                    },
+                    { value: '192k', label: t('clipSettings.audioQuality.high', { value: '192' }) },
+                    {
+                      value: '256k',
+                      label: t('clipSettings.audioQuality.veryHigh', { value: '256' }),
+                    },
+                    {
+                      value: '320k',
+                      label: t('clipSettings.audioQuality.insane', { value: '320' }),
+                    },
                   ]}
                   value={settings.clipAudioQuality}
                   onChange={(val) =>
@@ -355,7 +397,9 @@ export default function ClipSettingsSection({
               {/* Preset */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Preset</span>
+                  <span className="label-text text-base-content">
+                    {t('clipSettings.preset.label')}
+                  </span>
                 </label>
                 <DropdownSelect
                   items={getAvailablePresets(
@@ -385,9 +429,9 @@ export default function ClipSettingsSection({
             className="checkbox checkbox-primary checkbox-sm"
           />
           <div>
-            <div className="font-semibold">Keep Audio Tracks Separated</div>
+            <div className="font-semibold">{t('clipSettings.audioTracks.label')}</div>
             <div className="text-sm opacity-70 mt-0.5">
-              Clips keep each audio source on its own track instead of only the full mix.
+              {t('clipSettings.audioTracks.description')}
             </div>
           </div>
         </label>

@@ -1,0 +1,72 @@
+{
+  "title": "Audio",
+  "pendingHint": "(applies to next recording)",
+  "inputDevices": {
+    "title": "Input Devices"
+  },
+  "outputDevices": {
+    "title": "Output Devices"
+  },
+  "device": {
+    "defaultName": "Default Device",
+    "fullMixOnly": "This source will be included in the Full Mix only",
+    "unavailable": "This source is unavailable",
+    "options": {
+      "noiseSuppression": "Noise Suppression",
+      "mono": "Mono"
+    }
+  },
+  "whatToRecord": {
+    "title": "What to Record",
+    "everything": {
+      "label": "Everything",
+      "description": "All sound from the selected output devices, including music and voice chat."
+    },
+    "gameOnly": {
+      "label": "Game Only",
+      "description": "Only the game's own sound."
+    },
+    "gameAndVoiceChat": {
+      "label": "Game and Voice Chat",
+      "description": "The game plus Discord and TeamSpeak."
+    }
+  },
+  "appAudio": {
+    "title": "App Audio",
+    "description": "Records these apps together with the game's audio, each on its own track when Separate Audio Tracks is on. Display recordings already include all desktop audio, so apps are not added there.",
+    "remove": "Remove {{name}}",
+    "addApp": "Add App",
+    "noApps": "No other apps running",
+    "loading": "Loading..."
+  },
+  "separateTracks": {
+    "label": "Separate Audio Tracks",
+    "description": "Saves each audio source as its own track, next to the full mix."
+  },
+  "trackLimitWarning": {
+    "message": "You have selected more than {{max}} audio sources. Only the first {{max}} will be saved as separate audio tracks. Any additional sources will be recorded in the Full Mix only.",
+    "dismiss": "Dismiss track limit warning"
+  },
+  "hotkeys": {
+    "title": "Hotkeys",
+    "pressKeys": "Press Keys...",
+    "actions": {
+      "createBookmark": "Create Bookmark",
+      "saveReplayBuffer": "Save Replay Buffer",
+      "toggleRecording": "Start / Stop Recording",
+      "toggleRecordingHint": "Records the focused game, or your display if no game is focused. Stops any active recording.",
+      "togglePreview": "Toggle Recording Preview"
+    }
+  },
+  "broker": {
+    "outdated": "The helper for hotkeys over games running as administrator is out of date. Updating it needs administrator permission.",
+    "missing": "Hotkeys do not reach games that run as administrator. Installing the helper fixes this and needs administrator permission.",
+    "update": "Update",
+    "install": "Install"
+  },
+  "inputGroup": {
+    "message": "Hotkeys only work while a game is focused. To use them everywhere, run <code>{{command}}</code> in a terminal, then log out and back in.",
+    "copy": "Copy",
+    "copied": "Copied"
+  }
+}

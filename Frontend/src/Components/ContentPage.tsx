@@ -4,6 +4,7 @@ import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { Content, ContentType } from '../Models/types';
 import { useScroll } from '../Context/ScrollContext';
 import { useLayoutEffect, useRef, useState, useMemo, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { LucideIcon } from 'lucide-react';
 import { FileUp, Merge, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -49,6 +50,7 @@ export default function ContentPage({
   const { scrollPositions, setScrollPosition } = useScroll();
   const { isModalOpen, openModal, closeModal } = useModal();
   const confirmDelete = useDeleteConfirmation();
+  const { t } = useTranslation('library');
   const { imports } = useImports();
   const containerRef = useRef<HTMLDivElement>(null);
   const isSettingScroll = useRef(false);
@@ -107,9 +109,9 @@ export default function ContentPage({
 
     const importedCount = contentItems.filter((item) => item.isImported).length;
     return importedCount > 0
-      ? [...sorted, { key: IMPORTED, name: 'Imported', icon: null, count: importedCount }]
+      ? [...sorted, { key: IMPORTED, name: t('game.imported'), icon: null, count: importedCount }]
       : sorted;
-  }, [contentItems, state.gameList, gameSettings, airplaneMode]);
+  }, [contentItems, state.gameList, gameSettings, airplaneMode, t]);
 
   useEffect(() => {
     if (selectedGame !== ALL_GAMES && !gameOptions.some((g) => g.key === selectedGame)) {
@@ -138,7 +140,7 @@ export default function ContentPage({
           return (b.fileSizeKb ?? 0) - (a.fileSizeKb ?? 0);
         case 'duration': {
           const toSecs = (dur: string) =>
-            dur.split(':').reduce((acc, t) => 60 * acc + (parseInt(t, 10) || 0), 0);
+            dur.split(':').reduce((acc, part) => 60 * acc + (parseInt(part, 10) || 0), 0);
           return toSecs(b.duration) - toSecs(a.duration);
         }
         case 'game': {
@@ -201,8 +203,8 @@ export default function ContentPage({
 
     const count = ids.length;
     confirmDelete({
-      title: `Delete ${count} ${count === 1 ? 'item' : 'items'}?`,
-      description: `Are you sure you want to permanently delete the selected ${count === 1 ? 'item' : `${count} items`}?\n\nThis action cannot be undone.`,
+      title: t('selection.deleteTitle', { count }),
+      description: t('selection.deleteDescription', { count }),
       onConfirm: () => {
         sendMessageToBackend('DeleteMultipleContent', { Ids: ids });
         setSelectedItems(new Set());
@@ -240,12 +242,12 @@ export default function ContentPage({
   const isMergeDisabled = selectedItems.size < 2 || (isSessionPage && mergeIsFast !== true);
   const mergeHint =
     selectedItems.size < 2
-      ? 'Select at least two to merge'
+      ? t('merge.hintSelectTwo')
       : mergeIsFast !== false
         ? undefined
         : isSessionPage
-          ? 'These were recorded with different video or audio settings. Merging them would mean re-encoding, which takes too long for full sessions.'
-          : 'These were recorded with different video settings, so they get re-encoded with your clip settings.';
+          ? t('merge.hintSessionSlow')
+          : t('merge.hintClipSlow');
 
   const handleMergeSelected = () => {
     const items = contentItems
@@ -591,7 +593,7 @@ export default function ContentPage({
               onClick={() => sendMessageToBackend('ImportFile', { sectionId })}
             >
               <FileUp size={16} />
-              Import
+              {t('page.import')}
             </Button>
           )}
           <ContentFilters
@@ -650,7 +652,9 @@ export default function ContentPage({
             data-marquee-ignore
             className="fixed bottom-3 left-1/2 -translate-x-1/2 bg-base-300 border border-base-400 rounded-xl px-4 py-2 flex items-center gap-3 shadow-lg z-50"
           >
-            <span className="text-sm text-gray-300">{selectedItems.size} Selected</span>
+            <span className="text-sm text-gray-300">
+              {t('selection.selected', { count: selectedItems.size })}
+            </span>
             <span
               className={`inline-flex ${mergeHint ? 'tooltip tooltip-top tooltip-primary [&::before]:delay-200 [&::after]:delay-200' : ''}`}
               data-tip={mergeHint}
@@ -663,12 +667,14 @@ export default function ContentPage({
                 onClick={handleMergeSelected}
               >
                 <Merge size={16} />
-                {mergeIsFast === false && !isSessionPage ? 'Merge (slow)' : 'Merge'}
+                {mergeIsFast === false && !isSessionPage
+                  ? t('selection.mergeSlow')
+                  : t('selection.merge')}
               </Button>
             </span>
             <Button variant="danger" size="sm" className="h-8" onClick={handleDeleteSelected}>
               <Trash2 size={16} />
-              Delete
+              {t('selection.delete')}
             </Button>
             <Button
               variant="primary"
@@ -676,7 +682,7 @@ export default function ContentPage({
               className="h-8"
               onClick={() => setSelectedItems(new Set())}
             >
-              Cancel
+              {t('selection.cancel')}
             </Button>
           </motion.div>
         )}

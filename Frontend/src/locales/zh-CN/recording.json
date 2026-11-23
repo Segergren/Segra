@@ -1,0 +1,142 @@
+{
+  "pendingChanges": "（下次录制生效）",
+  "video": {
+    "title": "视频设置",
+    "presets": {
+      "low": {
+        "title": "低画质"
+      },
+      "standard": {
+        "title": "标准画质"
+      },
+      "high": {
+        "title": "高画质"
+      },
+      "custom": {
+        "title": "自定义",
+        "detail": "手动配置"
+      }
+    },
+    "buffer": {
+      "duration": {
+        "label": "缓冲时长",
+        "unit": "秒"
+      },
+      "maxSize": {
+        "label": "缓冲大小上限"
+      },
+      "clearAfterSave": {
+        "label": "保存后清空缓冲",
+        "description": "每次保存的片段只包含上次保存之后的画面。关掉后会一直保存完整的缓冲时长。"
+      }
+    },
+    "resolution": {
+      "label": "分辨率"
+    },
+    "frameRate": {
+      "label": "帧率"
+    },
+    "rateControl": {
+      "label": "码率控制",
+      "cbr": "CBR（固定码率）",
+      "vbr": "VBR（可变码率）",
+      "crf": "CRF（恒定码率因子）",
+      "cqp": "CQP（恒定量化参数）"
+    },
+    "bitrate": {
+      "label": "码率",
+      "min": "最小码率",
+      "max": "最大码率",
+      "unit": "Mbps"
+    },
+    "crfValue": {
+      "label": "CRF 值"
+    },
+    "cqLevel": {
+      "label": "CQ 等级"
+    },
+    "encoder": {
+      "label": "视频编码器"
+    },
+    "codec": {
+      "label": "编码格式",
+      "integratedGpu": "集成显卡",
+      "secondaryGpu": "次级显卡",
+      "secondaryGpuHint": "使用与你主显卡不同的 GPU 运行"
+    },
+    "stretch4by3": {
+      "label": "把 4:3 拉伸到 16:9",
+      "description": "以 4:3 分辨率运行的游戏会铺满整个画面，而不是留下黑边。"
+    },
+    "hdr": {
+      "label": "以 HDR 录制",
+      "description": "保留 HDR 的亮度和色彩，但在不支持 HDR 的屏幕上视频可能发灰。关闭后 HDR 会转成 SDR。"
+    },
+    "gpuPriority": {
+      "label": "GPU 实时优先级",
+      "description": "在吃 GPU 的游戏里让录制保持流畅。关闭后游戏能多几帧，但录制可能卡顿。"
+    }
+  },
+  "monitor": {
+    "usage": "用于手动录制和常开的即时回放缓冲。",
+    "screen": {
+      "label": "屏幕",
+      "picked": "已在屏幕共享对话框中选定",
+      "asksNext": "下次录制时询问",
+      "change": "更换屏幕"
+    },
+    "selection": {
+      "label": "显示器选择",
+      "automatic": "自动",
+      "primary": "（主显示器）"
+    }
+  },
+  "captureMode": {
+    "title": "采集模式",
+    "session": {
+      "title": "会话录制",
+      "description": "把每局游戏从启动到关闭录成一个视频。",
+      "cost": "会占用磁盘空间。"
+    },
+    "buffer": {
+      "title": "即时回放缓冲",
+      "description": "在内存里保留最近一段游戏画面（{{length}}），随时可保存为片段。",
+      "cost": "会占用内存。"
+    },
+    "hybrid": {
+      "title": "混合（会话 + 缓冲）",
+      "description": "把每局游戏录成一个视频，也能把最近一段（{{length}}）保存为片段。",
+      "cost": "会同时占用内存和磁盘空间。"
+    },
+    "alwaysOn": {
+      "label": "常开即时回放缓冲",
+      "description": "没有游戏在录制时，也持续为你的显示器保留即时回放缓冲。按 <hotkey/> 保存最近一段（{{length}}）为片段。",
+      "hotkeyFallback": "「保存即时回放缓冲」快捷键"
+    },
+    "discardSessions": {
+      "label": "丢弃没有书签的会话",
+      "description": "会话录制结束时，如果你没有用快捷键添加书签，就把它删掉。击杀和其他自动书签不算。"
+    },
+    "splitMatches": {
+      "label": "把会话按对局拆分",
+      "description": "把每局比赛保存成独立的会话，并删掉对局之间耗在菜单里的时间。",
+      "worksIn": "支持 {{games}}。",
+      "gameList": "{{first}} 和 {{last}}",
+      "separator": "、"
+    }
+  },
+  "webcam": {
+    "title": "摄像头",
+    "enable": {
+      "label": "录制摄像头",
+      "badge": "测试版",
+      "description": "把你的摄像头录成单独的图层。可以在片段剪辑器里移动、缩放或隐藏，显示期间片段会包含它。"
+    },
+    "camera": {
+      "label": "摄像头",
+      "disconnected": "已断开的摄像头",
+      "none": "没有找到摄像头",
+      "select": "选择摄像头"
+    }
+  }
+}

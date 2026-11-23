@@ -1,0 +1,80 @@
+{
+  "title": "存储设置",
+  "paths": {
+    "recording": "录制路径",
+    "recordingPlaceholder": "输入或选择文件夹路径",
+    "cache": "缓存路径",
+    "cachePlaceholder": "输入或选择元数据文件夹",
+    "browse": "浏览"
+  },
+  "limit": {
+    "label": "存储空间上限",
+    "placeholder": "设置最大存储空间（GB）",
+    "unlimited": "不限制",
+    "noLimit": "无上限",
+    "unlimitedHint": "不会为腾出空间删除任何内容。驱动器快满时录制会停止。",
+    "limitedHint": "超出上限时会删除较早的会话和即时回放缓冲。",
+    "warningTitle": "存储空间上限警告",
+    "warningBody": "存储空间上限（{{limit}} GB）低于当前文件夹大小（{{current}} GB）。\n\n这会导致较早的录像被自动删除以腾出空间。\n\n确定要继续吗？",
+    "apply": "应用上限"
+  },
+  "toggles": {
+    "gameFolders": {
+      "label": "按游戏分文件夹保存录像",
+      "description": "把每次录制放进以游戏命名的文件夹。更改这项设置会移动已有录像。"
+    },
+    "excludeClips": {
+      "label": "片段和高光不计入存储空间上限",
+      "description": "片段和高光永远不会为腾出空间被删除。开启后只有会话和即时回放缓冲计入上限。"
+    },
+    "removeOriginal": {
+      "label": "压缩后删除原文件",
+      "description": "压缩副本保存后删除完整大小的视频。"
+    }
+  },
+  "outside": {
+    "videos_other": "{{count}} 个视频（{{size}} GB）存放在录制路径之外",
+    "hint": "把它们移动到录制路径，让所有内容集中在一处。",
+    "move": "移动到录制路径",
+    "moving": "正在迁移…",
+    "dialogTitle": "把视频移动到录制路径",
+    "dialogConfirm": "移动视频"
+  },
+  "usage": {
+    "title": "存储占用",
+    "used": "已用 {{used}} GB",
+    "usedOfLimit": "已用 {{used}} GB / 上限 {{limit}} GB",
+    "percent": "{{percent}}%",
+    "percentOverLimit": "{{percent}}% 已超出上限",
+    "noLimit": "无上限"
+  },
+  "segments": {
+    "session": "会话",
+    "buffer": "缓冲",
+    "clip": "片段",
+    "highlight": "高光",
+    "other": "其他"
+  },
+  "segmentSize": {
+    "value": "{{size}} GB",
+    "notCounted": "{{size}} GB（未计入）"
+  },
+  "free": {
+    "onDrive": "驱动器可用空间",
+    "inLimit": "上限内可用空间",
+    "size": "{{size}} GB 可用"
+  },
+  "drive": {
+    "label": "{{letter}} 盘",
+    "disk": "磁盘",
+    "checking": "正在检查驱动器空间…",
+    "usedOf": "{{drive}} 已用 {{used}} GB / 共 {{total}} GB"
+  },
+  "aria": {
+    "usedNoLimit": "已用 {{used}} GB，未设存储上限",
+    "usedOfLimit": "已用 {{used}} GB，上限 {{limit}} GB"
+  },
+  "actions": {
+    "cancel": "取消"
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SegmentCardProps } from '../Models/types';
 import { useDrag, useDrop } from 'react-dnd';
 import { Headphones } from 'lucide-react';
@@ -21,6 +22,7 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
     audioTrackTypes,
     onAudioMixChange,
   }) => {
+    const { t } = useTranslation('cards');
     const [audioMenuPos, setAudioMenuPos] = useState<{
       x: number;
       y: number;
@@ -111,8 +113,8 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
         onContextMenu={(e) => {
           e.preventDefault();
           confirmDelete({
-            title: 'Delete segment?',
-            description: 'Remove this segment from the clip? This action cannot be undone.',
+            title: t('segment.delete.title'),
+            description: t('segment.delete.description'),
             onConfirm: () => removeSegment(segment.id),
           });
         }}
@@ -121,7 +123,7 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
           <figure className="relative rounded-xl overflow-hidden">
             <img
               src={baseSrc}
-              alt="Segment"
+              alt={t('segment.alt')}
               className={`w-full transition-opacity duration-300 ${
                 baseVisible ? 'opacity-100' : 'opacity-0'
               }`}
@@ -130,7 +132,7 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
             {incomingSrc && (
               <img
                 src={incomingSrc}
-                alt="Segment"
+                alt={t('segment.alt')}
                 className={`absolute inset-0 w-full transition-opacity duration-300 ${
                   incomingVisible ? 'opacity-100' : 'opacity-0'
                 }`}
@@ -157,7 +159,7 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
           </div>
         ) : (
           <div className="h-32 bg-gray-700 flex items-center justify-center text-white">
-            <span>No thumbnail</span>
+            <span>{t('segment.noThumbnail')}</span>
           </div>
         )}
 
@@ -188,7 +190,7 @@ const SegmentCard: React.FC<SegmentCardProps> = React.memo(
                 }
               }}
               className={`flex items-center justify-center w-6 h-6 rounded-full transition-all cursor-pointer bg-black/60 backdrop-blur-sm hover:bg-black/80 ${audioMenuPos?.visible || customMix ? 'text-accent' : 'text-white/80 hover:text-white'} ${isHovered || audioMenuPos?.visible || customMix ? 'opacity-100' : 'opacity-0'}`}
-              aria-label="Segment audio"
+              aria-label={t('segment.audio.label')}
             >
               <Headphones className="w-3.5 h-3.5" />
             </button>

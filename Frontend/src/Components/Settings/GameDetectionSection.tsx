@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSettings, useSettingsUpdater } from '../../Context/SettingsContext';
 import { useAppState } from '../../Context/AppStateContext';
 import {
@@ -61,56 +62,65 @@ function GameIcon({
   );
 }
 
-const presetSummary = (preset: VideoQualityPreset, maxDisplayHeight: number) =>
+// Short line listing what a game overrides, shown on its card
+interface OverrideSummaryLabels {
+  notRecorded: string;
+  always: string;
+  more: (count: number) => string;
+  overrides: (count: number) => string;
+  defaultSummary: string;
+  manualConfig: string;
+  recordingModes: Record<RecordingMode, string>;
+}
+
+interface OverrideSummary {
+  text: string;
+  isDefault: boolean;
+}
+
+const presetSummary = (
+  preset: VideoQualityPreset,
+  maxDisplayHeight: number,
+  manualConfig: string,
+) =>
   ({
     low: '720p • 30fps',
     standard: '1080p • 60fps',
     high: `${maxDisplayHeight >= 1440 ? '1440p' : '1080p'} • 60fps`,
-    custom: 'Manual config',
+    custom: manualConfig,
   })[preset];
 
 // Darkens like the inputs and dropdowns on hover (globals.css)
 const OPTION_HOVER = 'hover:bg-[color-mix(in_oklab,var(--color-base-300),#000_7%)]';
 
-const RECORD_OPTIONS: { label: string; description: string; value: boolean | null }[] = [
-  { label: 'Auto', description: 'Follows Auto-Record Games', value: null },
-  { label: 'Always', description: 'Even when Auto-Record is off', value: true },
-  { label: 'Never', description: 'Only when started manually', value: false },
-];
-
-const RECORDING_MODE_LABEL: Record<RecordingMode, string> = {
-  Hybrid: 'Hybrid',
-  Session: 'Session',
-  Buffer: 'Replay Buffer',
-};
-
-const DEFAULT_SUMMARY = 'Default settings';
-
-// Short line listing what a game overrides, shown on its card
-function overridesSummary(g: GameSetting, maxDisplayHeight: number): string {
-  if (g.record === false) return 'Not recorded';
-  const parts: string[] = g.record === true ? ['Always'] : [];
+function overridesSummary(
+  g: GameSetting,
+  maxDisplayHeight: number,
+  labels: OverrideSummaryLabels,
+): OverrideSummary {
+  if (g.record === false) return { text: labels.notRecorded, isDefault: false };
+  const parts: string[] = g.record === true ? [labels.always] : [];
   const q = g.qualityOverride;
   if (q) {
     parts.push(
       q.preset === 'custom'
         ? `${q.resolution} • ${q.frameRate}fps`
-        : presetSummary(q.preset, maxDisplayHeight),
+        : presetSummary(q.preset, maxDisplayHeight, labels.manualConfig),
     );
   }
   if (g.recordingModeOverride)
-    parts.push(RECORDING_MODE_LABEL[g.recordingModeOverride.recordingMode]);
+    parts.push(labels.recordingModes[g.recordingModeOverride.recordingMode]);
   const others = [
     g.discardSessionsWithoutBookmarksOverride,
     g.enableHdrOverride,
     g.volumeOverride,
     g.highlightPaddingOverride,
   ].filter((o) => o != null).length;
-  if (others > 0)
-    parts.push(
-      parts.length > 0 ? `+${others} more` : others === 1 ? '1 override' : `${others} overrides`,
-    );
-  return parts.length > 0 ? parts.join(' • ') : DEFAULT_SUMMARY;
+  if (others > 0) parts.push(parts.length > 0 ? labels.more(others) : labels.overrides(others));
+  return {
+    text: parts.length > 0 ? parts.join(' • ') : labels.defaultSummary,
+    isDefault: parts.length === 0,
+  };
 }
 
 function GameCard({
@@ -125,11 +135,12 @@ function GameCard({
   game: GameSetting;
   iconId?: string;
   coverUrl: string | null;
-  summary: string;
+  summary: OverrideSummary;
   selected: boolean;
   onSelect: () => void;
   onRemove: () => void;
 }) {
+  const { t } = useTranslation('games');
   return (
     <div
       role="button"
@@ -152,7 +163,7 @@ function GameCard({
       )}
       <button
         type="button"
-        aria-label={`Remove ${game.name}`}
+        aria-label={t('detection.card.remove', { name: game.name })}
         onClick={(e) => {
           e.stopPropagation();
           onRemove();
@@ -166,9 +177,9 @@ function GameCard({
         <div className="min-w-0">
           <div className="font-semibold truncate drop-shadow-md">{game.name}</div>
           <div
-            className={`text-xs truncate drop-shadow-md ${summary === DEFAULT_SUMMARY ? 'opacity-80' : 'text-warning'}`}
+            className={`text-xs truncate drop-shadow-md ${summary.isDefault ? 'opacity-80' : 'text-warning'}`}
           >
-            {summary}
+            {summary.text}
           </div>
         </div>
       </div>
@@ -249,6 +260,7 @@ function OverrideSection({
 }
 
 export default function GameDetectionSection() {
+  const { t } = useTranslation('games');
   const settings = useSettings();
   const updateSettings = useSettingsUpdater();
   const appState = useAppState();
@@ -272,6 +284,21 @@ export default function GameDetectionSection() {
   }, []);
 
   const games = settings.games;
+
+  // Labels for the one-line override summary on each game card, built here so they follow the locale.
+  const summaryLabels: OverrideSummaryLabels = {
+    notRecorded: t('detection.card.summary.notRecorded'),
+    always: t('detection.card.summary.always'),
+    more: (count: number) => t('detection.card.summary.more', { count }),
+    overrides: (count: number) => t('detection.card.summary.override', { count }),
+    defaultSummary: t('detection.card.summary.default'),
+    manualConfig: t('presets.manualConfig'),
+    recordingModes: {
+      Hybrid: t('detection.panel.mode.hybrid'),
+      Session: t('detection.panel.mode.session'),
+      Buffer: t('detection.panel.mode.buffer'),
+    },
+  };
 
   // No game is expanded by default; clicking a card toggles its panel open/closed.
   const selectedGame = useMemo(
@@ -387,9 +414,9 @@ export default function GameDetectionSection() {
 
   const removeGame = (name: string) => {
     confirmDelete({
-      title: 'Remove game settings?',
-      description: `Remove ${name} and all of its recording overrides? Existing recordings will not be deleted.`,
-      confirmText: 'Remove',
+      title: t('detection.removeConfirm.title'),
+      description: t('detection.removeConfirm.description', { name }),
+      confirmText: t('detection.removeConfirm.confirm'),
       onConfirm: () => {
         updateSettings({ games: games.filter((g) => g.name !== name) });
         if (selectedName === name) setSelectedName(null);
@@ -399,11 +426,8 @@ export default function GameDetectionSection() {
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
-      <h2 className="text-xl font-semibold mb-2">Game Recording &amp; Overrides</h2>
-      <p className="text-sm opacity-70 mb-4">
-        Games you record show up here automatically. Pick one to change its recording settings or
-        whether it gets recorded. Add a game below only if Segra doesn&apos;t record it on its own.
-      </p>
+      <h2 className="text-xl font-semibold mb-2">{t('detection.title')}</h2>
+      <p className="text-sm opacity-70 mb-4">{t('detection.description')}</p>
 
       {/* Global auto-record toggle */}
       <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400 mb-5">
@@ -414,18 +438,17 @@ export default function GameDetectionSection() {
           onChange={(e) => updateSettings({ autoRecordGames: e.target.checked })}
         />
         <div>
-          <div className="font-semibold">Auto-Record Games</div>
-          <div className="text-sm opacity-70 mt-0.5">
-            Automatically start recording when a game launches. Games set to Always and manual
-            recordings are unaffected.
-          </div>
+          <div className="font-semibold">{t('detection.autoRecord.label')}</div>
+          <div className="text-sm opacity-70 mt-0.5">{t('detection.autoRecord.description')}</div>
         </div>
       </label>
 
       {/* Add game search */}
       <div className="mb-5 relative" ref={searchRef}>
         <label className="label">
-          <span className="label-text text-base-content font-semibold">Add a Game</span>
+          <span className="label-text text-base-content font-semibold">
+            {t('detection.addGame.label')}
+          </span>
         </label>
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -435,7 +458,7 @@ export default function GameDetectionSection() {
             <input
               type="text"
               className="input input-bordered w-full pl-10 bg-base-200"
-              placeholder="Search for a game to record..."
+              placeholder={t('detection.addGame.placeholder')}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -452,7 +475,7 @@ export default function GameDetectionSection() {
             }}
           >
             <Plus size={18} />
-            Add Custom Game
+            {t('detection.addGame.customButton')}
           </Button>
         </div>
 
@@ -471,7 +494,7 @@ export default function GameDetectionSection() {
 
             {filteredGames.length === 0 && (
               <div className="px-3 pt-3 pb-1 text-xs opacity-70">
-                No matching game in the catalog.
+                {t('detection.addGame.noMatch')}
               </div>
             )}
 
@@ -486,7 +509,7 @@ export default function GameDetectionSection() {
               <div className="w-8 h-8 rounded-md bg-base-300 flex items-center justify-center flex-shrink-0">
                 <Plus size={18} />
               </div>
-              <div className="font-medium truncate">Add a custom game</div>
+              <div className="font-medium truncate">{t('detection.addGame.addCustom')}</div>
             </div>
           </div>
         )}
@@ -494,7 +517,7 @@ export default function GameDetectionSection() {
 
       {games.length === 0 ? (
         <div className="bg-base-200 rounded-lg border border-base-400 text-center text-base-content/60 py-10">
-          No games yet. Games you record show up here, or search for one above.
+          {t('detection.empty')}
         </div>
       ) : (
         <>
@@ -508,7 +531,7 @@ export default function GameDetectionSection() {
                 game={g}
                 iconId={resolveIcon(g)}
                 coverUrl={resolveCover(g)}
-                summary={overridesSummary(g, appState.maxDisplayHeight)}
+                summary={overridesSummary(g, appState.maxDisplayHeight, summaryLabels)}
                 selected={selectedGame?.name === g.name}
                 onSelect={() => setSelectedName((prev) => (prev === g.name ? null : g.name))}
                 onRemove={() => removeGame(g.name)}
@@ -548,10 +571,35 @@ function GamePanel({
   maxDisplayHeight: number;
   onUpdate: (patch: Partial<GameSetting>) => void;
 }) {
+  const { t } = useTranslation('games');
   const q = game.qualityOverride;
   const mode = game.recordingModeOverride;
   const padding = game.highlightPaddingOverride;
   const [draggingVolume, setDraggingVolume] = useState<number | null>(null);
+
+  const recordingModeLabels: Record<RecordingMode, string> = {
+    Hybrid: t('detection.panel.mode.hybrid'),
+    Session: t('detection.panel.mode.session'),
+    Buffer: t('detection.panel.mode.buffer'),
+  };
+
+  const recordOptions: { label: string; description: string; value: boolean | null }[] = [
+    {
+      label: t('detection.panel.record.auto.label'),
+      description: t('detection.panel.record.auto.description'),
+      value: null,
+    },
+    {
+      label: t('detection.panel.record.always.label'),
+      description: t('detection.panel.record.always.description'),
+      value: true,
+    },
+    {
+      label: t('detection.panel.record.never.label'),
+      description: t('detection.panel.record.never.description'),
+      value: false,
+    },
+  ];
 
   // Quality override helpers ------------------------------------------------
   const enableQuality = () =>
@@ -595,7 +643,9 @@ function GamePanel({
           <div className="font-semibold text-lg truncate">{game.name}</div>
           {game.paths.length > 0 && (
             <div className="text-xs opacity-70 truncate">
-              {game.paths.length === 1 ? game.paths[0] : `${game.paths.length} executables`}
+              {game.paths.length === 1
+                ? game.paths[0]
+                : t('detection.panel.executables', { count: game.paths.length })}
             </div>
           )}
         </div>
@@ -603,19 +653,22 @@ function GamePanel({
 
       {/* When this game is recorded automatically */}
       <div className="bg-base-200 rounded-lg border border-base-400 p-4">
-        <div className="font-semibold">Automatic Recording</div>
+        <div className="font-semibold">{t('detection.panel.automaticRecording.title')}</div>
         <div className="text-xs opacity-70 mt-0.5">
-          Whether Segra starts recording when this game launches. Auto-Record Games is currently{' '}
-          {settings.autoRecordGames ? 'on' : 'off'}.
+          {t('detection.panel.automaticRecording.description', {
+            state: settings.autoRecordGames
+              ? t('detection.panel.automaticRecording.on')
+              : t('detection.panel.automaticRecording.off'),
+          })}
         </div>
         <div
           role="radiogroup"
-          aria-label="Automatic Recording"
+          aria-label={t('detection.panel.automaticRecording.title')}
           className="grid grid-cols-3 gap-3 mt-4"
         >
-          {RECORD_OPTIONS.map((o) => (
+          {recordOptions.map((o) => (
             <button
-              key={o.label}
+              key={String(o.value)}
               type="button"
               role="radio"
               aria-checked={game.record === o.value}
@@ -633,8 +686,8 @@ function GamePanel({
 
       {/* Recording quality override */}
       <OverrideSection
-        title="Recording Quality"
-        description="Override resolution, frame rate and bitrate for this game."
+        title={t('detection.panel.quality.title')}
+        description={t('detection.panel.quality.description')}
         enabled={q != null}
         onToggle={(enabled) => (enabled ? enableQuality() : onUpdate({ qualityOverride: null }))}
       >
@@ -650,8 +703,8 @@ function GamePanel({
 
       {/* Recording mode override */}
       <OverrideSection
-        title="Recording Mode"
-        description="Override whether this game records a full session, a replay buffer, or both."
+        title={t('detection.panel.mode.title')}
+        description={t('detection.panel.mode.description')}
         enabled={mode != null}
         onToggle={(enabled) => (enabled ? enableMode() : onUpdate({ recordingModeOverride: null }))}
       >
@@ -666,7 +719,7 @@ function GamePanel({
                     mode.recordingMode === m ? 'border-primary' : 'border-base-400'
                   }`}
                 >
-                  {RECORDING_MODE_LABEL[m]}
+                  {recordingModeLabels[m]}
                 </button>
               ))}
             </div>
@@ -675,7 +728,7 @@ function GamePanel({
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-control">
                   <label className="label text-base-content px-0 !block">
-                    <span className="label-text">Buffer Duration</span>
+                    <span className="label-text">{t('detection.panel.mode.bufferDuration')}</span>
                   </label>
                   <div className="relative w-full">
                     <input
@@ -694,13 +747,13 @@ function GamePanel({
                       className="input input-bordered bg-base-300 w-full pr-12 outline-none focus:border-base-400"
                     />
                     <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
-                      sec
+                      {t('detection.panel.units.seconds')}
                     </span>
                   </div>
                 </div>
                 <div className="form-control">
                   <label className="label text-base-content px-0 !block">
-                    <span className="label-text">Buffer Maximum Size</span>
+                    <span className="label-text">{t('detection.panel.mode.bufferMaxSize')}</span>
                   </label>
                   <div className="relative w-full">
                     <input
@@ -719,7 +772,7 @@ function GamePanel({
                       className="input input-bordered bg-base-300 w-full pr-12 outline-none focus:border-base-400"
                     />
                     <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
-                      MB
+                      {t('detection.panel.units.megabytes')}
                     </span>
                   </div>
                 </div>
@@ -731,8 +784,8 @@ function GamePanel({
 
       {/* Discard sessions without bookmarks override */}
       <OverrideSection
-        title="Discard Sessions Without Bookmarks"
-        description="Override whether sessions of this game are discarded when they have no manual bookmarks."
+        title={t('detection.panel.discardBookmarks.title')}
+        description={t('detection.panel.discardBookmarks.description')}
         enabled={game.discardSessionsWithoutBookmarksOverride != null}
         onToggle={(enabled) =>
           onUpdate({
@@ -751,14 +804,14 @@ function GamePanel({
               onUpdate({ discardSessionsWithoutBookmarksOverride: e.target.checked })
             }
           />
-          <span>Discard Session Recordings Without Manual Bookmarks</span>
+          <span>{t('detection.panel.discardBookmarks.checkbox')}</span>
         </label>
       </OverrideSection>
 
       {/* HDR recording override */}
       <OverrideSection
-        title="HDR Recording"
-        description="Override whether HDR recording is enabled for this game (e.g. disable it for games where HDR injection tools break capture)."
+        title={t('detection.panel.hdr.title')}
+        description={t('detection.panel.hdr.description')}
         enabled={game.enableHdrOverride != null}
         onToggle={(enabled) => onUpdate({ enableHdrOverride: enabled ? settings.enableHdr : null })}
       >
@@ -769,14 +822,14 @@ function GamePanel({
             checked={game.enableHdrOverride ?? false}
             onChange={(e) => onUpdate({ enableHdrOverride: e.target.checked })}
           />
-          <span>Record in HDR when the display supports it</span>
+          <span>{t('detection.panel.hdr.checkbox')}</span>
         </label>
       </OverrideSection>
 
       {/* Recording volume override */}
       <OverrideSection
-        title="Recording Volume"
-        description="Override the captured game/system audio volume for this game, without changing your own in-game or Windows volume."
+        title={t('detection.panel.volume.title')}
+        description={t('detection.panel.volume.description')}
         enabled={game.volumeOverride != null}
         onToggle={(enabled) => onUpdate({ volumeOverride: enabled ? 1.0 : null })}
       >
@@ -808,8 +861,8 @@ function GamePanel({
 
       {/* Highlight padding override */}
       <OverrideSection
-        title="Highlight Padding"
-        description="Override how many seconds are kept before and after each highlight moment in this game."
+        title={t('detection.panel.highlightPadding.title')}
+        description={t('detection.panel.highlightPadding.description')}
         enabled={padding != null}
         onToggle={(enabled) =>
           onUpdate({
@@ -826,7 +879,7 @@ function GamePanel({
           <div className="grid grid-cols-2 gap-4">
             <div className="form-control w-full">
               <label className="label text-base-content px-0 !block">
-                <span className="label-text">Before Highlight</span>
+                <span className="label-text">{t('detection.panel.highlightPadding.before')}</span>
               </label>
               <div className="relative w-full">
                 <input
@@ -846,13 +899,13 @@ function GamePanel({
                   className="input input-bordered bg-base-300 w-full pr-12 outline-none focus:border-base-400"
                 />
                 <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
-                  sec
+                  {t('detection.panel.units.seconds')}
                 </span>
               </div>
             </div>
             <div className="form-control w-full">
               <label className="label text-base-content px-0 !block">
-                <span className="label-text">After Highlight</span>
+                <span className="label-text">{t('detection.panel.highlightPadding.after')}</span>
               </label>
               <div className="relative w-full">
                 <input
@@ -872,7 +925,7 @@ function GamePanel({
                   className="input input-bordered bg-base-300 w-full pr-12 outline-none focus:border-base-400"
                 />
                 <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
-                  sec
+                  {t('detection.panel.units.seconds')}
                 </span>
               </div>
             </div>
@@ -902,11 +955,12 @@ function QualityOverrideEditor({
   maxDisplayHeight: number;
   onChange: (patch: Partial<GameQualityOverride>) => void;
 }) {
+  const { t } = useTranslation('games');
   const presets: { id: VideoQualityPreset; label: string }[] = [
-    { id: 'low', label: 'Low Quality' },
-    { id: 'standard', label: 'Standard' },
-    { id: 'high', label: 'High Quality' },
-    { id: 'custom', label: 'Custom' },
+    { id: 'low', label: t('presets.low') },
+    { id: 'standard', label: t('presets.standard') },
+    { id: 'high', label: t('presets.high') },
+    { id: 'custom', label: t('presets.custom') },
   ];
 
   return (
@@ -921,7 +975,9 @@ function QualityOverrideEditor({
             }`}
           >
             <div className="text-sm font-semibold">{p.label}</div>
-            <div className="text-xs opacity-70 mt-1">{presetSummary(p.id, maxDisplayHeight)}</div>
+            <div className="text-xs opacity-70 mt-1">
+              {presetSummary(p.id, maxDisplayHeight, t('presets.manualConfig'))}
+            </div>
           </div>
         ))}
       </div>
@@ -931,7 +987,7 @@ function QualityOverrideEditor({
           {/* Resolution */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text text-base-content">Resolution</span>
+              <span className="label-text text-base-content">{t('quality.resolution')}</span>
             </label>
             <DropdownSelect
               buttonClassName={OVERRIDE_DROPDOWN_CLASS}
@@ -949,7 +1005,7 @@ function QualityOverrideEditor({
           {/* Frame rate */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text text-base-content">Frame Rate</span>
+              <span className="label-text text-base-content">{t('quality.frameRate')}</span>
             </label>
             <DropdownSelect
               buttonClassName={OVERRIDE_DROPDOWN_CLASS}
@@ -965,16 +1021,16 @@ function QualityOverrideEditor({
           {/* Rate control */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text text-base-content">Rate Control</span>
+              <span className="label-text text-base-content">{t('quality.rateControl')}</span>
             </label>
             <DropdownSelect
               buttonClassName={OVERRIDE_DROPDOWN_CLASS}
               items={[
-                { value: 'CBR', label: 'CBR (Constant Bitrate)' },
-                { value: 'VBR', label: 'VBR (Variable Bitrate)' },
+                { value: 'CBR', label: t('quality.cbr') },
+                { value: 'VBR', label: t('quality.vbr') },
                 ...(value.encoder === 'cpu'
-                  ? [{ value: 'CRF', label: 'CRF (Constant Rate Factor)' }]
-                  : [{ value: 'CQP', label: 'CQP (Constant Quantization Parameter)' }]),
+                  ? [{ value: 'CRF', label: t('quality.crf') }]
+                  : [{ value: 'CQP', label: t('quality.cqp') }]),
               ]}
               value={value.rateControl}
               onChange={(val) => onChange({ rateControl: val })}
@@ -985,7 +1041,7 @@ function QualityOverrideEditor({
           {value.rateControl === 'CBR' && (
             <div className="form-control">
               <label className="label">
-                <span className="label-text text-base-content">Bitrate</span>
+                <span className="label-text text-base-content">{t('quality.bitrate')}</span>
               </label>
               <BitrateInput
                 value={value.bitrate}
@@ -1000,7 +1056,7 @@ function QualityOverrideEditor({
             <>
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Minimum Bitrate</span>
+                  <span className="label-text text-base-content">{t('quality.minBitrate')}</span>
                 </label>
                 <BitrateInput
                   value={value.minBitrate}
@@ -1012,7 +1068,7 @@ function QualityOverrideEditor({
               </div>
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Maximum Bitrate</span>
+                  <span className="label-text text-base-content">{t('quality.maxBitrate')}</span>
                 </label>
                 <BitrateInput
                   value={value.maxBitrate}
@@ -1029,7 +1085,7 @@ function QualityOverrideEditor({
           {value.rateControl === 'CRF' && (
             <div className="form-control">
               <label className="label">
-                <span className="label-text text-base-content">CRF Value</span>
+                <span className="label-text text-base-content">{t('quality.crfValue')}</span>
               </label>
               <div className="relative w-full">
                 <input
@@ -1055,7 +1111,7 @@ function QualityOverrideEditor({
           {value.rateControl === 'CQP' && (
             <div className="form-control">
               <label className="label">
-                <span className="label-text text-base-content">CQ Level</span>
+                <span className="label-text text-base-content">{t('quality.cqLevel')}</span>
               </label>
               <div className="relative w-full">
                 <input
@@ -1080,7 +1136,7 @@ function QualityOverrideEditor({
           {/* Encoder */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text text-base-content">Video Encoder</span>
+              <span className="label-text text-base-content">{t('quality.encoder')}</span>
             </label>
             <DropdownSelect
               buttonClassName={OVERRIDE_DROPDOWN_CLASS}
@@ -1109,7 +1165,7 @@ function QualityOverrideEditor({
           {/* Codec */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text text-base-content">Codec</span>
+              <span className="label-text text-base-content">{t('quality.codec')}</span>
             </label>
             <DropdownSelect
               buttonClassName={OVERRIDE_DROPDOWN_CLASS}

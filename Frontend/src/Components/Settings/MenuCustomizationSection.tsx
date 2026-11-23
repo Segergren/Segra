@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
+import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
   Clapperboard,
@@ -21,6 +22,7 @@ import {
   Settings as SettingsType,
 } from '../../Models/types';
 import { useAppState } from '../../Context/AppStateContext';
+import { menuLabelKey } from '../../Utils/menuLabels';
 
 interface MenuCustomizationSectionProps {
   settings: SettingsType;
@@ -60,6 +62,7 @@ const MenuRow: React.FC<RowProps> = ({
   onToggleVisible,
   onSetDefault,
 }) => {
+  const { t } = useTranslation(['preferences', 'nav']);
   const Icon = MENU_ICONS[item.id];
   const isSettings = item.id === 'Settings';
   const [visibilityCooldown, setVisibilityCooldown] = useState(false);
@@ -130,21 +133,21 @@ const MenuRow: React.FC<RowProps> = ({
         <button
           ref={handleRef}
           type="button"
-          aria-label="Drag to reorder"
+          aria-label={t('menu.dragHandle')}
           className="text-base-content/60 hover:text-base-content cursor-grab active:cursor-grabbing"
         >
           <GripVertical className="w-4 h-4" />
         </button>
         <Icon className="w-5 h-5 text-base-content/80 shrink-0" />
-        <span className="font-medium truncate">{item.id}</span>
+        <span className="font-medium truncate">{t(menuLabelKey(item.id))}</span>
       </div>
 
       <div className="flex items-center gap-2">
         {forceShownReason === 'content' && (
           <div
             className="tooltip tooltip-warning inline-flex p-1.5 text-warning [&::before]:delay-200 [&::after]:delay-200"
-            data-tip="Still shown in the sidebar because it has videos"
-            aria-label="Still shown in the sidebar because it has videos"
+            data-tip={t('menu.forcedShown')}
+            aria-label={t('menu.forcedShown')}
           >
             <AlertTriangle className="w-4 h-4" />
           </div>
@@ -153,15 +156,15 @@ const MenuRow: React.FC<RowProps> = ({
           className="tooltip tooltip-primary inline-flex [&::before]:delay-200 [&::after]:delay-200"
           data-tip={
             isDefault
-              ? 'Opens on Launch'
+              ? t('menu.default.isDefault')
               : !item.visible && !isSettings
-                ? "Hidden Pages Can't Open on Launch"
-                : 'Open on Launch'
+                ? t('menu.default.hidden')
+                : t('menu.default.set')
           }
         >
           <button
             type="button"
-            aria-label="Open on launch"
+            aria-label={t('menu.default.set')}
             aria-pressed={isDefault}
             onClick={() => onSetDefault(item.id)}
             disabled={(!item.visible && !isSettings) || isDefault}
@@ -181,12 +184,18 @@ const MenuRow: React.FC<RowProps> = ({
         <div
           className="tooltip tooltip-primary inline-flex [&::before]:delay-200 [&::after]:delay-200"
           data-tip={
-            isSettings ? 'Always Shown' : item.visible ? 'Hide from Sidebar' : 'Show in Sidebar'
+            isSettings
+              ? t('menu.visibility.always')
+              : item.visible
+                ? t('menu.visibility.hide')
+                : t('menu.visibility.show')
           }
         >
           <button
             type="button"
-            aria-label={item.visible || isSettings ? 'Hide from sidebar' : 'Show in sidebar'}
+            aria-label={
+              item.visible || isSettings ? t('menu.visibility.hide') : t('menu.visibility.show')
+            }
             onClick={handleToggleVisible}
             disabled={isSettings}
             className={`p-1.5 rounded transition-colors ${
@@ -214,6 +223,7 @@ export default function MenuCustomizationSection({
   settings,
   updateSettings,
 }: MenuCustomizationSectionProps) {
+  const { t } = useTranslation('preferences');
   const appState = useAppState();
   const defaultItem = settings.defaultMenuItem ?? 'Full Sessions';
 
@@ -287,10 +297,8 @@ export default function MenuCustomizationSection({
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
-      <h2 className="text-xl font-semibold mb-1">Sidebar Menu</h2>
-      <p className="text-sm opacity-70 mb-4">
-        Drag to reorder. Pick which page opens on launch. Hide items you don&apos;t use.
-      </p>
+      <h2 className="text-xl font-semibold mb-1">{t('menu.title')}</h2>
+      <p className="text-sm opacity-70 mb-4">{t('menu.description')}</p>
       <div className="space-y-2 max-w-md">
         {localItems.map((item, index) => {
           const forceShownReason: 'content' | null =

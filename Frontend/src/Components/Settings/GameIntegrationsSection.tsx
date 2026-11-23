@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSettings, useSettingsUpdater } from '../../Context/SettingsContext';
 import { GameIntegrations } from '../../Models/types';
 import {
@@ -28,8 +29,8 @@ interface GameIntegration {
   settingsKey: keyof GameIntegrations;
   backgroundImage: string;
   coverOpacity?: number;
-  // Shows a Beta label, with this as its tooltip
-  betaNote?: string;
+  // Shows a Beta label, with this translation key as its tooltip
+  betaNoteKey?: string;
   warningText?: string;
 }
 
@@ -63,7 +64,7 @@ const GAME_INTEGRATIONS: GameIntegration[] = [
     name: 'Overwatch',
     settingsKey: 'overwatch',
     backgroundImage: 'https://segra.tv/api/games/cover/cocqgt',
-    betaNote: 'Kills and assists only work with color\u00a0blind mode off.',
+    betaNoteKey: 'integrations.notes.overwatchColorBlind',
   },
   {
     id: 'the-finals',
@@ -166,6 +167,7 @@ function GameIntegrationCard({
   showBackground,
   onToggle,
 }: GameIntegrationCardProps) {
+  const { t } = useTranslation('games');
   const logo = LOGOS[`../../assets/game-logos/${integration.id}.webp`];
   const [logoSize, setLogoSize] = useState<{ width: number; height: number }>();
 
@@ -183,12 +185,12 @@ function GameIntegrationCard({
           }}
         />
       )}
-      {integration.betaNote && (
+      {integration.betaNoteKey && (
         <span
           className="tooltip tooltip-bottom tooltip-primary absolute top-1.5 right-2.5 z-20 text-[10px] font-semibold text-primary drop-shadow-md [&::before]:delay-200 [&::after]:delay-200 [&::before]:text-left [&::before]:leading-snug [&::before]:max-w-52 [&::before]:[--tt-trans:calc(-100%+1rem)] [&::before]:px-3 [&::before]:py-2"
-          data-tip={integration.betaNote}
+          data-tip={t(integration.betaNoteKey)}
         >
-          Beta
+          {t('integrations.beta')}
         </span>
       )}
       <div className="relative z-10">
@@ -221,6 +223,7 @@ function GameIntegrationCard({
 }
 
 export default function GameIntegrationsSection() {
+  const { t } = useTranslation('games');
   const settings = useSettings();
   const updateSettings = useSettingsUpdater();
   const hasPendingChanges = usePendingRecordingSettings(RECORDING_SETTING_GROUPS.gameIntegrations);
@@ -240,15 +243,12 @@ export default function GameIntegrationsSection() {
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <div className="flex items-center gap-2 mb-2">
-        <h2 className="text-xl font-semibold">Game Integrations</h2>
+        <h2 className="text-xl font-semibold">{t('integrations.title')}</h2>
         {hasPendingChanges && (
-          <span className="text-xs text-warning">(applies to next recording)</span>
+          <span className="text-xs text-warning">{t('integrations.pending')}</span>
         )}
       </div>
-      <p className="text-sm opacity-70 mb-4">
-        Enable automatic event detection for supported games. When enabled, Segra will automatically
-        bookmark kills, goals, and other events during gameplay.
-      </p>
+      <p className="text-sm opacity-70 mb-4">{t('integrations.description')}</p>
 
       {/* Up to 4 per row, based on the section's own width rather than the window */}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(max(13rem,calc((100%_-_2.25rem)/4)),1fr))] gap-3">

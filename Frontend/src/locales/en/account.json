@@ -1,0 +1,110 @@
+{
+  "profile": {
+    "signIn": {
+      "title": "Sign In",
+      "lastUsed": "Last used",
+      "waitingForBrowser": "Waiting for your browser...",
+      "connecting": "Connecting...",
+      "continueWithDiscord": "Continue with Discord",
+      "finishInBrowser": "Finish signing in with Discord in your browser. <cancel>Cancel</cancel>",
+      "orUseEmail": "Or Use Email",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm Password",
+      "signInWithEmail": "Sign In with Email",
+      "noAccount": "Don't have an account?",
+      "createOne": "Create one",
+      "alreadyHaveAccount": "Already have an account?",
+      "signInLink": "Sign in",
+      "createAccount": "Create Account",
+      "confirmEmailSent": "Check your email to confirm your account, then log in.",
+      "passwordMismatch": "Passwords do not match.",
+      "passwordTooShort": "Password must be at least 6 characters.",
+      "errors": {
+        "invalidCredentials": "Wrong email or password.",
+        "emailNotConfirmed": "Confirm your email first. Check your inbox for the link.",
+        "alreadyRegistered": "An account with this email already exists. Try signing in instead."
+      }
+    },
+    "setup": {
+      "title": "Set Up Your Profile",
+      "avatar": "Avatar",
+      "avatarPreviewAlt": "Avatar preview",
+      "usernameLabel": "Choose your username",
+      "usernamePlaceholder": "Username",
+      "usernameTakenHint": "This username is already taken",
+      "continue": "Continue",
+      "errors": {
+        "usernameTooShort": "Username must be at least 3 characters",
+        "usernameTooLong": "Username must be less than 20 characters",
+        "usernameInvalidChars": "Username can only contain letters, numbers, underscores and hyphens",
+        "usernameTaken": "Username is already taken",
+        "avatarType": "Avatar must be a JPEG, PNG, GIF, or WebP image",
+        "avatarSize": "Avatar must be less than 5MB",
+        "updateFailed": "Failed to update profile"
+      }
+    },
+    "user": {
+      "avatarAlt": "{{name}}'s avatar",
+      "authenticatedUser": "Authenticated User",
+      "logout": "Logout",
+      "profileLoadFailed": "Couldn't load your profile. {{error}}",
+      "unknownError": "Unknown error."
+    }
+  },
+  "advanced": {
+    "updates": {
+      "title": "Updates",
+      "flatpakHint": "Segra updates automatically through Flatpak. To update now, run <code>flatpak update tv.segra.Segra</code> or use your software center.",
+      "channel": "Update Channel",
+      "stable": "Stable",
+      "beta": "Beta",
+      "obsVersion": "OBS Version",
+      "obsAutomatic": "Automatic",
+      "obsBetaVersion": "{{version}} (Beta)",
+      "check": "Check for Updates",
+      "viewReleaseNotes": "View Release Notes"
+    },
+    "online": {
+      "title": "Online Features",
+      "airplaneMode": "Airplane Mode",
+      "airplaneModeDescription": "Signs you out and hides uploading and sharing."
+    },
+    "about": {
+      "docs": "Docs",
+      "logs": "Logs"
+    }
+  },
+  "notes": {
+    "header": {
+      "welcome": "Welcome to Segra 2.0",
+      "whatsNew": "What's New",
+      "sinceVersion": "Updates since v{{version}}",
+      "browse": "Browse recent releases from Segra",
+      "close": "Close"
+    },
+    "empty": {
+      "upToDate": "You're up to date!",
+      "noNotes": "No release notes available",
+      "upToDateDescription": "You are on the latest version of Segra. Check back after the next release for new changes.",
+      "noNotesDescription": "We could not find any release notes to display right now."
+    },
+    "latest": "Latest",
+    "beta": "Beta",
+    "relative": {
+      "justNow": "just now",
+      "minutesAgo": "{{n}}m ago",
+      "hoursAgo": "{{n}}h ago",
+      "daysAgo": "{{n}}d ago",
+      "weeksAgo": "{{n}}w ago",
+      "monthsAgo": "{{n}}mo ago",
+      "yearsAgo": "{{n}}y ago"
+    },
+    "decodeError": "Error decoding content",
+    "footer": {
+      "showing_one": "Showing {{count}} release",
+      "showing_other": "Showing {{count}} releases",
+      "viewOnGithub": "View on GitHub"
+    }
+  }
+}

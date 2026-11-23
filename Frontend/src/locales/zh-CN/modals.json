@@ -1,0 +1,65 @@
+{
+  "upload": {
+    "title": "上传到 Segra.tv",
+    "close": "关闭",
+    "signInHint": "登录 Segra.tv 后即可上传片段并分享链接。",
+    "titleLabel": "标题",
+    "titlePlaceholder": "输入标题",
+    "titleRequired": "标题不能为空",
+    "descriptionLabel": "描述",
+    "descriptionPlaceholder": "添加描述",
+    "visibility": "可见性",
+    "public": "公开",
+    "unlisted": "不公开",
+    "openInBrowser": "在浏览器中打开",
+    "signInToUpload": "登录后上传",
+    "upload": "上传"
+  },
+  "recovery": {
+    "title": "恢复视频文件？",
+    "pageOf": "第 {{current}} 个，共 {{total}} 个",
+    "foundWithoutMetadata": "发现没有元数据的视频文件：",
+    "crashedRecording": "可能来自中断的录制。",
+    "type": "类型",
+    "size": "大小",
+    "game": "游戏",
+    "location": "位置",
+    "searchGames": "搜索游戏…",
+    "openInExplorer": "在文件资源管理器中打开",
+    "actions": {
+      "recover": "恢复",
+      "delete": "删除",
+      "skip": "跳过"
+    },
+    "deleteConfirm": {
+      "title": "删除恢复的文件？",
+      "description": "确定要永久删除 <strong>{{fileName}}</strong> 吗？",
+      "irreversible": "此操作无法撤销。"
+    }
+  },
+  "merge": {
+    "title": {
+      "session_other": "合并 {{count}} 个会话",
+      "buffer_other": "合并 {{count}} 个即时回放缓冲",
+      "clip_other": "合并 {{count}} 个片段",
+      "highlight_other": "合并 {{count}} 个高光"
+    },
+    "orderHint": "拖动可调整顺序。",
+    "result": {
+      "session": "结果会保存为新会话，并保留全部书签。",
+      "reencode": "它们的视频设置不同，会重新编码成新片段。这个过程需要一些时间。",
+      "clip": "合并后的视频会保存为新片段。"
+    },
+    "totalLength": "总时长 {{duration}}",
+    "merge": "合并",
+    "mergeSlow": "合并（较慢）"
+  },
+  "confirmation": {
+    "confirm": "确认",
+    "cancel": "取消"
+  },
+  "deleteConfirm": {
+    "title": "删除此项？",
+    "confirm": "删除"
+  }
+}

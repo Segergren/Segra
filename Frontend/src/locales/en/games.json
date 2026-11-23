@@ -1,0 +1,152 @@
+{
+  "detection": {
+    "title": "Game Recording & Overrides",
+    "description": "Games you record show up here automatically. Pick one to change its recording settings or whether it gets recorded. Add a game below only if Segra doesn't record it on its own.",
+    "autoRecord": {
+      "label": "Auto-Record Games",
+      "description": "Automatically start recording when a game launches. Games set to Always and manual recordings are unaffected."
+    },
+    "addGame": {
+      "label": "Add a Game",
+      "placeholder": "Search for a game to record...",
+      "customButton": "Add Custom Game",
+      "noMatch": "No matching game in the catalog.",
+      "addCustom": "Add a custom game"
+    },
+    "empty": "No games yet. Games you record show up here, or search for one above.",
+    "card": {
+      "remove": "Remove {{name}}",
+      "summary": {
+        "notRecorded": "Not recorded",
+        "always": "Always",
+        "more": "+{{count}} more",
+        "override_one": "{{count}} override",
+        "override_other": "{{count}} overrides",
+        "default": "Default settings"
+      }
+    },
+    "removeConfirm": {
+      "title": "Remove game settings?",
+      "description": "Remove {{name}} and all of its recording overrides? Existing recordings will not be deleted.",
+      "confirm": "Remove"
+    },
+    "panel": {
+      "executables_one": "{{count}} executable",
+      "executables_other": "{{count}} executables",
+      "automaticRecording": {
+        "title": "Automatic Recording",
+        "description": "Whether Segra starts recording when this game launches. Auto-Record Games is currently {{state}}.",
+        "on": "on",
+        "off": "off"
+      },
+      "record": {
+        "auto": {
+          "label": "Auto",
+          "description": "Follows Auto-Record Games"
+        },
+        "always": {
+          "label": "Always",
+          "description": "Even when Auto-Record is off"
+        },
+        "never": {
+          "label": "Never",
+          "description": "Only when started manually"
+        }
+      },
+      "quality": {
+        "title": "Recording Quality",
+        "description": "Override resolution, frame rate and bitrate for this game."
+      },
+      "mode": {
+        "title": "Recording Mode",
+        "description": "Override whether this game records a full session, a replay buffer, or both.",
+        "hybrid": "Hybrid",
+        "session": "Session",
+        "buffer": "Replay Buffer",
+        "bufferDuration": "Buffer Duration",
+        "bufferMaxSize": "Buffer Maximum Size"
+      },
+      "discardBookmarks": {
+        "title": "Discard Sessions Without Bookmarks",
+        "description": "Override whether sessions of this game are discarded when they have no manual bookmarks.",
+        "checkbox": "Discard Session Recordings Without Manual Bookmarks"
+      },
+      "hdr": {
+        "title": "HDR Recording",
+        "description": "Override whether HDR recording is enabled for this game (e.g. disable it for games where HDR injection tools break capture).",
+        "checkbox": "Record in HDR when the display supports it"
+      },
+      "volume": {
+        "title": "Recording Volume",
+        "description": "Override the captured game/system audio volume for this game, without changing your own in-game or Windows volume."
+      },
+      "highlightPadding": {
+        "title": "Highlight Padding",
+        "description": "Override how many seconds are kept before and after each highlight moment in this game.",
+        "before": "Before Highlight",
+        "after": "After Highlight"
+      },
+      "units": {
+        "seconds": "sec",
+        "megabytes": "MB"
+      }
+    }
+  },
+  "presets": {
+    "low": "Low Quality",
+    "standard": "Standard",
+    "high": "High Quality",
+    "custom": "Custom",
+    "manualConfig": "Manual config"
+  },
+  "quality": {
+    "resolution": "Resolution",
+    "frameRate": "Frame Rate",
+    "rateControl": "Rate Control",
+    "cbr": "CBR (Constant Bitrate)",
+    "vbr": "VBR (Variable Bitrate)",
+    "crf": "CRF (Constant Rate Factor)",
+    "cqp": "CQP (Constant Quantization Parameter)",
+    "bitrate": "Bitrate",
+    "minBitrate": "Minimum Bitrate",
+    "maxBitrate": "Maximum Bitrate",
+    "crfValue": "CRF Value",
+    "cqLevel": "CQ Level",
+    "encoder": "Video Encoder",
+    "codec": "Codec"
+  },
+  "integrations": {
+    "title": "Game Integrations",
+    "pending": "(applies to next recording)",
+    "description": "Enable automatic event detection for supported games. When enabled, Segra will automatically bookmark kills, goals, and other events during gameplay.",
+    "beta": "Beta",
+    "notes": {
+      "overwatchColorBlind": "Kills and assists only work with color blind mode off."
+    }
+  },
+  "custom": {
+    "title": "Add Custom Game",
+    "description": "For games Segra doesn't detect on its own. It records the game whenever one of these executables runs.",
+    "gameName": "Game Name",
+    "namePlaceholder": "Enter game name...",
+    "catalogMatch": "Matches {{name}} in Segra's game list, so it gets that game's icon and cover.",
+    "executables": "Executables",
+    "addAnother": "Add another executable",
+    "removeExecutableAria": "Remove {{file}}",
+    "removeExecutable": {
+      "title": "Remove executable?",
+      "description": "Remove this executable from the custom game?",
+      "confirm": "Remove"
+    },
+    "picker": {
+      "runningApps": "Running apps",
+      "refresh": "Refresh",
+      "noApps": "No apps running. Start the game, then press Refresh.",
+      "loading": "Loading...",
+      "or": "or",
+      "browse": "Browse for .exe",
+      "selecting": "Selecting..."
+    },
+    "addGame": "Add Game"
+  }
+}

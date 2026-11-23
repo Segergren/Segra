@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { isSelectedGameExecutableMessage } from '../Models/WebSocketMessages';
 import { AppWindow, FileCog, FolderOpen, Gamepad2, Plus, RefreshCw, X } from 'lucide-react';
@@ -32,6 +33,7 @@ interface SelectedExecutable {
 }
 
 export default function CustomGameModal({ onSave, onClose, initialName }: CustomGameModalProps) {
+  const { t } = useTranslation('games');
   const settings = useSettings();
   const { platform } = useAppState();
   const [selectedExes, setSelectedExes] = useState<SelectedExecutable[]>([]);
@@ -154,15 +156,15 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
   if (pathPendingRemoval) {
     return (
       <ConfirmationModal
-        title="Remove executable?"
+        title={t('custom.removeExecutable.title')}
         description={
           <>
-            Remove this executable from the custom game?
+            {t('custom.removeExecutable.description')}
             <br />
             <span className="text-sm text-gray-400 break-all">{pathPendingRemoval}</span>
           </>
         }
-        confirmText="Remove"
+        confirmText={t('custom.removeExecutable.confirm')}
         onConfirm={() => {
           setSelectedExes((prev) => prev.filter((e) => e.path !== pathPendingRemoval));
           setPathPendingRemoval(null);
@@ -194,7 +196,7 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
         <>
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs opacity-70">Running apps</span>
+              <span className="text-xs opacity-70">{t('custom.picker.runningApps')}</span>
               <Button
                 variant="ghost"
                 size="xs"
@@ -202,7 +204,7 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
                 disabled={isSelectingFile}
               >
                 <RefreshCw size={12} />
-                Refresh
+                {t('custom.picker.refresh')}
               </Button>
             </div>
             <div className="max-h-52 overflow-y-auto rounded-lg border border-base-400 bg-base-200 p-1">
@@ -225,16 +227,14 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
                 ))
               ) : (
                 <div className="px-3 py-2 text-sm opacity-60">
-                  {runningApps
-                    ? 'No apps running. Start the game, then press Refresh.'
-                    : 'Loading...'}
+                  {runningApps ? t('custom.picker.noApps') : t('custom.picker.loading')}
                 </div>
               )}
             </div>
           </div>
           <div className="flex items-center gap-3 text-xs opacity-60">
             <div className="flex-1 h-px bg-base-400" />
-            or
+            {t('custom.picker.or')}
             <div className="flex-1 h-px bg-base-400" />
           </div>
         </>
@@ -242,7 +242,7 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
       <div className="flex justify-center">
         <Button size="sm" onClick={handleBrowseExecutable} disabled={isSelectingFile}>
           <FolderOpen size={16} />
-          {isSelectingFile ? 'Selecting...' : 'Browse for .exe'}
+          {isSelectingFile ? t('custom.picker.selecting') : t('custom.picker.browse')}
         </Button>
       </div>
     </div>
@@ -256,11 +256,8 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
         </Button>
       </div>
       <div className="modal-body pt-3">
-        <h3 className="font-bold text-2xl">Add Custom Game</h3>
-        <p className="text-sm opacity-70 mt-1 pr-8">
-          For games Segra doesn&apos;t detect on its own. It records the game whenever one of these
-          executables runs.
-        </p>
+        <h3 className="font-bold text-2xl">{t('custom.title')}</h3>
+        <p className="text-sm opacity-70 mt-1 pr-8">{t('custom.description')}</p>
 
         <div className="mt-6 flex items-end gap-3">
           <div className="w-12 h-12 rounded-lg bg-base-200 border border-base-400 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -277,12 +274,12 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
           </div>
           <div className="form-control flex-1">
             <label className="label pt-0">
-              <span className="label-text text-base-content">Game Name</span>
+              <span className="label-text text-base-content">{t('custom.gameName')}</span>
             </label>
             <input
               type="text"
               className="input input-bordered bg-base-200 w-full focus:outline-none"
-              placeholder="Enter game name..."
+              placeholder={t('custom.namePlaceholder')}
               value={customGameName}
               onChange={(e) => {
                 setNameEdited(true);
@@ -293,13 +290,12 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
         </div>
         {catalogMatch && (
           <p className="text-xs opacity-70 mt-2">
-            Matches {catalogMatch.name} in Segra&apos;s game list, so it gets that game&apos;s icon
-            and cover.
+            {t('custom.catalogMatch', { name: catalogMatch.name })}
           </p>
         )}
 
         <div className="mt-5">
-          <div className="label-text text-base-content mb-2">Executables</div>
+          <div className="label-text text-base-content mb-2">{t('custom.executables')}</div>
 
           {selectedExes.length > 0 && (
             <div className="space-y-2">
@@ -320,7 +316,7 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
                       variant="ghost"
                       size="xs"
                       icon
-                      aria-label={`Remove ${fileName}`}
+                      aria-label={t('custom.removeExecutableAria', { file: fileName })}
                       className="hover:bg-error/20 hover:text-error"
                       onClick={() => handleRemoveCustomPath(exe.path)}
                     >
@@ -333,7 +329,7 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
                 <div className="flex justify-center pt-1">
                   <Button size="sm" variant="ghost" onClick={() => setAddingMore(true)}>
                     <Plus size={16} />
-                    Add another executable
+                    {t('custom.addAnother')}
                   </Button>
                 </div>
               )}
@@ -350,7 +346,7 @@ export default function CustomGameModal({ onSave, onClose, initialName }: Custom
           disabled={!customGameName.trim() || selectedExes.length === 0}
         >
           <Plus className="w-5 h-5" />
-          Add Game
+          {t('custom.addGame')}
         </Button>
       </div>
     </>

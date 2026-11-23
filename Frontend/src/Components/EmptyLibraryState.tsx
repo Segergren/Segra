@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { ContentType, HotkeyAction } from '../Models/types';
 import { useSettings } from '../Context/SettingsContext';
 import { useSelectedMenu } from '../Context/SelectedMenuContext';
@@ -23,81 +24,100 @@ interface EmptyCopy {
 export default function EmptyLibraryState({ contentType, Icon }: EmptyLibraryStateProps) {
   const settings = useSettings();
   const { setSelectedMenu } = useSelectedMenu();
+  const { t } = useTranslation('library');
 
   const hotkey = (action: HotkeyAction) => {
     const binding = settings.keybindings.find(
       (k) => k.action === action && k.enabled && k.keys.length > 0,
     );
-    return binding ? (
-      <kbd className="kbd kbd-sm text-gray-200">{binding.keys.map(getKeyName).join(' + ')}</kbd>
-    ) : null;
+    return binding ? binding.keys.map(getKeyName).join(' + ') : null;
   };
 
   const bufferLength = formatBufferLength(settings.replayBufferDuration);
-  const recordHotkey = hotkey(HotkeyAction.ToggleRecording);
-  const saveHotkey = hotkey(HotkeyAction.SaveReplayBuffer);
-  const changeCaptureMode = { label: 'Change capture mode', section: 'recording' };
+  const recordKeys = hotkey(HotkeyAction.ToggleRecording);
+  const saveKeys = hotkey(HotkeyAction.SaveReplayBuffer);
+  const changeCaptureMode = { label: t('empty.changeCaptureMode'), section: 'recording' };
+  const hotkeyComponents = { kbd: <kbd className="kbd kbd-sm text-gray-200" /> };
+  const bufferComponents = {
+    nowrap: <span className="whitespace-nowrap" />,
+    kbd: <kbd className="kbd kbd-sm text-gray-200" />,
+  };
 
   const copy = ((): EmptyCopy => {
     switch (contentType) {
       case 'Session':
         if (settings.recordingMode === 'Buffer') {
           return {
-            title: 'No sessions yet',
-            body: 'Your capture mode is Replay Buffer, so games are not saved as full sessions. Moments you save show up under Replay Buffer.',
+            title: t('empty.session.title'),
+            body: t('empty.session.bufferBody'),
             action: changeCaptureMode,
           };
         }
         return {
-          title: 'No sessions yet',
+          title: t('empty.session.title'),
           body: (
             <>
               {settings.autoRecordGames
-                ? 'Start a game and Segra records it in the background. The whole session shows up here when you close the game.'
-                : 'Auto-record is off, so a game is only recorded when you start the recording yourself.'}
-              {recordHotkey && <> Press {recordHotkey} to start or stop a recording.</>}
+                ? t('empty.session.autoRecordBody')
+                : t('empty.session.manualRecordBody')}
+              {recordKeys && (
+                <Trans
+                  ns="library"
+                  i18nKey="empty.session.pressHotkey"
+                  values={{ keys: recordKeys }}
+                  components={hotkeyComponents}
+                />
+              )}
             </>
           ),
         };
       case 'Buffer':
         if (settings.recordingMode === 'Session' && !settings.alwaysOnReplayBuffer) {
           return {
-            title: 'No replay buffers yet',
-            body: 'The replay buffer is off. Switch your capture mode to Replay Buffer or Hybrid to save the last moments of a game with a hotkey.',
+            title: t('empty.buffer.title'),
+            body: t('empty.buffer.offBody'),
             action: changeCaptureMode,
           };
         }
         return {
-          title: 'No replay buffers yet',
-          body: saveHotkey ? (
-            <>
-              While you play, Segra keeps the last{' '}
-              <span className="whitespace-nowrap">{bufferLength}</span> in memory. Press{' '}
-              {saveHotkey} to save it here.
-            </>
+          title: t('empty.buffer.title'),
+          body: saveKeys ? (
+            <Trans
+              ns="library"
+              i18nKey="empty.buffer.keepLast"
+              values={{ duration: bufferLength, keys: saveKeys }}
+              components={bufferComponents}
+            />
           ) : (
-            `While you play, Segra keeps the last ${bufferLength} in memory. Turn on the Save Replay Buffer hotkey to save it here.`
+            <Trans
+              ns="library"
+              i18nKey="empty.buffer.keepLastNoHotkey"
+              values={{ duration: bufferLength }}
+              components={bufferComponents}
+            />
           ),
-          action: saveHotkey ? undefined : { label: 'Set up hotkeys', section: 'hotkey-settings' },
+          action: saveKeys
+            ? undefined
+            : { label: t('empty.setUpHotkeys'), section: 'hotkey-settings' },
         };
       case 'Clip':
         return {
-          title: 'No clips yet',
-          body: 'Open a recording, press Add Segment to mark the moment you want, then press Create Clip.',
+          title: t('empty.clip.title'),
+          body: t('empty.clip.body'),
         };
       case 'Highlight':
         if (!settings.enableAi) {
           return {
-            title: 'Highlights are off',
-            body: 'Turn them on to join the kills and goals from a match into one video.',
-            action: { label: 'Open highlight settings', section: 'highlight-settings' },
+            title: t('empty.highlight.offTitle'),
+            body: t('empty.highlight.offBody'),
+            action: { label: t('empty.openHighlightSettings'), section: 'highlight-settings' },
           };
         }
         return {
-          title: 'No highlights yet',
+          title: t('empty.highlight.title'),
           body: settings.autoGenerateHighlights
-            ? "In supported games, Segra bookmarks your kills and goals and joins them into one video when the recording ends. You can also choose Create Highlight in a session's menu."
-            : "Choose Create Highlight in a session's menu to join its kills and goals into one video.",
+            ? t('empty.highlight.autoBody')
+            : t('empty.highlight.manualBody'),
         };
     }
   })();

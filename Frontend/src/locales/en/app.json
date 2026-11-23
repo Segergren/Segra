@@ -1,0 +1,23 @@
+{
+  "page": {
+    "sessions": {
+      "title": "Full Sessions"
+    },
+    "replayBuffer": {
+      "title": "Replay Buffer"
+    },
+    "clips": {
+      "title": "Clips"
+    },
+    "highlights": {
+      "title": "Highlights"
+    }
+  },
+  "auth": {
+    "loginFailedNoSession": "Login failed - no session returned",
+    "loginFailed": "Login failed. Please try again.",
+    "registrationFailed": "Registration failed. Please try again.",
+    "discordTimedOut": "Discord sign-in timed out. Please try again.",
+    "authenticateFailed": "Failed to authenticate. Please try again."
+  }
+}

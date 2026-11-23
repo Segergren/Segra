@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Settings as SettingsType, HotkeyAction } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { useAppState } from '../../Context/AppStateContext';
@@ -52,25 +54,25 @@ export const getKeyName = (keyCode: number): string => {
   return keyMap[keyCode] || `Key(${keyCode})`;
 };
 
-const getActionLabel = (action: HotkeyAction): string => {
+const getActionLabel = (action: HotkeyAction, t: TFunction): string => {
   switch (action) {
     case HotkeyAction.CreateBookmark:
-      return 'Create Bookmark';
+      return t('hotkeys.actions.createBookmark');
     case HotkeyAction.SaveReplayBuffer:
-      return 'Save Replay Buffer';
+      return t('hotkeys.actions.saveReplayBuffer');
     case HotkeyAction.ToggleRecording:
-      return 'Start / Stop Recording';
+      return t('hotkeys.actions.toggleRecording');
     case HotkeyAction.TogglePreview:
-      return 'Toggle Recording Preview';
+      return t('hotkeys.actions.togglePreview');
     default:
       return action;
   }
 };
 
-const getActionHint = (action: HotkeyAction): string | null => {
+const getActionHint = (action: HotkeyAction, t: TFunction): string | null => {
   switch (action) {
     case HotkeyAction.ToggleRecording:
-      return 'Records the focused game, or your display if no game is focused. Stops any active recording.';
+      return t('hotkeys.actions.toggleRecordingHint');
     default:
       return null;
   }
@@ -112,13 +114,14 @@ const getHeldModifiers = (e: KeyboardEvent, altGraphIsCtrlAlt: boolean): number[
 
 const formatKeys = (keys: number[]) => keys.map((key) => getKeyName(key)).join(' + ');
 
-const getCaptureLabel = (keys: number[]) => {
-  if (keys.length === 0) return 'Press Keys...';
+const getCaptureLabel = (keys: number[], t: TFunction) => {
+  if (keys.length === 0) return t('hotkeys.pressKeys');
   // Modifiers alone are still waiting for the key they go with
   return keys.every(isModifierKey) ? `${formatKeys(keys)} + ...` : formatKeys(keys);
 };
 
 export default function HotkeysSection({ settings, updateSettings }: HotkeysSectionProps) {
+  const { t } = useTranslation('audio');
   const { platform } = useAppState();
   const [capturing, setCapturing] = useState<number | null>(null);
   const [pressedKeys, setPressedKeys] = useState<number[]>([]);
@@ -221,7 +224,7 @@ export default function HotkeysSection({ settings, updateSettings }: HotkeysSect
       id="hotkey-settings"
       className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400 scroll-mt-5"
     >
-      <h2 className="text-xl font-semibold mb-4">Hotkeys</h2>
+      <h2 className="text-xl font-semibold mb-4">{t('hotkeys.title')}</h2>
       <div className="flex flex-col gap-3">
         {orderedHotkeys.map(({ hotkey, index }) => (
           <div
@@ -243,9 +246,9 @@ export default function HotkeysSection({ settings, updateSettings }: HotkeysSect
                 className="checkbox checkbox-primary checkbox-sm"
               />
               <div>
-                <div className="font-semibold">{getActionLabel(hotkey.action)}</div>
-                {getActionHint(hotkey.action) && (
-                  <div className="text-sm opacity-70 mt-0.5">{getActionHint(hotkey.action)}</div>
+                <div className="font-semibold">{getActionLabel(hotkey.action, t)}</div>
+                {getActionHint(hotkey.action, t) && (
+                  <div className="text-sm opacity-70 mt-0.5">{getActionHint(hotkey.action, t)}</div>
                 )}
               </div>
             </label>
@@ -258,7 +261,7 @@ export default function HotkeysSection({ settings, updateSettings }: HotkeysSect
                 setPressedKeys([]);
               }}
             >
-              {capturing === index ? getCaptureLabel(pressedKeys) : formatKeys(hotkey.keys)}
+              {capturing === index ? getCaptureLabel(pressedKeys, t) : formatKeys(hotkey.keys)}
             </button>
           </div>
         ))}

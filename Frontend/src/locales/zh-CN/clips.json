@@ -1,0 +1,121 @@
+{
+  "clipSettings": {
+    "title": "片段设置",
+    "qualityPresets": {
+      "low": {
+        "title": "低画质",
+        "hint": "快 • 30fps"
+      },
+      "standard": {
+        "title": "标准",
+        "hint": "均衡 • 60fps"
+      },
+      "high": {
+        "title": "高画质",
+        "hint": "画质 • 60fps"
+      },
+      "custom": {
+        "title": "自定义",
+        "hint": "手动配置"
+      }
+    },
+    "encoder": {
+      "label": "编码器"
+    },
+    "quality": {
+      "label": "画质",
+      "highest": "{{value}}（最高画质）",
+      "high": "{{value}}（高画质）",
+      "normal": "{{value}}（普通画质）",
+      "low": "{{value}}（低画质）",
+      "lowest": "{{value}}（最低画质）"
+    },
+    "codec": {
+      "label": "编码格式"
+    },
+    "frameRate": {
+      "label": "帧率",
+      "original": "原始帧率",
+      "fps": "{{value}} FPS"
+    },
+    "audioQuality": {
+      "label": "音频质量",
+      "low": "{{value}} kbps（低）",
+      "medium": "{{value}} kbps（中）",
+      "high": "{{value}} kbps（高）",
+      "veryHigh": "{{value}} kbps（很高）",
+      "insane": "{{value}} kbps（极高）"
+    },
+    "preset": {
+      "label": "预设"
+    },
+    "audioTracks": {
+      "label": "保持音轨分离",
+      "description": "片段会为每个音频源单独保留一条音轨，而不只是一条完整混音。"
+    }
+  },
+  "presetOptions": {
+    "ultrafast": "最快",
+    "superfast": "超快",
+    "veryfast": "极快",
+    "faster": "较快",
+    "fast": "快",
+    "medium": "中",
+    "slow": "慢",
+    "slower": "较慢",
+    "veryslow": "极慢",
+    "p1": "P1（最快）",
+    "p4": "P4（均衡）",
+    "p7": "P7（最慢／最佳画质）",
+    "quality": "画质",
+    "transcoding": "转码（均衡）",
+    "lowLatency": "低延迟（快）",
+    "ultraLowLatency": "超低延迟（最快）"
+  },
+  "highlights": {
+    "title": "高光",
+    "enable": {
+      "label": "启用高光",
+      "description": "在完整会话里加入「创建高光」，把击杀和进球合成一个视频。"
+    },
+    "auto": {
+      "label": "录制结束后自动生成高光",
+      "description": "含击杀或进球的录制结束后，自动创建高光。"
+    },
+    "before": "高光前",
+    "after": "高光后",
+    "unit": "秒"
+  },
+  "autoDelete": {
+    "confirm": {
+      "title": "删除旧视频",
+      "description_other": "{{count}} 个{{noun}}（{{size}}）已存在超过 {{days}}，现在将被删除。\n\n确定要继续吗？",
+      "delete": {
+        "video_other": "删除 {{count}} 个视频",
+        "clip_other": "删除 {{count}} 个片段",
+        "highlight_other": "删除 {{count}} 个高光"
+      },
+      "cancel": "取消",
+      "days_other": "{{count}} 天",
+      "noun": {
+        "video_other": "视频",
+        "clip_other": "片段",
+        "highlight_other": "高光",
+        "mixed_other": "片段和高光"
+      }
+    },
+    "field": {
+      "label": "视频到期后删除",
+      "placeholder": "设置天数",
+      "never": "从不",
+      "daysUnit_other": "天",
+      "hintNever": "视频会一直保留，直到你手动删除或达到存储空间上限。",
+      "hintAll": "存在时间超过该天数的视频会被删除，导入的视频不受影响。",
+      "hintSessions": "存在时间超过该天数的会话和即时回放缓冲会被删除。"
+    },
+    "clipsToggle": {
+      "label": "删除旧片段和高光",
+      "description": "片段和高光超过上面的删除时限后也会一并删除。"
+    }
+  }
+}

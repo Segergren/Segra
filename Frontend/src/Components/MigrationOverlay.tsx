@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MigrationStatus } from '../Models/types';
 
 const MigrationOverlay: React.FC = () => {
+  const { t } = useTranslation('cards');
   const [migrationStatus, setMigrationStatus] = useState<MigrationStatus | null>(null);
 
   // Debug: uncomment to show the migration UI
@@ -36,11 +38,11 @@ const MigrationOverlay: React.FC = () => {
         <div className="mb-6">
           <span className="loading loading-spinner loading-lg text-primary"></span>
         </div>
-        <h2 className="text-2xl font-bold mb-4">Updating Segra</h2>
-        <p className="text-base-content/70 mb-6">Preparing your content for the new version.</p>
+        <h2 className="text-2xl font-bold mb-4">{t('migrationOverlay.title')}</h2>
+        <p className="text-base-content/70 mb-6">{t('migrationOverlay.description')}</p>
         {stepCount > 1 && (
           <p className="text-sm text-base-content/70 mb-3">
-            Step {step} of {stepCount}
+            {t('migrationOverlay.step', { step, total: stepCount })}
           </p>
         )}
         {progressTotal != null && progressTotal > 0 && (
@@ -51,7 +53,11 @@ const MigrationOverlay: React.FC = () => {
               max={progressTotal}
             />
             <p className="text-sm text-base-content/60">
-              {progress ?? 0} of {progressTotal} {progressUnit}
+              {t('migrationOverlay.progress', {
+                progress: progress ?? 0,
+                total: progressTotal,
+                unit: progressUnit,
+              })}
             </p>
           </div>
         )}

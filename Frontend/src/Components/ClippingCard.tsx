@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useClipping } from '../Hooks/useClipping';
 import { useAppState } from '../Context/AppStateContext';
 import { contentTypeToFolderName } from '../Utils/FileUtils';
@@ -12,6 +13,7 @@ interface ClippingCardProps {
 }
 
 const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
+  const { t } = useTranslation('cards');
   const { cancelClip } = useClipping();
   const appState = useAppState();
   const [displayProgress, setDisplayProgress] = useState(0);
@@ -92,7 +94,7 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
                 onClick={handleCancel}
                 disabled={isCancelling}
                 className="absolute right-0 top-1/2 -translate-y-1/2 p-1 transition-colors cursor-pointer disabled:opacity-50"
-                aria-label="Cancel clip"
+                aria-label={t('clipping.cancel')}
               >
                 <X size={16} />
               </button>
@@ -102,14 +104,16 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
             >
               {isSessionMerge
                 ? isError
-                  ? 'Merge Failed'
-                  : 'Merging'
+                  ? t('clipping.mergeFailed')
+                  : t('clipping.merging')
                 : isError
-                  ? 'Clip Failed'
-                  : 'Creating Clip'}
+                  ? t('clipping.clipFailed')
+                  : t('clipping.creating')}
             </div>
             <div className={`text-xs truncate ${isError ? 'text-error/70' : 'text-gray-400'}`}>
-              {isError ? clipping.error || 'Unknown error' : `${Math.round(displayProgress)}%`}
+              {isError
+                ? clipping.error || t('clipping.unknownError')
+                : `${Math.round(displayProgress)}%`}
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useSettings } from '../Context/SettingsContext';
 import { useAppState, usePatchContent } from '../Context/AppStateContext';
 import { BookmarkType, Content, includeInHighlight } from '../Models/types';
@@ -90,6 +91,7 @@ export default function ContentCard({
   const { compressionProgress, isCompressing } = useCompression();
   const { getContentMigrationStatus } = useContentMigration();
   const confirmDelete = useDeleteConfirmation();
+  const { t } = useTranslation('library');
 
   const isBeingCompressed = content?.filePath ? isCompressing(content.filePath) : false;
   const migrationStatus = content?.id ? getContentMigrationStatus(content.id) : null;
@@ -365,13 +367,18 @@ export default function ContentCard({
 
     const displayName = content!.title || content!.game || content!.fileName;
     confirmDelete({
-      title: `Delete ${type.toLowerCase()}?`,
+      title: t('delete.title', { type: t(`type.${type.toLowerCase()}`) }),
       description: (
-        <>
-          Are you sure you want to permanently delete <strong>{displayName}</strong>?
-          <br />
-          <span className="text-sm text-gray-400">This action cannot be undone.</span>
-        </>
+        <Trans
+          ns="library"
+          i18nKey="delete.description"
+          values={{ name: displayName }}
+          components={{
+            strong: <strong />,
+            br: <br />,
+            hint: <span className="text-sm text-gray-400" />,
+          }}
+        />
       ),
       onConfirm: () => sendMessageToBackend('DeleteContent', parameters),
     });
@@ -479,7 +486,7 @@ export default function ContentCard({
             }}
           >
             <Upload size={20} />
-            <span>Upload</span>
+            <span>{t('menu.upload')}</span>
           </Button>
         </li>
       )}
@@ -495,7 +502,7 @@ export default function ContentCard({
             }}
           >
             <Copy size={20} />
-            <span>Copy</span>
+            <span>{t('menu.copy')}</span>
           </Button>
         </li>
       )}
@@ -513,10 +520,10 @@ export default function ContentCard({
             <Crown size={20} />
             <span>
               {isCreatingHighlight
-                ? 'Creating Highlight...'
+                ? t('menu.creatingHighlight')
                 : hasHighlightBookmarks
-                  ? 'Create Highlight'
-                  : 'No Highlights'}
+                  ? t('menu.createHighlight')
+                  : t('menu.noHighlights')}
             </span>
           </Button>
         </li>
@@ -530,7 +537,7 @@ export default function ContentCard({
           }}
         >
           <PenLine size={20} />
-          <span>Rename</span>
+          <span>{t('menu.rename')}</span>
         </Button>
       </li>
       <li>
@@ -542,7 +549,7 @@ export default function ContentCard({
           }}
         >
           <FolderOpen size={20} />
-          <span>Open File Location</span>
+          <span>{t('menu.openFileLocation')}</span>
         </Button>
       </li>
       {(type === 'Clip' || type === 'Highlight') && !content?.compressed && (
@@ -555,7 +562,7 @@ export default function ContentCard({
             }}
           >
             <Minimize2 size={20} />
-            <span>Compress</span>
+            <span>{t('menu.compress')}</span>
           </Button>
         </li>
       )}
@@ -568,7 +575,7 @@ export default function ContentCard({
           }}
         >
           <Trash2 size={20} />
-          <span>Delete</span>
+          <span>{t('menu.delete')}</span>
         </Button>
       </li>
     </>
@@ -684,7 +691,7 @@ export default function ContentCard({
                     {text}
                   </span>
                 ))
-              : `${matches.length} matches`}
+              : t('card.matches', { count: matches.length })}
           </span>
         )}
         {manualBookmarkCount > 0 && (
@@ -703,7 +710,7 @@ export default function ContentCard({
           <span
             className={`absolute top-2 left-2 badge badge-primary badge-sm text-base-300 transition-opacity duration-200 ${isSelectionMode ? 'opacity-0' : 'opacity-90'}`}
           >
-            NEW
+            {t('badge.new')}
           </span>
         )}
         {migrationStatus && (
@@ -711,19 +718,19 @@ export default function ContentCard({
             {migrationStatus === 'moving' && (
               <span className="loading loading-spinner loading-xs" />
             )}
-            {migrationStatus === 'moving' ? 'Moving...' : 'Waiting to move'}
+            {migrationStatus === 'moving' ? t('status.moving') : t('status.waitingToMove')}
           </div>
         )}
         {currentCompressionProgress && (
           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
             <p className="text-white text-sm mb-2">
               {currentCompressionProgress.status === 'compressing'
-                ? 'Compressing...'
+                ? t('status.compressing')
                 : currentCompressionProgress.status === 'done'
-                  ? 'Done!'
+                  ? t('status.done')
                   : currentCompressionProgress.status === 'skipped'
-                    ? 'Skipped'
-                    : 'Error'}
+                    ? t('status.skipped')
+                    : t('status.error')}
             </p>
             {currentCompressionProgress.status === 'compressing' && (
               <div className="w-2/3 h-1.5 bg-white/20 rounded-full overflow-hidden">
@@ -762,11 +769,11 @@ export default function ContentCard({
                 }}
                 onClick={(e) => e.stopPropagation()}
                 className="card-title !block truncate bg-transparent outline-none w-full min-w-0"
-                placeholder={content!.game || 'Untitled'}
+                placeholder={content!.game || t('card.untitled')}
               />
             ) : (
               <h2 className="card-title !block truncate min-w-0">
-                {content!.title || content!.game || 'Untitled'}
+                {content!.title || content!.game || t('card.untitled')}
               </h2>
             )}
           </div>
@@ -823,7 +830,7 @@ export default function ContentCard({
                   {killDeath.kills > 0 && (
                     <span
                       className="inline-flex items-center gap-1"
-                      aria-label={`${killDeath.kills} kills`}
+                      aria-label={t('aria.kills', { count: killDeath.kills })}
                     >
                       <KillIcon
                         size={14}
@@ -836,7 +843,7 @@ export default function ContentCard({
                   {killDeath.showDeaths && (
                     <span
                       className="inline-flex items-center gap-1"
-                      aria-label={`${killDeath.deaths} deaths`}
+                      aria-label={t('aria.deaths', { count: killDeath.deaths })}
                     >
                       <Skull
                         size={14}
@@ -849,7 +856,7 @@ export default function ContentCard({
                   {killDeath.goals > 0 && (
                     <span
                       className="inline-flex items-center gap-1"
-                      aria-label={`${killDeath.goals} goals`}
+                      aria-label={t('aria.goals', { count: killDeath.goals })}
                     >
                       <GoalIcon
                         size={14}

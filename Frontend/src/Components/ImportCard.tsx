@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { ImportProgress } from '../Context/ImportContext';
 
 interface ImportCardProps {
@@ -5,20 +6,24 @@ interface ImportCardProps {
 }
 
 export default function ImportCard({ importItem }: ImportCardProps) {
+  const { t } = useTranslation('cards');
   const isRecovery = importItem.action === 'recover';
 
   const getStatusText = () => {
     switch (importItem.status) {
       case 'importing':
         return isRecovery
-          ? 'Recovering'
-          : `Importing ${importItem.currentFileIndex} of ${importItem.totalFiles}`;
+          ? t('import.status.recovering')
+          : t('import.status.importing', {
+              current: importItem.currentFileIndex,
+              total: importItem.totalFiles,
+            });
       case 'done':
-        return isRecovery ? 'Recovery Complete' : 'Import Complete';
+        return isRecovery ? t('import.status.recoveryComplete') : t('import.status.complete');
       case 'error':
-        return importItem.message || 'Import Error';
+        return importItem.message || t('import.status.error');
       default:
-        return 'Importing...';
+        return t('import.status.pending');
     }
   };
 

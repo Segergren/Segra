@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Reorder } from 'framer-motion';
 import { GripVertical, Merge } from 'lucide-react';
 import { Content, ContentType } from '../Models/types';
+import i18n from '../i18n';
 import { useAppState } from '../Context/AppStateContext';
 import { contentTypeToFolderName } from '../Utils/FileUtils';
 import Button from './Button';
@@ -13,11 +15,12 @@ interface MergeModalProps {
   onClose: () => void;
 }
 
-const NOUNS: Record<ContentType, string> = {
-  Session: 'sessions',
-  Buffer: 'replay buffers',
-  Clip: 'clips',
-  Highlight: 'highlights',
+// Pluralised title key for each content type.
+const TYPE_KEYS: Record<ContentType, string> = {
+  Session: 'session',
+  Buffer: 'buffer',
+  Clip: 'clip',
+  Highlight: 'highlight',
 };
 
 // Durations arrive as "hh:mm:ss.fffffff"
@@ -35,6 +38,7 @@ const formatSeconds = (seconds: number) => {
 };
 
 export default function MergeModal({ items, slow, onMerge, onClose }: MergeModalProps) {
+  const { t } = useTranslation('modals');
   const { cacheFolder } = useAppState();
   const [order, setOrder] = useState(items);
   const listRef = useRef<HTMLUListElement>(null);
@@ -64,19 +68,19 @@ export default function MergeModal({ items, slow, onMerge, onClose }: MergeModal
       <div className="modal-body">
         <div className="flex items-center justify-between gap-4 mb-1">
           <h3 className="font-bold text-2xl">
-            Merge {items.length} {NOUNS[type]}
+            {t(`merge.title.${TYPE_KEYS[type]}`, { count: items.length })}
           </h3>
           <Button variant="ghost" size="sm" icon onClick={onClose}>
             ✕
           </Button>
         </div>
         <p className="text-sm text-gray-400 mb-4">
-          Drag to change the order.{' '}
+          {t('merge.orderHint')}{' '}
           {type === 'Session'
-            ? 'The result is saved as a new session and keeps all bookmarks.'
+            ? t('merge.result.session')
             : slow
-              ? 'Their video settings differ, so they are re-encoded into a new clip. This takes a while.'
-              : 'The merged video is saved as a new clip.'}
+              ? t('merge.result.reencode')
+              : t('merge.result.clip')}
         </p>
         <Reorder.Group
           ref={listRef}
@@ -104,7 +108,7 @@ export default function MergeModal({ items, slow, onMerge, onClose }: MergeModal
               <div className="min-w-0 flex-1">
                 <div className="truncate text-gray-200">{item.title || item.game}</div>
                 <div className="truncate text-xs text-gray-400">
-                  {new Date(item.createdAt).toLocaleString(undefined, {
+                  {new Date(item.createdAt).toLocaleString(i18n.language, {
                     dateStyle: 'medium',
                     timeStyle: 'short',
                   })}
@@ -120,11 +124,11 @@ export default function MergeModal({ items, slow, onMerge, onClose }: MergeModal
       </div>
       <div className="modal-action mt-6 flex items-center justify-between">
         <span className="text-sm text-gray-400 tabular-nums">
-          Total length {formatSeconds(totalSeconds)}
+          {t('merge.totalLength', { duration: formatSeconds(totalSeconds) })}
         </span>
         <Button variant="primary" onClick={() => onMerge(order.map((item) => item.id))}>
           <Merge className="w-5 h-5" />
-          {slow ? 'Merge (slow)' : 'Merge'}
+          {slow ? t('merge.mergeSlow') : t('merge.merge')}
         </Button>
       </div>
     </>

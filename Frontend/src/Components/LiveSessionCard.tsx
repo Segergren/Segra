@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Recording } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { formatCreatedAt } from '../Utils/ContentFormat';
@@ -33,6 +34,7 @@ export default function LiveSessionCard({
   recording: Recording;
   isFinishing?: boolean;
 }) {
+  const { t } = useTranslation('cards');
   const startMs = new Date(recording.startTime).getTime();
   const filePath = recording.filePath;
   const [thumbnailUrl, setThumbnailUrl] = useState(() =>
@@ -114,7 +116,7 @@ export default function LiveSessionCard({
         {thumbnailUrl && (
           <img
             src={thumbnailUrl}
-            alt="thumbnail"
+            alt={t('live.thumbnail')}
             className={`w-full h-full object-contain select-none transition-opacity duration-200 ${thumbnailLoaded ? 'opacity-100' : 'opacity-0'}`}
             width={1600}
             height={900}
@@ -125,13 +127,13 @@ export default function LiveSessionCard({
         {!isFinishing && (
           <span className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/75 text-white text-xs px-2 py-1 rounded">
             <span className="h-2 w-2 rounded-full bg-red-500" />
-            REC
+            {t('live.rec')}
           </span>
         )}
         {showOpening && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center gap-2 text-sm text-white">
             <span className="loading loading-spinner loading-xs" />
-            Opening...
+            {t('live.opening')}
           </div>
         )}
       </figure>

@@ -1,0 +1,18 @@
+{
+  "title": "设置",
+  "nav": {
+    "account": "账户",
+    "recording": "录制",
+    "clips": "片段",
+    "storage": "存储",
+    "games": "游戏",
+    "preferences": "偏好设置",
+    "advanced": "高级"
+  },
+  "language": {
+    "title": "语言",
+    "description": "选择 Segra 界面使用的语言。",
+    "en": "English",
+    "zhCN": "简体中文"
+  }
+}

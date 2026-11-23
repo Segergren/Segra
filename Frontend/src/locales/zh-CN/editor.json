@@ -1,0 +1,87 @@
+{
+  "topBar": {
+    "back": "返回"
+  },
+  "player": {
+    "play": "播放",
+    "pause": "暂停",
+    "mute": "静音",
+    "unmute": "取消静音",
+    "copy": "复制",
+    "copyCompressed": "复制为压缩文件",
+    "audioTracks": "音轨",
+    "zoomOut": "缩小",
+    "zoomIn": "放大",
+    "changeSpeed": "调整播放速度",
+    "enterFullscreen": "进入全屏",
+    "exitFullscreen": "退出全屏",
+    "bookmarkAt": "{{type}}书签 ({{time}})",
+    "bookmarkFilter": "{{type}}书签"
+  },
+  "bookmarkType": {
+    "manual": "手动",
+    "kill": "击杀",
+    "goal": "目标",
+    "assist": "助攻",
+    "death": "阵亡"
+  },
+  "bookmarkSubtype": {
+    "headshot": "爆头"
+  },
+  "matchResult": {
+    "win": "胜利",
+    "loss": "失败",
+    "draw": "平局"
+  },
+  "timeline": {
+    "bookmarkTip": "{{type}}书签 · {{time}}",
+    "bookmarkTipSubtype": "{{type}}（{{subtype}}）书签 · {{time}}",
+    "segmentAudio": "分段音频",
+    "resizeStart": "拖动分段起点",
+    "resizeEnd": "拖动分段终点",
+    "matchNumber": "对局 {{number}}",
+    "totalLength": "所有分段的总时长",
+    "previousVideo": "上一个视频",
+    "back5": "后退 5 秒",
+    "forward5": "前进 5 秒",
+    "nextVideo": "下一个视频"
+  },
+  "actions": {
+    "upload": "上传",
+    "createClip": "创建片段",
+    "createClips": "创建多个片段",
+    "addSegment": "添加分段",
+    "addBookmark": "添加书签",
+    "clear": "清空"
+  },
+  "segmentMenu": {
+    "options": "分段选项",
+    "clearAfterClip": "创建片段后清空分段",
+    "clipOutput": "片段输出",
+    "combined": "合并输出",
+    "separate": "分别输出"
+  },
+  "confirm": {
+    "deleteBookmark": {
+      "title": "删除书签？",
+      "description": "删除 {{time}} 处的{{type}}书签？此操作无法撤销。"
+    },
+    "deleteSegment": {
+      "title": "删除分段？",
+      "description": "从片段中移除这个分段？此操作无法撤销。"
+    },
+    "clearSegments": {
+      "title": "删除全部分段？",
+      "description_other": "从片段中移除全部 {{count}} 个分段？此操作无法撤销。",
+      "confirm": "全部删除"
+    }
+  },
+  "webcam": {
+    "drag": "摄像头画面，拖动可移动",
+    "resize": "调整摄像头画面大小"
+  },
+  "audioMixer": {
+    "mute": "静音此音轨",
+    "unmute": "取消静音此音轨"
+  }
+}

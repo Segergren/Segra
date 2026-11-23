@@ -1,0 +1,71 @@
+{
+  "app": {
+    "title": "应用",
+    "runOnStartup": {
+      "label": "开机自启",
+      "off": "不启动",
+      "minimized": "最小化启动",
+      "normal": "以普通窗口启动"
+    },
+    "closeButton": {
+      "label": "关闭按钮",
+      "minimizeToTray": "最小化到托盘",
+      "keepInBackground": "保持后台运行",
+      "exit": "退出程序"
+    },
+    "soundVolume": "音效音量"
+  },
+  "interface": {
+    "title": "界面",
+    "toggles": {
+      "showGameBackground": {
+        "label": "显示游戏封面",
+        "description": "在录制卡片和游戏集成卡片上显示封面图。"
+      },
+      "showLiveSessionCard": {
+        "label": "显示正在录制的会话",
+        "description": "在「完整会话」里把正在录制的会话排在最前面，方便你在录制结束前观看并截取片段。"
+      },
+      "showNewBadgeOnVideos": {
+        "label": "显示「新」标记",
+        "description": "给最近一小时内还没打开过的会话和回放加上 <badge>新</badge> 标记。"
+      },
+      "confirmBeforeDeleting": {
+        "label": "删除前确认",
+        "description": "删除视频、恢复的录制或游戏路径前先询问。"
+      },
+      "showAudioWaveformInTimeline": {
+        "label": "显示音频波形",
+        "description": "在片段剪辑器时间轴上绘制音频波形。"
+      },
+      "showClipToolsOnClips": {
+        "label": "在片段与高光上显示剪辑工具",
+        "description": "观看片段或高光时显示「创建片段」和「添加分段」按钮。"
+      },
+      "showVideoNavigation": {
+        "label": "显示上一个／下一个视频",
+        "description": "在播放器中显示 <back/> 和 <forward/> 按钮，用于切换到列表里的上一个或下一个视频。"
+      },
+      "showBookmarksInFullscreen": {
+        "label": "全屏时显示书签",
+        "description": "在全屏播放器的进度条上方显示书签。"
+      }
+    }
+  },
+  "menu": {
+    "title": "侧边栏菜单",
+    "description": "拖动可调整顺序。选择启动时打开的页面。用不到的项可以隐藏。",
+    "dragHandle": "拖动排序",
+    "forcedShown": "因为包含视频，仍会显示在侧边栏",
+    "default": {
+      "isDefault": "启动时打开",
+      "hidden": "隐藏的页面无法在启动时打开",
+      "set": "设为启动页面"
+    },
+    "visibility": {
+      "always": "始终显示",
+      "hide": "从侧边栏隐藏",
+      "show": "在侧边栏显示"
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { clampInt } from '../../Utils/NumberUtils';
 
 const MIN_BITRATE_MBPS = 1;
@@ -16,6 +17,7 @@ export default function BitrateInput({
   onChange,
   className = 'bg-base-200',
 }: BitrateInputProps) {
+  const { t } = useTranslation('recording');
   const [localValue, setLocalValue] = useState<string>(String(value));
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function BitrateInput({
         className={`input input-bordered ${className} w-full pr-14 outline-none focus:border-base-400`}
       />
       <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
-        Mbps
+        {t('video.bitrate.unit')}
       </span>
     </div>
   );

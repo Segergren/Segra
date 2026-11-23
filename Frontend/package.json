@@ -20,6 +20,7 @@
     "@types/semver": "^7.7.1",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^14.10.1",
+    "i18next": "^27.2.3",
     "lucide": "^1.70.0",
     "lucide-react": "^1.70.0",
     "markdown-to-jsx": "^9.10.6",
@@ -29,6 +30,7 @@
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.3.1",
+    "react-i18next": "^18.0.3",
     "semver": "^7.8.6",
     "theme-change": "^3.0.4"
   },

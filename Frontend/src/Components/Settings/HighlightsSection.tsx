@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Settings as SettingsType } from '../../Models/types';
 
 interface HighlightsSectionProps {
@@ -7,6 +8,7 @@ interface HighlightsSectionProps {
 }
 
 export default function HighlightsSection({ settings, updateSettings }: HighlightsSectionProps) {
+  const { t } = useTranslation('clips');
   const [localPaddingBefore, setLocalPaddingBefore] = useState<string>(
     String(settings.highlightPaddingBefore),
   );
@@ -30,7 +32,7 @@ export default function HighlightsSection({ settings, updateSettings }: Highligh
       id="highlight-settings"
       className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400 scroll-mt-5"
     >
-      <h2 className="text-xl font-semibold mb-4">Highlights</h2>
+      <h2 className="text-xl font-semibold mb-4">{t('highlights.title')}</h2>
       <div className="space-y-3">
         <label className="flex items-center gap-3 cursor-pointer p-3 bg-base-200 rounded-lg border border-base-400">
           <input
@@ -41,11 +43,8 @@ export default function HighlightsSection({ settings, updateSettings }: Highligh
             className="checkbox checkbox-primary checkbox-sm"
           />
           <div>
-            <div className="font-semibold">Enable Highlights</div>
-            <div className="text-sm opacity-70 mt-0.5">
-              Adds Create Highlight to full sessions, which joins your kills and goals into one
-              video.
-            </div>
+            <div className="font-semibold">{t('highlights.enable.label')}</div>
+            <div className="text-sm opacity-70 mt-0.5">{t('highlights.enable.description')}</div>
           </div>
         </label>
         <label
@@ -60,10 +59,8 @@ export default function HighlightsSection({ settings, updateSettings }: Highligh
             disabled={!settings.enableAi}
           />
           <div>
-            <div className="font-semibold">Auto-Generate Highlights After Recording</div>
-            <div className="text-sm opacity-70 mt-0.5">
-              Creates the highlight automatically when a recording with kills or goals ends.
-            </div>
+            <div className="font-semibold">{t('highlights.auto.label')}</div>
+            <div className="text-sm opacity-70 mt-0.5">{t('highlights.auto.description')}</div>
           </div>
         </label>
 
@@ -74,7 +71,7 @@ export default function HighlightsSection({ settings, updateSettings }: Highligh
                 htmlFor="highlightPaddingBefore"
                 className="label text-base-content px-0 !block"
               >
-                <span className="label-text">Before Highlight</span>
+                <span className="label-text">{t('highlights.before')}</span>
               </label>
               <div className="relative w-full">
                 <input
@@ -96,7 +93,7 @@ export default function HighlightsSection({ settings, updateSettings }: Highligh
                   className="input input-bordered bg-base-200 w-full pr-12 outline-none focus:border-base-400"
                 />
                 <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
-                  sec
+                  {t('highlights.unit')}
                 </span>
               </div>
             </div>
@@ -106,7 +103,7 @@ export default function HighlightsSection({ settings, updateSettings }: Highligh
                 htmlFor="highlightPaddingAfter"
                 className="label text-base-content px-0 !block"
               >
-                <span className="label-text">After Highlight</span>
+                <span className="label-text">{t('highlights.after')}</span>
               </label>
               <div className="relative w-full">
                 <input
@@ -124,7 +121,7 @@ export default function HighlightsSection({ settings, updateSettings }: Highligh
                   className="input input-bordered bg-base-200 w-full pr-12 outline-none focus:border-base-400"
                 />
                 <span className="absolute inset-y-0 right-3 flex items-center text-sm opacity-60 pointer-events-none">
-                  sec
+                  {t('highlights.unit')}
                 </span>
               </div>
             </div>

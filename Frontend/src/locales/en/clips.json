@@ -1,0 +1,131 @@
+{
+  "clipSettings": {
+    "title": "Clip Settings",
+    "qualityPresets": {
+      "low": {
+        "title": "Low Quality",
+        "hint": "Fast • 30fps"
+      },
+      "standard": {
+        "title": "Standard",
+        "hint": "Balanced • 60fps"
+      },
+      "high": {
+        "title": "High Quality",
+        "hint": "Quality • 60fps"
+      },
+      "custom": {
+        "title": "Custom",
+        "hint": "Manual config"
+      }
+    },
+    "encoder": {
+      "label": "Encoder"
+    },
+    "quality": {
+      "label": "Quality",
+      "highest": "{{value}} (Highest Quality)",
+      "high": "{{value}} (High Quality)",
+      "normal": "{{value}} (Normal Quality)",
+      "low": "{{value}} (Low Quality)",
+      "lowest": "{{value}} (Lowest Quality)"
+    },
+    "codec": {
+      "label": "Codec"
+    },
+    "frameRate": {
+      "label": "Frame Rate",
+      "original": "Original FPS",
+      "fps": "{{value}} FPS"
+    },
+    "audioQuality": {
+      "label": "Audio Quality",
+      "low": "{{value}} kbps (Low)",
+      "medium": "{{value}} kbps (Medium)",
+      "high": "{{value}} kbps (High)",
+      "veryHigh": "{{value}} kbps (Very High)",
+      "insane": "{{value}} kbps (Insane)"
+    },
+    "preset": {
+      "label": "Preset"
+    },
+    "audioTracks": {
+      "label": "Keep Audio Tracks Separated",
+      "description": "Clips keep each audio source on its own track instead of only the full mix."
+    }
+  },
+  "presetOptions": {
+    "ultrafast": "Ultrafast",
+    "superfast": "Superfast",
+    "veryfast": "Veryfast",
+    "faster": "Faster",
+    "fast": "Fast",
+    "medium": "Medium",
+    "slow": "Slow",
+    "slower": "Slower",
+    "veryslow": "Veryslow",
+    "p1": "P1 (Fastest)",
+    "p4": "P4 (Balanced)",
+    "p7": "P7 (Slowest/Best Quality)",
+    "quality": "Quality",
+    "transcoding": "Transcoding (Balanced)",
+    "lowLatency": "Low Latency (Fast)",
+    "ultraLowLatency": "Ultra Low Latency (Fastest)"
+  },
+  "highlights": {
+    "title": "Highlights",
+    "enable": {
+      "label": "Enable Highlights",
+      "description": "Adds Create Highlight to full sessions, which joins your kills and goals into one video."
+    },
+    "auto": {
+      "label": "Auto-Generate Highlights After Recording",
+      "description": "Creates the highlight automatically when a recording with kills or goals ends."
+    },
+    "before": "Before Highlight",
+    "after": "After Highlight",
+    "unit": "sec"
+  },
+  "autoDelete": {
+    "confirm": {
+      "title": "Delete Old Videos",
+      "description_one": "{{count}} {{noun}} ({{size}}) is older than {{days}} and will be deleted now.\n\nAre you sure you want to continue?",
+      "description_other": "{{count}} {{noun}} ({{size}}) are older than {{days}} and will be deleted now.\n\nAre you sure you want to continue?",
+      "delete": {
+        "video_one": "Delete Video",
+        "video_other": "Delete {{count}} Videos",
+        "clip_one": "Delete Clip",
+        "clip_other": "Delete {{count}} Clips",
+        "highlight_one": "Delete Highlight",
+        "highlight_other": "Delete {{count}} Highlights"
+      },
+      "cancel": "Cancel",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
+      "noun": {
+        "video_one": "video",
+        "video_other": "videos",
+        "clip_one": "clip",
+        "clip_other": "clips",
+        "highlight_one": "highlight",
+        "highlight_other": "highlights",
+        "mixed_one": "clip",
+        "mixed_other": "clips and highlights"
+      }
+    },
+    "field": {
+      "label": "Delete Videos After",
+      "placeholder": "Set age in days",
+      "never": "Never",
+      "daysUnit_one": "day",
+      "daysUnit_other": "days",
+      "hintNever": "Videos are kept until you delete them or the storage limit is reached.",
+      "hintAll": "Videos older than this are deleted. Imported videos are kept.",
+      "hintSessions": "Sessions and replay buffers older than this are deleted."
+    },
+    "clipsToggle": {
+      "label": "Delete Old Clips and Highlights",
+      "description": "Also deletes clips and highlights once they are older than the Delete Videos After age."
+    }
+  }
+}

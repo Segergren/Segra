@@ -1,4 +1,5 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   TriangleAlert,
@@ -47,6 +48,7 @@ export default function AudioDevicesSection({
   settings,
   updateSettings,
 }: AudioDevicesSectionProps) {
+  const { t } = useTranslation('audio');
   const appState = useAppState();
   const hasPendingChanges = usePendingRecordingSettings(RECORDING_SETTING_GROUPS.audio);
   const [draggingVolume, setDraggingVolume] = useState<{
@@ -208,11 +210,16 @@ export default function AudioDevicesSection({
     [
       {
         option: 'noiseSuppression' as const,
-        label: 'Noise Suppression',
+        label: t('device.options.noiseSuppression'),
         Icon: AudioWaveform,
       },
       // Rotated so two channels merge into one, left to right
-      { option: 'forceMono' as const, label: 'Mono', Icon: Merge, iconClassName: 'rotate-90' },
+      {
+        option: 'forceMono' as const,
+        label: t('device.options.mono'),
+        Icon: Merge,
+        iconClassName: 'rotate-90',
+      },
     ].map(({ option, label, Icon, iconClassName }) => {
       const active = !!device[option];
       return (
@@ -245,7 +252,11 @@ export default function AudioDevicesSection({
     const selectedDevices = isInput ? settings.inputDevices : settings.outputDevices;
     const availableDevices = isInput ? appState.inputDevices : appState.outputDevices;
 
-    const defaultDevice: AudioDevice = { id: 'default', name: 'Default Device', isDefault: false };
+    const defaultDevice: AudioDevice = {
+      id: 'default',
+      name: t('device.defaultName'),
+      isDefault: false,
+    };
     const allDevices = [defaultDevice, ...availableDevices];
 
     return (
@@ -274,7 +285,7 @@ export default function AudioDevicesSection({
                   return showLimitIcon ? (
                     <div
                       className="tooltip tooltip-bottom tooltip-warning ml-1 inline-flex"
-                      data-tip="This source will be included in the Full Mix only"
+                      data-tip={t('device.fullMixOnly')}
                     >
                       <TriangleAlert className="h-4 w-4 text-warning" />
                     </div>
@@ -368,7 +379,7 @@ export default function AudioDevicesSection({
                 <span className="label-text text-error flex items-center flex-1 mr-2 relative pl-6 leading-none">
                   <div
                     className="tooltip tooltip-right tooltip-error absolute left-0 inline-flex"
-                    data-tip="This source is unavailable"
+                    data-tip={t('device.unavailable')}
                   >
                     <CircleAlert size={18} />
                   </div>
@@ -432,17 +443,15 @@ export default function AudioDevicesSection({
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-base-400">
       <div className="flex items-center gap-2 mb-4">
-        <h2 className="text-xl font-semibold">Audio</h2>
-        {hasPendingChanges && (
-          <span className="text-xs text-warning">(applies to next recording)</span>
-        )}
+        <h2 className="text-xl font-semibold">{t('title')}</h2>
+        {hasPendingChanges && <span className="text-xs text-warning">{t('pendingHint')}</span>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         {/* Input Devices (Multiple Selection) */}
         <div className="form-control">
           <label className="label">
-            <span className="label-text text-base-content">Input Devices</span>
+            <span className="label-text text-base-content">{t('inputDevices.title')}</span>
           </label>
           <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
             {renderDeviceList('input')}
@@ -452,7 +461,7 @@ export default function AudioDevicesSection({
         {/* Output Devices (Multiple Selection) */}
         <div className="form-control">
           <label className="label">
-            <span className="label-text text-base-content">Output Devices</span>
+            <span className="label-text text-base-content">{t('outputDevices.title')}</span>
           </label>
           <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
             {renderDeviceList('output')}
@@ -461,27 +470,26 @@ export default function AudioDevicesSection({
       </div>
 
       <label className={`label mt-4 ${appState.platform === 'linux' ? 'hidden' : ''}`}>
-        <span className="label-text text-base-content">What to Record</span>
+        <span className="label-text text-base-content">{t('whatToRecord.title')}</span>
       </label>
       <div className={`grid grid-cols-3 gap-4 ${appState.platform === 'linux' ? 'hidden' : ''}`}>
         {[
           {
             value: 'All' as AudioOutputMode,
-            label: 'Everything',
-            description:
-              'All sound from the selected output devices, including music and voice chat.',
+            label: t('whatToRecord.everything.label'),
+            description: t('whatToRecord.everything.description'),
             icons: <Volume2 className="h-4 w-4" />,
           },
           {
             value: 'GameOnly' as AudioOutputMode,
-            label: 'Game Only',
-            description: "Only the game's own sound.",
+            label: t('whatToRecord.gameOnly.label'),
+            description: t('whatToRecord.gameOnly.description'),
             icons: <Gamepad2 className="h-4 w-4" />,
           },
           {
             value: 'GameAndDiscord' as AudioOutputMode,
-            label: 'Game and Voice Chat',
-            description: 'The game plus Discord and TeamSpeak.',
+            label: t('whatToRecord.gameAndVoiceChat.label'),
+            description: t('whatToRecord.gameAndVoiceChat.description'),
             icons: (
               <span className="flex items-center gap-1.5">
                 <Gamepad2 className="h-4 w-4" />
@@ -513,13 +521,9 @@ export default function AudioDevicesSection({
 
       <div className={showAppAudio ? '' : 'hidden'}>
         <label className="label mt-4">
-          <span className="label-text text-base-content">App Audio</span>
+          <span className="label-text text-base-content">{t('appAudio.title')}</span>
         </label>
-        <div className="text-sm opacity-70 mb-2">
-          Records these apps together with the game's audio, each on its own track when Separate
-          Audio Tracks is on. Display recordings already include all desktop audio, so apps are not
-          added there.
-        </div>
+        <div className="text-sm opacity-70 mb-2">{t('appAudio.description')}</div>
         <div className="flex flex-wrap items-center gap-2">
           {appAudioCaptures.map((app) => (
             <span
@@ -534,7 +538,7 @@ export default function AudioDevicesSection({
               <Button
                 variant="ghost"
                 size="xs"
-                aria-label={`Remove ${app.name}`}
+                aria-label={t('appAudio.remove', { name: app.name })}
                 onClick={() =>
                   updateSettings({
                     applicationAudioCaptures: appAudioCaptures.filter((c) => c.exe !== app.exe),
@@ -555,7 +559,7 @@ export default function AudioDevicesSection({
               buttonContent={
                 <span className="flex items-center gap-1.5">
                   <Plus className="h-4 w-4" />
-                  Add App
+                  {t('appAudio.addApp')}
                 </span>
               }
               menuClassName="dropdown-content menu menu-md bg-base-300 border border-base-400 rounded-box z-[999] w-80 p-2 shadow flex-nowrap"
@@ -575,7 +579,7 @@ export default function AudioDevicesSection({
                         value: '',
                         label: (
                           <span className="opacity-60">
-                            {runningApps ? 'No other apps running' : 'Loading...'}
+                            {runningApps ? t('appAudio.noApps') : t('appAudio.loading')}
                           </span>
                         ),
                       },
@@ -596,10 +600,8 @@ export default function AudioDevicesSection({
           className="checkbox checkbox-primary checkbox-sm"
         />
         <div>
-          <div className="font-semibold">Separate Audio Tracks</div>
-          <div className="text-sm opacity-70 mt-0.5">
-            Saves each audio source as its own track, next to the full mix.
-          </div>
+          <div className="font-semibold">{t('separateTracks.label')}</div>
+          <div className="text-sm opacity-70 mt-0.5">{t('separateTracks.description')}</div>
         </div>
       </label>
 
@@ -621,14 +623,12 @@ export default function AudioDevicesSection({
             <div className="py-2 flex items-center w-full">
               <TriangleAlert className="h-5 w-5 mr-2 shrink-0" />
               <motion.span className="min-w-0 flex-1">
-                You have selected more than {maxIsolatedTracks} audio sources. Only the first{' '}
-                {maxIsolatedTracks} will be saved as separate audio tracks. Any additional sources
-                will be recorded in the Full Mix only.
+                {t('trackLimitWarning.message', { max: maxIsolatedTracks })}
               </motion.span>
               <Button
                 variant="ghost"
                 size="xs"
-                aria-label="Dismiss track limit warning"
+                aria-label={t('trackLimitWarning.dismiss')}
                 className="text-warning hover:bg-warning/20"
                 onClick={() => {
                   setTrackLimitWarnDismissed(true);
