@@ -45,6 +45,16 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
         'Shows the session being recorded first in Full Sessions so you can watch and clip it before the recording stops.',
     },
     {
+      key: 'showAudioWaveformInTimeline',
+      label: 'Show Audio Waveform',
+      description: 'Draws the audio waveform along the video editor timeline.',
+    },
+    {
+      key: 'showBookmarksInFullscreen',
+      label: 'Show Bookmarks in Fullscreen',
+      description: 'Shows bookmarks above the seek bar in the fullscreen video player.',
+    },
+    {
       key: 'showNewBadgeOnVideos',
       label: 'Show New Badge',
       description: (
@@ -63,11 +73,6 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
       description: 'Asks before videos, recovered recordings or game paths are deleted.',
     },
     {
-      key: 'showAudioWaveformInTimeline',
-      label: 'Show Audio Waveform',
-      description: 'Draws the audio waveform along the video editor timeline.',
-    },
-    {
       key: 'showClipToolsOnClips',
       label: 'Show Clip Tools on Clips and Highlights',
       description:
@@ -83,11 +88,6 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
           the video player to go to the previous or next video in the list.
         </>
       ),
-    },
-    {
-      key: 'showBookmarksInFullscreen',
-      label: 'Show Bookmarks in Fullscreen',
-      description: 'Shows bookmarks above the seek bar in the fullscreen video player.',
     },
   ];
 

@@ -519,7 +519,7 @@ export const initialSettings: Settings = {
   showGameBackground: true,
   showAudioWaveformInTimeline: true,
   showBookmarksInFullscreen: true,
-  showVideoNavigation: true,
+  showVideoNavigation: false,
   showClipToolsOnClips: false,
   showLiveSessionCard: true,
   enableSeparateAudioTracks: false,

@@ -156,17 +156,14 @@ export function AutoDeleteField(props: AutoDeleteProps) {
 export function AutoDeleteClipsToggle(props: AutoDeleteProps) {
   const { settings } = props;
   const apply = useApplyAutoDelete(props);
-  const enabled = settings.autoDeleteOldContent;
+  if (!settings.autoDeleteOldContent) return null;
 
   return (
-    <label
-      className={`flex items-center gap-3 p-3 bg-base-200 rounded-lg border border-base-400 ${enabled ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
-    >
+    <label className="flex items-center gap-3 p-3 bg-base-200 rounded-lg border border-base-400 cursor-pointer">
       <input
         type="checkbox"
         name="autoDeleteClipsAndHighlights"
         checked={settings.autoDeleteClipsAndHighlights}
-        disabled={!enabled}
         onChange={(e) =>
           apply(
             { includeClips: e.target.checked },

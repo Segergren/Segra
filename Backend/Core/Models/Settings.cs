@@ -102,7 +102,7 @@ namespace Segra.Backend.Core.Models
         private bool _showGameBackground = true;
         private bool _showAudioWaveformInTimeline = true;
         private bool _showBookmarksInFullscreen = true;
-        private bool _showVideoNavigation = true;
+        private bool _showVideoNavigation = false;
         private bool _showLiveSessionCard = true;
         private bool _enableSeparateAudioTracks = false;
         private AudioOutputMode _audioOutputMode = AudioOutputMode.All;
