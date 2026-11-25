@@ -120,7 +120,9 @@ jobs:
         shell: pwsh
         timeout-minutes: 5
         run: |
-          node ./.github/scripts/smoke-test-ui.mjs ./publish/Segra.exe ./smoke-test.png
+          # The workflow's own script, not the beta tag's, so smoke test fixes apply to older betas
+          git show ${{ github.sha }}:.github/scripts/smoke-test-ui.mjs | Set-Content ./smoke-test-ui.mjs
+          node ./smoke-test-ui.mjs ./publish/Segra.exe ./smoke-test.png
           $code = $LASTEXITCODE
           Copy-Item "$env:APPDATA/Segra/logs.log" ./segra.log -ErrorAction SilentlyContinue
           exit $code

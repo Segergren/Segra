@@ -131,9 +131,10 @@ try {
   await cdp.send('Network.enable');
   await cdp.send('Runtime.enable');
   await cdp.send('Page.enable');
-  // Reload so every request is observed from the start
+  // Navigate again so every request is observed from the start. Not Page.reload: if the first
+  // navigation hasn't committed yet, that reloads about:blank and cancels it.
   await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
-  await cdp.send('Page.reload', { ignoreCache: true });
+  await cdp.send('Page.navigate', { url: page.url });
 
   const menuCheck = `[...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Settings')`;
   // Stops early once an asset or script has failed, since the menu won't recover from that
