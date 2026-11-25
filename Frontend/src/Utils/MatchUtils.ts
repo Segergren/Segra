@@ -57,6 +57,12 @@ export const matchResultTextClass: Record<MatchResult, string> = {
   Draw: 'text-gray-300',
 };
 
+export const matchResultBgClass: Record<MatchResult, string> = {
+  Win: 'bg-success',
+  Loss: 'bg-error',
+  Draw: 'bg-gray-400',
+};
+
 // "13-7", or empty when the game has no score
 function formatMatchScore(match: Match): string {
   return match.score != null && match.opponentScore != null

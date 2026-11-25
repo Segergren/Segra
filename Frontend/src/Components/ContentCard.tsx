@@ -35,6 +35,7 @@ import {
   getMatchRecord,
   formatMatchStat,
   getMatchImage,
+  matchResultBgClass,
   matchResultTextClass,
 } from '../Utils/MatchUtils';
 
@@ -288,13 +289,15 @@ export default function ContentCard({
   const singleMatch = matches.length === 1 ? matches[0] : null;
   const singleMatchImage = singleMatch ? getMatchImage(content?.igdbId, singleMatch) : undefined;
   const singleMatchScore = singleMatch ? formatMatchStat(singleMatch) : '';
-  // A map picture sits above the result and a character avatar inline; without either the name is shown
+  const singleMatchHasTeamScore = singleMatch?.score != null && singleMatch?.opponentScore != null;
+  // A map picture sits above the result and a character avatar inline; the name only shows when nothing else does
   const singleMatchMapPicture =
     singleMatchImage && !singleMatchImage.square ? singleMatchImage : undefined;
   const singleMatchAvatar = singleMatchImage?.square ? singleMatchImage : undefined;
-  const singleMatchName = singleMatchImage
-    ? undefined
-    : (singleMatch?.map ?? singleMatch?.character);
+  const singleMatchName =
+    singleMatchImage || singleMatch?.result || singleMatchScore
+      ? undefined
+      : (singleMatch?.map ?? singleMatch?.character);
   const singleMatchHasRow =
     !!singleMatchAvatar || !!singleMatch?.result || !!singleMatchScore || !!singleMatchName;
   const matchRecord = getMatchRecord(matches);
@@ -630,49 +633,64 @@ export default function ContentCard({
           <MatchTooltip
             match={singleMatch}
             image={singleMatchImage}
-            className="absolute bottom-2 left-2 flex flex-col gap-0.5 p-0.5 max-w-[calc(100%-6rem)] bg-black/75 text-white text-xs rounded"
+            className={`absolute bottom-2 left-2 flex ${singleMatchAvatar ? 'flex-row' : 'flex-col'} max-w-[calc(100%-6rem)] overflow-hidden bg-black/75 text-white text-[13px] leading-4 rounded-[7px] border border-[#49515b]`}
           >
+            {singleMatchAvatar && (
+              <img
+                src={singleMatchAvatar.src}
+                alt=""
+                className="size-[26px] shrink-0 object-cover"
+                draggable={false}
+              />
+            )}
             {singleMatchMapPicture && (
               <img
                 src={singleMatchMapPicture.src}
                 alt=""
-                className="w-20 min-w-full aspect-video shrink-0 rounded-sm object-cover"
+                className="w-20 min-w-full aspect-video shrink-0 object-cover"
                 draggable={false}
               />
             )}
+            {singleMatchMapPicture && singleMatch.result && (
+              <div className={`h-0.5 shrink-0 ${matchResultBgClass[singleMatch.result]}`} />
+            )}
             {singleMatchHasRow && (
               <div
-                className={`flex gap-1.5 min-w-0 px-1.5 py-0.5 ${singleMatchAvatar ? 'items-center pl-0' : 'items-baseline justify-center'}`}
+                className={`flex gap-1.5 min-w-0 px-1.5 py-1 ${singleMatchAvatar ? 'items-center' : 'items-baseline justify-center'}`}
               >
-                {singleMatchAvatar && (
-                  <img
-                    src={singleMatchAvatar.src}
-                    alt=""
-                    className="h-5 w-5 -my-0.5 shrink-0 rounded-sm object-cover"
-                    draggable={false}
-                  />
-                )}
-                {singleMatch.result && (
+                {singleMatch.result && !singleMatchScore && (
                   <span
                     className={`shrink-0 font-bold uppercase tracking-wide ${matchResultTextClass[singleMatch.result]}`}
                   >
                     {singleMatch.result}
                   </span>
                 )}
-                {singleMatchScore && (
-                  <span className="shrink-0 font-bold tabular-nums">{singleMatchScore}</span>
+                {singleMatchHasTeamScore ? (
+                  <span className="shrink-0 font-bold tabular-nums">
+                    <span
+                      className={singleMatch.result ? matchResultTextClass[singleMatch.result] : ''}
+                    >
+                      {singleMatch.score}
+                    </span>
+                    <span className="text-gray-400">
+                      <span className="px-0.5">-</span>
+                      {singleMatch.opponentScore}
+                    </span>
+                  </span>
+                ) : (
+                  singleMatchScore && (
+                    <span className="shrink-0 font-bold tabular-nums">{singleMatchScore}</span>
+                  )
                 )}
                 {singleMatchName && (
-                  <>
-                    {(singleMatch.result || singleMatchScore) && (
-                      <span className="text-gray-400" aria-hidden="true">
-                        ·
-                      </span>
-                    )}
-                    <span className="truncate text-gray-300">{singleMatchName}</span>
-                  </>
+                  <span className="truncate text-gray-300">{singleMatchName}</span>
                 )}
               </div>
+            )}
+            {!singleMatchMapPicture && singleMatch.result && (
+              <div
+                className={`h-0.5 shrink-0 ${singleMatchAvatar ? 'absolute inset-x-0 bottom-0' : ''} ${matchResultBgClass[singleMatch.result]}`}
+              />
             )}
           </MatchTooltip>
         )}
