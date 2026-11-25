@@ -25,7 +25,6 @@ interface UpdateContextType {
   // False on Linux (Flatpak); defaults to true until the backend's AppVersion message arrives.
   canSelfUpdate: boolean;
   openReleaseNotesModal: (filterVersion?: string | null) => void;
-  openSegra2Intro: (previousVersion: string) => void;
   clearUpdateInfo: () => void;
   checkForUpdates: () => void;
 }
@@ -39,7 +38,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const { openModal, closeModal } = useModal();
   const versionCheckHandled = useRef(false);
   const versionModalShown = useRef(false);
-  const [openingFrom, setOpeningFrom] = useState<string | null>(null);
+  const [opening, setOpening] = useState<{ previous: string; current: string } | null>(null);
 
   // Mocked update info for testing purposes
   // Uncomment the following useEffect to use mocked data
@@ -88,15 +87,19 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
           versionCheckHandled.current = true;
           const previous = localStorage.getItem('loadedAppVersion');
           if (previous !== backendVersion) {
-            localStorage.setItem('loadedAppVersion', backendVersion);
-            if (previous && /^\d+\.\d+/.test(previous)) {
-              versionModalShown.current = true;
-              const major = (version: string) => parseInt(version, 10);
-              if (major(previous) < 2 && major(backendVersion) >= 2) {
-                openSegra2Intro(previous);
-              } else {
-                openReleaseNotesModal(previous);
-              }
+            const isUpdate = !!previous && /^\d+\.\d+/.test(previous);
+            const major = (version: string) => parseInt(version, 10);
+            const fromOne = isUpdate && major(previous) < 2 && major(backendVersion) >= 2;
+            // Beta testers see it once when they reach the final 2.0.0
+            const fromBeta =
+              isUpdate && previous.startsWith('2.0.0-') && !backendVersion.includes('-');
+            if (isUpdate) versionModalShown.current = true;
+            if (fromOne || fromBeta) {
+              // Saved once the intro is closed, so quitting during it shows it again next launch
+              setOpening({ previous, current: backendVersion });
+            } else {
+              localStorage.setItem('loadedAppVersion', backendVersion);
+              if (isUpdate) openReleaseNotesModal(previous);
             }
           }
         }
@@ -143,17 +146,18 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // The logo opening plays first and opens the modal once the screen is covered
-  const openSegra2Intro = (previousVersion: string) => setOpeningFrom(previousVersion);
-
-  const showSegra2IntroModal = (previousVersion: string) => {
+  // Opened by the logo opening once the screen is covered
+  const showSegra2IntroModal = (previousVersion: string, currentVersion: string) => {
     openModal(
       <Segra2IntroModal
         previousVersion={previousVersion}
         onClose={closeModal}
         onShowReleaseNotes={() => openReleaseNotesModal(previousVersion)}
       />,
-      { size: '2xl' },
+      {
+        size: '2xl',
+        onDismiss: () => localStorage.setItem('loadedAppVersion', currentVersion),
+      },
     );
   };
 
@@ -164,16 +168,15 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
         releaseNotes,
         canSelfUpdate,
         openReleaseNotesModal,
-        openSegra2Intro,
         clearUpdateInfo,
         checkForUpdates,
       }}
     >
       {children}
-      {openingFrom && (
+      {opening && (
         <Segra2Opening
-          onReveal={() => showSegra2IntroModal(openingFrom)}
-          onDone={() => setOpeningFrom(null)}
+          onReveal={() => showSegra2IntroModal(opening.previous, opening.current)}
+          onDone={() => setOpening(null)}
         />
       )}
     </UpdateContext.Provider>

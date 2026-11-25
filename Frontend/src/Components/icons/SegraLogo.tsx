@@ -6,7 +6,7 @@ const MARK =
 
 export function SegraLogo(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 1000 1000" aria-hidden="true" {...props}>
+    <svg viewBox="0 0 1000 1000" shapeRendering="geometricPrecision" aria-hidden="true" {...props}>
       <circle cx="500" cy="500" r="499" fill="#fecb00" />
       <path fill="#1a1f29" fillRule="evenodd" d={MARK} />
     </svg>

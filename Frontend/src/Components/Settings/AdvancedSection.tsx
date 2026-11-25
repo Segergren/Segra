@@ -7,7 +7,6 @@ import { Settings as SettingsType } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import Button from '../Button';
 import { useAppState } from '../../Context/AppStateContext';
-import { useUpdate } from '../../Context/UpdateContext';
 
 interface AdvancedSectionProps {
   settings: SettingsType;
@@ -26,7 +25,6 @@ export default function AdvancedSection({
   canSelfUpdate,
 }: AdvancedSectionProps) {
   const appState = useAppState();
-  const { openSegra2Intro } = useUpdate();
   const rowRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLSpanElement>(null);
   const [flyDistance, setFlyDistance] = useState(240);
@@ -201,12 +199,6 @@ export default function AdvancedSection({
               <FileText className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span className="leading-none">Logs</span>
             </Button>
-            {/* Local builds only, for testing the upgrade intro */}
-            {__APP_VERSION__ === 'Developer Preview' && (
-              <Button variant="primary" size="sm" onClick={() => openSegra2Intro('1.9.8')}>
-                <span className="leading-none">Test 2.0 intro</span>
-              </Button>
-            )}
           </div>
           <div>
             Segra{' '}

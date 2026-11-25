@@ -12,10 +12,11 @@ interface Segra2OpeningProps {
 type Phase = 'intro' | 'zoom' | 'reveal';
 
 const WORD = 'Segra';
-const ZOOM_AT = 3000;
-const REVEAL_AT = 3900;
-const DONE_AT = 4500;
-const EASE_OUT = [0.16, 1, 0.3, 1] as const;
+const ZOOM_AT = 3500;
+const REVEAL_AT = 4750;
+const DONE_AT = 5650;
+const EASE_OUT = [0.22, 1, 0.36, 1] as const;
+const EASE_IN = [0.55, 0, 0.75, 0.2] as const;
 
 // A point inside the S's middle stroke, so zooming in lands on dark
 const ZOOM_ORIGIN = '50% 45.5%';
@@ -66,27 +67,24 @@ export default function Segra2Opening({ onReveal, onDone }: Segra2OpeningProps) 
 
   return createPortal(
     <motion.div
-      className="fixed inset-0 z-[2147483000] flex cursor-pointer select-none items-center justify-center overflow-hidden"
-      style={{
-        background: 'radial-gradient(circle at 50% 42%, #1d3a4e 0%, #132733 38%, #0a1219 100%)',
-      }}
+      className="fixed inset-0 z-[2147483000] flex cursor-pointer select-none items-center justify-center overflow-hidden bg-base-100"
       initial={{ opacity: 0 }}
       animate={{ opacity: phase === 'reveal' ? 0 : 1 }}
-      transition={{ duration: phase === 'reveal' ? 0.6 : 0.4, ease: 'easeOut' }}
+      transition={{ duration: phase === 'reveal' ? 0.9 : 0.6, ease: 'easeInOut' }}
       onClick={finish}
     >
       <div className="flex flex-col items-center gap-7">
         <motion.div
           className="size-36"
           style={{ transformOrigin: ZOOM_ORIGIN }}
-          initial={{ opacity: 0, scale: 0.6, rotate: -120 }}
+          initial={{ opacity: 0, scale: 0.75, rotate: -90 }}
           animate={
             zooming ? { opacity: 1, scale: 90, rotate: 0 } : { opacity: 1, scale: 1, rotate: 0 }
           }
           transition={
             zooming
-              ? { duration: 0.9, ease: [0.7, 0, 0.84, 0] }
-              : { duration: 0.9, ease: EASE_OUT, delay: 0.2 }
+              ? { duration: 1.2, ease: EASE_IN }
+              : { duration: 1.4, ease: EASE_OUT, delay: 0.25 }
           }
         >
           <SegraLogo className="size-full" />
@@ -94,16 +92,16 @@ export default function Segra2Opening({ onReveal, onDone }: Segra2OpeningProps) 
 
         <motion.div
           className="flex items-baseline gap-3 text-5xl font-bold"
-          animate={zooming ? { opacity: 0, filter: 'blur(10px)' } : { opacity: 1 }}
-          transition={{ duration: 0.25 }}
+          animate={zooming ? { opacity: 0, filter: 'blur(8px)' } : { opacity: 1 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
         >
           <span className="flex text-white">
             {WORD.split('').map((letter, i) => (
               <motion.span
                 key={i}
-                initial={{ opacity: 0, y: 16, scale: 1.4, filter: 'blur(14px)' }}
+                initial={{ opacity: 0, y: 10, scale: 1.2, filter: 'blur(10px)' }}
                 animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-                transition={{ duration: 0.6, ease: EASE_OUT, delay: 1.0 + i * 0.07 }}
+                transition={{ duration: 1.0, ease: EASE_OUT, delay: 1.1 + i * 0.09 }}
               >
                 {letter}
               </motion.span>
@@ -111,9 +109,9 @@ export default function Segra2Opening({ onReveal, onDone }: Segra2OpeningProps) 
           </span>
           <motion.span
             className="text-primary"
-            initial={{ opacity: 0, letterSpacing: '0.5em', filter: 'blur(14px)' }}
+            initial={{ opacity: 0, letterSpacing: '0.4em', filter: 'blur(10px)' }}
             animate={{ opacity: 1, letterSpacing: '0em', filter: 'blur(0px)' }}
-            transition={{ duration: 0.8, ease: EASE_OUT, delay: 1.7 }}
+            transition={{ duration: 1.1, ease: EASE_OUT, delay: 1.85 }}
           >
             2.0
           </motion.span>
@@ -125,7 +123,7 @@ export default function Segra2Opening({ onReveal, onDone }: Segra2OpeningProps) 
         className="pointer-events-none absolute inset-0 bg-[#1a1f29]"
         initial={{ opacity: 0 }}
         animate={{ opacity: zooming ? 1 : 0 }}
-        transition={{ duration: 0.35, delay: zooming ? 0.55 : 0 }}
+        transition={{ duration: 0.5, ease: 'easeIn', delay: zooming ? 0.7 : 0 }}
       />
     </motion.div>,
     document.body,
