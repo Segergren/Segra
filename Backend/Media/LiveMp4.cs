@@ -208,14 +208,30 @@ namespace Segra.Backend.Media
 
         private static byte[] Serialize(Box box)
         {
-            byte[] payload = box.Children != null
-                ? box.Children.SelectMany(Serialize).ToArray()
-                : box.Data ?? [];
-            byte[] bytes = new byte[8 + payload.Length];
-            BinaryPrimitives.WriteUInt32BigEndian(bytes, (uint)bytes.Length);
-            Encoding.ASCII.GetBytes(box.Type).CopyTo(bytes, 4);
-            payload.CopyTo(bytes, 8);
+            byte[] bytes = new byte[SerializedSize(box)];
+            WriteBox(box, bytes);
             return bytes;
+        }
+
+        private static int SerializedSize(Box box) =>
+            8 + (box.Children?.Sum(SerializedSize) ?? box.Data?.Length ?? 0);
+
+        private static int WriteBox(Box box, Span<byte> target)
+        {
+            int size = 8;
+            if (box.Children != null)
+            {
+                foreach (var child in box.Children)
+                    size += WriteBox(child, target[size..]);
+            }
+            else if (box.Data != null)
+            {
+                box.Data.CopyTo(target[size..]);
+                size += box.Data.Length;
+            }
+            BinaryPrimitives.WriteUInt32BigEndian(target, (uint)size);
+            Encoding.ASCII.GetBytes(box.Type, target.Slice(4, 4));
+            return size;
         }
 
         private static uint U32(byte[] d, int o) => BinaryPrimitives.ReadUInt32BigEndian(d.AsSpan(o));

@@ -640,14 +640,33 @@ namespace Segra.Backend.Media
 
         private static byte[] Serialize(Box box)
         {
-            byte[] payload = box.Children != null
-                ? box.Children.SelectMany(Serialize).ToArray()
-                : box.Payload!;
-            byte[] data = new byte[8 + payload.Length];
-            BinaryPrimitives.WriteUInt32BigEndian(data, (uint)data.Length);
-            Encoding.Latin1.GetBytes(box.Type, data.AsSpan(4, 4));
-            payload.CopyTo(data, 8);
+            byte[] data = new byte[SerializedSize(box)];
+            WriteBox(box, data);
             return data;
+        }
+
+        private static int SerializedSize(Box box) =>
+            8 + (box.Children?.Sum(SerializedSize) ?? box.Payload!.Length);
+
+        private static int WriteBox(Box box, Span<byte> target)
+        {
+            int size = 8;
+            if (box.Children != null)
+            {
+                foreach (var child in box.Children)
+                {
+                    size += WriteBox(child, target[size..]);
+                }
+            }
+            else
+            {
+                byte[] payload = box.Payload!;
+                payload.CopyTo(target[size..]);
+                size += payload.Length;
+            }
+            BinaryPrimitives.WriteUInt32BigEndian(target, (uint)size);
+            Encoding.Latin1.GetBytes(box.Type, target.Slice(4, 4));
+            return size;
         }
 
         private static string? FindSegraJson(List<Box> moov)

@@ -45,6 +45,7 @@ namespace Segra.Backend.Games.RainbowSixSiege
     internal class ReplayReader
     {
         public const int MinCodeVersion = 9883691;
+        private const ulong MaxPresize = 512 * 1024 * 1024;
 
         private static readonly byte[] ZstdMagic = [0x28, 0xB5, 0x2F, 0xFD];
         private static readonly byte[] TimePattern = [0x1F, 0x07, 0xEF, 0xC9];
@@ -159,7 +160,8 @@ namespace Segra.Backend.Games.RainbowSixSiege
 
         private unsafe void Decompress()
         {
-            using var output = new MemoryStream();
+            var frames = new List<(int Start, int Size)>();
+            ulong total = 0;
             while (true)
             {
                 var index = data.AsSpan(offset).IndexOf(ZstdMagic);
@@ -168,8 +170,12 @@ namespace Segra.Backend.Games.RainbowSixSiege
 
                 var start = offset + index;
                 nuint size;
+                ulong contentSize;
                 fixed (byte* p = &data[start])
+                {
                     size = Methods.ZSTD_findFrameCompressedSize(p, (nuint)(data.Length - start));
+                    contentSize = Methods.ZSTD_getFrameContentSize(p, (nuint)(data.Length - start));
+                }
 
                 if (Methods.ZSTD_isError(size))
                 {
@@ -177,12 +183,22 @@ namespace Segra.Backend.Games.RainbowSixSiege
                     continue;
                 }
 
-                using var stream = new DecompressionStream(new MemoryStream(data, start, (int)size));
-                stream.CopyTo(output);
+                frames.Add((start, (int)size));
+                // The two highest values mean unknown and error
+                if (contentSize < ulong.MaxValue - 1 && total <= MaxPresize)
+                    total += contentSize;
                 offset = start + (int)size;
             }
 
-            data = output.ToArray();
+            // Sized up front so the stream never regrows and its buffer can be used as is
+            using var output = new MemoryStream(total <= MaxPresize ? (int)total : 0);
+            foreach (var (start, size) in frames)
+            {
+                using var stream = new DecompressionStream(new MemoryStream(data, start, size));
+                stream.CopyTo(output);
+            }
+
+            data = output.Length == output.Capacity ? output.GetBuffer() : output.ToArray();
             offset = 0;
         }
 
