@@ -109,6 +109,8 @@
     <Compile Remove="Backend\Games\OcrIntegration.cs" />
     <Compile Remove="Backend\Games\GrandTheftAuto\GtaIntegration.cs" />
     <Compile Remove="Backend\Games\RocketLeague\RocketLeagueIntegration.cs" />
+    <Compile Remove="Backend\Games\SteamTimelineReader.cs" />
+    <Compile Remove="Backend\Games\SteamTimelineIntegration.cs" />
     <Compile Remove="Backend\Games\Wardogs\WardogsIntegration.cs" />
     <Compile Remove="Backend\Games\Deadlock\DeadlockIntegration.cs" />
     <Compile Remove="Backend\Games\Battlefield6\Battlefield6Integration.cs" />

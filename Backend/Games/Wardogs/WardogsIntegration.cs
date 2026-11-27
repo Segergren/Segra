@@ -2,24 +2,29 @@ using Segra.Backend.Core.Models;
 
 namespace Segra.Backend.Games.Wardogs
 {
-    internal class WardogsIntegration : OcrIntegration
+    /// <summary>
+    /// Bookmarks kills, assists and deaths from the markers WARDOGS sends to the Steam timeline since 0.3.0:
+    /// <list type="bullet">
+    /// <item>"Killed" (wd-kill), described by weapon and distance.</item>
+    /// <item>"Double Kill" and "Triple Kill" (wd-kill), in place of the "Killed" markers of those kills.</item>
+    /// <item>"Kill Assist" (wd-assist).</item>
+    /// <item>"Killed by" (wd-killed), described by weapon.</item>
+    /// <item>"Revived" (wd-respawn), not bookmarked.</item>
+    /// </list>
+    /// Events are told apart by icon, the titles are display text.
+    ///
+    /// The timeline arrives when the game closes, so the bookmarks are added at that point.
+    /// </summary>
+    internal class WardogsIntegration : SteamTimelineIntegration
     {
-        protected override OcrConfig GetConfig() => new()
+        protected override string LogPrefix => "WARDOGS";
+
+        protected override BookmarkType? GetBookmarkType(SteamTimelineEvent timelineEvent) => timelineEvent.Icon switch
         {
-            LogPrefix = "WARDOGS",
-            // Wide enough for 16:10, where the centered prompts spread further across the width
-            CropRegion = new CropRegion(X: 0.36, Y: 0.68, Width: 0.28, Height: 0.25),
-            Keywords =
-            [
-                // Downed prompt, stays up until revive or respawn
-                new() { Text = "CALL FOR HELP", BookmarkType = BookmarkType.Death,
-                        Cooldown = TimeSpan.FromSeconds(15), ExtendCooldownWhileVisible = true },
-                // "KILL CONFIRMED", but "KILL" is often misread at 720p
-                new() { Text = "CONFIRMED", BookmarkType = BookmarkType.Kill,
-                        ExcludeFragments = ["ASSIST"] },
-            ],
-            // Binarizing breaks the small prompt text below 1440p
-            Threshold = 0,
+            "wd-kill" => BookmarkType.Kill,
+            "wd-assist" => BookmarkType.Assist,
+            "wd-killed" => BookmarkType.Death,
+            _ => null,
         };
     }
 }
