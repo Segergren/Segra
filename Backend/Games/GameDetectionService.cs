@@ -448,10 +448,16 @@ namespace Segra.Backend.Games
 
                 // Capture once: teardown can null PreRecording on another thread between the check and the dereference.
                 var preRecording = AppState.Instance.PreRecording;
-                if (preRecording != null && GameUtils.IsGameExePath(exePath))
+                if (preRecording != null && GameUtils.IsGameExePath(exePath)
+                    && GameSettingsService.FindForExePath(exePath)?.Record != false)
                 {
-                    preRecording.Exe = exePath;
-                    OBSService.UpdateGameCaptureWindow(exePath);
+                    // A pending catalog game only hands off to its own executables.
+                    var pendingEntry = GameUtils.ResolveEntryFromExePath(preRecording.Exe ?? "");
+                    if (pendingEntry == null || pendingEntry == GameUtils.ResolveEntryFromExePath(exePath))
+                    {
+                        preRecording.Exe = exePath;
+                        OBSService.UpdateGameCaptureWindow(exePath);
+                    }
                 }
 
                 if (ShouldRecordGame(exePath))
